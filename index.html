@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫剧创作工作台</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding:  0 16px;
+            font-family: "Microsoft YaHei", system-ui, sans-serif;
+            background-color: #f8fafc;
+        }
+        .wrap {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow:  0  2px  12px #00000014;
+        }
+        h2 {
+            margin-bottom: 16px;
+            color: #1e293b;
+        }
+        .btn-group {
+            margin-bottom: 12px;
+        }
+        .skill-btn {
+            padding:  9px  16px;
+            margin:  4px;
+            border: none;
+            border-radius:  8px;
+            background-color: #2563eb;
+            color: #fff;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0..2s;
+        }
+        .skill-btn:hover {
+            background-color: #1d4ed8;
+        }
+        .status {
+            padding: 10px 12px;
+            border-radius:  8px;
+            background-color: #f1f5f9;
+            margin-bottom: 14px;
+            min-height: 44px;
+        }
+        #chatBox {
+            border:  1px solid #e2e8f0;
+            padding: 14px;
+            border-radius:  8px;
+            height:  360px;
+            overflow-y: auto;
+            background-color: #ffffff;
+            margin-bottom: 14px;
+        }
+        .msg {
+            margin:  8px  0;
+            line-height:  1.6;
+            white-space: pre-wrap;
+        }
+        .user {
+            color: #2563eb;
+        }
+        .ai {
+            color: #0f172a;
+        }
+        .tip {
+            color: #64748b;
+        }
+        .err {
+            color: #dc2626;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+        #userInput {
+            flex: 1;
+            padding:  10px  12px;
+            border:  1px solid #cbd5e1;
+            border-radius:  8px;
+            font-size: 15px;
+        }
+        #sendBtn {
+            padding:  0  20px;
+            border: none;
+            border-radius:  8px;
+            background-color: #10b981;
+            color: white;
+            cursor: pointer;
+        }
+        #sendBtn:hover {
+            background-color: #059669;
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h2>漫剧创作工作台</h2>
+    <div class="btn-group">
+        <button class="skill-btn" onclick="loadSkill('a')">A｜漫剧剧本写作</button>
+        <button class="skill-btn" onclick="loadSkill('b')">B｜导演分镜转换</button>
+        <button class="skill-btn" onclick="loadSkill('c')">C｜美术提示词生成</button>
+    </div>
+    <div class=" status" id="skillStatus">📌 当前：尚未加载任何技能模板，请点击上方按钮</div>
+    <div id="chatBox"></div>
+    <div class="input-row">
+        <input id="userInput" placeholder="输入创作需求，例如：写一集短篇漫剧剧本">
+        <button id="sendBtn" onclick="sendMessage()">发送</button>
+    </div>
+</div>
+
+<script>
+    // ========================【这里是你的配置区域，务必修改！！】========================
+    const SKILL_API_BASE = "https://你的-cloudflare隧道域名/api/get-skill";
+    const SKILL_TOKEN = "CU001-ABC123";
+    const LOCAL_LLAMA_URL = "http://127.0.0.1:8080/v1/chat/completions";
+    const DEFAULT_TEMP = 0.7;
+    // ==============================================================================
+
+    let systemPrompt = "";
+    let chatBox = document.getElementById("chatBox");
+    let skillStatusEl = document.getElementById("skillStatus");
+
+    function append(text, type = "tip") {
+        let div = document.createElement("div");
+        div.className = `msg ${type}`;
+        div.innerText = text;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function loadSkill(type) {
+        append(`正在请求加载技能：${type} ...`, "tip");
+        try {
+            const res = await fetch(`${SKILL_API_BASE}?token=${SKILL_TOKEN}&type=${type}`);
+            if (!res.ok) {
+                append("❌ 技能接口返回错误，请检查token、IP白名单或者隧道服务", "err");
+                return;
+            }
+            systemPrompt = await res.text();
+            let nameMap = { a: "剧本写作", b: "导演分镜", c: "美术提示词" };
+            skillStatusEl.innerText = `✅ 已加载技能【${nameMap[type]}】，可以开始创作`;
+            append(`✅ 技能 ${type} 加载成功，规则已载入对话上下文`, "tip");
+        } catch (err) {
+            console.error(err);
+            append("⚠️  连接技能服务器失败：网络不通、隧道未启动", "err");
+        }
+    }
+
+    async function sendMessage() {
+        let content = document.getElementById("userInput").value.trim();
+        if (!content) {
+            alert("请输入创作需求");
+            return;
+        }
+        if (!systemPrompt) {
+            alert("请先点击上方按钮加载一套技能模板！");
+            return;
+        }
+        append(`【用户】：${content}`, "user");
+        document.getElementById("userInput").value = "";
+        append("【AI正在生成，请稍等...】", "tip");
+
+        try {
+            const response = await fetch(LOCAL_LLAMA_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: content }
+                    ],
+                    temperature: DEFAULT_TEMP
+                })
+            });
+            if (!response.ok) {
+                append("❌ 请求本地 llama-server 失败，请确认 llama-server 已经打开", "err");
+                return;
+            }
+            let json = await response.json();
+            // 移除“生成中”提示
+            chatBox.removeChild(chatBox.lastChild);
+            let reply = json.choices[0].message.content;
+            append(`【AI】：${reply}`, "ai");
+        } catch (e) {
+            console.error(e);
+            chatBox.removeChild(chatBox.lastChild);
+            append("❌ 无法访问本地 llama-server，请确认：\n1. llama-server 已启动\n2. 启动参数带 --cors-allow-origin *", "err");
+        }
+    }
+</script>
+</body>
+</html>
