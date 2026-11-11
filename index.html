@@ -58,9 +58,7 @@
         }
         .clear-btn { background-color: #991b1b; color: #fff; }
         .clear-btn:hover { background-color: #b91c1c; }
-        .pause-btn { background-color: #d97706; color: #fff; }
         .stop-btn { background-color: #dc2626; color: #fff; }
-        .copy-btn { background-color: #7c3aed; color: #fff; }
         .download-btn { background-color: #0891b2; color: #fff; }
         .newtab-btn { background-color: #16a34a; color: white; }
         .clear-history-btn{ background-color:#92400e; color:#fff; }
@@ -95,8 +93,7 @@
         .help-modal-content p{ margin:6px 0; }
         .help-modal-content pre{ background:#0f1117; padding:10px; border-radius:6px; overflow-x:auto; margin:8px 0; }
         .help-modal-content ul, .help-modal-content ol{ padding-left:22px; margin:8px 0; }
-
-        /* 展开收起样式 */
+         /* 展开收起样式 */
         .param-content {
             transition: all 0.25s ease;
             overflow: hidden;
@@ -108,8 +105,7 @@
         .toggle-param-btn {
             padding:3px 8px;font-size:12px;border:none;border-radius:6px;background:#2f3440;color:#fff;cursor:pointer;
         }
-
-        @media (max-width: 720px) {
+         @media (max-width: 720px) {
             .wrap { padding:12px; gap:12px; }
             .input-row { flex-wrap:wrap; align-items:stretch; }
             .input-row button { flex:1; }
@@ -215,7 +211,6 @@
         <div id="fileList"></div>
     </div>
     <div class="control-row-top">
-        <button class="ctrl-btn copy-btn" id="copyAiBtn">复制AI剧本</button>
         <button class="ctrl-btn download-btn" id="downloadAiBtn">下载剧本 TXT</button>
         <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
         <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
@@ -225,7 +220,6 @@
     <div class="status" id="skillStatus">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
     <div id="chatBox"></div>
     <div class="input-row">
-        <button class="ctrl-btn pause-btn" id="pauseBtn">暂停</button>
         <button class="ctrl-btn stop-btn" id="stopBtn">停止生成</button>
         <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
         <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
@@ -270,7 +264,6 @@ let fileStore = [];
 let currentSystemPrompt = "";
 let currentSkillName = "";
 let abortController = null;
-let isPaused = false;
 let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
@@ -279,7 +272,6 @@ let customSkillList = [];
 
 const chatBox = document.getElementById("chatBox");
 const skillStatusEl = document.getElementById("skillStatus");
-const pauseBtn = document.getElementById("pauseBtn");
 const tempSlider = document.getElementById("tempSlider");
 const tempInput = document.getElementById("tempInput");
 const topPSlider = document.getElementById("topPSlider");
@@ -301,7 +293,6 @@ const openHelpBtn = document.getElementById("openHelpBtn");
 const closeHelpBtn = document.getElementById("closeHelpBtn");
 const closePreviewBtn = document.getElementById("closePreviewBtn");
 const sendMsgBtn = document.getElementById("sendMsgBtn");
-const copyAiBtn = document.getElementById("copyAiBtn");
 const downloadAiBtn = document.getElementById("downloadAiBtn");
 const loadHistoryBtn = document.getElementById("loadHistoryBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
@@ -340,8 +331,7 @@ const HELP_HTML = `
 
 <h3>步骤3：开启OpenAI兼容接口，端口8080</h3>
 <p>设置系统环境变量：</p>
-<pre>OLLAMA_HOST=127.0.0.1
-OLLAMA_PORT=8080</pre>
+<pre>OLLAMA_HOST=127.0.0.1 OLLAMA_PORT=8080</pre>
 <p>重启 Ollama 服务，浏览器访问验证：</p>
 <pre>http://127.0.0.1:8080/v1/models</pre>
 <p>能返回模型JSON，代表服务启动成功。</p>
@@ -398,7 +388,7 @@ OLLAMA_PORT=8080</pre>
 <li>选择算力模式（本地 / API云算力）；</li>
 <li>可上传剧本 txt/docx 文件并勾选，会一并喂给AI；</li>
 <li>输入创作指令，点击开始生成；</li>
-<li>支持复制、下载剧本，本地保存对话历史。</li>
+<li>支持下载剧本，本地保存对话历史。</li>
 </ol>
 
 <h2>四、导入本地md自定义技能</h2>
@@ -412,8 +402,13 @@ OLLAMA_PORT=8080</pre>
 </ul>
 `;
 
-function openHelpModal(){ helpContent.innerHTML = HELP_HTML; helpModal.style.display = "flex"; }
-function closeHelpModal(){ helpModal.style.display = "none"; }
+function openHelpModal(){
+    helpContent.innerHTML = HELP_HTML;
+    helpModal.style.display = "flex";
+}
+function closeHelpModal(){
+    helpModal.style.display = "none";
+}
 
 tempSlider.oninput = () => tempInput.value = tempSlider.value;
 tempInput.onchange = () => tempSlider.value = tempInput.value;
@@ -562,27 +557,12 @@ function append(text, type = "tip") {
     return div;
 }
 
-function togglePause() {
-    isPaused = !isPaused;
-    pauseBtn.innerText = isPaused ? "继续" : "暂停";
-    if(!isPaused && aiMsgDom && pendingText){
-        aiMsgDom.innerText += pendingText;
-        fullAiText += pendingText;
-        pendingText = "";
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-}
 function stopGenerate() {
     if (abortController) {
         abortController.abort();
         abortController = null;
         append("⚠️ 已停止生成", "tip");
     }
-}
-async function copyAiText() {
-    if (!fullAiText) { alert("还没有 AI 输出内容！"); return; }
-    try { await navigator.clipboard.writeText(fullAiText); alert("✅ 剧本已复制到剪贴板！"); }
-    catch (err) { console.error(err); alert("复制失败"); }
 }
 function downloadAiText() {
     if (!fullAiText) { alert("还没有 AI 输出内容！"); return; }
@@ -689,8 +669,6 @@ function unloadSkill() {
     aiMsgDom = null;
     pendingText = "";
     fullAiText = "";
-    isPaused = false;
-    pauseBtn.innerText = "暂停";
     skillStatusEl.innerText = "📌 当前：尚未加载任何技能模板，请点击上方按钮";
     append("🗑️ 技能已清空", "tip");
 }
@@ -733,8 +711,6 @@ function clearAllHistory(){
 
 async function sendMessage() {
     stopGenerate();
-    isPaused = false;
-    pauseBtn.innerText = "暂停";
     pendingText = "";
     fullAiText = "";
     const userCmd = userInput.value.trim();
@@ -818,17 +794,13 @@ async function sendMessage() {
                     const json = JSON.parse(payload);
                     const delta = json.choices?.[0]?.delta?.content || json.choices?.[0]?.delta?.text || "";
                     if(delta){
-                        if(isPaused) pendingText += delta;
-                        else {
-                            aiMsgDom.innerText += delta;
-                            fullAiText += delta;
-                            chatBox.scrollTop = chatBox.scrollHeight;
-                        }
+                        aiMsgDom.innerText += delta;
+                        fullAiText += delta;
+                        chatBox.scrollTop = chatBox.scrollHeight;
                     }
                 }catch(e){ /*忽略单行json解析异常*/ }
             }
         }
-        if(pendingText){ aiMsgDom.innerText += pendingText; fullAiText += pendingText; pendingText = ""; }
         append("✅ 生成完毕", "tip");
         saveHistoryToLocal();
     } catch (e) {
@@ -863,10 +835,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
     openHelpBtn.addEventListener("click", openHelpModal);
     closeHelpBtn.addEventListener("click", closeHelpModal);
     closePreviewBtn.addEventListener("click", closePreview);
-    pauseBtn.addEventListener("click", togglePause);
     stopBtn.addEventListener("click", stopGenerate);
     sendMsgBtn.addEventListener("click", sendMessage);
-    copyAiBtn.addEventListener("click", copyAiText);
     downloadAiBtn.addEventListener("click", downloadAiText);
     loadHistoryBtn.addEventListener("click", loadLatestHistory);
     clearHistoryBtn.addEventListener("click", clearAllHistory);
