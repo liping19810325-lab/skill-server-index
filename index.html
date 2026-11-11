@@ -6,126 +6,188 @@
     <title>漫流 Manflows - AI漫剧前期创作台</title>
     <link rel="icon" type="image/png" href="./logo.png">
     <style>
+        /* ===== 与 canvas.html 共用的视觉体系：同一色板、同一字体族、扁平无阴影 ===== */
+        :root{
+            --bg:#0f1117; --card:#171a23; --panel:#1f232e; --border:#242834; --border2:#2f3440;
+            --text:#e5e7eb; --muted:#9ca3af; --blue:#2563eb; --green:#059669;
+            --purple:#7c3aed; --cyan:#0891b2; --red:#dc2626; --amber:#d97706;
+            --hover:#2b3241; --font-sans:"Microsoft YaHei", system-ui, -apple-system, sans-serif;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { height: 100%; background-color: #0f1117; color: #e5e7eb; font-family: "Microsoft YaHei", system-ui, -apple-system, sans-serif; }
+        html, body { height: 100%; background-color: var(--bg); color: var(--text); font-family: var(--font-sans); }
+        /* 表单控件默认不继承字体，显式统一后两页中英文混排完全一致 */
+        button, input, textarea, select { font-family: inherit; }
 
         /* ===== 两栏骨架：左配置栏独立滚动，右输出区独占整屏高度 ===== */
-        .wrap { max-width: 1680px; width: 100%; height: 100%; margin: 0 auto; display: flex; flex-direction: row; padding: 14px; gap: 14px; }
+        /* 与画布页一致：不设最大宽度，随窗口横向铺满；超宽屏下吐字窗口可一屏看到更多内容 */
+        .wrap { width: 100%; max-width: none; height: 100%; margin: 0 auto; display: flex; flex-direction: row; padding: 14px; gap: 14px; }
         .side { width: 340px; flex: 0 0 340px; min-width: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; overflow-x: hidden; padding-right: 4px;
                 transition: width .25s ease, flex-basis .25s ease, opacity .2s ease; }
         .side::-webkit-scrollbar { width: 6px; }
-        .side::-webkit-scrollbar-thumb { background: #2f3440; border-radius: 3px; }
+        .side::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
         .side.collapsed { width: 0; flex-basis: 0; padding-right: 0; opacity: 0; overflow: hidden; }
         .main { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; }
 
         .header-bar { display: flex; align-items: center; gap: 12px; padding: 2px 2px 2px; flex-shrink: 0; }
+        /* 左上角 LOGO = 主站入口，新标签页打开，不打断当前创作 */
+        .logo-link { display: inline-flex; align-items: center; flex-shrink: 0; text-decoration: none; border-radius: 8px; transition: opacity .15s ease; }
+        .logo-link:hover { opacity: .85; }
+        .logo-link:focus-visible, .home-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
         /* logo 与 index.html 同在 GitHub 仓库根目录，部署后由 ./logo.png 显示真图 */
-        .logo-img { height: 48px; object-fit: contain; }
+        .logo-img { height: 40px; object-fit: contain; }
         /* 单文件本地预览时若同目录没有 logo.png，用文字标兜底，不出现破图 */
         .logo-fallback { display: none; align-items: center; justify-content: center; flex-direction: column;
-                         width: 52px; height: 48px; flex-shrink: 0; border-radius: 8px;
-                         background: #1f232e; border: 1px solid #3a4150; color: #e5e7eb;
-                         font-size: 13px; font-weight: 700; line-height: 1.25; letter-spacing: .5px; }
-        .logo-fallback small { font-size: 7px; font-weight: 500; color: #9ca3af; letter-spacing: 1px; }
-        .header-title h1 { font-size: 17px; color: #ffffff; font-weight: 600; line-height: 1.3; }
-        .header-title p { font-size: 10.5px; color: #9ca3af; line-height: 1.5; }
+                         width: 48px; height: 40px; flex-shrink: 0; border-radius: 8px;
+                         background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+                         font-size: 12px; font-weight: 600; line-height: 1.25; letter-spacing: .5px; }
+        .logo-fallback small { font-size: 7px; font-weight: 400; color: var(--muted); letter-spacing: 1px; }
+        .header-title h1 { font-size: 15px; color: #fff; font-weight: 600; line-height: 1.3; }
+        .header-title p { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
 
-        .card { background: #171a23; border-radius: 12px; padding: 11px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid #242834; flex-shrink: 0; }
+        .card { background: var(--card); border-radius: 12px; padding: 11px 12px; border: 1px solid var(--border); flex-shrink: 0; }
         .card-title { font-size: 13px; color: #cbd5e1; margin-bottom: 9px; font-weight: 500; }
         .btn-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         .param-panel .param-item { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; margin: 7px 0; }
         .param-item label { font-size: 12px; color: #d1d5db; line-height: 1.5; }
         .param-note { font-size: 11px; color: #6b7280; margin-top: 6px; line-height: 1.5; }
-        .api-config-block { margin: 10px 0; padding: 10px; background: #1f232e; border-radius: 8px; display: none; }
+        .api-config-block { margin: 10px 0; padding: 10px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; display: none; }
         .api-row { margin: 7px 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
         .api-row label { flex: 1 1 100%; font-size: 12px; color: #d1d5db; }
         .api-row label:empty { display: none; }
-        .api-config-block input, .api-config-block select { flex: 1 1 100%; min-width: 0; padding: 7px 8px; background: #171a23; border: 1px solid #2f3440; border-radius: 6px; color: #e5e7eb; font-size: 12px; }
+        .api-config-block input, .api-config-block select { flex: 1 1 100%; min-width: 0; padding: 7px 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; }
+        .api-config-block input:focus, .api-config-block select:focus { border-color: var(--blue); outline: none; }
+        .api-config-block input::placeholder { color: var(--muted); }
         .api-manage-row { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
-        .token-quick-btn { padding: 4px 6px; border: none; border-radius: 4px; background: #374151; color: #fff; cursor: pointer; font-size: 11px; }
-        .token-quick-btn:hover { background: #4b5563; }
-        .test-api-btn { background-color: #16a34a; color: #fff; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-        .api-del-btn { background-color: #dc2626; color: #fff; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-        .api-add-btn { background-color: #2563eb; color: #fff; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-        .help-open-btn { background-color: #9333ea; color: #fff; border: none; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
+        .token-quick-btn { padding: 4px 6px; border: 1px solid var(--border2); border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer; font-size: 11px; }
+        .token-quick-btn:hover, .preview-btn:hover { background: var(--hover); }
+        /* ===== 本机程序启停面板（与画布页同款样式） ===== */
+        .bridge-block { margin: 10px 0 4px; padding: 10px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; }
+        .bridge-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 8px; cursor: pointer; user-select: none; }
+        .bridge-block.collapsed .bridge-head { margin-bottom: 0; }
+        .bridge-block.collapsed .bridge-body { display: none; }
+        .bridge-fold { padding: 2px 7px; font-size: 10.5px; border: 1px solid var(--border2); border-radius: 6px; background: var(--card); color: var(--muted); cursor: pointer; white-space: nowrap; }
+        .bridge-fold:hover { background: var(--hover); }
+        .bridge-state { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border2); white-space: nowrap; }
+        .bridge-state.on { color: #a7f3d0; background: var(--bg); border-color: var(--green); }
+        .bridge-state.off { color: var(--muted); background: var(--bg); }
+        .bridge-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+        .bridge-row > label { flex: 0 0 54px; font-size: 11px; color: var(--muted); }
+        .bridge-block input { flex: 1 1 100px; min-width: 0; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 11.5px; outline: none; }
+        .bridge-block input:focus { border-color: var(--blue); }
+        .bridge-block input::placeholder { color: var(--muted); }
+        .bridge-btn { padding: 6px 9px; min-height: 30px; border: 1px solid var(--border2); border-radius: 6px; background: var(--card); color: var(--text); font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+        .bridge-btn:hover:not(:disabled) { background: var(--hover); }
+        .bridge-btn:disabled { opacity: .55; cursor: not-allowed; }
+        .bridge-btn.primary { background: var(--green); color: #fff; border-color: rgba(255,255,255,.06); }
+        .bridge-btn.danger { background: var(--red); color: #fff; border-color: rgba(255,255,255,.06); }
+        .bridge-msg { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 6px 0; min-height: 16px; word-break: break-word; }
+        .bridge-msg.ok { color: #a7f3d0; }
+        .bridge-msg.err { color: #fca5a5; }
+        .bridge-note { font-size: 10.5px; color: var(--muted); line-height: 1.6; margin-top: 6px; }
+        .bridge-note a { color: #93c5fd; text-decoration: none; }
+        .bridge-note a:hover { text-decoration: underline; }
+        .bridge-note code { background: var(--bg); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 4px; font-size: 10px; }
+        .test-api-btn { background-color: var(--green); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
+        .api-del-btn { background-color: var(--red); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
+        .api-add-btn { background-color: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
+        .help-open-btn { background-color: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
+        .test-api-btn:hover, .api-del-btn:hover, .api-add-btn:hover, .help-open-btn:hover { filter: brightness(1.15); }
         .file-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
         .file-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #1f232e; border-radius: 8px; margin: 5px 0; flex-wrap: wrap; }
-        .file-item span { font-size: 12px; color: #e5e7eb; word-break: break-all; }
-        .skill-btn, .ctrl-btn { padding: 7px 10px; border: none; border-radius: 8px; font-size: 12.5px; cursor: pointer; transition: all 0.2s ease; min-height: 32px; line-height: 1.35; }
-        .skill-btn { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; }
-        .skill-btn:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); transform: translateY(-1px); }
-        .custom-skill-btn { background: linear-gradient(135deg, #0891b2, #22d3ee); color: #fff; display: flex; gap: 6px; align-items: center; }
-        .custom-skill-del { background: rgba(255,255,255,0.2); border: none; color: #fff; border-radius: 4px; font-size: 12px; padding: 2px 6px; cursor: pointer; }
-        .import-skill-btn { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
-        .clear-btn { background-color: #991b1b; color: #fff; }
+        .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; margin: 5px 0; flex-wrap: wrap; }
+        .file-item span { font-size: 12px; color: var(--text); word-break: break-all; }
+        /* ===== 统一按钮体系：纯色 + 细边框，无渐变 / 无阴影 / 无位移（与画布页一致） ===== */
+        .skill-btn, .ctrl-btn { padding: 7px 10px; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; font-size: 12px; cursor: pointer; transition: background-color .15s ease; min-height: 32px; line-height: 1.35; }
+        .skill-btn { background: var(--blue); color: #fff; }
+        .skill-btn:hover { background: #1d4ed8; }
+        .custom-skill-btn { background: var(--cyan); color: #fff; display: flex; gap: 6px; align-items: center; }
+        .custom-skill-del { background: rgba(255,255,255,.2); border: none; color: #fff; border-radius: 4px; font-size: 12px; padding: 2px 6px; cursor: pointer; }
+        .import-skill-btn { background: var(--green); color: #fff; }
+        .clear-btn { background-color: var(--red); color: #fff; }
         .clear-btn:hover { background-color: #b91c1c; }
-        .stop-btn { background-color: #dc2626; color: #fff; }
-        .download-btn { background-color: #0891b2; color: #fff; }
-        .newtab-btn { background-color: #16a34a; color: white; }
-        .clear-history-btn { background-color: #92400e; color: #fff; }
-        .load-history-btn { background-color: #0369a1; color: #fff; }
-        .start-btn { background: linear-gradient(135deg, #059669, #10b981); color: white; font-weight: 500; }
-        .plus-upload-btn { width: 30px; height: 30px; font-size: 17px; line-height: 1; padding: 0; background: #4f46e5; color: #fff; border: none; border-radius: 8px; cursor: pointer; flex-shrink: 0; }
-        .plus-upload-btn:hover { background: #4338ca; }
-        .ref-upload-btn { padding: 6px 9px; font-size: 11.5px; min-height: 30px; background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
-        .ref-upload-btn:hover { filter: brightness(1.12); }
-        .ref-note { font-size: 10.5px; color: #9ca3af; line-height: 1.5; margin: 0 0 8px; }
+        .stop-btn { background-color: var(--red); color: #fff; }
+        .download-btn { background-color: var(--cyan); color: #fff; }
+        .newtab-btn { background-color: var(--green); color: #fff; }
+        /* 画布页互链入口：与创作页同为静态单文件，同源共享本地配置 */
+        .canvas-nav-btn { background-color: var(--purple); color: #fff; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+        .canvas-nav-btn:hover { background-color: #8b5cf6; }
+        /* 右上角「漫流主站」：两页同款中性按钮，新标签页打开主站，不打断当前页面 */
+        .home-btn { margin-left: auto; background: var(--panel); color: var(--text); border: 1px solid var(--border2); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
+        .home-btn:hover { background: var(--hover); }
+        .send-canvas-btn { background-color: var(--purple); color: #fff; }
+        .send-canvas-btn:hover { background-color: #8b5cf6; }
+        .clear-history-btn { background-color: var(--amber); color: #fff; }
+        .load-history-btn { background-color: var(--blue); color: #fff; }
+        .start-btn { background: var(--green); color: #fff; font-weight: 500; }
+        .plus-upload-btn { width: 32px; height: 32px; font-size: 17px; line-height: 1; padding: 0; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; flex-shrink: 0; }
+        .plus-upload-btn:hover { background: #1d4ed8; }
+        .ref-upload-btn { padding: 6px 9px; font-size: 11.5px; min-height: 32px; background: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; white-space: nowrap; }
+        .ref-upload-btn:hover { background: #8b5cf6; }
+        .ref-note { font-size: 10.5px; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
         .ref-preview-list { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; }
-        .ref-item { display: flex; align-items: center; gap: 8px; padding: 5px 7px; background: #1f232e; border: 1px solid #2f3440; border-radius: 8px; }
-        .ref-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; border: 1px solid #3a4150; background: #0f1117; }
+        .ref-item { display: flex; align-items: center; gap: 8px; padding: 5px 7px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; }
+        .ref-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; border: 1px solid var(--border2); background: var(--bg); }
         .ref-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .ref-name { font-size: 11px; color: #e5e7eb; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ref-size { font-size: 10px; color: #9ca3af; }
-        .ref-del-btn { background: #ef4444; color: #fff; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 13px; line-height: 1; cursor: pointer; flex-shrink: 0; }
-        .ref-del-btn:hover { background: #dc2626; }
-        .ref-empty { font-size: 10.5px; color: #6b7280; }
-        .preview-btn { background: #4b5563; color: white; padding: 4px 7px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
-        .del-file-btn { background: #ef4444; color: white; padding: 4px 7px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
+        .ref-name { font-size: 11px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ref-size { font-size: 10px; color: var(--muted); }
+        .ref-del-btn { background: var(--red); color: #fff; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 13px; line-height: 1; cursor: pointer; flex-shrink: 0; }
+        .ref-del-btn:hover { background: #b91c1c; }
+        .ref-empty { font-size: 10.5px; color: var(--muted); }
+        .preview-btn { background: var(--panel); color: var(--text); padding: 4px 7px; border: 1px solid var(--border2); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
+        .del-file-btn { background: var(--red); color: #fff; padding: 4px 7px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
 
-        /* ===== 右侧主区：工具条 + 大聊天框 + 输入行 ===== */
-        .main-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
-        .main-toolbar .spacer { flex-grow: 1; min-width: 8px; }
-        .main-toolbar .ctrl-btn { padding: 6px 9px; font-size: 11.5px; min-height: 30px; }
-        .focus-btn { background: #4338ca; color: #fff; border: none; border-radius: 8px; padding: 7px 10px; font-size: 11.5px; min-height: 30px; cursor: pointer; white-space: nowrap; }
-        .focus-btn:hover { background: #4f46e5; }
-        .status { padding: 7px 11px; border-radius: 9px; background-color: #1f232e; color: #d1d5db; font-size: 12px; }
-        .ref-badge { display: none; align-items: center; font-size: 11px; padding: 5px 9px; border-radius: 8px; border: 1px solid; line-height: 1.3; }
-        .ref-badge-on { color: #a7f3d0; background: #052e2b; border-color: #0f766e; }
-        .ref-badge-off { color: #fcd34d; background: #3a2c05; border-color: #a16207; }
+        /* ===== 右侧主区：工具条 + 大聊天框 + 输入行（配色/圆角/控件高度对齐画布页） ===== */
+        .main-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+        .main-toolbar .spacer { flex-grow: 1; min-width: 6px; }
+        .main-toolbar .ctrl-btn { padding: 5px 8px; font-size: 11px; min-height: 30px; }
+        .focus-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 9px; font-size: 11px; min-height: 30px; cursor: pointer; white-space: nowrap; }
+        .focus-btn:hover { background: var(--hover); }
+        .status { padding: 6px 9px; border-radius: 8px; background-color: var(--panel); border: 1px solid var(--border2); color: #d1d5db; font-size: 11.5px; }
+        .ref-badge { display: none; align-items: center; font-size: 11px; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--border2); background: var(--panel); line-height: 1.3; }
+        .ref-badge-on { color: #a7f3d0; }
+        .ref-badge-off { color: #fcd34d; }
 
-        #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid #242834; padding: 16px 18px; border-radius: 14px; overflow-y: auto; background-color: #171a23; }
+        #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid var(--border); padding: 16px 18px; border-radius: 12px; overflow-y: auto; background-color: var(--card); }
+        #chatBox::-webkit-scrollbar { width: 6px; }
+        #chatBox::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
         .msg { margin: 10px 0; line-height: 1.8; white-space: pre-wrap; font-size: 14.5px; word-break: break-word; }
         .user { color: #60a5fa; }
-        .ai { color: #f3f4f6; }
-        .tip { color: #9ca3af; }
-        .err { color: #f87171; }
+        .ai { color: var(--text); }
+        .tip { color: var(--muted); }
+        .err { color: #fca5a5; }
         .input-row { display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
-        #userInput { flex: 1; min-height: 48px; padding: 11px 13px; border: 1px solid #2f3440; border-radius: 12px; font-size: 14px; resize: vertical; background: #1f232e; color: #e5e7eb; outline: none; }
-        #userInput:focus { border-color: #3b82f6; }
-        input[type="range"] { width: 118px; accent-color: #3b82f6; }
-        input[type="number"] { width: 66px; padding: 5px 6px; background: #1f232e; border: 1px solid #2f3440; border-radius: 6px; color: #e5e7eb; font-size: 12px; }
-        .param-item input[type="text"] { flex: 1 1 160px; min-width: 0; padding: 6px 8px; background: #1f232e; border: 1px solid #2f3440; border-radius: 6px; color: #e5e7eb; font-size: 12px; }
+        #userInput { flex: 1; min-height: 48px; padding: 11px 13px; border: 1px solid var(--border2); border-radius: 12px; font-size: 14px; line-height: 1.6; resize: vertical; background: var(--panel); color: var(--text); outline: none; }
+        #userInput:focus { border-color: var(--blue); }
+        #userInput::placeholder { color: var(--muted); }
+        input[type="range"] { width: 118px; accent-color: var(--blue); }
+        input[type="number"] { width: 66px; padding: 5px 6px; background: var(--panel); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; }
+        .param-item input[type="text"] { flex: 1 1 160px; min-width: 0; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; }
+        input[type="number"]:focus, .param-item input[type="text"]:focus { border-color: var(--blue); }
         #localModelRow { flex-direction: column; align-items: stretch; gap: 4px; }
         #localModelRow input[type="text"] { flex: 0 0 auto; width: 100%; height: 30px; }
         #fileInput, #skillMdInput, #refImageInput { display: none; }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 999; }
-        .modal-box { width: 94%; max-width: 920px; height: 85vh; background: #171a23; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; border: 1px solid #242834; }
-        .modal-content { flex: 1; overflow: auto; white-space: pre-wrap; padding: 12px; border: 1px solid #2f3440; background: #1f232e; color: #e5e7eb; border-radius: 10px; }
-        .modal-close { margin-top: 12px; align-self: flex-end; padding: 9px 16px; }
-        .help-modal-content { line-height: 1.7; font-size: 14px; }
-        .help-modal-content h2 { color: #60a5fa; margin: 16px 0 8px; font-size: 17px; }
-        .help-modal-content h3 { color: #a5b4fc; margin: 12px 0 6px; font-size: 15px; }
-        .help-modal-content p { margin: 6px 0; }
-        .help-modal-content pre { background: #0f1117; padding: 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.68); display: none; align-items: center; justify-content: center; z-index: 999; }
+        .modal-box { width: 94%; max-width: 920px; height: 85vh; background: var(--card); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; border: 1px solid var(--border2); }
+        .modal-content { flex: 1; overflow: auto; white-space: pre-wrap; padding: 12px; border: 1px solid var(--border2); background: var(--panel); color: var(--text); border-radius: 8px; font-size: 13.5px; line-height: 1.7; }
+        .modal-content::-webkit-scrollbar { width: 6px; }
+        .modal-content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        .modal-close { margin-top: 12px; align-self: flex-end; padding: 8px 16px; border: none; border-radius: 8px; background: var(--blue); color: #fff; cursor: pointer; font-size: 12px; min-height: 32px; }
+        .modal-close:hover { background: #1d4ed8; }
+        .help-modal-content { line-height: 1.8; font-size: 14px; }
+        .help-modal-content h2 { color: #93c5fd; margin: 16px 0 8px; font-size: 16px; font-weight: 500; }
+        .help-modal-content h3 { color: #c4b5fd; margin: 12px 0 6px; font-size: 14px; font-weight: 500; }
+        .help-modal-content p, .help-modal-content li { margin: 6px 0; color: #d1d5db; }
+        .help-modal-content pre { background: var(--bg); padding: 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
         .help-modal-content ul, .help-modal-content ol { padding-left: 22px; margin: 8px 0; }
-        .help-contact-box { background: #1e1b32; border: 1px solid #6d28d9; border-radius: 10px; padding: 10px 14px; margin: 10px 0 16px; }
+        .help-modal-content code { background: var(--card); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; color: #a7f3d0; }
+        .help-contact-box { background: var(--panel); border: 1px solid var(--purple); border-radius: 10px; padding: 10px 14px; margin: 10px 0 16px; }
         .help-contact-box .help-contact { color: #e9d5ff; font-size: 14px; margin: 4px 0; line-height: 1.7; }
         .help-contact-box .help-contact:first-child { color: #fbbf24; font-weight: 600; font-size: 15px; }
         /* 展开收起样式（原有推理参数折叠，保留） */
         .param-content { transition: all 0.25s ease; overflow: hidden; }
         .param-content.collapse { height: 0; opacity: 0; }
-        .toggle-param-btn { padding: 3px 8px; font-size: 11px; border: none; border-radius: 6px; background: #2f3440; color: #fff; cursor: pointer; }
+        .toggle-param-btn { padding: 3px 8px; font-size: 11px; border: 1px solid var(--border2); border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer; }
+        .toggle-param-btn:hover { background: var(--hover); }
 
         @media (max-width: 900px) {
             .wrap { flex-direction: column; height: auto; min-height: 100%; padding: 12px; gap: 12px; }
@@ -155,9 +217,11 @@
     <!-- ============ 左：配置栏（独立滚动，不再挤占输出区高度） ============ -->
     <aside class="side" id="sidePanel">
         <div class="header-bar">
-            <img class="logo-img" src="./logo.png" alt="漫流 MANFLOWS"
-                 onerror="this.style.display='none';var f=document.getElementById('logoFallback');if(f)f.style.display='inline-flex';">
-            <span class="logo-fallback" id="logoFallback">漫流<small>MANFLOWS</small></span>
+            <a class="logo-link" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">
+                <img class="logo-img" src="./logo.png" alt="漫流 MANFLOWS"
+                     onerror="this.style.display='none';var f=document.getElementById('logoFallback');if(f)f.style.display='inline-flex';">
+                <span class="logo-fallback" id="logoFallback">漫流<small>MANFLOWS</small></span>
+            </a>
             <div class="header-title">
                 <h1>漫流 AI 漫剧前期创作台</h1>
                 <p>剧本原创改编｜全剧分镜生视频提示词｜全剧美术资产生图提示词</p>
@@ -194,6 +258,33 @@
                     <label>本地模型名称（可选）：</label>
                     <input type="text" id="localModel" placeholder="留空 = local；部分服务需填真实模型名">
                 </div>
+                <div class="bridge-block collapsed" id="llamaBridgeBlock">
+                    <div class="bridge-head" id="llamaBridgeHead" title="点击展开 / 收起本机启停设置">
+                        <span>启停 llama / Ollama</span>
+                        <span class="bridge-state off" id="llamaBridgeState">○ 未检测</span>
+                        <button class="bridge-fold" id="llamaBridgeFold" type="button">展开</button>
+                    </div>
+                    <div class="bridge-body" id="llamaBridgeBody">
+                    <div class="bridge-row"><label>桥接服务</label><input id="llamaBridgeBase" placeholder="http://127.0.0.1:8787"></div>
+                    <div class="bridge-row"><label>启动程序</label><input id="llamaBridgePath" placeholder="选 .exe / .bat / .cmd / .app，或粘贴完整路径"></div>
+                    <div class="bridge-row"><button class="bridge-btn" id="llamaBridgePick">浏览…</button><button class="bridge-btn" id="llamaBridgeSave">保存设置</button></div>
+                    <div class="bridge-row"><label>启动参数</label><input id="llamaBridgeArgs" placeholder="可选：Ollama 填 serve"></div>
+                    <div class="bridge-row"><label>健康检查</label><input id="llamaBridgeHealth" placeholder="http://127.0.0.1:8080/health（可留空）"></div>
+                    <div class="bridge-row"><label>进程名</label><input id="llamaBridgeNames" placeholder="可选，逗号分隔"></div>
+                    <div class="bridge-row">
+                        <button class="bridge-btn primary" id="llamaBridgeStart">▶ 启动 llama</button>
+                        <button class="bridge-btn danger" id="llamaBridgeStop">■ 关闭 llama</button>
+                        <button class="bridge-btn" id="llamaBridgeRefresh">刷新状态</button>
+                    </div>
+                    <div class="bridge-msg" id="llamaBridgeMsg"></div>
+                    <div class="bridge-note">
+                        浏览器不能直接启动电脑程序，需先在本机双击
+                        <a href="./启动漫流桥接.bat" download>启动漫流桥接.bat</a>
+                        （或 <a href="./manflows-bridge.py" download>下载桥接脚本</a>），并保持黑窗口开启。程序路径只存你本机，不进网页源码。<br>
+                        Ollama 预设：启动程序 <code>ollama</code>、参数 <code>serve</code>、健康检查 <code>http://127.0.0.1:11434/api/tags</code>。
+                    </div>
+                    </div>
+                </div>
                 <div class="api-config-block" id="apiConfigBlock">
                     <div class="api-row">
                         <label>API配置：</label>
@@ -218,7 +309,7 @@
                     <div class="api-row">
                         <label></label>
                         <button class="test-api-btn" id="testApiBtn">测试连通性</button>
-                        <span style="font-size:11px;color:#9ca3af">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
+                        <span style="font-size:11px;color:var(--muted)">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
                     </div>
                 </div>
                 <div class="param-item">
@@ -270,9 +361,12 @@
             <span class="ref-badge" id="refBadge"></span>
             <div class="spacer"></div>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
+            <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（新开标签页，不打断生成）">⇢ 送到画布</button>
+            <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
             <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
             <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn">新建对话（开新网页）</button>
+            <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         </div>
         <div id="chatBox"></div>
         <div class="input-row">
@@ -443,6 +537,18 @@ const HELP_HTML = `
 <li>注意：本地模式只对当前这台电脑生效，外网网页访问不到别人电脑上的本地服务。</li>
 </ul>
 
+<h3>步骤5（可选）：在网页里直接启停本机程序</h3>
+<p>浏览器本身不能启动电脑程序，需要配一个只在你本机运行的小服务：</p>
+<ul>
+<li>把 <b>manflows-bridge.py</b> 与 <b>启动漫流桥接.bat</b> 放在同一文件夹，双击 .bat 并保持黑窗口开启（只监听 127.0.0.1:8787）；</li>
+<li>左侧「推理参数」里点开 <b>启停 llama / Ollama</b> → 点【浏览…】选中启动程序（如 <code>C:\\Llama_server\\start_server.bat</code>、<code>llama-server.exe</code>、<code>ollama</code>），也可直接粘贴完整路径；</li>
+<li>点一次【保存设置】，以后直接点【▶ 启动 llama】/【■ 关闭 llama】即可，状态灯显示运行中 / 未运行；</li>
+<li>Ollama 写法：启动程序 <code>ollama</code>、启动参数 <code>serve</code>、健康检查 <code>http://127.0.0.1:11434/api/tags</code>；llama.cpp 用 <code>http://127.0.0.1:8080/health</code>；健康检查留空则只按进程存活判断；</li>
+<li>「进程名」填 <code>llama-server.exe</code> 这类具体名字，可让手动双击启动的程序也能被网页关闭；<b>不要填 python.exe / node.exe 等通用名</b>，桥接会自动忽略它们以防误杀；</li>
+<li>路径只存你本机（桥接目录的 manflows-bridge.json + 浏览器本地存储），不写进网页源码、不上传服务器；关掉桥接黑窗口不影响已启动的程序。</li>
+</ul>
+<p>注意：正式部署到 HTTPS 主站后，浏览器会拦截网页直连本机 http://127.0.0.1 的请求；内测期用 http:// 本机地址打开页面即可，正式部署阶段再做同源反代 / TLS。</p>
+
 <h2>二、API云算力模式：接入商用大模型平台</h2>
 <p>切换到API云算力模式后，点【新增API配置】，填写平台信息：接口地址 / API-Key / 模型名称。</p>
 
@@ -603,11 +709,15 @@ function initComputeModeUI(){
     else { radioLocal.checked = true; apiConfigBlock.style.display = "none"; }
     if(inpLocalModel) inpLocalModel.value = localModelName;
     if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
+    const bb = document.getElementById("llamaBridgeBlock");
+    if(bb) bb.style.display = (computeMode === "api") ? "none" : "block";
 }
 function saveComputeMode(){
     computeMode = document.querySelector('input[name="computeMode"]:checked').value;
     safeStorage.set("computeMode", computeMode);
     if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
+    const bb = document.getElementById("llamaBridgeBlock");
+    if(bb) bb.style.display = (computeMode === "api") ? "none" : "block";
     if(computeMode === "api"){
         apiConfigBlock.style.display = "block";
         if(apiProfiles.length === 0){
@@ -882,7 +992,91 @@ function downloadAiText() {
     a.remove();
     URL.revokeObjectURL(url);
 }
-function openNewSession() { window.open(window.location.href, "_blank"); }
+/* 新建对话 = 新开一个「前期创作台」本页，而不是当前地址。
+   预览面板 / 在线预览器常用 iframe srcdoc 渲染，此时 window.location.href === "about:srcdoc"，
+   直接拿它去 window.open 会打开一个空白预览页（表现就像"跳到别的页面去了"）。
+   显式写 ./index.html，浏览器会按文档 baseURI 解析：
+     · 部署在 GitHub Pages / 主站 → 同目录 index.html
+     · srcdoc 预览 → 继承父文档目录，仍指向同目录 index.html
+   同时去掉 query / hash，避免把当前页状态带进新对话。 */
+function openNewSession() {
+    let url = "./index.html";
+    try {
+        const u = new URL(url, document.baseURI || window.location.href);
+        if(u.protocol === "http:" || u.protocol === "https:") url = u.href;
+    } catch(e) { /* about:srcdoc 无法作 base，保留相对路径即可 */ }
+    const win = window.open(url, "_blank");
+    if(win) return;
+    // 弹窗被拦截时，用同一用户手势内的 <a target="_blank"> 兜底
+    const a = document.createElement("a");
+    a.href = url; a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ===== 画布页交接（同源两页）=====
+   ① BroadcastChannel：画布页已打开时实时插入节点；
+   ② IndexedDB 收件箱：画布页尚未打开 / 新标签刚启动时补取，且不受 localStorage 5MB 配额限制，
+      长剧本、全剧提示词都能完整送达。DB 名与 objectStore 结构必须与 canvas.html 完全一致。 */
+const MF_CANVAS_CHANNEL = "manflows_canvas";
+const MF_CANVAS_DB = "manflows_canvas_db";
+function mfOpenDB(){
+    return new Promise((resolve, reject)=>{
+        let req;
+        try { req = indexedDB.open(MF_CANVAS_DB, 1); } catch(e){ reject(e); return; }
+        req.onupgradeneeded = ()=>{
+            const db = req.result;
+            if(!db.objectStoreNames.contains("inbox")) db.createObjectStore("inbox", {keyPath:"id"});
+            if(!db.objectStoreNames.contains("canvas")) db.createObjectStore("canvas");
+        };
+        req.onsuccess = ()=> resolve(req.result);
+        req.onerror = ()=> reject(req.error);
+    });
+}
+async function mfPutInbox(payload){
+    try {
+        const db = await mfOpenDB();
+        await new Promise((res, rej)=>{
+            const tx = db.transaction("inbox", "readwrite");
+            tx.objectStore("inbox").put(payload);
+            tx.oncomplete = ()=>res();
+            tx.onerror = ()=>rej(tx.error);
+        });
+        db.close();
+        return true;
+    } catch(e){
+        console.warn("画布收件箱写入失败，改用小文本兜底：", e);
+        if(payload.text.length < 300000) safeStorage.set("manflows_canvas_inbox", JSON.stringify(payload));
+        return false;
+    }
+}
+function mfChannel(){
+    try { return ("BroadcastChannel" in window) ? new BroadcastChannel(MF_CANVAS_CHANNEL) : null; }
+    catch(e){ return null; }
+}
+function sendToCanvas(){
+    const text = (typeof fullAiText === "string") ? fullAiText.trim() : "";
+    if(!text){ alert("还没有 AI 输出内容，先生成剧本或提示词再送到画布。"); return; }
+    const payload = {
+        id: "mf_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
+        ts: Date.now(),
+        title: (typeof currentOutputFile === "function" ? currentOutputFile() : "AI生成产物") + " · " + new Date().toLocaleTimeString("zh-CN", {hour12:false}),
+        skillKey: (typeof currentSkillKey === "string") ? currentSkillKey : "",
+        text: text
+    };
+    // 弹窗必须在点击的同步调用栈里打开，否则会被浏览器拦截；画布页启动后自行从收件箱取件
+    const win = window.open("./canvas.html", "_blank");
+    const ch = mfChannel();
+    if(ch){ try { ch.postMessage(payload); } catch(e){} finally { try { ch.close(); } catch(_){} } }
+    mfPutInbox(payload).then(ok=>{
+        if(!win && !ok) alert("画布页未能打开，请检查是否拦截了弹窗；产物已尝试保存在本机。");
+    });
+    try { append("⇢ 已把最近一次产物送到画布（新标签页）。", "tip"); } catch(e){}
+}
+function guardCanvasNav(ev){
+    if(abortController && !abortController.signal.aborted){
+        if(!confirm("正在生成中，切换页面会中断本次输出。确定继续吗？")) ev.preventDefault();
+    }
+}
 
 function renderCustomSkillButtons(){
     document.querySelectorAll(".custom-skill-btn").forEach(el=>el.remove());
@@ -1192,10 +1386,189 @@ async function sendMessage() {
 /* 初始化改为独立函数 + readyState 判断：
    预览面板 / iframe srcdoc / 脚本被延后注入时 DOMContentLoaded 可能已经过去，
    只监听事件会导致所有按钮永远不被绑定。 */
+/* ==================================================================
+   本机程序启停 · index.html / canvas.html 共用同一份实现
+   浏览器沙箱不能直接启动 .exe / .bat / .app，所有动作经本机
+   manflows-bridge.py 完成。桥地址、程序路径只存用户本机
+   （浏览器 localStorage + 桥旁的 manflows-bridge.json），
+   不写进网页源码、不上传服务器。
+   ================================================================== */
+const MF_BRIDGE_KEY = "manflows_bridge_base";
+const MF_BRIDGE_DEFAULT = "http://127.0.0.1:8787";
+function mfBridgeBase(){
+    return (safeStorage.get(MF_BRIDGE_KEY) || "").trim().replace(/\/+$/, "") || MF_BRIDGE_DEFAULT;
+}
+async function mfBridgeCall(api, body, timeoutMs){
+    const base = mfBridgeBase();
+    const ctl = new AbortController();
+    const timer = setTimeout(()=>ctl.abort(), timeoutMs || 15000);
+    try{
+        const opt = body
+            ? { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal:ctl.signal }
+            : { method:"GET", signal:ctl.signal };
+        const r = await fetch(base + api, opt);
+        let j;
+        try { j = await r.json(); }
+        catch(e){ throw new Error("桥接服务返回的不是 JSON（HTTP " + r.status + "）"); }
+        if(!r.ok || j.ok === false) throw new Error(j.error || ("桥接服务返回 HTTP " + r.status));
+        return j;
+    }catch(e){
+        if(e && e.name === "AbortError") throw new Error("请求超时，程序可能仍在加载，请点「刷新状态」再看。");
+        if(e instanceof TypeError) throw new Error(
+            "连不上本机桥接服务 " + base + "。请先双击运行「启动漫流桥接.bat」并保留黑窗口；" +
+            "页面也要用 http:// 本机地址打开（HTTPS 页面直连本机 HTTP 会被浏览器拦截）。");
+        throw e;
+    }finally{ clearTimeout(timer); }
+}
+function mfBridgePanel(cfg){
+    const els = {};
+    Object.keys(cfg.ids).forEach(k => { els[k] = document.getElementById(cfg.ids[k]); });
+    function setBusy(v){
+        ["pick","save","start","stop","refresh"].forEach(k => {
+            if(els[k]) els[k].disabled = v;
+        });
+    }
+    function syncBase(){
+        if(els.base) safeStorage.set(MF_BRIDGE_KEY, (els.base.value || "").trim().replace(/\/+$/, ""));
+    }
+    function msg(text, kind){
+        if(!els.msg) return;
+        els.msg.textContent = text || "";
+        els.msg.className = "bridge-msg" + (kind ? " " + kind : "");
+    }
+    function state(running, label){
+        if(!els.state) return;
+        els.state.textContent = label || (running ? "● 运行中" : "○ 未运行");
+        els.state.className = "bridge-state " + (running ? "on" : "off");
+    }
+    /* includeEmpty=false 时只提交非空字段，避免「输入框还没回填就点启动」
+      把桥上预填的默认路径覆盖成空。用户明确点「保存设置」才全量提交。 */
+    function configFromUI(includeEmpty){
+        const c = {};
+        const put = (k, v) => { if(includeEmpty || String(v || "").trim() !== "") c[k] = v; };
+        put("path",   (els.path && els.path.value || "").trim());
+        put("args",   (els.args && els.args.value || "").trim());
+        put("health", (els.health && els.health.value || "").trim());
+        if(includeEmpty || (els.names && els.names.value || "").trim() !== ""){
+            c.process_names = (els.names && els.names.value || "").split(/[,，\s]+/).filter(Boolean);
+        }
+        return c;
+    }
+    function applyConfig(c){
+        if(!c) return;
+        const set = (k, v) => { if(els[k] && !els[k].value && typeof v === "string") els[k].value = v; };
+        set("path", c.path); set("args", c.args); set("health", c.health);
+        if(els.names && !els.names.value && Array.isArray(c.process_names))
+            els.names.value = c.process_names.join(", ");
+    }
+    async function refresh(silent){
+        syncBase();
+        try{
+            const j = await mfBridgeCall("/api/status?target=" + encodeURIComponent(cfg.target), null, 12000);
+            state(j.running, j.running ? "● 运行中" : "○ 未运行");
+            applyConfig(j);
+            if(!silent) msg(j.running
+                ? "程序正在运行" + (j.pid ? "（PID " + j.pid + "）" : "") + (j.healthUp ? "，服务端口已就绪" : "") + "。"
+                : "程序未运行，可点「启动」打开。", "ok");
+            return j;
+        }catch(e){
+            state(false, "○ 桥接未连接");
+            if(!silent) msg(e.message, "err");
+            return null;
+        }
+    }
+    async function save(){
+        syncBase(); setBusy(true); msg("正在保存设置…");
+        try{
+            const j = await mfBridgeCall("/api/config",
+                Object.assign({ target:cfg.target }, configFromUI(true)), 15000);
+            applyConfig(j.config);
+            msg(j.message || "设置已保存到本机。", "ok");
+            await refresh(true);
+        }catch(e){ msg(e.message, "err"); }
+        finally{ setBusy(false); }
+    }
+    async function pick(){
+        syncBase(); setBusy(true); msg("已弹出本机文件选择框，请在电脑上选程序…");
+        try{
+            const j = await mfBridgeCall("/api/pick", { target:cfg.target }, 125000);
+            if(els.path) els.path.value = j.path || "";
+            msg("已选定：" + (j.path || "") + "　可直接点「启动」。", "ok");
+            await refresh(true);
+        }catch(e){ msg(e.message + "（也可以直接把完整路径粘贴到输入框）", "err"); }
+        finally{ setBusy(false); }
+    }
+    async function start(){
+        syncBase(); setBusy(true); msg("正在启动程序，加载模型可能需要几十秒…");
+        try{
+            const j = await mfBridgeCall("/api/start",
+                { target:cfg.target, config:configFromUI(false) }, 100000);
+            msg(j.message || "已启动。", "ok");
+            await refresh(true);
+        }catch(e){ msg(e.message, "err"); await refresh(true); }
+        finally{ setBusy(false); }
+    }
+    async function stop(){
+        syncBase(); setBusy(true); msg("正在关闭程序…");
+        try{
+            const j = await mfBridgeCall("/api/stop",
+                { target:cfg.target, config:configFromUI(false) }, 30000);
+            msg(j.message || "已关闭。", j.stopped ? "ok" : "err");
+            await refresh(true);
+        }catch(e){ msg(e.message, "err"); }
+        finally{ setBusy(false); }
+    }
+    function init(){
+        if(els.base){
+            els.base.value = safeStorage.get(MF_BRIDGE_KEY) || MF_BRIDGE_DEFAULT;
+            els.base.addEventListener("change", syncBase);
+        }
+        ["path","args","health","names"].forEach(k => {
+            const e = els[k]; if(!e) return;
+            const key = "manflows_bridge_" + cfg.target + "_" + k;
+            const old = safeStorage.get(key);
+            if(old) e.value = old;
+            e.addEventListener("change", () => safeStorage.set(key, e.value));
+        });
+        const acts = {
+            pick:pick, save:save, start:start, stop:stop,
+            refresh:function(){ refresh(false); }
+        };
+        Object.keys(acts).forEach(k => {
+            if(els[k]) els[k].addEventListener("click", acts[k]);
+        });
+        /* 默认折叠：状态灯常显但不占左侧栏高度；展开状态记在本机 */
+        if(els.head && els.body && els.block){
+            const foldKey = "manflows_bridge_fold_" + cfg.target;
+            const applyFold = v => {
+                els.block.classList.toggle("collapsed", v);
+                if(els.fold) els.fold.textContent = v ? "展开" : "收起";
+            };
+            applyFold(safeStorage.get(foldKey) !== "open");
+            els.head.addEventListener("click", () => {
+                const nowFolded = !els.block.classList.contains("collapsed");
+                applyFold(nowFolded);
+                safeStorage.set(foldKey, nowFolded ? "closed" : "open");
+            });
+        }
+        refresh(true);
+    }
+    return { init:init, refresh:refresh };
+}
+
 function initUI(){
     try {
     loadApiProfiles();
     initComputeModeUI();
+    mfBridgePanel({
+        target:"llama",
+        ids:{ block:"llamaBridgeBlock", body:"llamaBridgeBody", head:"llamaBridgeHead", fold:"llamaBridgeFold",
+              base:"llamaBridgeBase", path:"llamaBridgePath", args:"llamaBridgeArgs",
+              health:"llamaBridgeHealth", names:"llamaBridgeNames",
+              state:"llamaBridgeState", msg:"llamaBridgeMsg",
+              pick:"llamaBridgePick", save:"llamaBridgeSave", start:"llamaBridgeStart",
+              stop:"llamaBridgeStop", refresh:"llamaBridgeRefresh" }
+    }).init();
     renderCustomSkillButtons();
     renderRefPreview();
     updateRefBadge();
@@ -1231,6 +1604,10 @@ function initUI(){
     stopBtn.addEventListener("click", stopGenerate);
     sendMsgBtn.addEventListener("click", sendMessage);
     downloadAiBtn.addEventListener("click", downloadAiText);
+    const sendToCanvasBtn = document.getElementById("sendToCanvasBtn");
+    const openCanvasBtn = document.getElementById("openCanvasBtn");
+    if(sendToCanvasBtn) sendToCanvasBtn.addEventListener("click", sendToCanvas);
+    if(openCanvasBtn) openCanvasBtn.addEventListener("click", guardCanvasNav);
     loadHistoryBtn.addEventListener("click", loadLatestHistory);
     clearHistoryBtn.addEventListener("click", clearAllHistory);
     newSessionBtn.addEventListener("click", openNewSession);

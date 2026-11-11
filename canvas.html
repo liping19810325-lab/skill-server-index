@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>漫流 Manflows - AI 漫剧生成画布</title>
+<link rel="icon" type="image/png" href="./logo.png">
+<style>
+    :root{
+        --bg:#0f1117; --card:#171a23; --panel:#1f232e; --border:#242834; --border2:#2f3440;
+        --text:#e5e7eb; --muted:#9ca3af; --blue:#2563eb; --green:#059669;
+        --purple:#7c3aed; --cyan:#0891b2; --red:#dc2626; --amber:#d97706;
+        --hover:#2b3241; --font-sans:"Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-sans);}
+    button,input,textarea,select{font-family:inherit;}
+    .app{height:100%;display:flex;flex-direction:column;overflow:hidden;}
+
+    .topbar{display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0;flex-wrap:wrap;}
+    .brand{display:flex;align-items:center;gap:10px;margin-right:6px;}
+    /* 左上角 LOGO = 主站入口，新标签页打开，不打断当前画布 */
+    .logo-link{display:inline-flex;align-items:center;flex-shrink:0;text-decoration:none;border-radius:8px;transition:opacity .15s ease;}
+    .logo-link:hover{opacity:.85;}
+    .logo-link:focus-visible,.home-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+    .logo-img{height:40px;object-fit:contain;}
+    .logo-fallback{display:none;align-items:center;justify-content:center;flex-direction:column;width:48px;height:40px;flex-shrink:0;border-radius:8px;background:var(--panel);border:1px solid var(--border2);font-size:12px;font-weight:700;line-height:1.25;}
+    .logo-fallback small{font-size:7px;font-weight:400;color:var(--muted);letter-spacing:1px;}
+    .brand-text h1{font-size:15px;font-weight:600;color:#fff;line-height:1.3;}
+    .brand-text p{font-size:10px;color:var(--muted);line-height:1.5;}
+    .tb-btn,.nav-btn{padding:6px 8px;border:none;border-radius:8px;font-size:12px;cursor:pointer;min-height:32px;line-height:1.35;background:var(--panel);color:var(--text);border:1px solid var(--border2);white-space:nowrap;}
+    .tb-btn:hover,.nav-btn:hover{background:var(--hover);}
+    .nav-btn{text-decoration:none;display:inline-flex;align-items:center;background:var(--purple);border-color:transparent;color:#fff;}
+    .nav-btn:hover{background:#8b5cf6;}
+    /* 右上角「漫流主站」：与创作页同款中性按钮，新标签页打开主站 */
+    .home-btn{margin-left:auto;background:var(--panel);color:var(--text);border:1px solid var(--border2);text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;}
+    .home-btn:hover{background:var(--hover);}
+    .add-btn{background:#1e3a5f;border-color:#2b5488;color:#cfe3ff;}
+    .add-btn:hover{background:#254a7a;}
+    .tb-sep{width:1px;height:24px;background:var(--border2);margin:0 2px;}
+    .save-state{font-size:11px;color:var(--muted);padding:4px 8px;border-radius:6px;background:var(--panel);white-space:nowrap;}
+    .save-state.ok{color:#a7f3d0;} .save-state.busy{color:#fcd34d;} .save-state.err{color:#fca5a5;}
+
+    .body{flex:1;display:flex;min-height:0;}
+    .side{width:310px;flex:0 0 310px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;border-right:1px solid var(--border);background:var(--bg);}
+    .side::-webkit-scrollbar{width:6px;} .side::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px;}
+    .card h2{font-size:13px;color:#cbd5e1;font-weight:500;margin-bottom:8px;}
+    .hint{font-size:11px;color:var(--muted);line-height:1.6;margin:6px 0;}
+    .hint.warn{color:#fcd34d;}
+    .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:7px 0;}
+    .row label{font-size:11.5px;color:#d1d5db;flex:1 1 100%;}
+    .side input[type=text],.side input[type=url],.side textarea,.side select{width:100%;padding:7px 8px;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;outline:none;}
+    .side textarea{resize:vertical;min-height:62px;line-height:1.5;}
+    .side textarea.code{font-family:Consolas,Monaco,monospace;font-size:11px;min-height:110px;}
+    .side input:focus,.side textarea:focus{border-color:var(--blue);}
+    .mini-btn{padding:6px 9px;border:none;border-radius:6px;font-size:11.5px;cursor:pointer;background:var(--blue);color:#fff;min-height:30px;}
+    .mini-btn:hover{filter:brightness(1.15);}
+    .mini-btn.gray{background:#4b5563;} .mini-btn.green{background:var(--green);} .mini-btn.red{background:var(--red);}
+    .mini-btn.purple{background:var(--purple);} .mini-btn.cyan{background:var(--cyan);}
+    /* ===== 本机程序启停面板（与创作页同款样式） ===== */
+    .bridge-block{margin:8px 0 4px;padding:10px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;}
+    .bridge-head{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;cursor:pointer;user-select:none;}
+    .bridge-block.collapsed .bridge-head{margin-bottom:0;}
+    .bridge-block.collapsed .bridge-body{display:none;}
+    .bridge-fold{padding:2px 7px;font-size:10.5px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer;white-space:nowrap;}
+    .bridge-fold:hover{background:var(--hover);}
+    .bridge-state{font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;border:1px solid var(--border2);white-space:nowrap;}
+    .bridge-state.on{color:#a7f3d0;background:var(--bg);border-color:var(--green);}
+    .bridge-state.off{color:var(--muted);background:var(--bg);}
+    .bridge-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0;}
+    .bridge-row>label{flex:0 0 54px;font-size:11px;color:var(--muted);}
+    .bridge-block input{flex:1 1 100px;min-width:0;padding:6px 8px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11.5px;outline:none;}
+    .bridge-block input:focus{border-color:var(--blue);}
+    .bridge-block input::placeholder{color:var(--muted);}
+    .bridge-btn{padding:6px 9px;min-height:30px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:11.5px;cursor:pointer;white-space:nowrap;}
+    .bridge-btn:hover:not(:disabled){background:var(--hover);}
+    .bridge-btn:disabled{opacity:.55;cursor:not-allowed;}
+    .bridge-btn.primary{background:var(--green);color:#fff;border-color:rgba(255,255,255,.06);}
+    .bridge-btn.danger{background:var(--red);color:#fff;border-color:rgba(255,255,255,.06);}
+    .bridge-msg{font-size:11px;line-height:1.6;color:var(--muted);margin:6px 0;min-height:16px;word-break:break-word;}
+    .bridge-msg.ok{color:#a7f3d0;} .bridge-msg.err{color:#fca5a5;}
+    .bridge-note{font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:6px;}
+    .bridge-note a{color:#93c5fd;text-decoration:none;} .bridge-note a:hover{text-decoration:underline;}
+    .bridge-note code{background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:1px 4px;font-size:10px;}
+    .kv{font-size:11.5px;color:#d1d5db;line-height:1.8;word-break:break-all;}
+    .kv b{color:#93c5fd;font-weight:500;}
+    .api-box{background:var(--panel);border-radius:8px;padding:9px;font-size:11.5px;line-height:1.8;word-break:break-all;color:#d1d5db;}
+
+    .stage{flex:1;min-width:0;position:relative;overflow:hidden;background-color:#0c0e14;
+           background-image:radial-gradient(#252a36 1px,transparent 1px);background-size:22px 22px;}
+    .viewport{position:absolute;left:0;top:0;width:8000px;height:6000px;transform-origin:0 0;}
+    .edges{position:absolute;left:0;top:0;width:8000px;height:6000px;pointer-events:none;overflow:visible;}
+    .edges path{pointer-events:stroke;cursor:pointer;}
+    #nodeLayer{position:absolute;left:0;top:0;width:8000px;height:6000px;pointer-events:none;}
+    .node{position:absolute;width:280px;background:var(--card);border:1px solid var(--border2);border-radius:12px;
+          box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:auto;overflow:visible;}
+    .node.selected{border-color:#60a5fa;box-shadow:0 0 0 1px #60a5fa,0 6px 22px rgba(0,0,0,.5);}
+    .node-head{display:flex;align-items:center;gap:7px;padding:8px 10px;cursor:move;border-bottom:1px solid var(--border);user-select:none;}
+    .node-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+    .node-title{font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e5e7eb;}
+    .node-actions{display:flex;gap:4px;}
+    .node-actions button{border:none;border-radius:5px;background:var(--hover);color:#fff;font-size:11px;width:22px;height:22px;line-height:1;cursor:pointer;padding:0;}
+    .node-actions button:hover{background:#4b5563;}
+    .node-actions button.act-run{background:var(--green);}
+    .node-actions button.act-split{width:auto;padding:0 6px;background:#4338ca;}
+    .node-body{padding:9px 10px 11px;}
+    .node-body textarea,.node-body input[type=text],.node-body select{width:100%;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11.5px;padding:7px 8px;outline:none;}
+    .node-body textarea{resize:vertical;line-height:1.55;min-height:96px;}
+    .node-body textarea:focus,.node-body input:focus,.node-body select:focus{border-color:var(--blue);}
+    .node-body .fld{margin:6px 0;}
+    .node-body .fld label{display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;}
+    .node-body details.adv{margin-top:8px;border:1px solid var(--border2);border-radius:7px;padding:6px 8px;background:#1b1f2a;}
+    .node-body details.adv summary{font-size:10.5px;color:#93c5fd;cursor:pointer;list-style:none;user-select:none;}
+    .node-body details.adv summary::-webkit-details-marker{display:none;}
+    .node-body details.adv[open] summary{margin-bottom:6px;}
+    .node-body .two{display:flex;gap:6px;}
+    .node-body .two>*{flex:1;min-width:0;}
+    .wf-item{font-size:11px;color:#d1d5db;padding:4px 0;border-bottom:1px dashed var(--border2);}
+    .node-body .mini-line{font-size:10.5px;color:var(--muted);margin-top:5px;display:flex;justify-content:space-between;}
+    .node-body .run-btn{width:100%;margin-top:8px;padding:8px;border:none;border-radius:7px;background:var(--green);color:#fff;font-size:12px;cursor:pointer;}
+    .node-body .run-btn:disabled{background:#4b5563;cursor:not-allowed;}
+    .gen-status{font-size:10.5px;line-height:1.5;margin-top:7px;color:var(--muted);white-space:pre-wrap;word-break:break-all;max-height:110px;overflow:auto;}
+    .gen-status.err{color:#fca5a5;} .gen-status.ok{color:#a7f3d0;}
+    .port{position:absolute;width:13px;height:13px;border-radius:50%;background:var(--panel);border:2px solid #6b7280;top:20px;cursor:crosshair;z-index:3;}
+    .port:hover{background:#60a5fa;border-color:#60a5fa;}
+    .port-in{left:-8px;} .port-out{right:-8px;}
+    .img-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;}
+    .img-grid .thumb{position:relative;width:62px;height:62px;border-radius:6px;overflow:hidden;border:1px solid var(--border2);}
+    .img-grid img{width:100%;height:100%;object-fit:cover;}
+    .img-grid .rm{position:absolute;right:1px;top:1px;width:17px;height:17px;border:none;border-radius:4px;background:rgba(220,38,38,.9);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;}
+    .upload-zone{border:1px dashed var(--border2);border-radius:8px;padding:12px;text-align:center;font-size:11px;color:var(--muted);cursor:pointer;}
+    .upload-zone:hover{border-color:var(--purple);color:#c4b5fd;}
+    .result-media{width:100%;max-height:220px;border-radius:8px;background:#000;display:block;}
+    .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
+    .result-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
+
+    .empty-hint{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);font-size:13px;line-height:2;pointer-events:none;}
+    .empty-hint b{color:#cbd5e1;font-weight:500;font-size:15px;}
+    .zoom-bar{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:5px;}
+    .zoom-bar button{border:none;background:var(--panel);color:var(--text);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;}
+    .zoom-bar button:hover{background:var(--hover);}
+    .zoom-bar span{font-size:11px;color:var(--muted);min-width:42px;text-align:center;}
+    .canvas-tip{position:absolute;left:14px;bottom:16px;font-size:10.5px;color:#6b7280;pointer-events:none;}
+
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;align-items:center;justify-content:center;z-index:999;}
+    .modal-overlay.show{display:flex;}
+    .modal-box{width:94%;max-width:760px;max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:18px;}
+    .modal-box h2{font-size:16px;color:#93c5fd;margin:14px 0 8px;font-weight:500;}
+    .modal-box h2:first-child{margin-top:0;}
+    .modal-box p,.modal-box li{font-size:12.5px;line-height:1.8;color:#d1d5db;}
+    .modal-box ul{padding-left:20px;}
+    .modal-box code{background:var(--panel);padding:1px 5px;border-radius:4px;font-size:11.5px;color:#a7f3d0;}
+    .modal-close{margin-top:16px;padding:8px 16px;border:none;border-radius:8px;background:var(--blue);color:#fff;cursor:pointer;font-size:12px;}
+    .doc-tabs{display:flex;gap:4px;align-items:center;}
+    .doc-tab{padding:6px 9px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);color:var(--text);font-size:11.5px;cursor:pointer;min-height:30px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .doc-tab:hover{background:var(--hover);}
+    .doc-tab.active{background:#1e3a5f;border-color:#60a5fa;color:#fff;}
+    .doc-wrap{position:relative;display:inline-flex;}
+    .doc-menu{display:none;position:absolute;right:0;top:36px;min-width:250px;max-height:330px;overflow:auto;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:6px;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+    .doc-menu.show{display:block;}
+    .doc-menu-item{display:flex;align-items:center;gap:5px;padding:3px;border-radius:6px;}
+    .doc-menu-item:hover{background:var(--panel);}
+    .doc-menu-item.active{background:#1e3a5f;}
+    .doc-menu-name{flex:1;min-width:0;text-align:left;border:none;background:transparent;color:var(--text);font-size:11.5px;cursor:pointer;padding:5px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .doc-menu-item button.mini{border:none;border-radius:5px;background:var(--hover);color:#fff;font-size:11px;width:24px;height:24px;line-height:1;cursor:pointer;padding:0;flex-shrink:0;}
+    .doc-menu-item button.mini.del{background:#b91c1c;}
+    .doc-menu-head{font-size:10.5px;color:var(--muted);padding:4px 6px 6px;}
+    @media(max-width:900px){
+        .side{width:250px;flex-basis:250px;}
+        .brand-text p{display:none;}
+    }
+</style>
+</head>
+<body>
+<div class="app">
+    <header class="topbar">
+        <div class="brand">
+            <a class="logo-link" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">
+                <img class="logo-img" src="./logo.png" alt="漫流 MANFLOWS"
+                     onerror="this.style.display='none';var f=document.getElementById('logoFallback');if(f)f.style.display='inline-flex';">
+                <span class="logo-fallback" id="logoFallback">漫流<small>MANFLOWS</small></span>
+            </a>
+            <div class="brand-text"><h1>漫流 · 生成画布</h1><p>提示词 → 生图 / 生视频 → 成片</p></div>
+        </div>
+        <a class="nav-btn" href="./index.html" title="返回创作台（同一窗口切换）">← 返回创作台</a>
+        <div class="tb-sep"></div>
+        <div class="doc-tabs" id="docTabs"></div>
+        <button class="tb-btn" id="newDocBtn" title="新建一份空白画布">＋ 新建画布</button>
+        <div class="doc-wrap">
+            <button class="tb-btn" id="moreDocsBtn" title="查看全部画布、改名与删除">更多画布 ▾</button>
+            <div class="doc-menu" id="docMenu"></div>
+        </div>
+        <div class="tb-sep"></div>
+        <button class="tb-btn add-btn" data-add="prompt">＋ 提示词</button>
+        <button class="tb-btn add-btn" data-add="image">＋ 参考图</button>
+        <button class="tb-btn add-btn" data-add="generate">＋ 生成</button>
+        <button class="tb-btn add-btn" data-add="result">＋ 结果</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" id="arrangeBtn">自动排版</button>
+        <button class="tb-btn" id="exportBtn">导出画布</button>
+        <button class="tb-btn" id="importBtn">导入画布</button>
+        <button class="tb-btn" id="clearBtn">清空画布</button>
+        <span class="save-state" id="saveState">就绪</span>
+        <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
+        <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
+    </header>
+
+    <div class="body">
+        <aside class="side">
+            <div class="card">
+                <h2>① 来自创作台的产物</h2>
+                <div class="hint">创作台点「⇢ 送到画布」后，产物会自动变成一个提示词节点。长文本走本机收件箱，不占 localStorage 配额。</div>
+                <div class="row"><button class="mini-btn purple" id="inboxBtn">检查新产物</button><span class="kv" id="inboxState">尚未接收</span></div>
+                <div class="row"><label>手动粘贴文本 → 提示词节点</label>
+                    <textarea id="pasteBox" placeholder="粘贴剧本、分镜或美术提示词…"></textarea></div>
+                <div class="row"><button class="mini-btn" id="pasteBtn">生成提示词节点</button></div>
+            </div>
+
+            <div class="card">
+                <h2>② API 配置（只读）</h2>
+                <div class="hint">与创作台同源共享，这里只读取、不修改。接口地址 / Key / 模型都在创作台配置，默认全部为空。</div>
+                <div class="api-box" id="apiInfo">读取中…</div>
+                <div class="row"><a class="mini-btn gray" href="./index.html" style="text-decoration:none;display:inline-block;">去创作台修改</a></div>
+            </div>
+
+            <div class="card">
+                <h2>③ 生图 / 生视频接口</h2>
+                <div class="hint">在「生成」节点里选引擎：<br>· <b>生图 API</b>：OpenAI 兼容 <code>/images/generations</code>，也适用 Qwen Image 2.1 兼容模式<br>· <b>通用 JSON 接口</b>：自定义地址 / 请求头 / 请求体模板 / 异步任务轮询，适配百炼 Qwen、各家生视频 API<br>· <b>本地 ComfyUI</b>：可存多个工作流模板，<b>生图与生视频各用各的</b></div>
+                <div class="hint">生成失败时结果节点会显示接口原始返回，方便边测边调。详细配置见两份对接操作手册。</div>
+            </div>
+
+            <div class="card">
+                <h2>④ 本地 ComfyUI 工作流</h2>
+                <div class="bridge-block collapsed" id="comfyBridgeBlock">
+                    <div class="bridge-head" id="comfyBridgeHead" title="点击展开 / 收起本机启停设置">
+                        <span>启停 ComfyUI（可选）</span>
+                        <span class="bridge-state off" id="comfyBridgeState">○ 未检测</span>
+                        <button class="bridge-fold" id="comfyBridgeFold" type="button">展开</button>
+                    </div>
+                    <div class="bridge-body" id="comfyBridgeBody">
+                    <div class="hint" style="margin:0 0 8px">只有生成节点选「本地 ComfyUI 工作流」引擎时才需要启动 ComfyUI；选「生图 API」或「通用 JSON 接口」走云端 / 第三方接口，<b>不启动 ComfyUI 也一样能生图、生视频</b>。上面的「测试连接」就是它的连通检查。</div>
+                    <div class="bridge-row"><label>桥接服务</label><input id="comfyBridgeBase" placeholder="http://127.0.0.1:8787"></div>
+                    <div class="bridge-row"><label>启动程序</label><input id="comfyBridgePath" placeholder="选 ComfyUI 的 .bat / .exe，或粘贴路径"></div>
+                    <div class="bridge-row"><button class="bridge-btn" id="comfyBridgePick">浏览…</button><button class="bridge-btn" id="comfyBridgeSave">保存设置</button></div>
+                    <div class="bridge-row"><label>启动参数</label><input id="comfyBridgeArgs" placeholder="可选，如 --port 8188"></div>
+                    <div class="bridge-row"><label>健康检查</label><input id="comfyBridgeHealth" placeholder="http://127.0.0.1:8188/system_stats"></div>
+                    <div class="bridge-row"><label>进程名</label><input id="comfyBridgeNames" placeholder="可选，逗号分隔"></div>
+                    <div class="bridge-row">
+                        <button class="bridge-btn primary" id="comfyBridgeStart">▶ 启动 ComfyUI</button>
+                        <button class="bridge-btn danger" id="comfyBridgeStop">■ 关闭 ComfyUI</button>
+                        <button class="bridge-btn" id="comfyBridgeRefresh">刷新状态</button>
+                    </div>
+                    <div class="bridge-msg" id="comfyBridgeMsg"></div>
+                    <div class="bridge-note">与创作台共用同一个本机桥接：<a href="./启动漫流桥接.bat" download>启动漫流桥接.bat</a> / <a href="./manflows-bridge.py" download>桥接脚本</a>，只开一个黑窗口两页就都能启停。<code>--enable-cors-header</code> 等参数请写进你自己的 ComfyUI 启动 bat。</div>
+                    </div>
+                </div>
+                <div class="row"><label>服务地址</label><input type="text" id="comfyBase" placeholder="http://127.0.0.1:8188"></div>
+                <div class="row"><button class="mini-btn cyan" id="comfyTestBtn">测试连接</button></div>
+                <div class="row"><label>导入为（可反复导入多个模板）</label>
+                    <select id="workflowKind"><option value="image">生图工作流（Qwen Image 等）</option><option value="video">生视频工作流（MiniMax H3 等）</option></select></div>
+                <div class="row"><button class="mini-btn" id="workflowBtn">＋ 导入工作流 API JSON</button></div>
+                <div class="row"><label>已导入模板（选中后可改映射）</label><select id="workflowList"></select></div>
+                <div class="row"><button class="mini-btn gray" id="workflowRenameBtn">改名</button><button class="mini-btn red" id="workflowDelBtn">删除</button></div>
+                <div class="kv" id="workflowInfo">尚未导入工作流</div>
+                <div class="row"><label>当前模板节点映射（可手工修正）</label><textarea class="code" id="mappingBox" spellcheck="false"></textarea></div>
+                <div class="row"><button class="mini-btn gray" id="inferBtn">重新推断</button><button class="mini-btn green" id="saveMappingBtn">保存映射</button></div>
+                <div class="hint warn">浏览器直连需给 ComfyUI 加启动参数 <code>--enable-cors-header "来源"</code>；HTTPS 主站直连本机 HTTP 可能被浏览器拦截，内测期用 http:// 本地打开即可。工作流必须「导出(API)」格式。</div>
+            </div>
+
+            <div class="card">
+                <h2>⑤ 画布数据</h2>
+                <div class="kv" id="statInfo">节点 0 · 连线 0</div>
+                <div class="hint">画布与参考图只存在本机 IndexedDB，不上传、不进源码。顶部「画布1/2/3」可快捷切换，「＋ 新建画布」新增一份，「更多画布」里可改名删除；每份画布节点独立，ComfyUI 设置与工作流模板全局共享。导出/导入只作用于当前画布。</div>
+            </div>
+        </aside>
+
+        <main class="stage" id="stage">
+            <div class="viewport" id="viewport">
+                <svg class="edges" id="edgeSvg" width="8000" height="6000" xmlns="http://www.w3.org/2000/svg"></svg>
+                <div id="nodeLayer"></div>
+            </div>
+            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词」新建节点，或在创作台点「⇢ 送到画布」</div>
+            <div class="canvas-tip">拖标题栏移动 · 从右侧圆点拖到别的节点左侧圆点连线 · 点连线可删除 · 滚轮缩放 · 空白处拖动平移</div>
+            <div class="zoom-bar">
+                <button id="zoomOut" title="缩小">−</button><span id="zoomLabel">100%</span><button id="zoomIn" title="放大">＋</button><button id="zoomFit" title="回到原点 100%">⌖</button>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div class="modal-overlay" id="helpModal">
+    <div class="modal-box">
+        <h2>画布怎么用</h2>
+        <ul>
+            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词。全剧资产可点「拆分」按 <code>▌</code> 自动拆成一条一节点。</li>
+            <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
+            <li><b>生成节点</b>：选引擎后点「运行」，会自动收集所有连进来的提示词与参考图。</li>
+            <li><b>结果节点</b>：展示图片 / 视频 / 接口原文，可下载，也可作为下一轮参考图。</li>
+        </ul>
+        <h2>连线规则</h2>
+        <p>从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线；点画布上的连线可删除。生成节点只读取「连进它」的上游节点，方向别接反。</p>
+        <h2>与创作台的关系</h2>
+        <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
+        <h2>多画布切换</h2>
+        <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
+        <h2>是否必须启动 ComfyUI？本机程序启停</h2>
+        <ul>
+            <li><b>不启动 ComfyUI 也能生图、生视频</b>：生成节点选「生图 API」或「通用 JSON 接口」时，请求直接发到云端 / 第三方接口，画布页只负责转发，本机不用跑 ComfyUI，也不用跑桥接服务。</li>
+            <li><b>只有选「本地 ComfyUI 工作流」引擎才必须启动</b>：该引擎要调本机的 /upload/image、/prompt、/history、/view，ComfyUI 没开就会连接失败。左侧「测试连接」可随时确认。</li>
+            <li>想从网页一键开关：双击运行 <b>启动漫流桥接.bat</b>（与 manflows-bridge.py 同目录），在「④ 本地 ComfyUI 工作流」点开「启停 ComfyUI」，【浏览…】选中你的 ComfyUI 启动 bat / exe 并保存，之后用【▶ 】【■ 】即可。</li>
+            <li>创作台与画布页共用同一个桥接服务，只开一个黑窗口两页就都能启停；桥只监听 127.0.0.1:8787，关掉窗口不影响已经启动的程序。</li>
+        </ul>
+        <h2>本地 ComfyUI 接入要点（生图 / 生视频都支持）</h2>
+        <ul>
+            <li>先在左侧选「生图工作流」或「生视频工作流」，再导入；<b>可反复导入多个模板</b>，生成节点里下拉选要用哪一个。Qwen Image 2.1 生图、MiniMax H3 生视频各存一份即可。</li>
+            <li>工作流必须是「文件 → 导出工作流 (API)」格式（顶层是节点 id + class_type），普通保存格式提交会 400。</li>
+            <li>导入时自动推断：提示词文本节点（含 Qwen / 自定义节点）、所有 LoadImage 参考图、各类 seed 字段、输出节点；不对就在映射框里改节点 id 和字段名。</li>
+            <li>每次运行随机 seed，避免命中 ComfyUI 缓存不出新片；多张参考图按映射顺序逐张上传。</li>
+            <li>队列串行、8188 端口无鉴权，不要暴露公网；结果最多等 10 分钟。</li>
+        </ul>
+        <h2>异步任务型 API（Qwen Image 2.1 / 多数生视频）</h2>
+        <p>选「通用 JSON 接口」，展开节点里的「▸ 高级」填：结果查询地址（含 <code>{{task_id}}</code>）、任务ID路径、状态路径、成功/失败状态值、轮询间隔与次数。提交返回 task_id 后会自动轮询，成功后再解析图片/视频地址。节点里的「填入 Qwen Image 2.1 异步模板」可一键填好百炼 DashScope 的地址、请求头与轮询配置，再把 Key 填进生成节点或创作台。</p>
+        <p>请求体模板可用 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{size}}</code> <code>{{images}}</code> <code>{{content_array}}</code> <code>{{image_objects}}</code> <code>{{images_base64}}</code>；<code>{{content_array}}</code> 会展开成「参考图对象 + 文本」的完整 content 数组，正好对应 Qwen 图生图。</p>
+        <h2>数据与隐私</h2>
+        <p>API Key、画布、参考图全部只在你本机浏览器；源码里没有任何密钥。清空画布只清画布数据，不会动创作台的历史记录。</p>
+        <button class="modal-close" id="closeHelpBtn">关闭</button>
+    </div>
+</div>
+
+<input type="file" id="jsonImport" accept=".json,application/json" hidden>
+<input type="file" id="workflowImport" accept=".json,application/json" hidden>
+<input type="file" id="nodeImageInput" accept="image/*" multiple hidden>
+
+<script>
+"use strict";
+/* ============ 与 index.html 保持一致的安全存储 / DB 结构 ============ */
+const safeStorage = {
+    available:(()=>{ try{ const k="__mf_t__"; window.localStorage.setItem(k,"1"); window.localStorage.removeItem(k); return true; }catch(e){ return false; } })(),
+    get(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } },
+    set(k,v){ try{ window.localStorage.setItem(k,v); return true; }catch(e){ console.warn("本地存储写入失败：",e&&e.name); return false; } },
+    remove(k){ try{ window.localStorage.removeItem(k); }catch(e){} }
+};
+const MF_CANVAS_CHANNEL = "manflows_canvas";
+const MF_CANVAS_DB = "manflows_canvas_db";
+const KEY_API = "manflows_api_profiles";
+const KEY_CURR = "manflows_current_profile_id";
+function mfOpenDB(){
+    return new Promise((resolve,reject)=>{
+        let req;
+        try{ req = indexedDB.open(MF_CANVAS_DB,1); }catch(e){ reject(e); return; }
+        req.onupgradeneeded = ()=>{
+            const db = req.result;
+            if(!db.objectStoreNames.contains("inbox")) db.createObjectStore("inbox",{keyPath:"id"});
+            if(!db.objectStoreNames.contains("canvas")) db.createObjectStore("canvas");
+        };
+        req.onsuccess = ()=>resolve(req.result);
+        req.onerror = ()=>reject(req.error);
+    });
+}
+async function idbGet(store,key){
+    const db = await mfOpenDB();
+    return new Promise((res,rej)=>{
+        const tx = db.transaction(store,"readonly");
+        const r = tx.objectStore(store).get(key);
+        r.onsuccess = ()=>res(r.result); r.onerror = ()=>rej(r.error);
+        tx.onerror = ()=>rej(tx.error);
+        tx.oncomplete = ()=>db.close();
+    });
+}
+async function idbPut(store,key,val){
+    const db = await mfOpenDB();
+    return new Promise((res,rej)=>{
+        const tx = db.transaction(store,"readwrite");
+        tx.objectStore(store).put(val,key);
+        tx.oncomplete = ()=>{ db.close(); res(true); };
+        tx.onerror = ()=>{ db.close(); rej(tx.error); };
+    });
+}
+async function idbGetAll(store){
+    const db = await mfOpenDB();
+    return new Promise((res,rej)=>{
+        const tx = db.transaction(store,"readonly");
+        const r = tx.objectStore(store).getAll();
+        r.onsuccess = ()=>res(r.result||[]); r.onerror = ()=>rej(r.error);
+        tx.onerror = ()=>rej(tx.error);
+        tx.oncomplete = ()=>db.close();
+    });
+}
+async function idbClear(store){
+    const db = await mfOpenDB();
+    return new Promise((res,rej)=>{
+        const tx = db.transaction(store,"readwrite");
+        tx.objectStore(store).clear();
+        tx.oncomplete = ()=>{ db.close(); res(true); };
+        tx.onerror = ()=>{ db.close(); rej(tx.error); };
+    });
+}
+async function idbDelete(store,key){
+    const db = await mfOpenDB();
+    return new Promise((res,rej)=>{
+        const tx = db.transaction(store,"readwrite");
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = ()=>{ db.close(); res(true); };
+        tx.onerror = ()=>{ db.close(); rej(tx.error); };
+    });
+}
+
+/* ============ 画布状态 ============ */
+const NODE_W = 280, PORT_Y = 26;
+const NODE_META = {
+    prompt:  {label:"提示词", color:"#60a5fa"},
+    image:   {label:"参考图", color:"#c084fc"},
+    generate:{label:"生成",   color:"#34d399"},
+    result:  {label:"结果",   color:"#fbbf24"}
+};
+const DEFAULT_BODY_TEMPLATE = '{\n  "model": "{{model}}",\n  "prompt": "{{prompt}}",\n  "size": "{{size}}"\n}';
+/* 百炼 Qwen Image 2.1（DashScope 异步）可直接套用的请求体模板：{{content_array}} 会展开成参考图对象 + 文本 */
+const QWEN_IMAGE_TEMPLATE = '{\n  "model": "{{model}}",\n  "input": { "messages": [ { "role": "user", "content": {{content_array}} } ] },\n  "parameters": { "size": "{{size}}", "n": 1 }\n}';
+const DEFAULT_POLL = {
+    pollUrl:"", taskIdPath:"output.task_id", statusPath:"output.task_status",
+    successValues:"SUCCEEDED,success,COMPLETED,succeeded", failValues:"FAILED,CANCELED,UNKNOWN,failed,error",
+    pollInterval:3, maxPoll:60
+};
+let canvas = {
+    version:1,
+    nodes:[], edges:[],
+    viewport:{x:40,y:40,zoom:1},
+    settings:{comfyBase:"http://127.0.0.1:8188", workflows:[], activeWorkflowId:null, workflow:null, workflowName:"", mapping:null}
+};
+let selectedId = null;
+let seenSourceIds = new Set();
+let saveTimer = null;
+let drag = null;
+let tempPath = null;
+let channel = null;
+/* 多画布：每份画布独立存 doc_<id>（只存节点/连线/视口），ComfyUI 设置与工作流模板全局共享 */
+let docId = "c1";
+let docList = [{id:"c1",name:"画布1"},{id:"c2",name:"画布2"},{id:"c3",name:"画布3"}];
+const GLOBAL_KEY = "__global__";
+const el = id => document.getElementById(id);
+const docKey = id => "doc_"+id;
+function docName(id){ const d=docList.find(x=>x.id===id); return d?d.name:"画布"; }
+async function persist(){
+    await idbPut("canvas",docKey(docId),{
+        id:docId, name:docName(docId),
+        nodes:canvas.nodes, edges:canvas.edges, viewport:canvas.viewport
+    });
+    await idbPut("canvas",GLOBAL_KEY,{settings:canvas.settings,docList:docList,activeDocId:docId});
+}
+
+function uid(){ return "n"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function setStatus(text,kind){
+    const s = el("saveState"); if(!s) return;
+    s.textContent = text; s.className = "save-state"+(kind?" "+kind:"");
+}
+function updateStat(){
+    el("statInfo").textContent = "节点 "+canvas.nodes.length+" · 连线 "+canvas.edges.length;
+    el("emptyHint").style.display = canvas.nodes.length ? "none" : "block";
+}
+function scheduleSave(){
+    setStatus("未保存…","busy");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async ()=>{
+        try{ await persist(); setStatus("已保存","ok"); }
+        catch(e){ console.error(e); setStatus("保存失败","err"); }
+        updateStat();
+    },450);
+}
+/* 兼容旧版「单工作流」数据，统一迁移成多模板数组；生成节点按 workflowId 选模板 */
+function ensureWorkflows(s){
+    if(!s || typeof s!=="object") return s;
+    if(!Array.isArray(s.workflows)) s.workflows=[];
+    if(!s.workflows.length && s.workflow && typeof s.workflow==="object"){
+        s.workflows.push({id:uid(),name:s.workflowName||"旧版工作流",kind:"video",workflow:s.workflow,mapping:s.mapping||inferMapping(s.workflow)});
+    }
+    s.workflows = s.workflows.filter(w=>w && w.workflow && typeof w.workflow==="object").map(w=>({
+        id:w.id||uid(), name:w.name||"未命名工作流", kind:w.kind==="video"?"video":"image",
+        workflow:w.workflow, mapping:w.mapping||inferMapping(w.workflow)
+    }));
+    if(!s.activeWorkflowId || !s.workflows.some(w=>w.id===s.activeWorkflowId)) s.activeWorkflowId = s.workflows.length?s.workflows[0].id:null;
+    return s;
+}
+function workflowById(id){ return (canvas.settings.workflows||[]).find(w=>w.id===id)||null; }
+function activeWorkflow(){
+    const list=canvas.settings.workflows||[];
+    return list.find(w=>w.id===canvas.settings.activeWorkflowId)||list[0]||null;
+}
+function normalize(c){
+    if(!c || typeof c!=="object") return null;
+    const out = {version:1,nodes:[],edges:[],viewport:{x:40,y:40,zoom:1},settings:{comfyBase:"http://127.0.0.1:8188",workflows:[],activeWorkflowId:null}};
+    if(Array.isArray(c.nodes)) out.nodes = c.nodes.filter(n=>n&&n.id&&n.type).map(n=>({
+        id:n.id, type:n.type, x:Number(n.x)||0, y:Number(n.y)||0,
+        title:n.title||NODE_META[n.type]?.label||"节点", data:(n.data&&typeof n.data==="object")?n.data:{}
+    }));
+    if(Array.isArray(c.edges)) out.edges = c.edges.filter(e=>e&&e.from&&e.to).map(e=>({id:e.id||uid(),from:e.from,to:e.to}));
+    if(c.viewport) out.viewport = {x:Number(c.viewport.x)||0,y:Number(c.viewport.y)||0,zoom:clamp(Number(c.viewport.zoom)||1,.3,2)};
+    if(c.settings) out.settings = Object.assign(out.settings,c.settings);
+    ensureWorkflows(out.settings);
+    return out;
+}
+async function loadCanvas(){
+    let g=null;
+    try{ g=await idbGet("canvas",GLOBAL_KEY); }catch(e){ console.warn("全局设置读取失败：",e); }
+    if(!g || !Array.isArray(g.docList) || !g.docList.length){
+        /* 兼容旧版单画布：把 main 的内容迁到「画布1」，并预置 2、3 两份空画布 */
+        let old=null;
+        try{ old=await idbGet("canvas","main"); }catch(e){}
+        const legacy=normalize(old);
+        g={settings:legacy?legacy.settings:canvas.settings,
+           docList:[{id:"c1",name:"画布1"},{id:"c2",name:"画布2"},{id:"c3",name:"画布3"}],
+           activeDocId:"c1"};
+        if(legacy){
+            try{ await idbPut("canvas",docKey("c1"),{id:"c1",name:"画布1",nodes:legacy.nodes,edges:legacy.edges,viewport:legacy.viewport}); }catch(e){}
+        }
+        try{ await idbPut("canvas",GLOBAL_KEY,g); }catch(e){}
+    }
+    docList=g.docList.filter(d=>d&&d.id).map(d=>({id:String(d.id),name:String(d.name||"画布")}));
+    if(!docList.length) docList=[{id:"c1",name:"画布1"}];
+    docId=docList.some(d=>d.id===g.activeDocId)?g.activeDocId:docList[0].id;
+    canvas=normalize({settings:g.settings||{}});
+    let doc=null;
+    try{ doc=await idbGet("canvas",docKey(docId)); }catch(e){ console.warn("画布读取失败：",e); }
+    if(doc){
+        canvas.nodes=Array.isArray(doc.nodes)?doc.nodes:[];
+        canvas.edges=Array.isArray(doc.edges)?doc.edges:[];
+        canvas.viewport=doc.viewport||canvas.viewport;
+    }
+    resetRuntimeFlags();
+    el("comfyBase").value = canvas.settings.comfyBase || "";
+    applyViewport();
+}
+function resetRuntimeFlags(){
+    seenSourceIds=new Set(); selectedId=null;
+    canvas.nodes.forEach(n=>{
+        if(n.data && n.data.sourceId) seenSourceIds.add(n.data.sourceId);
+        /* 上次生成被中途关闭时 busy 可能残留 true，恢复为可运行状态 */
+        if(n.type==="generate" && n.data) n.data.busy=false;
+    });
+}
+function renderDocTabs(){
+    const tabs=el("docTabs"); if(!tabs) return;
+    tabs.innerHTML="";
+    docList.slice(0,3).forEach(d=>{
+        const b=document.createElement("button");
+        b.className="doc-tab"+(d.id===docId?" active":"");
+        b.textContent=d.name; b.title="切换到 "+d.name;
+        b.addEventListener("click",()=>switchDoc(d.id));
+        tabs.appendChild(b);
+    });
+    renderDocMenu();
+}
+function renderDocMenu(){
+    const m=el("docMenu"); if(!m) return;
+    m.innerHTML="";
+    const head=document.createElement("div"); head.className="doc-menu-head";
+    head.textContent="全部画布（"+docList.length+"）· 点名称切换"; m.appendChild(head);
+    docList.forEach(d=>{
+        const row=document.createElement("div");
+        row.className="doc-menu-item"+(d.id===docId?" active":"");
+        const name=document.createElement("button"); name.className="doc-menu-name";
+        name.textContent=(d.id===docId?"● ":"")+d.name;
+        name.title="切换到 "+d.name;
+        name.addEventListener("click",()=>{ switchDoc(d.id); m.classList.remove("show"); });
+        const ren=document.createElement("button"); ren.className="mini"; ren.textContent="✎"; ren.title="改名";
+        ren.addEventListener("click",e=>{ e.stopPropagation(); renameDoc(d.id); });
+        const del=document.createElement("button"); del.className="mini del"; del.textContent="×"; del.title="删除画布";
+        del.addEventListener("click",e=>{ e.stopPropagation(); deleteDoc(d.id); });
+        row.appendChild(name); row.appendChild(ren); row.appendChild(del); m.appendChild(row);
+    });
+}
+async function switchDoc(id){
+    if(id===docId || !docList.some(d=>d.id===id)) return;
+    clearTimeout(saveTimer);
+    try{ await persist(); }catch(e){ console.warn("切换前保存失败：",e); }
+    docId=id;
+    let doc=null; try{ doc=await idbGet("canvas",docKey(id)); }catch(e){}
+    canvas.nodes=doc&&Array.isArray(doc.nodes)?doc.nodes:[];
+    canvas.edges=doc&&Array.isArray(doc.edges)?doc.edges:[];
+    canvas.viewport=doc&&doc.viewport?doc.viewport:{x:40,y:40,zoom:1};
+    resetRuntimeFlags();
+    try{ await persist(); }catch(e){}
+    applyViewport(); renderAll(); renderDocTabs(); renderWorkflowInfo();
+    setStatus("已切换到 "+docName(id),"ok");
+}
+async function newDoc(){
+    clearTimeout(saveTimer);
+    try{ await persist(); }catch(e){}
+    let n=1; while(docList.some(d=>d.name==="画布"+n)) n++;
+    const id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    docList.push({id:id,name:"画布"+n});
+    docId=id;
+    canvas.nodes=[]; canvas.edges=[]; canvas.viewport={x:40,y:40,zoom:1};
+    resetRuntimeFlags();
+    try{ await persist(); }catch(e){}
+    applyViewport(); renderAll(); renderDocTabs(); renderWorkflowInfo();
+    setStatus("已新建 "+docName(id),"ok");
+}
+function renameDoc(id){
+    const d=docList.find(x=>x.id===id); if(!d) return;
+    const v=prompt("给这份画布起个名字：",d.name);
+    if(v===null) return;
+    d.name=v.trim()||d.name;
+    renderDocTabs(); persist().catch(()=>{});
+}
+async function deleteDoc(id){
+    if(docList.length<=1){ alert("至少保留一份画布。"); return; }
+    const d=docList.find(x=>x.id===id); if(!d) return;
+    if(!confirm("确认删除「"+d.name+"」及其全部节点？此操作不可撤销。")) return;
+    try{ await idbDelete("canvas",docKey(id)); }catch(e){}
+    docList=docList.filter(x=>x.id!==id);
+    if(id===docId){
+        docId=docList[0].id;
+        let doc=null; try{ doc=await idbGet("canvas",docKey(docId)); }catch(e){}
+        canvas.nodes=doc&&Array.isArray(doc.nodes)?doc.nodes:[];
+        canvas.edges=doc&&Array.isArray(doc.edges)?doc.edges:[];
+        canvas.viewport=doc&&doc.viewport?doc.viewport:{x:40,y:40,zoom:1};
+        resetRuntimeFlags();
+        applyViewport();
+    }
+    try{ await persist(); }catch(e){}
+    renderAll(); renderDocTabs(); renderWorkflowInfo();
+    setStatus("已删除 "+d.name,"ok");
+}
+
+/* ============ 视口 ============ */
+function applyViewport(){
+    const v = canvas.viewport;
+    el("viewport").style.transform = "translate("+v.x+"px,"+v.y+"px) scale("+v.zoom+")";
+    el("zoomLabel").textContent = Math.round(v.zoom*100)+"%";
+}
+function toCanvasXY(clientX,clientY){
+    const r = el("stage").getBoundingClientRect();
+    const v = canvas.viewport;
+    return {x:(clientX-r.left-v.x)/v.zoom, y:(clientY-r.top-v.y)/v.zoom};
+}
+function outPoint(n){ return {x:n.x+NODE_W,y:n.y+PORT_Y}; }
+function inPoint(n){ return {x:n.x,y:n.y+PORT_Y}; }
+
+/* ============ 节点渲染 ============ */
+function renderAll(){
+    const layer = el("nodeLayer"); layer.innerHTML = "";
+    canvas.nodes.forEach(n=>layer.appendChild(buildNode(n)));
+    drawEdges(); updateStat();
+}
+function buildNode(n){
+    const meta = NODE_META[n.type] || {label:"节点",color:"#9ca3af"};
+    const box = document.createElement("div");
+    box.className = "node"+(selectedId===n.id?" selected":"");
+    box.dataset.id = n.id;
+    box.style.left = n.x+"px"; box.style.top = n.y+"px";
+    const actions = [];
+    if(n.type==="prompt") actions.push('<button class="act-split" data-act="split" title="按 ▌ 拆成多条提示词节点">拆分</button>');
+    if(n.type==="generate") actions.push('<button class="act-run" data-act="run" title="运行生成">▶</button>');
+    actions.push('<button data-act="del" title="删除节点">×</button>');
+    box.innerHTML =
+        '<div class="node-head"><span class="node-dot" style="background:'+meta.color+'"></span>'+
+        '<span class="node-title"></span><div class="node-actions">'+actions.join("")+'</div></div>'+
+        '<div class="node-body"></div>'+
+        '<div class="port port-in" title="输入：把别的节点连到这里"></div>'+
+        '<div class="port port-out" title="输出：拖到别的节点左侧圆点连线"></div>';
+    box.querySelector(".node-title").textContent = n.title || meta.label;
+    const body = box.querySelector(".node-body");
+    if(n.type==="prompt") buildPromptBody(body,n);
+    else if(n.type==="image") buildImageBody(body,n);
+    else if(n.type==="generate") buildGenerateBody(body,n);
+    else if(n.type==="result") buildResultBody(body,n);
+
+    box.addEventListener("mousedown",e=>onNodeMouseDown(e,n));
+    box.addEventListener("click",e=>{
+        const act = e.target.closest("button[data-act]");
+        if(act){ e.stopPropagation(); handleNodeAction(act.getAttribute("data-act"),n); return; }
+        if(e.target.closest(".port")) return;
+        selectNode(n.id);
+    });
+    box.addEventListener("dblclick",e=>{ if(e.target.closest(".node-head")) startRename(n); });
+    return box;
+}
+function buildPromptBody(body,n){
+    const ta = document.createElement("textarea");
+    ta.placeholder = "粘贴剧本 / 生视频提示词 / 生图提示词…";
+    ta.value = n.data.text || "";
+    ta.addEventListener("input",()=>{ n.data.text = ta.value; updateCharCount(); scheduleSave(); });
+    body.appendChild(ta);
+    const line = document.createElement("div"); line.className="mini-line";
+    const cnt = document.createElement("span"); const tip = document.createElement("span");
+    tip.textContent = "按 ▌ 可一键拆分"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
+    function updateCharCount(){ cnt.textContent = (n.data.text||"").length + " 字"; }
+    updateCharCount();
+}
+function buildImageBody(body,n){
+    const zone = document.createElement("div"); zone.className="upload-zone";
+    zone.textContent = "点这里上传 / 拖入参考图（可多张）";
+    zone.addEventListener("click",()=>openImagePicker(n.id));
+    zone.addEventListener("dragover",e=>{e.preventDefault();});
+    zone.addEventListener("drop",e=>{ e.preventDefault(); e.stopPropagation(); addImages(n,[...e.dataTransfer.files]); });
+    body.appendChild(zone);
+    const grid = document.createElement("div"); grid.className="img-grid"; body.appendChild(grid);
+    paintImages(grid,n);
+}
+function paintImages(grid,n){
+    grid.innerHTML = "";
+    const imgs = n.data.images || [];
+    imgs.forEach((src,i)=>{
+        const wrap = document.createElement("div"); wrap.className="thumb";
+        const img = document.createElement("img"); img.src = src; img.alt = "参考图 "+(i+1);
+        const rm = document.createElement("button"); rm.className="rm"; rm.textContent="×";
+        rm.title="移除这张图";
+        rm.addEventListener("click",e=>{ e.stopPropagation(); n.data.images.splice(i,1); paintImages(grid,n); scheduleSave(); });
+        wrap.appendChild(img); wrap.appendChild(rm); grid.appendChild(wrap);
+    });
+    if(!imgs.length){ const t=document.createElement("div"); t.className="mini-line"; t.textContent="暂无参考图"; grid.appendChild(t); }
+}
+function buildGenerateBody(body,n){
+    const d = n.data;
+    if(!d.engine) d.engine = "image_api";
+    const mkIn = (parent,label,child)=>{
+        const f=document.createElement("div"); f.className="fld";
+        const l=document.createElement("label"); l.textContent=label; f.appendChild(l); f.appendChild(child); parent.appendChild(f); return f;
+    };
+    const mk = (label,child)=>mkIn(body,label,child);
+    const inp = (type,ph)=>{ const i=document.createElement("input"); i.type=type; i.placeholder=ph||""; return i; };
+    const ta = (minH)=>{ const t=document.createElement("textarea"); t.className="code"; t.style.minHeight=minH+"px"; return t; };
+
+    const sel = document.createElement("select");
+    [["image_api","生图 API（OpenAI 兼容 / Qwen 兼容模式）"],
+     ["generic_json","通用 JSON 接口（生图 / 生视频 / 异步任务）"],
+     ["comfyui","本地 ComfyUI 工作流（生图 / 生视频）"]].forEach(([v,t])=>{
+        const o=document.createElement("option"); o.value=v; o.textContent=t; sel.appendChild(o);
+    });
+    sel.value = d.engine;
+    mk("生成引擎",sel);
+
+    const wfSel = document.createElement("select");
+    const wfFld = mk("ComfyUI 工作流模板",wfSel);
+    function fillWf(){
+        wfSel.innerHTML="";
+        const list=canvas.settings.workflows||[];
+        if(!list.length){
+            const o=document.createElement("option"); o.value=""; o.textContent="未导入，请先在左侧导入"; wfSel.appendChild(o);
+            return;
+        }
+        list.forEach(w=>{
+            const o=document.createElement("option"); o.value=w.id;
+            o.textContent="["+(w.kind==="video"?"生视频":"生图")+"] "+w.name; wfSel.appendChild(o);
+        });
+        wfSel.value=(d.workflowId&&list.some(w=>w.id===d.workflowId))?d.workflowId:list[0].id;
+        d.workflowId=wfSel.value;
+    }
+    fillWf();
+
+    const ep = inp("text","留空＝自动用创作台的接口地址"); ep.value=d.endpoint||"";
+    const epFld = mk("接口地址",ep);
+    const mdl = inp("text","留空＝用创作台模型；也可填 1024x1024 这类尺寸"); mdl.value=d.model||"";
+    const mdlFld = mk("模型名 或 尺寸",mdl);
+    const keyIn = inp("password","留空＝用创作台配置的 API Key"); keyIn.value=d.apiKey||"";
+    const keyFld = mk("独立 API Key（可选，只存本机画布）",keyIn);
+    const hdr = ta(46); hdr.value=d.headers||"";
+    const hdrFld = mk("自定义请求头（JSON 对象，可选）",hdr);
+    const tpl = ta(86); tpl.value=d.bodyTemplate||DEFAULT_BODY_TEMPLATE;
+    const tplFld = mk("请求体模板",tpl);
+
+    const adv=document.createElement("details"); adv.className="adv"; if(d.advOpen) adv.open=true;
+    const sum=document.createElement("summary"); sum.textContent="▸ 高级：异步任务轮询 / 模板快捷填充"; adv.appendChild(sum);
+    const advBody=document.createElement("div"); adv.appendChild(advBody);
+    const mkAdv=(label,child)=>mkIn(advBody,label,child);
+    const pollUrl=inp("text","留空＝不轮询；如 https://.../api/v1/tasks/{{task_id}}"); pollUrl.value=d.pollUrl||"";
+    mkAdv("结果查询地址（含 {{task_id}}）",pollUrl);
+    const taskPath=inp("text","output.task_id"); taskPath.value=d.taskIdPath||DEFAULT_POLL.taskIdPath;
+    const statusPath=inp("text","output.task_status"); statusPath.value=d.statusPath||DEFAULT_POLL.statusPath;
+    const pair=document.createElement("div"); pair.className="two"; pair.appendChild(taskPath); pair.appendChild(statusPath);
+    mkAdv("任务ID路径 / 状态路径",pair);
+    const okVals=inp("text","SUCCEEDED,success,COMPLETED"); okVals.value=d.successValues||DEFAULT_POLL.successValues;
+    const failVals=inp("text","FAILED,CANCELED,UNKNOWN"); failVals.value=d.failValues||DEFAULT_POLL.failValues;
+    const pair2=document.createElement("div"); pair2.className="two"; pair2.appendChild(okVals); pair2.appendChild(failVals);
+    mkAdv("成功状态值 / 失败状态值（逗号分隔）",pair2);
+    const interval=inp("number","3"); interval.value=String(d.pollInterval||DEFAULT_POLL.pollInterval); interval.min="1";
+    const maxPoll=inp("number","60"); maxPoll.value=String(d.maxPoll||DEFAULT_POLL.maxPoll); maxPoll.min="1";
+    const pair3=document.createElement("div"); pair3.className="two"; pair3.appendChild(interval); pair3.appendChild(maxPoll);
+    mkAdv("轮询间隔（秒） / 最多次数",pair3);
+    const quick=document.createElement("div"); quick.className="row"; quick.style.margin="4px 0 0";
+    const qb=document.createElement("button"); qb.className="mini-btn purple"; qb.textContent="填入 Qwen Image 2.1 异步模板";
+    const db=document.createElement("button"); db.className="mini-btn gray"; db.textContent="恢复默认模板";
+    quick.appendChild(qb); quick.appendChild(db); advBody.appendChild(quick);
+    body.appendChild(adv);
+
+    const run = document.createElement("button"); run.className="run-btn"; run.textContent="▶ 运行生成";
+    if(d.busy){ run.disabled=true; run.textContent="生成中…"; }
+    body.appendChild(run);
+    const st = document.createElement("div"); st.className="gen-status"; st.textContent = d.status||""; body.appendChild(st);
+
+    function syncFields(){
+        const g = d.engine==="generic_json", c = d.engine==="comfyui";
+        wfFld.style.display = c?"":"none";
+        epFld.style.display = c?"none":""; mdlFld.style.display = c?"none":"";
+        keyFld.style.display = c?"none":""; hdrFld.style.display = c?"none":"";
+        tplFld.style.display = g?"":"none"; adv.style.display = g?"":"none";
+        ep.placeholder = g?"必填：完整接口地址，如 https://api.xxx.com/v1/video/generations":"留空＝自动用创作台的接口地址";
+        if(c) fillWf();
+    }
+    syncFields();
+    function bindVal(elm,key,num){
+        elm.addEventListener("input",()=>{ d[key]= num? Math.max(1,Number(elm.value)||1) : elm.value; scheduleSave(); });
+    }
+    sel.addEventListener("change",()=>{ d.engine=sel.value; syncFields(); scheduleSave(); });
+    wfSel.addEventListener("change",()=>{ d.workflowId=wfSel.value; scheduleSave(); });
+    bindVal(ep,"endpoint"); bindVal(mdl,"model"); bindVal(keyIn,"apiKey"); bindVal(hdr,"headers"); bindVal(tpl,"bodyTemplate");
+    bindVal(pollUrl,"pollUrl"); bindVal(taskPath,"taskIdPath"); bindVal(statusPath,"statusPath");
+    bindVal(okVals,"successValues"); bindVal(failVals,"failValues");
+    bindVal(interval,"pollInterval",true); bindVal(maxPoll,"maxPoll",true);
+    adv.addEventListener("toggle",()=>{ d.advOpen=adv.open; scheduleSave(); });
+    qb.addEventListener("click",e=>{
+        e.stopPropagation();
+        tpl.value=QWEN_IMAGE_TEMPLATE; d.bodyTemplate=tpl.value;
+        mdl.value="qwen-image-2.1-pro"; d.model=mdl.value;
+        ep.value="https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation"; d.endpoint=ep.value;
+        hdr.value='{\n  "X-DashScope-Async": "enable"\n}'; d.headers=hdr.value;
+        pollUrl.value="https://dashscope.aliyuncs.com/api/v1/tasks/{{task_id}}"; d.pollUrl=pollUrl.value;
+        adv.open=true; d.advOpen=true; scheduleSave();
+        setStatus("已填入 Qwen 异步模板，请核对地址与 Key","ok");
+    });
+    db.addEventListener("click",e=>{
+        e.stopPropagation();
+        tpl.value=DEFAULT_BODY_TEMPLATE; d.bodyTemplate=tpl.value;
+        hdr.value=""; d.headers=""; pollUrl.value=""; d.pollUrl=""; scheduleSave();
+    });
+    run.addEventListener("click",e=>{ e.stopPropagation(); runGenerate(n); });
+}
+/* 跨域结果 URL 的 download 属性会被浏览器忽略，先尝试转 blob 再下载；失败则新开标签让用户手动保存 */
+async function downloadUrl(url,name){
+    if(/^data:/i.test(url)){
+        const a=document.createElement("a"); a.href=url; a.download=name;
+        document.body.appendChild(a); a.click(); a.remove(); return;
+    }
+    try{
+        const r=await fetch(url,{mode:"cors"});
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        const blob=await r.blob(), u=URL.createObjectURL(blob);
+        const a=document.createElement("a"); a.href=u; a.download=name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(u),30000);
+    }catch(e){
+        console.warn("结果下载被跨域限制，改为新标签打开：",e);
+        window.open(url,"_blank","noopener");
+    }
+}
+function buildResultBody(body,n){
+    const d = n.data || {};
+    const holder = document.createElement("div"); body.appendChild(holder);
+    const actions = document.createElement("div"); actions.className="result-actions"; body.appendChild(actions);
+    if(d.kind==="image" && d.url){
+        const img=document.createElement("img"); img.className="result-media"; img.src=d.url; img.alt="生成结果"; holder.appendChild(img);
+    } else if(d.kind==="video" && d.url){
+        const v=document.createElement("video"); v.className="result-media"; v.src=d.url; v.controls=true; holder.appendChild(v);
+    } else if(d.text){
+        const pre=document.createElement("div"); pre.className="result-text"; pre.textContent=d.text; holder.appendChild(pre);
+    } else {
+        const t=document.createElement("div"); t.className="mini-line"; t.textContent="暂无结果：把提示词 / 参考图连到生成节点并运行"; holder.appendChild(t);
+    }
+    if(d.url){
+        const a=document.createElement("button"); a.className="mini-btn cyan"; a.textContent="下载结果";
+        a.addEventListener("click",e=>{
+            e.stopPropagation();
+            downloadUrl(d.url,d.name||("manflows_result_"+(d.kind==="video"?"mp4":"png")));
+        });
+        actions.appendChild(a);
+        if(d.kind==="image"){
+            const b=document.createElement("button"); b.className="mini-btn purple"; b.textContent="作为参考图继续";
+            b.addEventListener("click",e=>{ e.stopPropagation(); reuseAsImage(d.url); }); actions.appendChild(b);
+        }
+    }
+    if(d.text){
+        const b=document.createElement("button"); b.className="mini-btn gray"; b.textContent="复制文本";
+        b.addEventListener("click",e=>{ e.stopPropagation(); navigator.clipboard?.writeText(d.text).catch(()=>{}); }); actions.appendChild(b);
+    }
+}
+function selectNode(id){
+    selectedId = id;
+    document.querySelectorAll(".node").forEach(x=>x.classList.toggle("selected",x.dataset.id===id));
+}
+function startRename(n){
+    const v = prompt("节点名称：",n.title||"");
+    if(v===null) return;
+    n.title = v.trim() || n.title;
+    renderAll(); scheduleSave();
+}
+function handleNodeAction(act,n){
+    if(act==="del"){ removeNode(n.id); }
+    else if(act==="run"){ runGenerate(n); }
+    else if(act==="split"){ splitPrompt(n); }
+}
+function removeNode(id){
+    canvas.nodes = canvas.nodes.filter(x=>x.id!==id);
+    canvas.edges = canvas.edges.filter(e=>e.from!==id && e.to!==id);
+    if(selectedId===id) selectedId=null;
+    renderAll(); scheduleSave();
+}
+
+/* ============ 连线绘制与交互 ============ */
+/* 拖动节点时只更新已有连线的路径，避免每个 mousemove 都重建全部 SVG 元素 */
+function moveEdgePaths(){
+    const svg=el("edgeSvg");
+    svg.querySelectorAll("path[data-edge]").forEach(p=>{
+        const e=canvas.edges.find(x=>x.id===p.dataset.edge);
+        if(!e) return;
+        const a=canvas.nodes.find(n=>n.id===e.from), b=canvas.nodes.find(n=>n.id===e.to);
+        if(a&&b) p.setAttribute("d",bezier(outPoint(a),inPoint(b)));
+    });
+}
+function bezier(a,b){
+    const dx = Math.max(45,Math.abs(b.x-a.x)*.45);
+    return "M "+a.x+" "+a.y+" C "+(a.x+dx)+" "+a.y+", "+(b.x-dx)+" "+b.y+", "+b.x+" "+b.y;
+}
+function svgPath(d,cls){
+    const p=document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d",d); p.setAttribute("fill","none");
+    p.setAttribute("stroke",cls||"#4b5563"); p.setAttribute("stroke-width","2");
+    p.setAttribute("stroke-linecap","round");
+    return p;
+}
+function drawEdges(){
+    const svg=el("edgeSvg"); svg.innerHTML="";
+    canvas.edges.forEach(e=>{
+        const a=canvas.nodes.find(n=>n.id===e.from), b=canvas.nodes.find(n=>n.id===e.to);
+        if(!a||!b) return;
+        const p=svgPath(bezier(outPoint(a),inPoint(b)));
+        p.dataset.edge=e.id;
+        p.addEventListener("click",ev=>{
+            ev.stopPropagation();
+            canvas.edges=canvas.edges.filter(x=>x.id!==e.id);
+            drawEdges(); scheduleSave();
+        });
+        const hit=svgPath(bezier(outPoint(a),inPoint(b)),"transparent");
+        hit.setAttribute("stroke-width","14"); hit.dataset.edge=e.id;
+        hit.addEventListener("click",ev=>{
+            ev.stopPropagation();
+            canvas.edges=canvas.edges.filter(x=>x.id!==e.id);
+            drawEdges(); scheduleSave();
+        });
+        svg.appendChild(p); svg.appendChild(hit);
+    });
+}
+function onNodeMouseDown(e,n){
+    if(e.button!==0) return;
+    if(e.target.closest(".port-out")){
+        e.preventDefault(); e.stopPropagation();
+        drag={type:"link",from:n.id};
+        tempPath=svgPath("","#60a5fa"); tempPath.setAttribute("stroke-dasharray","5 4");
+        el("edgeSvg").appendChild(tempPath);
+        updateTempPath(e.clientX,e.clientY);
+        return;
+    }
+    const head=e.target.closest(".node-head");
+    if(head && !e.target.closest("button")){
+        e.preventDefault();
+        selectNode(n.id);
+        drag={type:"move",id:n.id,sx:e.clientX,sy:e.clientY,ox:n.x,oy:n.y};
+    }
+}
+function updateTempPath(cx,cy){
+    if(!tempPath) return;
+    const a=canvas.nodes.find(n=>n.id===drag.from); if(!a) return;
+    const p=toCanvasXY(cx,cy);
+    tempPath.setAttribute("d",bezier(outPoint(a),p));
+}
+document.addEventListener("mousemove",e=>{
+    if(!drag) return;
+    const z=canvas.viewport.zoom;
+    if(drag.type==="move"){
+        const n=canvas.nodes.find(x=>x.id===drag.id); if(!n) return;
+        n.x=Math.max(0,drag.ox+(e.clientX-drag.sx)/z);
+        n.y=Math.max(0,drag.oy+(e.clientY-drag.sy)/z);
+        const box=document.querySelector('.node[data-id="'+drag.id+'"]');
+        if(box){ box.style.left=n.x+"px"; box.style.top=n.y+"px"; }
+        moveEdgePaths();
+    } else if(drag.type==="pan"){
+        canvas.viewport.x=drag.ox+(e.clientX-drag.sx);
+        canvas.viewport.y=drag.oy+(e.clientY-drag.sy);
+        applyViewport();
+    } else if(drag.type==="link"){
+        updateTempPath(e.clientX,e.clientY);
+    }
+});
+document.addEventListener("mouseup",e=>{
+    if(!drag) return;
+    const d=drag; drag=null;
+    if(d.type==="move"){ scheduleSave(); }
+    else if(d.type==="pan"){ scheduleSave(); }
+    else if(d.type==="link"){
+        if(tempPath){ tempPath.remove(); tempPath=null; }
+        const under=document.elementFromPoint(e.clientX,e.clientY);
+        const box=under?under.closest(".node"):null;
+        if(box && box.dataset.id!==d.from) addEdge(d.from,box.dataset.id);
+        drawEdges();
+    }
+});
+function addEdge(from,to){
+    if(canvas.edges.some(e=>e.from===from&&e.to===to)) return;
+    canvas.edges.push({id:uid(),from,to}); scheduleSave();
+}
+el("stage").addEventListener("mousedown",e=>{
+    if(e.button!==0) return;
+    if(e.target.closest(".node")||e.target.closest(".zoom-bar")||e.target.tagName==="path") return;
+    drag={type:"pan",sx:e.clientX,sy:e.clientY,ox:canvas.viewport.x,oy:canvas.viewport.y};
+});
+el("stage").addEventListener("wheel",e=>{
+    e.preventDefault();
+    const r=el("stage").getBoundingClientRect(), v=canvas.viewport;
+    const mx=e.clientX-r.left,my=e.clientY-r.top,old=v.zoom;
+    const nz=clamp(old*(e.deltaY<0?1.1:.9),.3,2);
+    v.x=mx-(mx-v.x)*(nz/old); v.y=my-(my-v.y)*(nz/old); v.zoom=nz;
+    applyViewport(); scheduleSave();
+},{passive:false});
+
+/* ============ 节点创建 ============ */
+function newNode(type,x,y,extra){
+    const n={id:uid(),type,x:Math.max(0,x),y:Math.max(0,y),title:(NODE_META[type]||{}).label||"节点",data:Object.assign({},extra||{})};
+    canvas.nodes.push(n); return n;
+}
+function spawn(type){
+    const v=canvas.viewport, r=el("stage").getBoundingClientRect();
+    const p=toCanvasXY(r.left+r.width*.42,r.top+r.height*.32);
+    const jitter=canvas.nodes.length%5*18;
+    const n=newNode(type,p.x+jitter,p.y+jitter);
+    if(type==="generate") n.data={engine:"image_api",endpoint:"",model:"",bodyTemplate:DEFAULT_BODY_TEMPLATE,status:""};
+    if(type==="result") n.data={kind:"",url:"",text:""};
+    renderAll(); selectNode(n.id); scheduleSave();
+    return n;
+}
+function splitPrompt(n){
+    const text=n.data.text||"";
+    const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
+    if(parts.length<2){ setStatus("没有找到 ▌ 分段，未拆分","err"); return; }
+    if(!confirm("将拆成 "+parts.length+" 个提示词节点，原节点会被替换。继续？")) return;
+    canvas.nodes=canvas.nodes.filter(x=>x.id!==n.id);
+    const inbound=canvas.edges.filter(e=>e.to===n.id).map(e=>e.from);
+    const outbound=canvas.edges.filter(e=>e.from===n.id).map(e=>e.to);
+    canvas.edges=canvas.edges.filter(e=>e.from!==n.id&&e.to!==n.id);
+    parts.forEach((part,i)=>{
+        const title=(part.split("\n")[0]||("分段 "+(i+1))).replace(/^▌\s*/,"").slice(0,28);
+        const q=newNode("prompt",n.x+(i%2)*310,n.y+Math.floor(i/2)*250,{text:part,sourceId:n.data.sourceId||""});
+        q.title=title;
+        inbound.forEach(f=>canvas.edges.push({id:uid(),from:f,to:q.id}));
+        outbound.forEach(t=>canvas.edges.push({id:uid(),from:q.id,to:t}));
+    });
+    renderAll(); scheduleSave(); setStatus("已拆成 "+parts.length+" 条","ok");
+}
+function reuseAsImage(url){
+    const n=spawn("image");
+    n.data.images=[url]; n.title="上一轮结果图";
+    renderAll(); scheduleSave();
+}
+let imageTargetId=null;
+function openImagePicker(id){ imageTargetId=id; el("nodeImageInput").click(); }
+el("nodeImageInput").addEventListener("change",e=>{
+    const files=[...e.target.files]; e.target.value="";
+    const n=canvas.nodes.find(x=>x.id===imageTargetId);
+    if(n&&files.length) addImages(n,files);
+});
+async function compressImage(file,maxEdge,q){
+    const dataUrl=await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(file); });
+    const img=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error("图片解码失败")); im.src=dataUrl; });
+    const scale=Math.min(1,maxEdge/Math.max(img.width,img.height));
+    const cv=document.createElement("canvas"); cv.width=Math.max(1,Math.round(img.width*scale)); cv.height=Math.max(1,Math.round(img.height*scale));
+    cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+    return cv.toDataURL("image/jpeg",q);
+}
+async function addImages(n,files){
+    if(!Array.isArray(n.data.images)) n.data.images=[];
+    for(const f of files){
+        if(!/^image\//.test(f.type)) continue;
+        try{ n.data.images.push(await compressImage(f,1024,.8)); }
+        catch(e){ console.warn("图片处理失败：",e); }
+    }
+    /* 只刷新本节点的缩略图，避免重建全部节点导致其它节点正在编辑的输入框失焦 */
+    const grid=document.querySelector('.node[data-id="'+n.id+'"] .img-grid');
+    if(grid) paintImages(grid,n); else renderAll();
+    scheduleSave();
+    setStatus("参考图 "+n.data.images.length+" 张","ok");
+}
+
+/* ============ 创作台产物交接 ============ */
+function addFromPayload(payload){
+    if(!payload||!payload.text) return false;
+    if(payload.id && seenSourceIds.has(payload.id)) return false;
+    if(payload.id) seenSourceIds.add(payload.id);
+    const n=newNode("prompt",0,0,{text:payload.text,sourceId:payload.id||"",skillKey:payload.skillKey||""});
+    n.title=payload.title||"来自创作台的产物";
+    placeNewNode(n);
+    autoConnect(n);
+    renderAll(); selectNode(n.id); scheduleSave();
+    el("inboxState").textContent="已接收："+(n.title||"产物");
+    return true;
+}
+function placeNewNode(n){
+    const v=canvas.viewport,r=el("stage").getBoundingClientRect();
+    const c=toCanvasXY(r.left+90,r.top+80);
+    let maxX=0;
+    canvas.nodes.forEach(x=>{ if(x!==n) maxX=Math.max(maxX,x.x); });
+    n.x=Math.max(c.x,maxX?maxX+320:c.x);
+    n.y=c.y+(canvas.nodes.length%4)*40;
+}
+function autoConnect(n){
+    const gens=canvas.nodes.filter(x=>x.type==="generate");
+    if(gens.length===1) addEdge(n.id,gens[0].id);
+}
+async function drainInbox(){
+    let items=[];
+    try{ items=await idbGetAll("inbox"); }catch(e){ console.warn("收件箱读取失败：",e); }
+    const fallback=safeStorage.get("manflows_canvas_inbox");
+    if(fallback){
+        try{ const p=JSON.parse(fallback); if(p&&p.id&&!items.some(x=>x.id===p.id)) items.push(p); }catch(e){}
+        safeStorage.remove("manflows_canvas_inbox");
+    }
+    let got=0;
+    for(const p of items){
+        try{ if(addFromPayload(p)) got++; }catch(e){ console.warn("收件条目处理失败：",e); }
+        try{ if(p.id) await idbDelete("inbox",p.id); }catch(e){}
+    }
+    if(got) setStatus("已接收 "+got+" 份产物","ok");
+    return got;
+}
+function setupChannel(){
+    try{
+        if(!("BroadcastChannel" in window)) return;
+        channel=new BroadcastChannel(MF_CANVAS_CHANNEL);
+        channel.onmessage=ev=>{ try{ addFromPayload(ev.data); }catch(e){ console.warn(e); } };
+    }catch(e){ console.warn("BroadcastChannel 不可用：",e); }
+}
+
+/* ============ 只读 API 配置 ============ */
+function currentProfile(){
+    let list=[];
+    try{ list=JSON.parse(safeStorage.get(KEY_API)||"[]")||[]; }catch(e){ list=[]; }
+    if(!list.length) return null;
+    const cur=safeStorage.get(KEY_CURR);
+    return list.find(p=>p.id===cur)||list[0]||null;
+}
+function renderApiInfo(){
+    const p=currentProfile();
+    const box=el("apiInfo");
+    if(!p){ box.innerHTML='<span style="color:#fcd34d">尚无 API 配置</span><br>请到创作台「API云算力」里填接口地址 / Key / 模型。本页只读，不会保存任何密钥到源码。'; return; }
+    const key=(p.key||"");
+    const masked=key?key.slice(0,4)+"••••"+key.slice(-4):'<span style="color:#fcd34d">（空）</span>';
+    box.innerHTML='<b>名称：</b>'+esc(p.name||"未命名")+'<br><b>接口：</b>'+esc(p.endpoint||"（空）")+'<br><b>模型：</b>'+esc(p.model||"（空）")+'<br><b>Key：</b>'+masked;
+}
+
+/* ============ 生成引擎 ============ */
+function upstream(nodeId,type){
+    const ids=canvas.edges.filter(e=>e.to===nodeId).map(e=>e.from);
+    return canvas.nodes.filter(n=>ids.includes(n.id)&&(!type||n.type===type));
+}
+function collectInputs(gen){
+    const prompts=upstream(gen.id,"prompt").map(n=>n.data.text||"").filter(Boolean);
+    const texts=prompts.join("\n\n");
+    const images=[];
+    upstream(gen.id,"image").forEach(n=>(n.data.images||[]).forEach(u=>images.push(u)));
+    upstream(gen.id,"result").forEach(n=>{ if(n.data&&n.data.kind==="image"&&n.data.url) images.push(n.data.url); });
+    return {prompt:texts,images:images};
+}
+function resultNodeFor(gen){
+    const linked=canvas.edges.filter(e=>e.from===gen.id).map(e=>e.to);
+    let r=canvas.nodes.find(n=>n.type==="result"&&linked.includes(n.id));
+    if(!r){
+        r=newNode("result",gen.x+340,gen.y,{kind:"",url:"",text:""});
+        r.title="生成结果";
+        canvas.edges.push({id:uid(),from:gen.id,to:r.id});
+    }
+    return r;
+}
+function setGenStatus(n,msg,kind){
+    n.data.status=msg||"";
+    const box=document.querySelector('.node[data-id="'+n.id+'"]');
+    if(box){ const st=box.querySelector(".gen-status"); if(st){ st.textContent=msg||""; st.className="gen-status"+(kind?" "+kind:""); } }
+}
+function classifyUrl(u,forcedKind){
+    const s=String(u||"");
+    const isVid=/\.(mp4|webm|mov|m4v|gif)(\?|$)/i.test(s)||/video_url|video\.mp4|\/videos?\//i.test(s);
+    if(forcedKind==="video"||(forcedKind!=="image"&&isVid)) return {kind:"video",url:s,name:"manflows_video.mp4"};
+    return {kind:"image",url:s,name:"manflows_image.png"};
+}
+function getPath(o,path){
+    const parts=String(path||"").split(".").filter(Boolean);
+    let cur=o;
+    for(const p of parts){
+        if(cur==null) return undefined;
+        cur=Array.isArray(cur)?cur[Number(p)]:cur[p];
+    }
+    return cur;
+}
+/* 兼容 OpenAI Images / DashScope Qwen / 常见生视频任务返回结构；找不到就展示原始响应便于排错 */
+function parseGenResponse(d,forcedKind){
+    if(!d||typeof d!=="object") return {kind:"text",text:"接口返回为空或非 JSON 对象"};
+    if(d._raw!==undefined) return {kind:"text",text:"接口返回的不是 JSON：\n"+String(d._raw).slice(0,2000)};
+    const item=(Array.isArray(d.data)&&d.data[0])||(d.output&&Array.isArray(d.output.results)&&d.output.results[0])||(Array.isArray(d.images)&&d.images[0])||null;
+    if(item){
+        if(typeof item==="string") return classifyUrl(item,forcedKind);
+        if(item.b64_json) return {kind:"image",url:"data:image/png;base64,"+item.b64_json,name:"manflows_image.png"};
+        if(item.url) return classifyUrl(item.url,forcedKind);
+        if(item.image) return classifyUrl(item.image,forcedKind);
+    }
+    const choices=d.output&&d.output.choices;
+    if(Array.isArray(choices)){
+        const content=choices[0]&&choices[0].message&&choices[0].message.content;
+        if(Array.isArray(content)){
+            const hit=content.find(c=>c&&typeof c.image==="string")||content.find(c=>c&&typeof c.url==="string");
+            if(hit) return classifyUrl(hit.image||hit.url,forcedKind);
+        }
+    }
+    const found=[];
+    const walk=(o,dep)=>{
+        if(dep>8||!o||typeof o!=="object") return;
+        Object.keys(o).forEach(k=>{
+            const v=o[k];
+            if(k==="b64_json"&&typeof v==="string"&&v.length>80) found.push("data:image/png;base64,"+v);
+            else if(typeof v==="string"&&/^(https?:\/\/|data:image)/i.test(v)&&/(url|video|image|file|output|download|mp4|gif)/i.test(k)) found.push(v);
+            else if(v&&typeof v==="object") walk(v,dep+1);
+        });
+    };
+    walk(d,0);
+    if(found.length) return classifyUrl(found[0],forcedKind);
+    return {kind:"text",text:"接口未返回可识别的图片/视频地址，原始响应：\n"+JSON.stringify(d,null,2).slice(0,4000)};
+}
+function parseHeaders(d){
+    const s=String((d&&d.headers)||"").trim();
+    if(!s) return {};
+    let h;
+    try{ h=JSON.parse(s); }catch(e){ throw new Error("自定义请求头不是合法 JSON："+e.message); }
+    if(!h||typeof h!=="object"||Array.isArray(h)) throw new Error("自定义请求头必须是 JSON 对象，例如 {\"X-DashScope-Async\":\"enable\"}");
+    return h;
+}
+function resolveKey(n){
+    const own=String(n.data.apiKey||"").trim();
+    if(own) return own;
+    const p=currentProfile();
+    return p?(p.key||""):"";
+}
+async function postJson(url,key,body,timeoutMs,extraHeaders){
+    const ctrl=new AbortController();
+    const t=setTimeout(()=>ctrl.abort(),timeoutMs||120000);
+    try{
+        const headers=Object.assign({"Content-Type":"application/json"},extraHeaders||{});
+        if(key&&!headers["Authorization"]) headers["Authorization"]="Bearer "+key;
+        const res=await fetch(url,{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal});
+        const txt=await res.text();
+        let data; try{ data=JSON.parse(txt); }catch(e){ data={_raw:txt}; }
+        if(!res.ok) throw new Error("HTTP "+res.status+"："+txt.slice(0,600));
+        return data;
+    }finally{ clearTimeout(t); }
+}
+async function getJson(url,key,extraHeaders,timeoutMs){
+    const ctrl=new AbortController();
+    const t=setTimeout(()=>ctrl.abort(),timeoutMs||30000);
+    try{
+        const headers=Object.assign({},extraHeaders||{});
+        if(key&&!headers["Authorization"]) headers["Authorization"]="Bearer "+key;
+        const res=await fetch(url,{method:"GET",headers,signal:ctrl.signal});
+        const txt=await res.text();
+        let data; try{ data=JSON.parse(txt); }catch(e){ data={_raw:txt}; }
+        if(!res.ok) throw new Error("HTTP "+res.status+"："+txt.slice(0,400));
+        return data;
+    }finally{ clearTimeout(t); }
+}
+function deriveImageEndpoint(p){
+    let base=(p&&p.endpoint||"").trim().replace(/\/+$/,"");
+    if(!base) return "";
+    if(/\/chat\/completions$/i.test(base)) return base.replace(/\/chat\/completions$/i,"/images/generations");
+    if(/\/images\/generations$/i.test(base)) return base;
+    if(/\/v1$/i.test(base)) return base+"/images/generations";
+    if(/\/compatible-mode\/v1$/i.test(base)) return base+"/images/generations";
+    return base.replace(/\/+$/,"")+"/v1/images/generations";
+}
+function jsonEscape(s){ return JSON.stringify(String(s==null?"":s)).slice(1,-1); }
+/* 「模型名 或 尺寸」输入框：填 1024x1024 这类就当画幅，否则当模型名覆盖创作台配置 */
+function genParams(n){
+    const p=currentProfile();
+    const raw=String(n.data.model||"").trim();
+    const isSize=/^\d+x\d+$/i.test(raw);
+    return {
+        model:isSize?"":(raw||(p?p.model:"")||""),
+        size:isSize?raw:(n.data.size||"1024x1024"),
+        key:resolveKey(n)
+    };
+}
+async function genImageApi(n,input){
+    const q=genParams(n);
+    const url=n.data.endpoint||deriveImageEndpoint(currentProfile());
+    if(!url) throw new Error("接口地址为空：请到创作台配置，或在生成节点里手填 /images/generations 地址。");
+    const body={prompt:input.prompt,n:1,size:q.size};
+    if(q.model) body.model=q.model;
+    const d=await postJson(url,q.key,body,120000,parseHeaders(n.data));
+    return parseGenResponse(d,"image");
+}
+/* 占位符：
+   {{prompt}} {{model}} {{size}}  文本
+   {{images}}            URL/base64 字符串数组
+   {{images_base64}}     去掉 data: 前缀的纯 base64 数组
+   {{content_array}}     完整 content 数组（参考图对象 + 文本），Qwen DashScope 用
+   {{image_objects}}     逗号分隔的 {"image":...} 序列，可放进自建 content 数组 */
+function renderTemplate(tpl,input,q){
+    const imgs=input.images||[];
+    const imagesJson=JSON.stringify(imgs);
+    const base64Json=JSON.stringify(imgs.map(u=>String(u).replace(/^data:[^;]+;base64,/,"")));
+    const objSeq=imgs.map(u=>JSON.stringify({image:u})).join(",");
+    const objArr="["+objSeq+"]";
+    const contentArr=JSON.stringify(imgs.map(u=>({image:u})).concat([{text:input.prompt}]));
+    return String(tpl||"")
+        .replace(/"\{\{images\}\}"/g,()=>imagesJson)
+        .replace(/"\{\{images_base64\}\}"/g,()=>base64Json)
+        .replace(/"\{\{image_objects\}\}"/g,()=>objArr)
+        .replace(/"\{\{content_array\}\}"/g,()=>contentArr)
+        .replace(/\{\{prompt\}\}/g,()=>jsonEscape(input.prompt))
+        .replace(/\{\{model\}\}/g,()=>jsonEscape(q.model))
+        .replace(/\{\{size\}\}/g,()=>jsonEscape(q.size))
+        .replace(/\{\{content_array\}\}/g,()=>contentArr)
+        .replace(/\{\{images_base64\}\}/g,()=>base64Json)
+        .replace(/\{\{image_objects\}\}/g,()=>objSeq)
+        .replace(/\{\{images\}\}/g,()=>imagesJson);
+}
+/* 异步任务：提交返回 task_id → 轮询查询地址 → 状态成功后再解析结果 */
+async function pollTask(n,submitResp,key,extraHeaders){
+    const d=n.data;
+    const tpl=String(d.pollUrl||"").trim();
+    if(!tpl) return submitResp;
+    const tid=getPath(submitResp,d.taskIdPath||DEFAULT_POLL.taskIdPath);
+    if(tid===undefined||tid===null||tid==="") return submitResp;
+    const url=tpl.replace(/\{\{task_id\}\}/g,encodeURIComponent(String(tid)));
+    const ok=String(d.successValues||DEFAULT_POLL.successValues).split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+    const fail=String(d.failValues||DEFAULT_POLL.failValues).split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+    const interval=Math.max(1,Number(d.pollInterval)||DEFAULT_POLL.pollInterval);
+    const max=Math.max(1,Number(d.maxPoll)||DEFAULT_POLL.maxPoll);
+    for(let i=0;i<max;i++){
+        await new Promise(r=>setTimeout(r,interval*1000));
+        let j;
+        try{ j=await getJson(url,key,extraHeaders,30000); }
+        catch(e){ setGenStatus(n,"查询失败重试中："+e.message); continue; }
+        const st=String(getPath(j,d.statusPath||DEFAULT_POLL.statusPath)||"").toUpperCase();
+        if(ok.includes(st)) return j;
+        if(fail.includes(st)) throw new Error("任务失败（"+st+"）："+JSON.stringify(j).slice(0,500));
+        setGenStatus(n,"任务 "+(st||"进行中")+" … "+(i+1)+"/"+max);
+    }
+    throw new Error("任务轮询超时（"+max+" 次 × "+interval+" 秒），任务ID："+tid);
+}
+async function genGenericJson(n,input){
+    const q=genParams(n);
+    const url=(n.data.endpoint||"").trim();
+    if(!url) throw new Error("通用 JSON 接口必须在生成节点里填完整接口地址。");
+    const extra=parseHeaders(n.data);
+    const json=renderTemplate(n.data.bodyTemplate||DEFAULT_BODY_TEMPLATE,input,q);
+    let body; try{ body=JSON.parse(json); }catch(e){ throw new Error("请求体模板替换后不是合法 JSON："+e.message+"\n"+json.slice(0,500)); }
+    let d=await postJson(url,q.key,body,120000,extra);
+    d=await pollTask(n,d,q.key,extra);
+    return parseGenResponse(d);
+}
+/* 自动推断：兼容标准 CLIPTextEncode、Qwen/自定义文本节点、多 LoadImage、各类 seed 字段 */
+function inferMapping(wf){
+    const ids=Object.keys(wf||{});
+    let promptNode=null,promptField="text",best=-1;
+    const badFields=["negative","negative_prompt","ckpt_name","filename_prefix","image","vae_name","lora_name"];
+    ids.forEach(id=>{
+        const node=wf[id]||{}, ins=node.inputs||{}, cls=String(node.class_type||"");
+        const isTextNode=/TextEncode|CLIPText|Text.*Encode|Prompt|Caption/i.test(cls);
+        Object.keys(ins).forEach(f=>{
+            if(typeof ins[f]!=="string"||badFields.includes(f)) return;
+            const looksLikePrompt=/^(text|prompt|positive.*|caption|description|words)$/i.test(f);
+            if(!isTextNode&&!looksLikePrompt) return;
+            if(ins[f].length>best){ best=ins[f].length; promptNode=id; promptField=f; }
+        });
+    });
+    const imageNodes=ids.filter(id=>/^(LoadImage|LoadImageMask|ImageLoader)/i.test(String((wf[id]||{}).class_type||""))).map(id=>({node:id,field:"image"}));
+    const seedNodes=[];
+    ids.forEach(id=>{
+        const ins=(wf[id]||{}).inputs||{};
+        Object.keys(ins).forEach(f=>{ if(/^(seed|noise_seed|rand_seed)$/i.test(f)) seedNodes.push({node:id,field:f}); });
+    });
+    const outputNodes=ids.filter(id=>/^(SaveImage|VHS_SaveVideo|SaveVideo|SaveAnimatedWEBP|SaveWEBM|SaveGIF)/i.test(String((wf[id]||{}).class_type||"")));
+    return {promptNode:promptNode,promptField:promptField,imageNodes:imageNodes,seedNodes:seedNodes,outputNodes:outputNodes};
+}
+function mappingText(){
+    const w=activeWorkflow();
+    return JSON.stringify(w?(w.mapping||{}):{},null,2);
+}
+function saveMappingFromBox(){
+    const w=activeWorkflow();
+    if(!w){ setStatus("先导入工作流","err"); return; }
+    try{
+        const m=JSON.parse(el("mappingBox").value);
+        if(!m||typeof m!=="object"||Array.isArray(m)) throw new Error("须为 JSON 对象");
+        w.mapping=m; scheduleSave(); setStatus("映射已保存","ok");
+    }catch(e){ setStatus("映射 JSON 有误","err"); alert("映射不是合法 JSON："+e.message); }
+}
+async function dataUrlToBlob(u){
+    const res=await fetch(u); return await res.blob();
+}
+async function comfyUploadImage(base,dataUrl,index){
+    const blob=await dataUrlToBlob(dataUrl);
+    const fd=new FormData();
+    fd.append("image",blob,"manflows_ref_"+(index+1)+".png");
+    fd.append("overwrite","true");
+    const res=await fetch(base.replace(/\/+$/,"")+"/upload/image",{method:"POST",body:fd});
+    if(!res.ok) throw new Error("上传参考图失败 HTTP "+res.status+"："+(await res.text()).slice(0,300));
+    const d=await res.json();
+    return d.name||d.filename;
+}
+async function genComfy(n,input){
+    const base=(canvas.settings.comfyBase||"").trim().replace(/\/+$/,"");
+    if(!base) throw new Error("请先在左侧填 ComfyUI 服务地址。");
+    const tpl=workflowById(n.data.workflowId)||activeWorkflow();
+    if(!tpl) throw new Error("请先在左侧导入 ComfyUI 工作流模板（生图与生视频可各导一份）。");
+    const wf=tpl.workflow;
+    if(!wf||typeof wf!=="object") throw new Error("工作流模板内容为空，请重新导入「导出(API)」格式 JSON。");
+    const m=tpl.mapping||inferMapping(wf);
+    const work=JSON.parse(JSON.stringify(wf));
+    if(m.promptNode&&work[m.promptNode]){
+        if(!work[m.promptNode].inputs) work[m.promptNode].inputs={};
+        work[m.promptNode].inputs[m.promptField||"text"]=input.prompt;
+    }
+    for(let i=0;i<(m.imageNodes||[]).length;i++){
+        if(!input.images[i]) break;
+        const cfg=m.imageNodes[i];
+        if(!work[cfg.node]) continue;
+        const name=await comfyUploadImage(base,input.images[i],i);
+        if(!work[cfg.node].inputs) work[cfg.node].inputs={};
+        work[cfg.node].inputs[cfg.field||"image"]=name;
+    }
+    (m.seedNodes||[]).forEach(s=>{
+        if(work[s.node]&&work[s.node].inputs) work[s.node].inputs[s.field||"seed"]=Math.floor(Math.random()*2147483647);
+    });
+    const clientId="manflows_"+Math.random().toString(36).slice(2,10);
+    const submit=await postJson(base+"/prompt","",{prompt:work,client_id:clientId},30000);
+    if(submit.error) throw new Error("ComfyUI 拒绝工作流："+JSON.stringify(submit.error).slice(0,500));
+    const pid=submit.prompt_id;
+    if(!pid) throw new Error("ComfyUI 未返回 prompt_id："+JSON.stringify(submit).slice(0,300));
+    const MAX_COMFY_POLL=300;
+    const wantVideo=tpl.kind==="video";
+    for(let i=0;i<MAX_COMFY_POLL;i++){
+        await new Promise(r=>setTimeout(r,2000));
+        setGenStatus(n,"["+tpl.name+"] 排队/生成中… "+(i+1)+"/"+MAX_COMFY_POLL);
+        let h;
+        try{
+            const res=await fetch(base+"/history/"+encodeURIComponent(pid));
+            h=await res.json();
+        }catch(e){ continue; }
+        const rec=h&&h[pid];
+        if(!rec) continue;
+        if(rec.status&&rec.status.status_str==="error") throw new Error("ComfyUI 执行出错："+JSON.stringify(rec.status).slice(0,500));
+        const outs=rec.outputs;
+        if(!outs) continue;
+        for(const key of Object.keys(outs)){
+            const o=outs[key]||{};
+            const arr=(wantVideo?(o.videos||o.gifs||o.images):(o.images||o.gifs||o.videos))||null;
+            if(Array.isArray(arr)&&arr.length){
+                const f=arr[0];
+                const q="filename="+encodeURIComponent(f.filename||"")+"&subfolder="+encodeURIComponent(f.subfolder||"")+"&type="+encodeURIComponent(f.type||"output");
+                const r=classifyUrl(base+"/view?"+q,wantVideo?"video":undefined);
+                r.name=f.filename||r.name;
+                return r;
+            }
+        }
+    }
+    throw new Error("等待 ComfyUI 结果超时（10 分钟），请检查队列、显存或输出节点。任务ID："+pid);
+}
+async function runGenerate(n){
+    if(n.data.busy) return;
+    n.data.busy=true; renderAll(); selectNode(n.id);
+    const input=collectInputs(n);
+    if(!input.prompt && n.data.engine!=="comfyui"){ setGenStatus(n,"没有连入提示词：请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; renderAll(); return; }
+    setGenStatus(n,"正在生成…","busy");
+    try{
+        let out;
+        if(n.data.engine==="comfyui") out=await genComfy(n,input);
+        else if(n.data.engine==="generic_json") out=await genGenericJson(n,input);
+        else out=await genImageApi(n,input);
+        const r=resultNodeFor(n);
+        r.data=Object.assign({},out);
+        setGenStatus(n,"完成 ✓ "+(input.images.length?"参考图 "+input.images.length+" 张":""),"ok");
+        renderAll(); scheduleSave();
+    }catch(e){
+        console.error(e);
+        const r=resultNodeFor(n);
+        r.data={kind:"text",text:"生成失败：\n"+(e&&e.message?e.message:String(e))};
+        setGenStatus(n,"生成失败："+(e&&e.message?e.message:e),"err");
+        renderAll(); scheduleSave();
+    }finally{
+        n.data.busy=false;
+        const box=document.querySelector('.node[data-id="'+n.id+'"] .run-btn');
+        if(box){ box.disabled=false; box.textContent="▶ 运行生成"; }
+        scheduleSave();
+    }
+}
+
+/* ============ 导入导出 / 排版 / ComfyUI 设置 ============ */
+function download(name,text,mime){
+    const blob=new Blob([text],{type:mime||"application/json;charset=utf-8"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function exportCanvas(){
+    const d=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    download("漫流画布_"+docName(docId)+"_"+d+".json",JSON.stringify(Object.assign({},canvas,{docName:docName(docId)}),null,2));
+    setStatus("已导出当前画布","ok");
+}
+el("jsonImport").addEventListener("change",async e=>{
+    const f=e.target.files[0]; e.target.value="";
+    if(!f) return;
+    try{
+        const n=normalize(JSON.parse(await f.text()));
+        if(!n) throw new Error("不是有效的画布文件");
+        canvas=n; seenSourceIds=new Set();
+        canvas.nodes.forEach(x=>{ if(x.data&&x.data.sourceId) seenSourceIds.add(x.data.sourceId); });
+        el("comfyBase").value=canvas.settings.comfyBase||"";
+        el("mappingBox").value=mappingText();
+        renderWorkflowInfo(); renderDocTabs(); applyViewport(); renderAll(); await persist();
+        setStatus("已导入到「"+docName(docId)+"」","ok");
+    }catch(err){ alert("导入失败："+err.message); }
+});
+function renderWorkflowInfo(){
+    ensureWorkflows(canvas.settings);
+    const list=canvas.settings.workflows, sel=el("workflowList");
+    sel.innerHTML="";
+    if(!list.length){
+        const o=document.createElement("option"); o.value=""; o.textContent="尚未导入工作流"; sel.appendChild(o);
+        el("workflowInfo").textContent="尚未导入。先选「生图 / 生视频」，再点「＋ 导入工作流 API JSON」，可导入多个。";
+        el("mappingBox").value="{}";
+        return;
+    }
+    list.forEach(w=>{
+        const o=document.createElement("option"); o.value=w.id;
+        o.textContent="["+(w.kind==="video"?"生视频":"生图")+"] "+w.name; sel.appendChild(o);
+    });
+    sel.value=list.some(w=>w.id===canvas.settings.activeWorkflowId)?canvas.settings.activeWorkflowId:list[0].id;
+    canvas.settings.activeWorkflowId=sel.value;
+    const w=activeWorkflow(), m=w.mapping||{};
+    el("workflowKind").value=w.kind;
+    el("workflowInfo").innerHTML='共 <b>'+list.length+'</b> 个模板 · 当前 <b>'+esc(w.name)+'</b>（'+(w.kind==="video"?"生视频":"生图")+'，'+Object.keys(w.workflow).length+' 节点）<br>'+
+        '映射：提示词 '+esc(m.promptNode||"未识别")+' · 参考图 '+((m.imageNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处';
+    el("mappingBox").value=mappingText();
+}
+el("workflowImport").addEventListener("change",async e=>{
+    const f=e.target.files[0]; e.target.value="";
+    if(!f) return;
+    try{
+        const wf=JSON.parse(await f.text());
+        if(!wf||typeof wf!=="object"||Array.isArray(wf)) throw new Error("请导入「导出(API)」格式 JSON：顶层应为节点 id 对象，不是数组");
+        const keys=Object.keys(wf);
+        const withCls=keys.filter(k=>wf[k]&&typeof wf[k]==="object"&&wf[k].class_type).length;
+        if(!keys.length||withCls<keys.length/2) throw new Error("顶层多数节点缺少 class_type，看起来是普通 workflow 格式，请用「文件 → 导出工作流 (API)」重新导出");
+        ensureWorkflows(canvas.settings);
+        const item={
+            id:uid(), name:f.name.replace(/\.json$/i,"")||"未命名工作流",
+            kind:el("workflowKind").value==="video"?"video":"image",
+            workflow:wf, mapping:inferMapping(wf)
+        };
+        canvas.settings.workflows.push(item);
+        canvas.settings.activeWorkflowId=item.id;
+        const b=el("comfyBase").value.trim(); if(b) canvas.settings.comfyBase=b;
+        renderWorkflowInfo(); renderAll(); scheduleSave();
+        setStatus("已导入「"+item.name+"」","ok");
+    }catch(err){ alert("工作流导入失败："+err.message+"\n\n提示：ComfyUI 菜单里要用「导出工作流 (API)」，不是「保存」。"); }
+});
+function autoArrange(){
+    if(!canvas.nodes.length) return;
+    const indeg={}; canvas.nodes.forEach(n=>indeg[n.id]=0);
+    canvas.edges.forEach(e=>{ if(indeg[e.to]!==undefined) indeg[e.to]++; });
+    const depth={}; canvas.nodes.forEach(n=>depth[n.id]=0);
+    for(let pass=0;pass<canvas.nodes.length;pass++){
+        let changed=false;
+        canvas.edges.forEach(e=>{
+            if(depth[e.to]!==undefined&&depth[e.from]!==undefined&&depth[e.to]<depth[e.from]+1){ depth[e.to]=depth[e.from]+1; changed=true; }
+        });
+        if(!changed) break;
+    }
+    const cols={};
+    canvas.nodes.forEach(n=>{ const d=depth[n.id]; if(!cols[d]) cols[d]=[]; cols[d].push(n); });
+    Object.keys(cols).forEach(d=>cols[d].forEach((n,i)=>{ n.x=60+Number(d)*330; n.y=60+i*250; }));
+    canvas.viewport={x:30,y:30,zoom:1}; applyViewport(); renderAll(); scheduleSave();
+}
+async function testComfy(){
+    const base=(el("comfyBase").value||"").trim().replace(/\/+$/,"");
+    if(!base){ setStatus("请先填 ComfyUI 地址","err"); return; }
+    setStatus("测试连接中…","busy");
+    try{
+        const res=await fetch(base+"/system_stats",{method:"GET"});
+        if(!res.ok) throw new Error("HTTP "+res.status);
+        const d=await res.json();
+        setStatus("ComfyUI 已连通","ok");
+        const tip=document.createElement("div"); tip.style.color="#a7f3d0";
+        tip.textContent="连接正常 · "+(d.system&&d.system.comfyui_version?("v"+d.system.comfyui_version):"版本未知");
+        el("workflowInfo").appendChild(tip);
+    }catch(e){ setStatus("连不上："+e.message+"（确认已加 --enable-cors-header）","err"); }
+}
+
+/* ============ 工具栏绑定 ============ */
+function bindToolbar(){
+    document.querySelectorAll("[data-add]").forEach(b=>b.addEventListener("click",()=>spawn(b.dataset.add)));
+    el("newDocBtn").addEventListener("click",newDoc);
+    el("moreDocsBtn").addEventListener("click",e=>{ e.stopPropagation(); el("docMenu").classList.toggle("show"); });
+    document.addEventListener("click",e=>{ if(!e.target.closest(".doc-wrap")) el("docMenu").classList.remove("show"); });
+    el("arrangeBtn").addEventListener("click",autoArrange);
+    el("exportBtn").addEventListener("click",exportCanvas);
+    el("importBtn").addEventListener("click",()=>el("jsonImport").click());
+    el("clearBtn").addEventListener("click",async ()=>{
+        if(!confirm("清空整个画布（含参考图与结果）？此操作不可撤销。")) return;
+        canvas.nodes=[]; canvas.edges=[]; resetRuntimeFlags();
+        renderAll(); await persist(); setStatus("画布已清空","ok");
+    });
+    el("helpBtn").addEventListener("click",()=>el("helpModal").classList.add("show"));
+    el("closeHelpBtn").addEventListener("click",()=>el("helpModal").classList.remove("show"));
+    el("helpModal").addEventListener("click",e=>{ if(e.target===el("helpModal")) el("helpModal").classList.remove("show"); });
+    el("zoomIn").addEventListener("click",()=>{ canvas.viewport.zoom=clamp(canvas.viewport.zoom*1.2,.3,2); applyViewport(); scheduleSave(); });
+    el("zoomOut").addEventListener("click",()=>{ canvas.viewport.zoom=clamp(canvas.viewport.zoom/1.2,.3,2); applyViewport(); scheduleSave(); });
+    el("zoomFit").addEventListener("click",()=>{ canvas.viewport={x:40,y:40,zoom:1}; applyViewport(); scheduleSave(); });
+    el("inboxBtn").addEventListener("click",async ()=>{
+        const got=await drainInbox();
+        if(!got) setStatus("收件箱没有新产物","ok");
+    });
+    el("pasteBtn").addEventListener("click",()=>{
+        const t=el("pasteBox").value.trim();
+        if(!t){ setStatus("粘贴内容为空","err"); return; }
+        const p={id:"paste_"+Date.now().toString(36),ts:Date.now(),title:"粘贴文本 · "+new Date().toLocaleTimeString("zh-CN",{hour12:false}),skillKey:"",text:t};
+        addFromPayload(p); el("pasteBox").value="";
+    });
+    el("comfyBase").addEventListener("change",()=>{ canvas.settings.comfyBase=el("comfyBase").value.trim(); scheduleSave(); });
+    el("comfyTestBtn").addEventListener("click",testComfy);
+    el("workflowBtn").addEventListener("click",()=>el("workflowImport").click());
+    el("inferBtn").addEventListener("click",()=>{
+        const w=activeWorkflow();
+        if(!w){ setStatus("先导入工作流","err"); return; }
+        w.mapping=inferMapping(w.workflow);
+        renderWorkflowInfo(); renderAll(); scheduleSave(); setStatus("已重新推断映射","ok");
+    });
+    el("saveMappingBtn").addEventListener("click",saveMappingFromBox);
+    el("workflowList").addEventListener("change",()=>{
+        canvas.settings.activeWorkflowId=el("workflowList").value;
+        renderWorkflowInfo(); renderAll(); scheduleSave();
+    });
+    el("workflowKind").addEventListener("change",()=>{
+        const w=activeWorkflow(); if(!w) return;
+        w.kind=el("workflowKind").value==="video"?"video":"image";
+        renderWorkflowInfo(); renderAll(); scheduleSave();
+    });
+    el("workflowRenameBtn").addEventListener("click",()=>{
+        const w=activeWorkflow(); if(!w) return;
+        const v=prompt("给这个模板起个名字：",w.name);
+        if(v===null) return;
+        w.name=v.trim()||w.name;
+        renderWorkflowInfo(); renderAll(); scheduleSave();
+    });
+    el("workflowDelBtn").addEventListener("click",()=>{
+        const list=canvas.settings.workflows||[];
+        if(!list.length) return;
+        if(!confirm("确认删除当前工作流模板？")) return;
+        const id=canvas.settings.activeWorkflowId;
+        canvas.settings.workflows=list.filter(w=>w.id!==id);
+        canvas.settings.activeWorkflowId=list.length?list[0].id:null;
+        canvas.nodes.forEach(n=>{ if(n.type==="generate"&&n.data.workflowId===id) n.data.workflowId=""; });
+        renderWorkflowInfo(); renderAll(); scheduleSave(); setStatus("模板已删除","ok");
+    });
+    document.addEventListener("keydown",e=>{
+        if((e.key==="Delete"||e.key==="Backspace")&&selectedId&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){
+            e.preventDefault(); removeNode(selectedId);
+        }
+        if(e.key==="Escape") el("helpModal").classList.remove("show");
+    });
+    el("stage").addEventListener("dragover",e=>e.preventDefault());
+    el("stage").addEventListener("drop",e=>{
+        e.preventDefault();
+        const f=[...e.dataTransfer.files].find(x=>x.name.toLowerCase().endsWith(".json"));
+        if(f){ /* 画布 JSON 拖入：走导入逻辑 */
+            f.text().then(t=>{
+                const n=normalize(JSON.parse(t));
+                if(n&&confirm("拖入的是画布 JSON，要替换当前画布吗？")){ canvas=n; applyViewport(); renderAll(); scheduleSave(); }
+            }).catch(()=>{});
+            return;
+        }
+        const p=toCanvasXY(e.clientX,e.clientY);
+        const n=newNode("image",p.x,p.y,{images:[]});
+        addImages(n,[...e.dataTransfer.files]);
+    });
+}
+
+/* ============ 初始化：safeStorage + readyState 双路径，绝不因存储异常中断 ============ */
+/* ==================================================================
+   本机程序启停 · index.html / canvas.html 共用同一份实现
+   浏览器沙箱不能直接启动 .exe / .bat / .app，所有动作经本机
+   manflows-bridge.py 完成。桥地址、程序路径只存用户本机
+   （浏览器 localStorage + 桥旁的 manflows-bridge.json），
+   不写进网页源码、不上传服务器。
+   ================================================================== */
+const MF_BRIDGE_KEY = "manflows_bridge_base";
+const MF_BRIDGE_DEFAULT = "http://127.0.0.1:8787";
+function mfBridgeBase(){
+    return (safeStorage.get(MF_BRIDGE_KEY) || "").trim().replace(/\/+$/, "") || MF_BRIDGE_DEFAULT;
+}
+async function mfBridgeCall(api, body, timeoutMs){
+    const base = mfBridgeBase();
+    const ctl = new AbortController();
+    const timer = setTimeout(()=>ctl.abort(), timeoutMs || 15000);
+    try{
+        const opt = body
+            ? { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal:ctl.signal }
+            : { method:"GET", signal:ctl.signal };
+        const r = await fetch(base + api, opt);
+        let j;
+        try { j = await r.json(); }
+        catch(e){ throw new Error("桥接服务返回的不是 JSON（HTTP " + r.status + "）"); }
+        if(!r.ok || j.ok === false) throw new Error(j.error || ("桥接服务返回 HTTP " + r.status));
+        return j;
+    }catch(e){
+        if(e && e.name === "AbortError") throw new Error("请求超时，程序可能仍在加载，请点「刷新状态」再看。");
+        if(e instanceof TypeError) throw new Error(
+            "连不上本机桥接服务 " + base + "。请先双击运行「启动漫流桥接.bat」并保留黑窗口；" +
+            "页面也要用 http:// 本机地址打开（HTTPS 页面直连本机 HTTP 会被浏览器拦截）。");
+        throw e;
+    }finally{ clearTimeout(timer); }
+}
+function mfBridgePanel(cfg){
+    const els = {};
+    Object.keys(cfg.ids).forEach(k => { els[k] = document.getElementById(cfg.ids[k]); });
+    function setBusy(v){
+        ["pick","save","start","stop","refresh"].forEach(k => {
+            if(els[k]) els[k].disabled = v;
+        });
+    }
+    function syncBase(){
+        if(els.base) safeStorage.set(MF_BRIDGE_KEY, (els.base.value || "").trim().replace(/\/+$/, ""));
+    }
+    function msg(text, kind){
+        if(!els.msg) return;
+        els.msg.textContent = text || "";
+        els.msg.className = "bridge-msg" + (kind ? " " + kind : "");
+    }
+    function state(running, label){
+        if(!els.state) return;
+        els.state.textContent = label || (running ? "● 运行中" : "○ 未运行");
+        els.state.className = "bridge-state " + (running ? "on" : "off");
+    }
+    /* includeEmpty=false 时只提交非空字段，避免「输入框还没回填就点启动」
+      把桥上预填的默认路径覆盖成空。用户明确点「保存设置」才全量提交。 */
+    function configFromUI(includeEmpty){
+        const c = {};
+        const put = (k, v) => { if(includeEmpty || String(v || "").trim() !== "") c[k] = v; };
+        put("path",   (els.path && els.path.value || "").trim());
+        put("args",   (els.args && els.args.value || "").trim());
+        put("health", (els.health && els.health.value || "").trim());
+        if(includeEmpty || (els.names && els.names.value || "").trim() !== ""){
+            c.process_names = (els.names && els.names.value || "").split(/[,，\s]+/).filter(Boolean);
+        }
+        return c;
+    }
+    function applyConfig(c){
+        if(!c) return;
+        const set = (k, v) => { if(els[k] && !els[k].value && typeof v === "string") els[k].value = v; };
+        set("path", c.path); set("args", c.args); set("health", c.health);
+        if(els.names && !els.names.value && Array.isArray(c.process_names))
+            els.names.value = c.process_names.join(", ");
+    }
+    async function refresh(silent){
+        syncBase();
+        try{
+            const j = await mfBridgeCall("/api/status?target=" + encodeURIComponent(cfg.target), null, 12000);
+            state(j.running, j.running ? "● 运行中" : "○ 未运行");
+            applyConfig(j);
+            if(!silent) msg(j.running
+                ? "程序正在运行" + (j.pid ? "（PID " + j.pid + "）" : "") + (j.healthUp ? "，服务端口已就绪" : "") + "。"
+                : "程序未运行，可点「启动」打开。", "ok");
+            return j;
+        }catch(e){
+            state(false, "○ 桥接未连接");
+            if(!silent) msg(e.message, "err");
+            return null;
+        }
+    }
+    async function save(){
+        syncBase(); setBusy(true); msg("正在保存设置…");
+        try{
+            const j = await mfBridgeCall("/api/config",
+                Object.assign({ target:cfg.target }, configFromUI(true)), 15000);
+            applyConfig(j.config);
+            msg(j.message || "设置已保存到本机。", "ok");
+            await refresh(true);
+        }catch(e){ msg(e.message, "err"); }
+        finally{ setBusy(false); }
+    }
+    async function pick(){
+        syncBase(); setBusy(true); msg("已弹出本机文件选择框，请在电脑上选程序…");
+        try{
+            const j = await mfBridgeCall("/api/pick", { target:cfg.target }, 125000);
+            if(els.path) els.path.value = j.path || "";
+            msg("已选定：" + (j.path || "") + "　可直接点「启动」。", "ok");
+            await refresh(true);
+        }catch(e){ msg(e.message + "（也可以直接把完整路径粘贴到输入框）", "err"); }
+        finally{ setBusy(false); }
+    }
+    async function start(){
+        syncBase(); setBusy(true); msg("正在启动程序，加载模型可能需要几十秒…");
+        try{
+            const j = await mfBridgeCall("/api/start",
+                { target:cfg.target, config:configFromUI(false) }, 100000);
+            msg(j.message || "已启动。", "ok");
+            await refresh(true);
+        }catch(e){ msg(e.message, "err"); await refresh(true); }
+        finally{ setBusy(false); }
+    }
+    async function stop(){
+        syncBase(); setBusy(true); msg("正在关闭程序…");
+        try{
+            const j = await mfBridgeCall("/api/stop",
+                { target:cfg.target, config:configFromUI(false) }, 30000);
+            msg(j.message || "已关闭。", j.stopped ? "ok" : "err");
+            await refresh(true);
+        }catch(e){ msg(e.message, "err"); }
+        finally{ setBusy(false); }
+    }
+    function init(){
+        if(els.base){
+            els.base.value = safeStorage.get(MF_BRIDGE_KEY) || MF_BRIDGE_DEFAULT;
+            els.base.addEventListener("change", syncBase);
+        }
+        ["path","args","health","names"].forEach(k => {
+            const e = els[k]; if(!e) return;
+            const key = "manflows_bridge_" + cfg.target + "_" + k;
+            const old = safeStorage.get(key);
+            if(old) e.value = old;
+            e.addEventListener("change", () => safeStorage.set(key, e.value));
+        });
+        const acts = {
+            pick:pick, save:save, start:start, stop:stop,
+            refresh:function(){ refresh(false); }
+        };
+        Object.keys(acts).forEach(k => {
+            if(els[k]) els[k].addEventListener("click", acts[k]);
+        });
+        /* 默认折叠：状态灯常显但不占左侧栏高度；展开状态记在本机 */
+        if(els.head && els.body && els.block){
+            const foldKey = "manflows_bridge_fold_" + cfg.target;
+            const applyFold = v => {
+                els.block.classList.toggle("collapsed", v);
+                if(els.fold) els.fold.textContent = v ? "展开" : "收起";
+            };
+            applyFold(safeStorage.get(foldKey) !== "open");
+            els.head.addEventListener("click", () => {
+                const nowFolded = !els.block.classList.contains("collapsed");
+                applyFold(nowFolded);
+                safeStorage.set(foldKey, nowFolded ? "closed" : "open");
+            });
+        }
+        refresh(true);
+    }
+    return { init:init, refresh:refresh };
+}
+
+async function initUI(){
+    try{
+        bindToolbar();
+        mfBridgePanel({
+            target:"comfyui",
+            ids:{ block:"comfyBridgeBlock", body:"comfyBridgeBody", head:"comfyBridgeHead", fold:"comfyBridgeFold",
+                  base:"comfyBridgeBase", path:"comfyBridgePath", args:"comfyBridgeArgs",
+                  health:"comfyBridgeHealth", names:"comfyBridgeNames",
+                  state:"comfyBridgeState", msg:"comfyBridgeMsg",
+                  pick:"comfyBridgePick", save:"comfyBridgeSave", start:"comfyBridgeStart",
+                  stop:"comfyBridgeStop", refresh:"comfyBridgeRefresh" }
+        }).init();
+        renderApiInfo();
+        if(!safeStorage.available) console.warn("本地存储不可用：仅本次会话有效，其余功能正常。");
+        await loadCanvas();
+        renderDocTabs();
+        renderWorkflowInfo();
+        renderAll();
+        await drainInbox();
+        setupChannel();
+        window.addEventListener("storage",e=>{ if(e.key===KEY_API||e.key===KEY_CURR) renderApiInfo(); });
+        setStatus("就绪","ok");
+    }catch(e){
+        console.error("界面初始化异常：",e);
+        setStatus("初始化异常："+e.message,"err");
+    }
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",initUI,{once:true});
+else initUI();
+</script>
+</body>
+</html>
