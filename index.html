@@ -8,9 +8,6 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; background-color: #0f1117; color: #e5e7eb; font-family: "Microsoft YaHei", system-ui, -apple-system, sans-serif; }
-        ::-webkit-scrollbar { width: 6px; height:6px; }
-        ::-webkit-scrollbar-thumb { background:#374151; border-radius:3px; }
-        ::-webkit-scrollbar-track { background:#171a23; }
         .wrap { max-width: 1300px; width: 100%; height: 100%; margin: 0 auto; display: flex; flex-direction: column; padding: 20px; gap: 16px; }
         .header-bar { display: flex; align-items: center; gap: 12px; }
         .logo-img { height: 48px; object-fit: contain; }
@@ -39,7 +36,6 @@
         .skill-btn, .ctrl-btn { padding: 11px 16px; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; transition: all 0.2s ease; min-height:42px; }
         .skill-btn { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; }
         .skill-btn:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); transform: translateY(-1px); }
-        .skill-btn:disabled, .ctrl-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
         .custom-skill-btn{
             background: linear-gradient(135deg, #0891b2, #22d3ee);
             color:#fff;
@@ -66,10 +62,9 @@
         .stop-btn { background-color: #dc2626; color: #fff; }
         .copy-btn { background-color: #7c3aed; color: #fff; }
         .download-btn { background-color: #0891b2; color: #fff; }
-        .newtab-btn { background-color: #16a34a; color: white; }
+        .newtab-btn { background-color: #16a34a; color: #fff; }
         .clear-history-btn{ background-color:#92400e; color:#fff; }
         .load-history-btn{ background-color:#0369a1; color:#fff; }
-        .clear-chat-btn{ background-color:#475569; color:#fff; }
         .start-btn { background: linear-gradient(135deg, #059669, #10b981); color: white; font-weight: 500; }
         .plus-upload-btn { width: 38px; height: 38px; font-size: 20px; padding: 0; background: #4f46e5; color: #fff; border: none; border-radius: 10px; cursor: pointer; }
         .preview-btn { background: #4b5563; color: white; padding: 6px 9px; border: none; border-radius: 6px; cursor: pointer; font-size:12px; min-height:32px; }
@@ -203,7 +198,6 @@
     <div class="control-row-top">
         <button class="ctrl-btn copy-btn" id="copyAiBtn">复制AI剧本</button>
         <button class="ctrl-btn download-btn" id="downloadAiBtn">下载剧本 TXT</button>
-        <button class="ctrl-btn clear-chat-btn" id="clearChatBtn">清空聊天</button>
         <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
         <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
         <div class="spacer"></div>
@@ -214,7 +208,7 @@
     <div class="input-row">
         <button class="ctrl-btn pause-btn" id="pauseBtn">暂停</button>
         <button class="ctrl-btn stop-btn" id="stopBtn">停止生成</button>
-        <textarea id="userInput" placeholder="在这里写你的提示词/指令，Enter发送，Shift+Enter换行"></textarea>
+        <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
         <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
     </div>
 </div>
@@ -247,7 +241,6 @@ const LOCAL_LLAMA_URL = "http://127.0.0.1:8080/v1/chat/completions";
 const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
-const STORAGE_KEY_PARAMS = "manflows_params";
 
 let computeMode = localStorage.getItem("computeMode") || "local";
 let apiProfiles = [];
@@ -262,7 +255,6 @@ let isPaused = false;
 let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
-let isGenerating = false;
 
 // 自定义md技能内存数组，不写入localStorage，只内存保存
 let customSkillList = [];
@@ -295,7 +287,6 @@ const copyAiBtn = document.getElementById("copyAiBtn");
 const downloadAiBtn = document.getElementById("downloadAiBtn");
 const loadHistoryBtn = document.getElementById("loadHistoryBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
-const clearChatBtn = document.getElementById("clearChatBtn");
 const newSessionBtn = document.getElementById("newSessionBtn");
 
 const apiConfigBlock = document.getElementById("apiConfigBlock");
@@ -405,34 +396,12 @@ OLLAMA_PORT=8080</pre>
 function openHelpModal(){ helpContent.innerHTML = HELP_HTML; helpModal.style.display = "flex"; }
 function closeHelpModal(){ helpModal.style.display = "none"; }
 
-tempSlider.oninput = () => { tempInput.value = tempSlider.value; saveParams(); };
-tempInput.onchange = () => { tempSlider.value = tempInput.value; saveParams(); };
-topPSlider.oninput = () => { topPInput.value = topPSlider.value; saveParams(); };
-topPInput.onchange = () => { topPSlider.value = topPInput.value; saveParams(); };
-maxTokenInput.onchange = saveParams;
+tempSlider.oninput = () => tempInput.value = tempSlider.value;
+tempInput.onchange = () => tempSlider.value = tempInput.value;
+topPSlider.oninput = () => topPInput.value = topPSlider.value;
+topPInput.onchange = () => topPSlider.value = topPInput.value;
 
-function setToken(v) { maxTokenInput.value = v; saveParams(); }
-
-function saveParams(){
-    const p = {
-        temp: tempInput.value,
-        topP: topPInput.value,
-        maxToken: maxTokenInput.value
-    };
-    localStorage.setItem(STORAGE_KEY_PARAMS, JSON.stringify(p));
-}
-function loadParams(){
-    const raw = localStorage.getItem(STORAGE_KEY_PARAMS);
-    if(!raw) return;
-    try{
-        const p = JSON.parse(raw);
-        tempInput.value = p.temp ?? 0.7;
-        tempSlider.value = p.temp ?? 0.7;
-        topPInput.value = p.topP ?? 0.9;
-        topPSlider.value = p.topP ?? 0.9;
-        maxTokenInput.value = p.maxToken ?? 16384;
-    }catch(e){}
-}
+function setToken(v) { maxTokenInput.value = v; }
 
 const nameMap = {
     a: "漫剧创作助手 V5",
@@ -533,7 +502,7 @@ testApiBtn.addEventListener("click", async ()=>{
     }
 });
 
-// docx库：新版docx库用 readAsync + Paragraph，修复原代码DocumentReader不存在
+// docx库加固：加载失败不会阻塞页面主逻辑，仅禁用docx解析
 (function loadDocxLib() {
     const s = document.createElement("script");
     s.src = "https://unpkg.com/docx@8.5.0/build/index.js";
@@ -544,16 +513,6 @@ testApiBtn.addEventListener("click", async ()=>{
     };
     document.head.appendChild(s);
 })();
-
-async function readDocxBuffer(buf){
-    if(!docxLibReady || !window.docx) throw new Error("docx库未就绪");
-    const doc = await window.docx.readAsync(buf);
-    let text = "";
-    for (const p of doc.paragraphs) {
-        text += p.text + "\n";
-    }
-    return text;
-}
 
 function renderFileList() {
     fileListEl.innerHTML = "";
@@ -601,20 +560,6 @@ function stopGenerate() {
         abortController = null;
         append("⚠️ 已停止生成", "tip");
     }
-    isGenerating = false;
-    setGenerateButtons(false);
-}
-function setGenerateButtons(generating){
-    isGenerating = generating;
-    sendMsgBtn.disabled = generating;
-    skillBtnGroup.querySelectorAll(".skill-btn").forEach(b=>b.disabled = generating);
-}
-function clearChat(){
-    if(!confirm("确认清空当前聊天窗口？不会删除本地历史记录")) return;
-    chatBox.innerHTML = "";
-    fullAiText = "";
-    aiMsgDom = null;
-    pendingText = "";
 }
 async function copyAiText() {
     if (!fullAiText) { alert("还没有 AI 输出内容！"); return; }
@@ -661,7 +606,7 @@ function renderCustomSkillButtons(){
     })
 }
 
-// 加载后端内置技能：增加超时10秒，最多重试2次，兜底prompt
+// 加载后端内置技能：增加超时10秒，最多重试2次
 async function loadSkill(type, retryCount=2, timeoutMs=10000) {
     append(`正在加载技能：${nameMap[type]} ...`, "tip");
     const ctrl = new AbortController();
@@ -670,19 +615,12 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
         const res = await fetch(`${SKILL_API_BASE}?token=${SKILL_TOKEN}&type=${type}`,{signal:ctrl.signal});
         clearTimeout(timer);
         if (!res.ok) {
-            append(`❌ 技能接口返回错误（HTTP ${res.status}），启用兜底编剧模板，可尝试导入本地md技能应急`, "err");
-            currentSystemPrompt = "你是专业漫剧编剧，擅长漫剧剧本、分镜、生视频提示词、资产图提示词创作，严格遵守用户指令，输出结构化内容。";
-            currentSkillName = nameMap[type];
-            skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】（兜底模板）`;
-            append(`✅ 技能【${currentSkillName}】兜底模板加载完成`, "tip");
+            append(`❌ 技能接口返回错误（HTTP ${res.status}），可尝试导入本地md技能应急`, "err");
             return;
         }
         const text = await res.text();
         if(!text){
-            append("❌ 技能接口返回空内容，启用兜底模板", "err");
-            currentSystemPrompt = "你是专业漫剧编剧，擅长漫剧剧本、分镜、生视频提示词、资产图提示词创作，严格遵守用户指令，输出结构化内容。";
-            currentSkillName = nameMap[type];
-            skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】（兜底模板）`;
+            append("❌ 技能接口返回空内容", "err");
             return;
         }
         currentSystemPrompt = text;
@@ -697,10 +635,7 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
             return loadSkill(type, retryCount-1, timeoutMs);
         }
         console.error(err);
-        append("⚠️ 多次重试后仍然连接技能服务器失败，启用兜底编剧模板，可导入本地md技能应急", "err");
-        currentSystemPrompt = "你是专业漫剧编剧，擅长漫剧剧本、分镜、生视频提示词、资产图提示词创作，严格遵守用户指令，输出结构化内容。";
-        currentSkillName = nameMap[type];
-        skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】（兜底模板）`;
+        append("⚠️ 多次重试后仍然连接技能服务器失败，可以导入本地md技能应急", "err");
     }
 }
 
@@ -783,7 +718,6 @@ function clearAllHistory(){
 }
 
 async function sendMessage() {
-    if(isGenerating) return;
     stopGenerate();
     isPaused = false;
     pauseBtn.innerText = "暂停";
@@ -821,7 +755,6 @@ async function sendMessage() {
     userInput.value = "";
     aiMsgDom = append("【AI】：", "ai");
     abortController = new AbortController();
-    setGenerateButtons(true);
 
     let fetchUrl, fetchHeaders, bodyObj;
     const messagesArr = [
@@ -851,4 +784,136 @@ async function sendMessage() {
             append(`错误详情：${errText}`, "err");
             return;
         }
-        if (!response
+        if (!response.body) { append("❌ 当前接口不支持流式输出", "err"); return; }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf8");
+        let buffer = "";
+        while(true){
+            const {done, value} = await reader.read();
+            if(done) break;
+            buffer += decoder.decode(value, {stream:true});
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop();
+            for(const line of lines){
+                const trimLine = line.trim();
+                if(!trimLine) continue;
+                if(!trimLine.startsWith("data:")) continue;
+                const payload = trimLine.slice(5).trim();
+                if(payload === "[DONE]") continue;
+                try{
+                    const json = JSON.parse(payload);
+                    const delta = json.choices?.[0]?.delta?.content || json.choices?.[0]?.delta?.text || "";
+                    if(delta){
+                        if(isPaused) pendingText += delta;
+                        else {
+                            aiMsgDom.innerText += delta;
+                            fullAiText += delta;
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        }
+                    }
+                }catch(e){ /*忽略单行json解析异常*/ }
+            }
+        }
+        if(pendingText){ aiMsgDom.innerText += pendingText; fullAiText += pendingText; pendingText = ""; }
+        append("✅ 生成完毕", "tip");
+        saveHistoryToLocal();
+    } catch (e) {
+        console.error(e);
+        if(e.name !== "AbortError") append(`❌ 请求异常：${e.message}`, "err");
+    } finally {
+        abortController = null;
+    }
+}
+
+// DOM加载完成后统一绑定全部事件，彻底消除inline onclick时序bug
+document.addEventListener('DOMContentLoaded', ()=>{
+    // 内置5个技能按钮绑定
+    document.querySelectorAll('[data-skill-key]').forEach(btn=>{
+        const key = btn.getAttribute("data-skill-key");
+        btn.addEventListener("click", ()=>{ loadSkill(key); });
+    });
+
+    // 按钮事件绑定
+    unloadSkillBtn.addEventListener("click", unloadSkill);
+    openHelpBtn.addEventListener("click", openHelpModal);
+    closeHelpBtn.addEventListener("click", closeHelpModal);
+    closePreviewBtn.addEventListener("click", closePreview);
+
+    plusUploadBtn.addEventListener("click", ()=>{ fileInput.click(); });
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const ext = file.name.split(".").pop().toLowerCase();
+        let text = "";
+        try {
+            if (ext === "txt") { text = await file.text(); }
+            else if (ext === "docx") {
+                if (!docxLibReady || !window.docx || !window.docx.DocumentReader) {
+                    alert("docx 解析库尚未加载完成或者加载失败，暂时只能读取 txt！");
+                    return;
+                }
+                const arrayBuffer = await file.arrayBuffer();
+                const doc = await window.docx.DocumentReader.readDocument(new Uint8Array(arrayBuffer));
+                text = doc.paragraphs.map(p => p.text).join("\n");
+            } else { alert("仅支持 txt / docx"); return; }
+            fileStore.push({ name: file.name, content: text, checked: true });
+            renderFileList();
+            alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
+        } catch (err) { console.error(err); alert("读取文件失败"); }
+        fileInput.value = "";
+    };
+
+    // 导入md技能按钮
+    importSkillMdBtn.addEventListener("click", ()=>{ skillMdInput.click(); });
+    skillMdInput.onchange = (e)=>{
+        const f = e.target.files[0];
+        if(!f) return;
+        importSkillMdFile(f);
+        skillMdInput.value = "";
+    };
+
+    pauseBtn.addEventListener("click", togglePause);
+    stopBtn.addEventListener("click", stopGenerate);
+    sendMsgBtn.addEventListener("click", sendMessage);
+    copyAiBtn.addEventListener("click", copyAiText);
+    downloadAiBtn.addEventListener("click", downloadAiText);
+    loadHistoryBtn.addEventListener("click", loadLatestHistory);
+    clearHistoryBtn.addEventListener("click", clearAllHistory);
+    newSessionBtn.addEventListener("click", openNewSession);
+
+    apiProfileSelect.onchange = ()=>{
+        currentProfileId = apiProfileSelect.value;
+        bindCurrentProfile();
+        saveApiProfiles();
+    };
+    addApiProfileBtn.onclick = ()=>{
+        const name = prompt("输入这套API的别名（例如DeepSeek、OpenAI）");
+        if(!name) return;
+        const newP = {id:uuid(), name, endpoint:"", key:"", model:""};
+        apiProfiles.push(newP);
+        currentProfileId = newP.id;
+        saveApiProfiles();
+        bindCurrentProfile();
+    };
+    delApiProfileBtn.onclick = ()=>{
+        if(apiProfiles.length <= 0) return alert("当前没有可删除的API配置");
+        if(!confirm("确认删除当前这条API配置？")) return;
+        apiProfiles = apiProfiles.filter(x=>x.id!==currentProfileId);
+        currentProfileId = apiProfiles.length>0 ? apiProfiles[0].id : null;
+        saveApiProfiles();
+        bindCurrentProfile();
+    };
+    inpEndpoint.oninput = syncProfileToCurrent;
+    inpKey.oninput = syncProfileToCurrent;
+    inpModel.oninput = syncProfileToCurrent;
+    radioLocal.addEventListener("change", saveComputeMode);
+    radioApi.addEventListener("change", saveComputeMode);
+
+    // 页面初始化
+    loadApiProfiles();
+    initComputeModeUI();
+    renderCustomSkillButtons();
+});
+</script>
+</body>
+</html>
