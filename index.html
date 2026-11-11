@@ -33,7 +33,7 @@
         .file-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .file-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #1f232e; border-radius: 8px; margin: 6px 0; flex-wrap: wrap; }
         .file-item span { font-size: 14px; color: #e5e7eb; }
-        .skill-btn, .ctrl-btn { padding: 11px 16px; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; transition: all 0.2s ease; min-height:42px; }
+        .skill-btn, .ctrl-btn { padding: 11px 16px; border: none; border-radius: 10px; font-size:14px; cursor: pointer; transition: all 0.2s ease; min-height:42px; }
         .skill-btn { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; }
         .skill-btn:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); transform: translateY(-1px); }
         .custom-skill-btn{
@@ -643,7 +643,7 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
         currentSkillName = nameMap[type];
         skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
         append(`✅ 技能【${currentSkillName}】加载完成`, "tip");
-    } catch (err)
+    } catch (err) {
         clearTimeout(timer);
         if(retryCount > 0){
             append(`⚠️ 技能请求超时，自动重试（剩余${retryCount}次）`,"err");
