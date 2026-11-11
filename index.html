@@ -8,223 +8,281 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; background-color: #0f1117; color: #e5e7eb; font-family: "Microsoft YaHei", system-ui, -apple-system, sans-serif; }
-        .wrap { max-width: 1300px; width: 100%; height: 100%; margin: 0 auto; display: flex; flex-direction: column; padding: 20px; gap: 16px; }
-        .header-bar { display: flex; align-items: center; gap: 12px; }
+
+        /* ===== 两栏骨架：左配置栏独立滚动，右输出区独占整屏高度 ===== */
+        .wrap { max-width: 1680px; width: 100%; height: 100%; margin: 0 auto; display: flex; flex-direction: row; padding: 14px; gap: 14px; }
+        .side { width: 340px; flex: 0 0 340px; min-width: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; overflow-x: hidden; padding-right: 4px;
+                transition: width .25s ease, flex-basis .25s ease, opacity .2s ease; }
+        .side::-webkit-scrollbar { width: 6px; }
+        .side::-webkit-scrollbar-thumb { background: #2f3440; border-radius: 3px; }
+        .side.collapsed { width: 0; flex-basis: 0; padding-right: 0; opacity: 0; overflow: hidden; }
+        .main { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+
+        .header-bar { display: flex; align-items: center; gap: 12px; padding: 2px 2px 2px; flex-shrink: 0; }
+        /* logo 与 index.html 同在 GitHub 仓库根目录，部署后由 ./logo.png 显示真图 */
         .logo-img { height: 48px; object-fit: contain; }
-        .header-title h1 { font-size: 22px; color: #ffffff; font-weight: 600; }
-        .header-title p { font-size: 13px; color: #9ca3af; }
-        .card { background: #171a23; border-radius: 14px; padding: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid #242834; }
-        .card-title { font-size: 15px; color: #cbd5e1; margin-bottom: 12px; font-weight: 500; }
-        .btn-group { display: flex; flex-wrap: wrap; gap: 8px; align-items:center; }
-        .param-panel .param-item { display: inline-flex; align-items: center; gap: 8px; margin: 6px 16px 6px 0; flex-wrap: wrap; }
-        .param-item label { font-size: 14px; color: #d1d5db; }
-        .param-note { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.5; }
-        .api-config-block { margin:12px 0; padding:12px; background:#1f232e; border-radius:10px; display:none; }
-        .api-row{ margin:8px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-        .api-row label{ width:90px; flex-shrink:0; }
-        .api-config-block input, .api-config-block select{ flex:1; min-width:180px; padding:9px 10px; background:#171a23; border:1px solid #2f3440; border-radius:6px; color:#e5e7eb; }
-        .api-manage-row{ display:flex; gap:8px; margin:8px 0; flex-wrap:wrap; }
-        .token-quick-btn{ padding:5px 8px; border:none; border-radius:4px; background:#374151; color:#fff; cursor:pointer; font-size:12px; }
-        .token-quick-btn:hover{ background:#4b5563; }
-        .test-api-btn{ background-color:#16a34a; color:#fff; border:none; padding:9px 14px; border-radius:6px; cursor:pointer; }
-        .api-del-btn{ background-color:#dc2626; color:#fff; border:none; padding:9px 14px; border-radius:6px; cursor:pointer; }
-        .api-add-btn{ background-color:#2563eb; color:#fff; border:none; padding:9px 14px; border-radius:6px; cursor:pointer; }
-        .help-open-btn{ background-color:#9333ea; color:#fff; border:none; padding:9px 14px; border-radius:6px; cursor:pointer; }
-        .file-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .file-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #1f232e; border-radius: 8px; margin: 6px 0; flex-wrap: wrap; }
-        .file-item span { font-size: 14px; color: #e5e7eb; }
-        .skill-btn, .ctrl-btn { padding: 11px 16px; border: none; border-radius: 10px; font-size:14px; cursor: pointer; transition: all 0.2s ease; min-height:42px; }
+        /* 单文件本地预览时若同目录没有 logo.png，用文字标兜底，不出现破图 */
+        .logo-fallback { display: none; align-items: center; justify-content: center; flex-direction: column;
+                         width: 52px; height: 48px; flex-shrink: 0; border-radius: 8px;
+                         background: #1f232e; border: 1px solid #3a4150; color: #e5e7eb;
+                         font-size: 13px; font-weight: 700; line-height: 1.25; letter-spacing: .5px; }
+        .logo-fallback small { font-size: 7px; font-weight: 500; color: #9ca3af; letter-spacing: 1px; }
+        .header-title h1 { font-size: 17px; color: #ffffff; font-weight: 600; line-height: 1.3; }
+        .header-title p { font-size: 10.5px; color: #9ca3af; line-height: 1.5; }
+
+        .card { background: #171a23; border-radius: 12px; padding: 11px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid #242834; flex-shrink: 0; }
+        .card-title { font-size: 13px; color: #cbd5e1; margin-bottom: 9px; font-weight: 500; }
+        .btn-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .param-panel .param-item { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; margin: 7px 0; }
+        .param-item label { font-size: 12px; color: #d1d5db; line-height: 1.5; }
+        .param-note { font-size: 11px; color: #6b7280; margin-top: 6px; line-height: 1.5; }
+        .api-config-block { margin: 10px 0; padding: 10px; background: #1f232e; border-radius: 8px; display: none; }
+        .api-row { margin: 7px 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .api-row label { flex: 1 1 100%; font-size: 12px; color: #d1d5db; }
+        .api-row label:empty { display: none; }
+        .api-config-block input, .api-config-block select { flex: 1 1 100%; min-width: 0; padding: 7px 8px; background: #171a23; border: 1px solid #2f3440; border-radius: 6px; color: #e5e7eb; font-size: 12px; }
+        .api-manage-row { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+        .token-quick-btn { padding: 4px 6px; border: none; border-radius: 4px; background: #374151; color: #fff; cursor: pointer; font-size: 11px; }
+        .token-quick-btn:hover { background: #4b5563; }
+        .test-api-btn { background-color: #16a34a; color: #fff; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .api-del-btn { background-color: #dc2626; color: #fff; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .api-add-btn { background-color: #2563eb; color: #fff; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .help-open-btn { background-color: #9333ea; color: #fff; border: none; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
+        .file-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .file-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #1f232e; border-radius: 8px; margin: 5px 0; flex-wrap: wrap; }
+        .file-item span { font-size: 12px; color: #e5e7eb; word-break: break-all; }
+        .skill-btn, .ctrl-btn { padding: 7px 10px; border: none; border-radius: 8px; font-size: 12.5px; cursor: pointer; transition: all 0.2s ease; min-height: 32px; line-height: 1.35; }
         .skill-btn { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; }
         .skill-btn:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); transform: translateY(-1px); }
-        .custom-skill-btn{
-            background: linear-gradient(135deg, #0891b2, #22d3ee);
-            color:#fff;
-            display:flex;
-            gap:6px;
-            align-items:center;
-        }
-        .custom-skill-del{
-            background:rgba(255,255,255,0.2);
-            border:none;
-            color:#fff;
-            border-radius:4px;
-            font-size:12px;
-            padding:2px 6px;
-            cursor:pointer;
-        }
-        .import-skill-btn{
-            background: linear-gradient(135deg, #059669, #10b981);
-            color:#fff;
-        }
+        .custom-skill-btn { background: linear-gradient(135deg, #0891b2, #22d3ee); color: #fff; display: flex; gap: 6px; align-items: center; }
+        .custom-skill-del { background: rgba(255,255,255,0.2); border: none; color: #fff; border-radius: 4px; font-size: 12px; padding: 2px 6px; cursor: pointer; }
+        .import-skill-btn { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
         .clear-btn { background-color: #991b1b; color: #fff; }
         .clear-btn:hover { background-color: #b91c1c; }
         .stop-btn { background-color: #dc2626; color: #fff; }
         .download-btn { background-color: #0891b2; color: #fff; }
         .newtab-btn { background-color: #16a34a; color: white; }
-        .clear-history-btn{ background-color:#92400e; color:#fff; }
-        .load-history-btn{ background-color:#0369a1; color:#fff; }
+        .clear-history-btn { background-color: #92400e; color: #fff; }
+        .load-history-btn { background-color: #0369a1; color: #fff; }
         .start-btn { background: linear-gradient(135deg, #059669, #10b981); color: white; font-weight: 500; }
-        .plus-upload-btn { width: 38px; height: 38px; font-size: 20px; padding: 0; background: #4f46e5; color: #fff; border: none; border-radius: 10px; cursor: pointer; }
-        .preview-btn { background: #4b5563; color: white; padding: 6px 9px; border: none; border-radius: 6px; cursor: pointer; font-size:12px; min-height:32px; }
-        .del-file-btn { background: #ef4444; color: white; padding: 6px 9px; border: none; border-radius: 6px; cursor: pointer; font-size:12px; min-height:32px; }
-        .control-row-top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-        .control-row-top .spacer { flex-grow: 1; min-width: 20px; }
-        .status { padding: 12px 16px; border-radius: 12px; background-color: #1f232e; color: #d1d5db; font-size:14px; }
-        #chatBox { flex: 1; border: 1px solid #242834; padding: 16px; border-radius: 14px; overflow-y: auto; background-color: #171a23; }
-        .msg { margin: 10px 0; line-height: 1.7; white-space: pre-wrap; font-size:14px; }
+        .plus-upload-btn { width: 30px; height: 30px; font-size: 17px; line-height: 1; padding: 0; background: #4f46e5; color: #fff; border: none; border-radius: 8px; cursor: pointer; flex-shrink: 0; }
+        .plus-upload-btn:hover { background: #4338ca; }
+        .ref-upload-btn { padding: 6px 9px; font-size: 11.5px; min-height: 30px; background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+        .ref-upload-btn:hover { filter: brightness(1.12); }
+        .ref-note { font-size: 10.5px; color: #9ca3af; line-height: 1.5; margin: 0 0 8px; }
+        .ref-preview-list { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; }
+        .ref-item { display: flex; align-items: center; gap: 8px; padding: 5px 7px; background: #1f232e; border: 1px solid #2f3440; border-radius: 8px; }
+        .ref-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; border: 1px solid #3a4150; background: #0f1117; }
+        .ref-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .ref-name { font-size: 11px; color: #e5e7eb; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ref-size { font-size: 10px; color: #9ca3af; }
+        .ref-del-btn { background: #ef4444; color: #fff; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 13px; line-height: 1; cursor: pointer; flex-shrink: 0; }
+        .ref-del-btn:hover { background: #dc2626; }
+        .ref-empty { font-size: 10.5px; color: #6b7280; }
+        .preview-btn { background: #4b5563; color: white; padding: 4px 7px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
+        .del-file-btn { background: #ef4444; color: white; padding: 4px 7px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
+
+        /* ===== 右侧主区：工具条 + 大聊天框 + 输入行 ===== */
+        .main-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+        .main-toolbar .spacer { flex-grow: 1; min-width: 8px; }
+        .main-toolbar .ctrl-btn { padding: 6px 9px; font-size: 11.5px; min-height: 30px; }
+        .focus-btn { background: #4338ca; color: #fff; border: none; border-radius: 8px; padding: 7px 10px; font-size: 11.5px; min-height: 30px; cursor: pointer; white-space: nowrap; }
+        .focus-btn:hover { background: #4f46e5; }
+        .status { padding: 7px 11px; border-radius: 9px; background-color: #1f232e; color: #d1d5db; font-size: 12px; }
+        .ref-badge { display: none; align-items: center; font-size: 11px; padding: 5px 9px; border-radius: 8px; border: 1px solid; line-height: 1.3; }
+        .ref-badge-on { color: #a7f3d0; background: #052e2b; border-color: #0f766e; }
+        .ref-badge-off { color: #fcd34d; background: #3a2c05; border-color: #a16207; }
+
+        #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid #242834; padding: 16px 18px; border-radius: 14px; overflow-y: auto; background-color: #171a23; }
+        .msg { margin: 10px 0; line-height: 1.8; white-space: pre-wrap; font-size: 14.5px; word-break: break-word; }
         .user { color: #60a5fa; }
         .ai { color: #f3f4f6; }
         .tip { color: #9ca3af; }
         .err { color: #f87171; }
-        .input-row { display: flex; gap: 8px; align-items: flex-end; }
-        #userInput { flex: 1; min-height: 52px; padding: 12px 14px; border: 1px solid #2f3440; border-radius: 12px; font-size: 15px; resize: vertical; background: #1f232e; color: #e5e7eb; outline: none; }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+        #userInput { flex: 1; min-height: 48px; padding: 11px 13px; border: 1px solid #2f3440; border-radius: 12px; font-size: 14px; resize: vertical; background: #1f232e; color: #e5e7eb; outline: none; }
         #userInput:focus { border-color: #3b82f6; }
-        input[type="range"] { width: 140px; accent-color: #3b82f6; }
-        input[type="number"] { width: 74px; padding: 5px 6px; background: #1f232e; border:1px solid #2f3440; border-radius:6px; color:#e5e7eb; }
-        #fileInput { display: none; }
-        #skillMdInput{ display:none; }
+        input[type="range"] { width: 118px; accent-color: #3b82f6; }
+        input[type="number"] { width: 66px; padding: 5px 6px; background: #1f232e; border: 1px solid #2f3440; border-radius: 6px; color: #e5e7eb; font-size: 12px; }
+        .param-item input[type="text"] { flex: 1 1 160px; min-width: 0; padding: 6px 8px; background: #1f232e; border: 1px solid #2f3440; border-radius: 6px; color: #e5e7eb; font-size: 12px; }
+        #localModelRow { flex-direction: column; align-items: stretch; gap: 4px; }
+        #localModelRow input[type="text"] { flex: 0 0 auto; width: 100%; height: 30px; }
+        #fileInput, #skillMdInput, #refImageInput { display: none; }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 999; }
-        .modal-box { width: 94%; max-width: 920px; height: 85vh; background: #171a23; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; border:1px solid #242834; }
-        .modal-content { flex: 1; overflow: auto; white-space: pre-wrap; padding: 12px; border: 1px solid #2f3440; background:#1f232e; color:#e5e7eb; border-radius:10px; }
+        .modal-box { width: 94%; max-width: 920px; height: 85vh; background: #171a23; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; border: 1px solid #242834; }
+        .modal-content { flex: 1; overflow: auto; white-space: pre-wrap; padding: 12px; border: 1px solid #2f3440; background: #1f232e; color: #e5e7eb; border-radius: 10px; }
         .modal-close { margin-top: 12px; align-self: flex-end; padding: 9px 16px; }
-        .help-modal-content{ line-height:1.7; font-size:14px; }
-        .help-modal-content h2{ color:#60a5fa; margin:16px 0 8px; font-size:17px; }
-        .help-modal-content h3{ color:#a5b4fc; margin:12px 0 6px; font-size:15px; }
-        .help-modal-content p{ margin:6px 0; }
-        .help-modal-content pre{ background:#0f1117; padding:10px; border-radius:6px; overflow-x:auto; margin:8px 0; }
-        .help-modal-content ul, .help-modal-content ol{ padding-left:22px; margin:8px 0; }
-         /* 展开收起样式 */
-        .param-content {
-            transition: all 0.25s ease;
-            overflow: hidden;
+        .help-modal-content { line-height: 1.7; font-size: 14px; }
+        .help-modal-content h2 { color: #60a5fa; margin: 16px 0 8px; font-size: 17px; }
+        .help-modal-content h3 { color: #a5b4fc; margin: 12px 0 6px; font-size: 15px; }
+        .help-modal-content p { margin: 6px 0; }
+        .help-modal-content pre { background: #0f1117; padding: 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+        .help-modal-content ul, .help-modal-content ol { padding-left: 22px; margin: 8px 0; }
+        .help-contact-box { background: #1e1b32; border: 1px solid #6d28d9; border-radius: 10px; padding: 10px 14px; margin: 10px 0 16px; }
+        .help-contact-box .help-contact { color: #e9d5ff; font-size: 14px; margin: 4px 0; line-height: 1.7; }
+        .help-contact-box .help-contact:first-child { color: #fbbf24; font-weight: 600; font-size: 15px; }
+        /* 展开收起样式（原有推理参数折叠，保留） */
+        .param-content { transition: all 0.25s ease; overflow: hidden; }
+        .param-content.collapse { height: 0; opacity: 0; }
+        .toggle-param-btn { padding: 3px 8px; font-size: 11px; border: none; border-radius: 6px; background: #2f3440; color: #fff; cursor: pointer; }
+
+        @media (max-width: 900px) {
+            .wrap { flex-direction: column; height: auto; min-height: 100%; padding: 12px; gap: 12px; }
+            .side { width: 100%; flex: 0 0 auto; height: auto; overflow: visible; padding-right: 0; }
+            .side.collapsed { width: 100%; flex-basis: auto; opacity: 1; overflow: visible; padding-right: 0; }
+            .side.collapsed > .card, .side.collapsed > .header-bar { display: none; }
+            .main { height: auto; min-height: 72vh; }
+            #chatBox { min-height: 55vh; }
+            .btn-group { gap: 6px; }
+            .api-row label { flex: 0 0 90px; }
+            .api-config-block input, .api-config-block select { flex: 1 1 180px; }
         }
-        .param-content.collapse {
-            height: 0;
-            opacity: 0;
-        }
-        .toggle-param-btn {
-            padding:3px 8px;font-size:12px;border:none;border-radius:6px;background:#2f3440;color:#fff;cursor:pointer;
-        }
-         @media (max-width: 720px) {
-            .wrap { padding:12px; gap:12px; }
-            .input-row { flex-wrap:wrap; align-items:stretch; }
-            .input-row button { flex:1; }
-            .control-row-top { flex-direction: column; align-items: stretch; }
+        @media (max-width: 720px) {
+            .input-row { flex-wrap: wrap; align-items: stretch; }
+            .input-row button { flex: 1; }
             .header-bar { flex-direction: column; align-items: flex-start; }
-            .param-panel .param-item{ flex-direction:column; align-items:flex-start; }
-            input[type="range"]{ width:100%; }
-            .modal-box{ width:98%; height:92vh; padding:12px; }
+            .param-panel .param-item { flex-direction: column; align-items: flex-start; }
+            input[type="range"] { width: 100%; }
+            .modal-box { width: 98%; height: 92vh; padding: 12px; }
+            .main-toolbar { gap: 6px; }
+            .main-toolbar .ctrl-btn { flex: 1 1 auto; }
         }
     </style>
 </head>
 <body>
 <div class="wrap">
-    <div class="header-bar">
-        <img class="logo-img" src="./logo.png" alt="漫流 MANFLOWS">
-        <div class="header-title">
-            <h1>漫流 AI 漫剧前期创作台</h1>
-            <p>剧本原创改编｜全剧分镜生视频提示词｜全剧美术资产生图提示词</p>
-        </div>
-    </div>
-    <div class="card">
-        <div class="card-title">创作技能</div>
-        <div class="btn-group" id="skillBtnGroup">
-            <button class="skill-btn" data-skill-key="a">剧本创作助手 V5</button>
-            <button class="skill-btn" data-skill-key="b">导演分镜助手 V5（生视频提示词）</button>
-            <button class="skill-btn" data-skill-key="d">导演分镜助手V5 MiniMaxH3</button>
-            <button class="skill-btn" data-skill-key="c">美术画风助手 V5（资产图提示词）</button>
-            <button class="skill-btn" data-skill-key="e">美术画风助手V5 Midjourney</button>
-            <button class="skill-btn import-skill-btn" id="importSkillMdBtn">📥 导入本地 .md 技能</button>
-            <button class="clear-btn" id="unloadSkillBtn">🗑️ 卸载当前技能</button>
-            <button class="help-open-btn" id="openHelpBtn">📖 使用帮助</button>
-            <input type="file" id="skillMdInput" accept=".md">
-        </div>
-    </div>
-    <div class="card param-panel">
-        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-            推理参数
-            <button class="toggle-param-btn">收起</button>
-        </div>
-        <div class="param-content">
-            <div class="param-item">
-                <label>算力模式：</label>
-                <label><input type="radio" name="computeMode" value="local"> 本地算力</label>
-                <label><input type="radio" name="computeMode" value="api"> API云算力</label>
-            </div>
-            <div class="api-config-block" id="apiConfigBlock">
-                <div class="api-row">
-                    <label>API配置：</label>
-                    <select id="apiProfileSelect"></select>
-                </div>
-                <div class="api-manage-row">
-                    <button class="api-add-btn" id="addApiProfileBtn">新增API配置</button>
-                    <button class="api-del-btn" id="delApiProfileBtn">删除当前API</button>
-                </div>
-                <div class="api-row">
-                    <label>接口地址：</label>
-                    <input id="apiEndpoint" placeholder="https://api.xxx.com/v1/chat/completions">
-                </div>
-                <div class="api-row">
-                    <label>API‑Key：</label>
-                    <input id="apiKey" type="password" placeholder="sk‑xxxx">
-                </div>
-                <div class="api-row">
-                    <label>模型名称：</label>
-                    <input id="apiModel" placeholder="model-name">
-                </div>
-                <div class="api-row">
-                    <label></label>
-                    <button class="test-api-btn" id="testApiBtn">测试连通性</button>
-                    <span style="font-size:12px;color:#9ca3af">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
-                </div>
-            </div>
-            <div class="param-item">
-                <label>脑洞大小（随机创意）：</label>
-                <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7">
-                <input type="number" id="tempInput" min="0" max="2" step="0.05" value="0.7">
-            </div>
-            <div class="param-item">
-                <label>创意候选范围：</label>
-                <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9">
-                <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
-            </div>
-            <div class="param-item">
-                <label>上下文窗口 token（本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡或切换云API)：</label>
-                <input type="number" id="maxTokenInput" min="64" max="1048576" value="16384">
-                <button class="token-quick-btn" onclick="setToken(32768)">32K</button>
-                <button class="token-quick-btn" onclick="setToken(65536)">64K</button>
-                <button class="token-quick-btn" onclick="setToken(131072)">128K</button>
-                <button class="token-quick-btn" onclick="setToken(262144)">256K</button>
-                <button class="token-quick-btn" onclick="setToken(1048576)">1M</button>
-            </div>
-            <div class="param-note">
-                提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
+    <!-- ============ 左：配置栏（独立滚动，不再挤占输出区高度） ============ -->
+    <aside class="side" id="sidePanel">
+        <div class="header-bar">
+            <img class="logo-img" src="./logo.png" alt="漫流 MANFLOWS"
+                 onerror="this.style.display='none';var f=document.getElementById('logoFallback');if(f)f.style.display='inline-flex';">
+            <span class="logo-fallback" id="logoFallback">漫流<small>MANFLOWS</small></span>
+            <div class="header-title">
+                <h1>漫流 AI 漫剧前期创作台</h1>
+                <p>剧本原创改编｜全剧分镜生视频提示词｜全剧美术资产生图提示词</p>
             </div>
         </div>
-    </div>
-    <div class="card file-panel">
-        <div class="file-head-row">
-            <span class="card-title" style="margin-bottom:0;">载入剧本文件</span>
-            <button class="plus-upload-btn" id="plusUploadBtn">+</button>
-            <input type="file" id="fileInput" accept=".txt,.docx">
+
+        <div class="card">
+            <div class="card-title">创作技能</div>
+            <div class="btn-group" id="skillBtnGroup">
+                <button class="skill-btn" data-skill-key="a">剧本创作助手 V5</button>
+                <button class="skill-btn" data-skill-key="b">导演分镜助手 V5（生视频提示词）</button>
+                <button class="skill-btn" data-skill-key="d">导演分镜助手V5 MiniMaxH3</button>
+                <button class="skill-btn" data-skill-key="c">美术画风助手 V5（资产图提示词）</button>
+                <button class="skill-btn" data-skill-key="e">美术画风助手V5 Midjourney</button>
+                <button class="skill-btn import-skill-btn" id="importSkillMdBtn">📥 导入本地 .md 技能</button>
+                <button class="clear-btn skill-btn" id="unloadSkillBtn">🗑️ 卸载当前技能</button>
+                <button class="help-open-btn" id="openHelpBtn">📖 使用帮助</button>
+                <input type="file" id="skillMdInput" accept=".md">
+            </div>
         </div>
-        <div id="fileList"></div>
-    </div>
-    <div class="control-row-top">
-        <button class="ctrl-btn download-btn" id="downloadAiBtn">下载剧本 TXT</button>
-        <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
-        <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
-        <div class="spacer"></div>
-        <button class="ctrl-btn newtab-btn" id="newSessionBtn">新建对话（开新网页）</button>
-    </div>
-    <div class="status" id="skillStatus">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
-    <div id="chatBox"></div>
-    <div class="input-row">
-        <button class="ctrl-btn stop-btn" id="stopBtn">停止生成</button>
-        <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
-        <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
-    </div>
+
+        <div class="card param-panel">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                推理参数
+                <button class="toggle-param-btn">收起</button>
+            </div>
+            <div class="param-content">
+                <div class="param-item">
+                    <label>算力模式：</label>
+                    <label><input type="radio" name="computeMode" value="local"> 本地算力</label>
+                    <label><input type="radio" name="computeMode" value="api"> API云算力</label>
+                </div>
+                <div class="param-item" id="localModelRow">
+                    <label>本地模型名称（可选）：</label>
+                    <input type="text" id="localModel" placeholder="留空 = local；部分服务需填真实模型名">
+                </div>
+                <div class="api-config-block" id="apiConfigBlock">
+                    <div class="api-row">
+                        <label>API配置：</label>
+                        <select id="apiProfileSelect"></select>
+                    </div>
+                    <div class="api-manage-row">
+                        <button class="api-add-btn" id="addApiProfileBtn">新增API配置</button>
+                        <button class="api-del-btn" id="delApiProfileBtn">删除当前API</button>
+                    </div>
+                    <div class="api-row">
+                        <label>接口地址：</label>
+                        <input id="apiEndpoint" placeholder="https://api.xxx.com/v1/chat/completions">
+                    </div>
+                    <div class="api-row">
+                        <label>API‑Key：</label>
+                        <input id="apiKey" type="password" placeholder="sk‑xxxx">
+                    </div>
+                    <div class="api-row">
+                        <label>模型名称：</label>
+                        <input id="apiModel" placeholder="model-name">
+                    </div>
+                    <div class="api-row">
+                        <label></label>
+                        <button class="test-api-btn" id="testApiBtn">测试连通性</button>
+                        <span style="font-size:11px;color:#9ca3af">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
+                    </div>
+                </div>
+                <div class="param-item">
+                    <label>脑洞大小（随机创意）：</label>
+                    <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7">
+                    <input type="number" id="tempInput" min="0" max="2" step="0.05" value="0.7">
+                </div>
+                <div class="param-item">
+                    <label>创意候选范围：</label>
+                    <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9">
+                    <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
+                </div>
+                <div class="param-item">
+                    <label>上下文窗口 token（本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡或切换云API)：</label>
+                    <input type="number" id="maxTokenInput" min="64" max="1048576" value="16384">
+                    <button class="token-quick-btn" onclick="setToken(32768)">32K</button>
+                    <button class="token-quick-btn" onclick="setToken(65536)">64K</button>
+                    <button class="token-quick-btn" onclick="setToken(131072)">128K</button>
+                    <button class="token-quick-btn" onclick="setToken(262144)">256K</button>
+                    <button class="token-quick-btn" onclick="setToken(1048576)">1M</button>
+                </div>
+                <div class="param-note">
+                    提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
+                </div>
+            </div>
+        </div>
+
+        <div class="card file-panel">
+            <div class="file-head-row">
+                <span class="card-title" style="margin-bottom:0;">载入剧本文件</span>
+                <div class="file-head-actions">
+                    <button class="plus-upload-btn" id="plusUploadBtn" title="载入 txt / docx 剧本文件">+</button>
+                    <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 2 张）">🖼 上传画风参考图</button>
+                    <input type="file" id="fileInput" accept=".txt,.docx">
+                    <input type="file" id="refImageInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple>
+                </div>
+            </div>
+            <div class="ref-note">需大模型支持图片输入（多模态），纯文本模型无法识别</div>
+            <div class="ref-preview-list" id="refPreviewList"></div>
+            <div id="fileList"></div>
+        </div>
+    </aside>
+
+    <!-- ============ 右：AI 输出区 ============ -->
+    <main class="main">
+        <div class="main-toolbar">
+            <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
+            <div class="status" id="skillStatus">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
+            <span class="ref-badge" id="refBadge"></span>
+            <div class="spacer"></div>
+            <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
+            <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
+            <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
+            <button class="ctrl-btn newtab-btn" id="newSessionBtn">新建对话（开新网页）</button>
+        </div>
+        <div id="chatBox"></div>
+        <div class="input-row">
+            <button class="ctrl-btn stop-btn" id="stopBtn">停止生成</button>
+            <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
+            <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
+        </div>
+    </main>
 </div>
+
 <div class="modal-overlay" id="previewModal">
     <div class="modal-box">
         <div class="modal-content" id="modalText"></div>
@@ -239,14 +297,30 @@
 </div>
 
 <script>
-// 全局异常捕获兜底
+// 全局异常捕获兜底（不依赖任何后置变量，避免异常发生在初始化之前时无声失败）
 window.addEventListener('error', (ev) => {
-    console.error("全局捕获JS异常：", ev.error);
+    console.error("全局捕获JS异常：", ev.error || ev.message);
     try{
-        append(`⚠️页面局部异常: ${ev.message}`,"err");
+        const box = document.getElementById("chatBox");
+        if(box){
+            const d = document.createElement("div");
+            d.className = "msg err";
+            d.innerText = `⚠️页面局部异常: ${ev.message}`;
+            box.appendChild(d);
+            box.scrollTop = box.scrollHeight;
+        }
     }catch(e){}
     ev.preventDefault();
 });
+
+/* 安全存储：预览沙箱 / 隐私模式 / 禁用站点数据时，访问 localStorage 会抛 SecurityError。
+   统一包装，绝不让存储读写中断脚本初始化，也不让配额超限抛到页面外。 */
+const safeStorage = {
+    available: (()=>{ try { const k="__mf_t__"; window.localStorage.setItem(k,"1"); window.localStorage.removeItem(k); return true; } catch(e){ return false; } })(),
+    get(k){ try { return window.localStorage.getItem(k); } catch(e){ return null; } },
+    set(k,v){ try { window.localStorage.setItem(k,v); return true; } catch(e){ console.warn("本地存储写入失败（可能被禁用或已超配额）：", e && e.name); return false; } },
+    remove(k){ try { window.localStorage.removeItem(k); } catch(e){} }
+};
 
 const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
 const SKILL_TOKEN = "CU001-ABC123";
@@ -255,7 +329,19 @@ const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
 
-let computeMode = localStorage.getItem("computeMode") || "local";
+/* ===== 画风参考图配置：全部仅在浏览器内存中处理，不落地、不传 skill-api ===== */
+const REF_MAX_COUNT = 2;
+const REF_MAX_EDGE = 1024;
+const REF_JPEG_QUALITY = 0.8;
+const REF_MAX_BYTES = 1.5 * 1024 * 1024;
+const REF_ALLOWED_EXT = ["jpg", "jpeg", "png", "webp"];
+const REF_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
+/* 仅这两个美术画风技能随请求附带参考图；a 剧本创作、b 导演分镜、d MiniMaxH3 一律自动忽略 */
+const IMAGE_SKILL_KEYS = ["c", "e"];
+let refImages = [];            // [{id, name, dataUrl, bytes, width, height}] 会话结束即丢弃
+let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
+
+let computeMode = safeStorage.get("computeMode") || "local";
 let apiProfiles = [];
 let currentProfileId = null;
 
@@ -298,6 +384,12 @@ const loadHistoryBtn = document.getElementById("loadHistoryBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const newSessionBtn = document.getElementById("newSessionBtn");
 const stopBtn = document.getElementById("stopBtn");
+const focusBtn = document.getElementById("focusBtn");
+const sidePanel = document.getElementById("sidePanel");
+const refUploadBtn = document.getElementById("refUploadBtn");
+const refImageInput = document.getElementById("refImageInput");
+const refPreviewList = document.getElementById("refPreviewList");
+const refBadge = document.getElementById("refBadge");
 
 const apiConfigBlock = document.getElementById("apiConfigBlock");
 const radioLocal = document.querySelector('input[name="computeMode"][value="local"]');
@@ -309,9 +401,16 @@ const inpModel = document.getElementById("apiModel");
 const testApiBtn = document.getElementById("testApiBtn");
 const addApiProfileBtn = document.getElementById("addApiProfileBtn");
 const delApiProfileBtn = document.getElementById("delApiProfileBtn");
+const inpLocalModel = document.getElementById("localModel");
+const localModelRow = document.getElementById("localModelRow");
+let localModelName = safeStorage.get("manflows_local_model") || "";
 
 const HELP_HTML = `
 <h2>漫流AI漫剧创作台 使用帮助</h2>
+<div class="help-contact-box">
+<p class="help-contact">抖音微信同号：onetone001</p>
+<p class="help-contact">如需购买含8千多部红果爆款漫剧数据集的特调大语言模型和定制Skill技能包请联系。</p>
+</div>
 <p>说明：技能模板由后端服务提供；算力分为【本地算力模式】和【API云算力模式】两种。所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
 
 <h2>一、本地算力模式：部署本地 llama-server / Ollama</h2>
@@ -340,6 +439,7 @@ const HELP_HTML = `
 <ul>
 <li>网页算力模式选择“本地算力”；</li>
 <li>加载技能模板，输入指令直接发送；</li>
+<li>【本地模型名称（可选）】留空时请求里发送 "local"；若你的 llama-server / Ollama 兼容接口要求真实模型名，在这里填写即可；</li>
 <li>注意：本地模式只对当前这台电脑生效，外网网页访问不到别人电脑上的本地服务。</li>
 </ul>
 
@@ -377,6 +477,7 @@ const HELP_HTML = `
 <h3>API模式常见问题</h3>
 <ul>
 <li>部分浏览器存在跨域限制，需要CORS解除跨域插件；</li>
+<li>GitHub Pages 等静态部署后跨域限制依然存在，CORS插件只对你本机生效。给访客用的稳定方案是自建反向代理（如 Cloudflare Worker / 自己的服务端转发），把代理地址填进【接口地址】即可，本页无需改代码；</li>
 <li>密钥仅保存在本机浏览器，不要泄露给其他人；</li>
 <li>余额不足、模型名称或接口地址写错，都会请求失败；</li>
 <li>填写完成后点【测试连通性】验证。</li>
@@ -388,17 +489,37 @@ const HELP_HTML = `
 <li>选择算力模式（本地 / API云算力）；</li>
 <li>可上传剧本 txt/docx 文件并勾选，会一并喂给AI；</li>
 <li>输入创作指令，点击开始生成；</li>
-<li>支持下载剧本，本地保存对话历史。</li>
+<li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史。</li>
 </ol>
 
 <h2>四、导入本地md自定义技能</h2>
 <p>点【导入本地.md技能】，选择本地md文件；导入后生成独立技能按钮，和内置5个技能互斥切换，可随时删除自定义技能。自定义技能全程不发送网络请求，仅保存在浏览器内存，刷新页面丢失。</p>
 
-<h2>五、常见报错</h2>
+<h2>五、上传画风参考图（仅美术技能可用）</h2>
+<ul>
+<li>入口：【载入剧本文件】卡片中，剧本加号旁的【🖼 上传画风参考图】；支持 jpg / jpeg / png / webp，最多 2 张。</li>
+<li>浏览器内自动压缩：长边超过 1024px 才等比缩放（小图不放大），统一转为 JPEG、质量 0.8；单张压缩后需 ≤1.5MB，仍超限会提示换图。</li>
+<li>图片以 base64 只存在当前网页内存，刷新或关闭页面即丢弃；不写入本地历史、不上传技能服务，只随你自己的大模型请求发送。</li>
+<li>带图技能：c 美术画风助手 V5（资产图提示词）、e 美术画风助手 V5 Midjourney；a 剧本创作、b 导演分镜、d MiniMaxH3 发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
+<li>需要大模型本身支持图片输入（多模态）：云端请用视觉模型；本地 llama-server / Ollama 需加载支持视觉的模型及对应 mmproj。纯文本模型无法识别，建议此时先删除参考图。</li>
+<li>缩略图右侧的 × 可逐张移除；带图时请求会按 OpenAI 多模态格式附上图片，接口若不兼容请改用支持图片输入的模型。</li>
+</ul>
+
+<h2>六、界面布局</h2>
+<ul>
+<li>左侧为配置栏，可独立滚动；右侧为 AI 输出窗口，占满整屏高度，配置再多也不会挤小它。</li>
+<li>【推理参数】的 收起 / 展开 保持原有用法；顶部【▤ 专注模式】可一键收起整个左侧配置栏，让输出窗口占满宽度，再点一次恢复，所有功能按钮不会丢失。</li>
+<li>窄屏（手机）自动切回上下单列布局，专注模式同样可用。</li>
+</ul>
+
+<h2>七、常见报错</h2>
 <ul>
 <li>技能加载失败：网络无法访问后端技能服务，可以尝试导入本地md技能应急；</li>
 <li>API请求报错：核对接口地址、key、模型名称，检查余额与跨域插件；</li>
 <li>本地模式无响应：确认 ollama / llama-server 正常运行，端口8080。</li>
+<li>带图请求报错：多半是模型或接口不支持图片输入，删除参考图或换视觉模型即可。</li>
+<li>本地单文件预览时左上角显示文字标：说明同目录没有 logo.png；把本页与 logo.png 一起放到 GitHub 仓库根目录即会自动显示原图。</li>
+<li>预览环境（沙箱 / 隐私模式）按钮点击或历史保存异常：多为浏览器禁用了站点数据，本页已做兜底，此时 API 配置与历史刷新后不保留，其余功能照常可用；正式部署到 GitHub Pages 后恢复正常。</li>
 </ul>
 `;
 
@@ -428,20 +549,20 @@ const nameMap = {
 function uuid() { return Math.random().toString(36).slice(2)+Date.now().toString(36); }
 
 function loadApiProfiles(){
-    const raw = localStorage.getItem(STORAGE_KEY_API_PROFILES);
+    const raw = safeStorage.get(STORAGE_KEY_API_PROFILES);
     if(raw){
         try { apiProfiles = JSON.parse(raw) || []; } catch(e){ apiProfiles = []; }
     }
-    const savedId = localStorage.getItem(STORAGE_KEY_CURR_PROFILE);
+    const savedId = safeStorage.get(STORAGE_KEY_CURR_PROFILE);
     if(savedId && apiProfiles.find(p=>p.id===savedId)) currentProfileId = savedId;
     else currentProfileId = apiProfiles.length>0 ? apiProfiles[0].id : null;
     renderApiSelect();
     bindCurrentProfile();
 }
 function saveApiProfiles(){
-    localStorage.setItem(STORAGE_KEY_API_PROFILES, JSON.stringify(apiProfiles));
-    if(currentProfileId) localStorage.setItem(STORAGE_KEY_CURR_PROFILE, currentProfileId);
-    else localStorage.removeItem(STORAGE_KEY_CURR_PROFILE);
+    safeStorage.set(STORAGE_KEY_API_PROFILES, JSON.stringify(apiProfiles));
+    if(currentProfileId) safeStorage.set(STORAGE_KEY_CURR_PROFILE, currentProfileId);
+    else safeStorage.remove(STORAGE_KEY_CURR_PROFILE);
     renderApiSelect();
 }
 function renderApiSelect(){
@@ -480,10 +601,13 @@ function syncProfileToCurrent(){
 function initComputeModeUI(){
     if(computeMode === "api"){ radioApi.checked = true; apiConfigBlock.style.display = "block"; }
     else { radioLocal.checked = true; apiConfigBlock.style.display = "none"; }
+    if(inpLocalModel) inpLocalModel.value = localModelName;
+    if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
 }
 function saveComputeMode(){
     computeMode = document.querySelector('input[name="computeMode"]:checked').value;
-    localStorage.setItem("computeMode", computeMode);
+    safeStorage.set("computeMode", computeMode);
+    if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
     if(computeMode === "api"){
         apiConfigBlock.style.display = "block";
         if(apiProfiles.length === 0){
@@ -501,6 +625,7 @@ testApiBtn.addEventListener("click", async ()=>{
     const model = inpModel.value.trim();
     if(!ep || !key || !model){ alert("请完整填写：接口地址、API-Key、模型名称"); return; }
     const ctrl = new AbortController();
+    const timer = setTimeout(()=> ctrl.abort(), 10000);   // 10 秒无响应自动中断，不再一直转
     try{
         const resp = await fetch(ep,{
             method:"POST",
@@ -512,19 +637,38 @@ testApiBtn.addEventListener("click", async ()=>{
         else { const txt = await resp.text(); alert(`❌ HTTP ${resp.status}\n${txt}`); }
     }catch(err){
         console.error(err);
-        alert(`⚠️ 请求异常：${err.message}\n检查CORS插件是否开启，地址密钥是否正确`);
+        if(err.name === "AbortError") alert("⚠️ 请求超时（10秒无响应），请检查接口地址、网络与CORS插件");
+        else alert(`⚠️ 请求异常：${err.message}\n检查CORS插件是否开启，地址密钥是否正确`);
+    }finally{
+        clearTimeout(timer);
     }
 });
 
-(function loadDocxLib() {
-    const s = document.createElement("script");
-    s.src = "https://unpkg.com/docx@8.5.0/build/index.js";
-    s.onload = () => { docxLibReady = true; console.log("docx库加载完成"); };
-    s.onerror = () => {
-        console.warn("docx 库加载失败，docx解析功能禁用；txt、聊天、技能功能不受影响");
-        try{ append("⚠️ docx解析库加载失败，仅支持TXT剧本上传","tip"); }catch(e){}
-    };
-    document.head.appendChild(s);
+/* docx 解析库：主 CDN 失败时自动切备用 CDN；全部失败只禁用 docx，txt / 聊天 / 技能不受影响 */
+(function loadDocxLib(){
+    const sources = [
+        "https://unpkg.com/docx@8.5.0/build/index.js",
+        "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js",
+        "https://fastly.jsdelivr.net/npm/docx@8.5.0/build/index.js"
+    ];
+    let i = 0;
+    function tryNext(){
+        if(i >= sources.length){
+            console.warn("docx 库全部 CDN 均加载失败，docx解析功能禁用；txt、聊天、技能功能不受影响");
+            try{ append("⚠️ docx解析库加载失败，仅支持TXT剧本上传（可先把docx另存为txt）","tip"); }catch(e){}
+            return;
+        }
+        const url = sources[i++];
+        const s = document.createElement("script");
+        s.src = url;
+        s.onload = () => {
+            if(window.docx){ docxLibReady = true; console.log("docx库加载完成：" + url); }
+            else tryNext();
+        };
+        s.onerror = () => { console.warn("docx 库加载失败，尝试备用 CDN：" + url); tryNext(); };
+        document.head.appendChild(s);
+    }
+    tryNext();
 })();
 
 function renderFileList() {
@@ -532,21 +676,166 @@ function renderFileList() {
     fileStore.forEach((item, idx) => {
         const div = document.createElement("div");
         div.className = "file-item";
-        div.innerHTML = `
-            <input type="checkbox" ${item.checked ? "checked" : ""}>
-            <span>${item.name}</span>
-            <button class="preview-btn">预览</button>
-            <button class="del-file-btn">删除</button>
-        `;
-        div.querySelector("input").onchange = ()=>{ fileStore[idx].checked = !fileStore[idx].checked; };
-        div.querySelector(".preview-btn").onclick = ()=> openPreview(idx);
-        div.querySelector(".del-file-btn").onclick = ()=> removeFile(idx);
+        // 文件名改用 textContent，避免文件名里的 HTML 被当成标签渲染
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!item.checked;
+        cb.onchange = ()=>{ fileStore[idx].checked = cb.checked; };
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = item.name;
+        nameSpan.title = item.name;
+        const previewBtn = document.createElement("button");
+        previewBtn.className = "preview-btn";
+        previewBtn.textContent = "预览";
+        previewBtn.onclick = ()=> openPreview(idx);
+        const delBtn = document.createElement("button");
+        delBtn.className = "del-file-btn";
+        delBtn.textContent = "删除";
+        delBtn.onclick = ()=> removeFile(idx);
+        div.appendChild(cb);
+        div.appendChild(nameSpan);
+        div.appendChild(previewBtn);
+        div.appendChild(delBtn);
         fileListEl.appendChild(div);
     });
 }
 function openPreview(idx) { modalTextEl.textContent = fileStore[idx].content; previewModal.style.display = "flex"; }
 function closePreview() { previewModal.style.display = "none"; }
 function removeFile(idx) { fileStore.splice(idx, 1); renderFileList(); }
+
+/* ================= 画风参考图：上传 / 压缩 / 预览 / 删除 ================= */
+function updateRefBadge(){
+    if(!refBadge) return;
+    if(refImages.length === 0){
+        refBadge.style.display = "none";
+        refBadge.textContent = "";
+        return;
+    }
+    const withImg = IMAGE_SKILL_KEYS.includes(currentSkillKey);
+    refBadge.style.display = "inline-flex";
+    refBadge.className = "ref-badge " + (withImg ? "ref-badge-on" : "ref-badge-off");
+    refBadge.textContent = withImg
+        ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前美术技能会随请求发送`
+        : `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前技能自动忽略（不带图）`;
+}
+
+function renderRefPreview(){
+    if(!refPreviewList) return;
+    refPreviewList.innerHTML = "";
+    if(refImages.length === 0){
+        const empty = document.createElement("div");
+        empty.className = "ref-empty";
+        empty.textContent = "暂无画风参考图";
+        refPreviewList.appendChild(empty);
+        return;
+    }
+    refImages.forEach(img=>{
+        const row = document.createElement("div");
+        row.className = "ref-item";
+        const thumb = document.createElement("img");
+        thumb.className = "ref-thumb";
+        thumb.src = img.dataUrl;
+        thumb.alt = img.name;
+        const meta = document.createElement("div");
+        meta.className = "ref-meta";
+        const nm = document.createElement("span");
+        nm.className = "ref-name";
+        nm.textContent = img.name;
+        nm.title = img.name;
+        const sz = document.createElement("span");
+        sz.className = "ref-size";
+        sz.textContent = `${img.width}×${img.height} · ${(img.bytes/1024).toFixed(0)} KB`;
+        meta.appendChild(nm);
+        meta.appendChild(sz);
+        const del = document.createElement("button");
+        del.className = "ref-del-btn";
+        del.textContent = "×";
+        del.title = "删除这张参考图";
+        del.onclick = ()=> removeRefImage(img.id);
+        row.appendChild(thumb);
+        row.appendChild(meta);
+        row.appendChild(del);
+        refPreviewList.appendChild(row);
+    });
+}
+function removeRefImage(id){
+    refImages = refImages.filter(x => x.id !== id);
+    renderRefPreview();
+    updateRefBadge();
+}
+
+function loadImageFromBlob(file){
+    return new Promise((resolve, reject)=>{
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = ()=>{ URL.revokeObjectURL(objectUrl); resolve(img); };
+        img.onerror = ()=>{ URL.revokeObjectURL(objectUrl); reject(new Error("图片解码失败")); };
+        img.src = objectUrl;
+    });
+}
+
+/* 长边 >1024 才等比缩放（小图不动尺寸），统一转 JPEG 质量 0.8；返回 base64 dataUrl 与字节数 */
+async function compressRefImage(file){
+    const img = await loadImageFromBlob(file);
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const longEdge = Math.max(w, h);
+    const ratio = longEdge > REF_MAX_EDGE ? REF_MAX_EDGE / longEdge : 1;
+    const nw = Math.max(1, Math.round(w * ratio));
+    const nh = Math.max(1, Math.round(h * ratio));
+    const canvas = document.createElement("canvas");
+    canvas.width = nw;
+    canvas.height = nh;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, nw, nh);          // PNG 透明区补白底，避免转 JPEG 后发黑
+    ctx.drawImage(img, 0, 0, nw, nh);
+    const dataUrl = canvas.toDataURL("image/jpeg", REF_JPEG_QUALITY);
+    const b64 = dataUrl.split(",")[1] || "";
+    let bytes = Math.floor(b64.length * 3 / 4);
+    if(b64.endsWith("==")) bytes -= 2;
+    else if(b64.endsWith("=")) bytes -= 1;
+    return { dataUrl, bytes, width: nw, height: nh };
+}
+
+async function handleRefFiles(fileList){
+    const files = Array.from(fileList || []);
+    if(!files.length) return;
+
+    // 1. 格式校验
+    const valid = files.filter(f=>{
+        const ext = (f.name.split(".").pop() || "").toLowerCase();
+        return REF_ALLOWED_EXT.includes(ext) || REF_ALLOWED_MIME.includes(f.type);
+    });
+    const skipped = files.length - valid.length;
+    if(skipped > 0) alert(`已忽略 ${skipped} 个不支持的文件（仅支持 jpg / jpeg / png / webp）`);
+    if(!valid.length) return;
+
+    // 2. 数量上限：最多 2 张，超出提示且不再添加
+    const room = REF_MAX_COUNT - refImages.length;
+    if(room <= 0){ alert(`最多只能添加 ${REF_MAX_COUNT} 张画风参考图，请先删除已有图片`); return; }
+    if(valid.length > room){
+        alert(`最多只能添加 ${REF_MAX_COUNT} 张画风参考图，本次仅取前 ${room} 张，其余未添加`);
+        valid.length = room;
+    }
+
+    // 3. 逐张压缩（串行，避免同时解码多张大图占满内存）
+    for(const f of valid){
+        try{
+            const r = await compressRefImage(f);
+            if(r.bytes > REF_MAX_BYTES){
+                alert(`「${f.name}」压缩后仍为 ${(r.bytes/1024/1024).toFixed(2)} MB（上限 1.5 MB），请换一张更小的图片`);
+                continue;
+            }
+            refImages.push({ id: uuid(), name: f.name, dataUrl: r.dataUrl, bytes: r.bytes, width: r.width, height: r.height });
+        }catch(err){
+            console.error(err);
+            alert(`「${f.name}」读取或压缩失败：${err.message}，请换一张图片`);
+        }
+    }
+    renderRefPreview();
+    updateRefBadge();
+}
 
 function append(text, type = "tip") {
     const div = document.createElement("div");
@@ -564,6 +853,22 @@ function stopGenerate() {
         append("⚠️ 已停止生成", "tip");
     }
 }
+/* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
+   按钮不随技能改名，避免用户误解；文件名则按技能区分，方便归档。 */
+const OUTPUT_FILE_NAMES = {
+    a: "漫剧剧本",
+    b: "生视频提示词_Seedance",
+    d: "生视频提示词_MiniMaxH3",
+    c: "美术资产提示词_GPTImage",
+    e: "美术资产提示词_Midjourney"
+};
+const DOWNLOAD_BTN_LABEL = "下载产物 TXT";
+function currentOutputFile(){
+    return OUTPUT_FILE_NAMES[currentSkillKey] || "AI生成产物";
+}
+function updateDownloadLabel(){
+    if(downloadAiBtn) downloadAiBtn.textContent = DOWNLOAD_BTN_LABEL;
+}
 function downloadAiText() {
     if (!fullAiText) { alert("还没有 AI 输出内容！"); return; }
     const blob = new Blob([fullAiText], { type: "text/plain;charset=utf-8" });
@@ -571,8 +876,10 @@ function downloadAiText() {
     const a = document.createElement("a");
     const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     a.href = url;
-    a.download = `漫剧剧本_${date}.txt`;
+    a.download = `${currentOutputFile()}_${date}.txt`;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
 }
 function openNewSession() { window.open(window.location.href, "_blank"); }
@@ -603,7 +910,25 @@ function renderCustomSkillButtons(){
     })
 }
 
+/* 加载失败时必须彻底清空旧技能，避免「以为换了技能，实际还在用上一个模板生成」 */
+function markSkillLoadFailed(msg){
+    currentSystemPrompt = "";
+    currentSkillName = "";
+    currentSkillKey = "";
+    updateRefBadge();
+    updateDownloadLabel();
+    skillStatusEl.innerText = "⚠️ 技能加载失败，当前未加载任何技能模板（请重试或导入本地md技能）";
+    append(msg, "err");
+}
+
+/* 注意：loadSkill 只向技能服务请求技能模板文本，绝不携带参考图 */
 async function loadSkill(type, retryCount=2, timeoutMs=10000) {
+    currentSkillKey = "";           // 加载期间先清空，失败时绝不带图
+    currentSystemPrompt = "";       // 同时清空旧模板与旧名字
+    currentSkillName = "";
+    updateRefBadge();
+    updateDownloadLabel();
+    skillStatusEl.innerText = `⏳ 正在加载技能：${nameMap[type]} ...`;
     append(`正在加载技能：${nameMap[type]} ...`, "tip");
     const ctrl = new AbortController();
     const timer = setTimeout(()=> ctrl.abort(), timeoutMs);
@@ -611,16 +936,19 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
         const res = await fetch(`${SKILL_API_BASE}?token=${SKILL_TOKEN}&type=${type}`,{signal:ctrl.signal});
         clearTimeout(timer);
         if (!res.ok) {
-            append(`❌ 技能接口返回错误（HTTP ${res.status}），可尝试导入本地md技能应急`, "err");
+            markSkillLoadFailed(`❌ 技能接口返回错误（HTTP ${res.status}），可尝试导入本地md技能应急`);
             return;
         }
         const text = await res.text();
         if(!text){
-            append("❌ 技能接口返回空内容", "err");
+            markSkillLoadFailed("❌ 技能接口返回空内容，可尝试导入本地md技能应急");
             return;
         }
         currentSystemPrompt = text;
         currentSkillName = nameMap[type];
+        currentSkillKey = type;
+        updateRefBadge();
+        updateDownloadLabel();
         skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
         append(`✅ 技能【${currentSkillName}】加载完成`, "tip");
     } catch (err) {
@@ -631,7 +959,7 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
             return loadSkill(type, retryCount-1, timeoutMs);
         }
         console.error(err);
-        append("⚠️ 多次重试后仍然连接技能服务器失败，可以导入本地md技能应急", "err");
+        markSkillLoadFailed("⚠️ 多次重试后仍然连接技能服务器失败，可以导入本地md技能应急");
     }
 }
 
@@ -639,6 +967,9 @@ function loadCustomSkill(skillItem){
     stopGenerate();
     currentSystemPrompt = skillItem.content;
     currentSkillName = skillItem.name;
+    currentSkillKey = "custom";     // 自定义技能同样不带图，避免纯文本接口报错
+    updateRefBadge();
+    updateDownloadLabel();
     skillStatusEl.innerText = `✅ 当前已加载自定义技能【${currentSkillName}】`;
     append(`✅ 自定义技能【${currentSkillName}】加载完成`, "tip");
 }
@@ -666,6 +997,9 @@ function unloadSkill() {
     stopGenerate();
     currentSystemPrompt = "";
     currentSkillName = "";
+    currentSkillKey = "";
+    updateRefBadge();
+    updateDownloadLabel();
     aiMsgDom = null;
     pendingText = "";
     fullAiText = "";
@@ -673,39 +1007,60 @@ function unloadSkill() {
     append("🗑️ 技能已清空", "tip");
 }
 
+/* 历史记录只保存文本与技能 key，绝不写入参考图 base64。
+   配额兜底：localStorage 超限（漫剧长输出常见）时自动丢弃最旧记录重试，不再让 setItem 抛错打断生成结束流程。 */
 function saveHistoryToLocal() {
-    const record = {
-        time: new Date().toISOString(),
-        skillName: currentSkillName,
-        systemPrompt: currentSystemPrompt,
-        chatHtml: chatBox.innerHTML,
-        aiResult: fullAiText,
-        fileStore: JSON.parse(JSON.stringify(fileStore))
-    };
-    let all = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || "[]");
-    all.unshift(record);
-    if(all.length>30) all = all.slice(0,30);
-    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(all));
+    try {
+        const record = {
+            time: new Date().toISOString(),
+            skillName: currentSkillName,
+            skillKey: currentSkillKey,
+            systemPrompt: currentSystemPrompt,
+            chatHtml: chatBox.innerHTML,
+            aiResult: fullAiText,
+            fileStore: JSON.parse(JSON.stringify(fileStore))
+        };
+        let all = [];
+        try { all = JSON.parse(safeStorage.get(STORAGE_KEY_HISTORY) || "[]") || []; } catch(e){ all = []; }
+        if(!Array.isArray(all)) all = [];
+        all.unshift(record);
+        if(all.length > 30) all = all.slice(0, 30);
+        // 写入失败（配额/被禁用）就逐条裁剪最旧记录，最多再试 8 次；仍失败则只留本次
+        for(let i = 0; i < 8; i++){
+            if(safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(all))) return;
+            if(all.length <= 1) break;
+            all = all.slice(0, Math.max(1, Math.floor(all.length / 2)));
+        }
+        append("⚠️ 本地存储空间不足或已被浏览器禁用，本次对话未能写入历史；生成内容不受影响，可点【下载】保存。", "tip");
+    } catch(e) {
+        console.warn("保存历史失败（不影响生成）：", e);
+    }
 }
 function loadLatestHistory() {
-    const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
+    const raw = safeStorage.get(STORAGE_KEY_HISTORY);
     if(!raw) return alert("本地无历史对话");
-    const all = JSON.parse(raw);
+    let all;
+    try { all = JSON.parse(raw); } catch(e){ return alert("本地历史数据已损坏，无法读取"); }
+    if(!Array.isArray(all) || !all.length) return alert("本地无历史对话");
     const rec = all[0];
+    if(!rec || typeof rec !== "object") return alert("本地历史数据已损坏，无法读取");
     if(!confirm("加载最近一条对话，会清空当前聊天框，确认？")) return;
-    chatBox.innerHTML = rec.chatHtml;
+    chatBox.innerHTML = rec.chatHtml || "";
     fullAiText = rec.aiResult || "";
     currentSkillName = rec.skillName || "";
+    currentSkillKey = rec.skillKey || "";   // 兼容旧历史：无 key 时按不带图处理
+    updateRefBadge();
     currentSystemPrompt = rec.systemPrompt || "";
-    fileStore = rec.fileStore || [];
+    fileStore = Array.isArray(rec.fileStore) ? rec.fileStore : [];
     renderFileList();
+    updateDownloadLabel();
     if(currentSkillName) skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
     else skillStatusEl.innerText = "📌 当前：尚未加载任何技能模板，请点击上方按钮";
     alert("✅ 最近对话已加载");
 }
 function clearAllHistory(){
     if(!confirm("确认清空浏览器本地全部历史对话（最多30条）？不可恢复！")) return;
-    localStorage.removeItem(STORAGE_KEY_HISTORY);
+    safeStorage.remove(STORAGE_KEY_HISTORY);
     alert("✅ 本地历史已清空");
 }
 
@@ -723,7 +1078,16 @@ async function sendMessage() {
         }
     }
     if (userCmd) combinedContent += "【用户指令】\n" + userCmd;
-    if (!combinedContent.trim()) { alert("请输入指令，或者勾选剧本文件"); return; }
+
+    /* 带图判定：只有 c / e 两个美术技能且有图时才带；a / b / d、自定义技能、未加载技能一律忽略 */
+    const useImages = IMAGE_SKILL_KEYS.includes(currentSkillKey) && refImages.length > 0;
+    if (useImages) {
+        combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，请以其画风、色调、线条与质感作为视觉基准；图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
+    }
+    if (!combinedContent.trim() && !useImages) { alert("请输入指令，或者勾选剧本文件"); return; }
+    if (!combinedContent.trim() && useImages) {
+        combinedContent = "【用户指令】\n请依据当前技能与所附画风参考图开始生成。";
+    }
 
     if(computeMode === "api"){
         if(apiProfiles.length === 0 || !currentProfileId){
@@ -741,20 +1105,34 @@ async function sendMessage() {
     const temperature = parseFloat(tempInput.value);
     const top_p = parseFloat(topPInput.value);
     const max_tokens = parseInt(maxTokenInput.value);
-    append(`【用户】：${userCmd}（附带${attachedFiles.length}个勾选文件）`, "user");
+    const imgNote = useImages
+        ? `、${refImages.length}张参考图`
+        : (refImages.length > 0 ? "、参考图已按当前技能自动忽略" : "");
+    append(`【用户】：${userCmd}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
     userInput.value = "";
     aiMsgDom = append("【AI】：", "ai");
     abortController = new AbortController();
 
     let fetchUrl, fetchHeaders, bodyObj;
+    /* 带图用 OpenAI 多模态 content 数组；不带图保持纯字符串，纯文本接口才不会报图片错误 */
+    let userContent;
+    if (useImages) {
+        userContent = [{ type: "text", text: combinedContent }];
+        refImages.forEach(img => {
+            userContent.push({ type: "image_url", image_url: { url: img.dataUrl } });
+        });
+    } else {
+        userContent = combinedContent;
+    }
     const messagesArr = [
         { role: "system", content: currentSystemPrompt || "你是专业漫剧编剧，严格按照用户要求创作" },
-        { role: "user", content: combinedContent }
+        { role: "user", content: userContent }
     ];
     if(computeMode === "local"){
         fetchUrl = LOCAL_LLAMA_URL;
         fetchHeaders = { "Content-Type":"application/json" };
-        bodyObj = { model:"local", messages:messagesArr, temperature, top_p, max_tokens, stream:true };
+        // 留空时保持原来的 "local"，兼容 llama-server / Ollama 默认行为
+        bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true };
     } else {
         fetchUrl = inpEndpoint.value.trim();
         fetchHeaders = { "Content-Type":"application/json", "Authorization":`Bearer ${inpKey.value.trim()}` };
@@ -811,10 +1189,18 @@ async function sendMessage() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', ()=>{
+/* 初始化改为独立函数 + readyState 判断：
+   预览面板 / iframe srcdoc / 脚本被延后注入时 DOMContentLoaded 可能已经过去，
+   只监听事件会导致所有按钮永远不被绑定。 */
+function initUI(){
+    try {
     loadApiProfiles();
     initComputeModeUI();
     renderCustomSkillButtons();
+    renderRefPreview();
+    updateRefBadge();
+    updateDownloadLabel();
+    if(!safeStorage.available) console.warn("本地存储不可用（预览沙箱或隐私模式）：API配置与历史记录本次会话内有效，刷新后不保留；其余功能正常。");
 
     // 内置技能按钮
     document.querySelectorAll('[data-skill-key]').forEach(btn=>{
@@ -822,12 +1208,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
         btn.addEventListener("click", ()=>{ loadSkill(key); });
     });
 
-    // 参数展开收起
+    // 推理参数展开收起（原有功能，保留）
     const toggleParamBtn = document.querySelector('.toggle-param-btn');
     const paramContent = document.querySelector('.param-content');
     toggleParamBtn.addEventListener('click', ()=>{
         paramContent.classList.toggle('collapse');
         toggleParamBtn.innerText = paramContent.classList.contains('collapse') ? '展开' : '收起';
+    });
+
+    // 专注模式：一键收起整个左侧配置栏，让 AI 输出窗口占满宽度；再点恢复
+    focusBtn.addEventListener("click", ()=>{
+        const collapsed = sidePanel.classList.toggle("collapsed");
+        focusBtn.innerText = collapsed ? "▤ 退出专注" : "▤ 专注模式";
+        focusBtn.title = collapsed ? "恢复左侧配置栏" : "收起左侧配置栏，让输出窗口占满宽度";
     });
 
     // 绑定所有按钮
@@ -873,6 +1266,20 @@ document.addEventListener('DOMContentLoaded', ()=>{
         fileInput.value = "";
     };
 
+    // 画风参考图：点击按钮前先挡住已满情况，change 里再做完整校验
+    refUploadBtn.addEventListener("click", ()=>{
+        if(refImages.length >= REF_MAX_COUNT){
+            alert(`最多只能添加 ${REF_MAX_COUNT} 张画风参考图，请先删除已有图片`);
+            return;
+        }
+        refImageInput.click();
+    });
+    refImageInput.onchange = async (e)=>{
+        const files = e.target.files;
+        if(files && files.length) await handleRefFiles(files);
+        refImageInput.value = "";   // 允许重复选择同一文件
+    };
+
     importSkillMdBtn.addEventListener("click", ()=> skillMdInput.click());
     skillMdInput.onchange = (e)=>{
         const f = e.target.files[0];
@@ -909,9 +1316,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
     inpEndpoint.onchange = syncProfileToCurrent;
     inpKey.onchange = syncProfileToCurrent;
     inpModel.onchange = syncProfileToCurrent;
+    inpLocalModel.onchange = ()=>{
+        localModelName = inpLocalModel.value.trim();
+        safeStorage.set("manflows_local_model", localModelName);
+    };
     radioLocal.addEventListener("change", saveComputeMode);
     radioApi.addEventListener("change", saveComputeMode);
-});
+    } catch(e) {
+        console.error("界面初始化异常：", e);
+        try { append(`⚠️界面初始化异常：${e.message}（可刷新页面重试）`, "err"); } catch(_){}
+    }
+}
+if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", initUI, { once:true });
+} else {
+    initUI();   // DOM 已就绪：立即绑定，不等一个可能永远不会再触发的事件
+}
 </script>
 </body>
 </html>
