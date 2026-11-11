@@ -42,7 +42,6 @@
                          font-size: 12px; font-weight: 600; line-height: 1.25; letter-spacing: .5px; }
         .logo-fallback small { font-size: 7px; font-weight: 400; color: var(--muted); letter-spacing: 1px; }
         .header-title h1 { font-size: 15px; color: #fff; font-weight: 600; line-height: 1.3; }
-        .header-title p { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
 
         .card { background: var(--card); border-radius: 12px; padding: 11px 12px; border: 1px solid var(--border); flex-shrink: 0; }
         .card-title { font-size: 13px; color: #cbd5e1; margin-bottom: 9px; font-weight: 500; }
@@ -111,6 +110,12 @@
         /* 画布页互链入口：与创作页同为静态单文件，同源共享本地配置 */
         .canvas-nav-btn { background-color: var(--purple); color: #fff; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
         .canvas-nav-btn:hover { background-color: #8b5cf6; }
+        /* 「◈ 打开画布」移到左上角 LOGO 旁，与画布页顶栏「← 返回创作台」位置对应 */
+        .header-title { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+        .header-title .canvas-nav-btn { min-height: 26px; padding: 4px 10px; font-size: 11.5px; border-radius: 7px; white-space: nowrap; }
+        /* 专注模式下左侧栏整体收起，工具条补一个同款隐藏入口，避免切换入口消失 */
+        .canvas-nav-btn-alt { display: none; }
+        .side.collapsed ~ .main .canvas-nav-btn-alt { display: inline-flex; }
         /* 右上角「漫流主站」：两页同款中性按钮，新标签页打开主站，不打断当前页面 */
         .home-btn { margin-left: auto; background: var(--panel); color: var(--text); border: 1px solid var(--border2); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
         .home-btn:hover { background: var(--hover); }
@@ -224,7 +229,7 @@
             </a>
             <div class="header-title">
                 <h1>漫流 AI 漫剧前期创作台</h1>
-                <p>剧本原创改编｜全剧分镜生视频提示词｜全剧美术资产生图提示词</p>
+                <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
             </div>
         </div>
 
@@ -362,7 +367,7 @@
             <div class="spacer"></div>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
             <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（新开标签页，不打断生成）">⇢ 送到画布</button>
-            <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
+            <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
             <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
             <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn">新建对话（开新网页）</button>
@@ -1605,9 +1610,9 @@ function initUI(){
     sendMsgBtn.addEventListener("click", sendMessage);
     downloadAiBtn.addEventListener("click", downloadAiText);
     const sendToCanvasBtn = document.getElementById("sendToCanvasBtn");
-    const openCanvasBtn = document.getElementById("openCanvasBtn");
     if(sendToCanvasBtn) sendToCanvasBtn.addEventListener("click", sendToCanvas);
-    if(openCanvasBtn) openCanvasBtn.addEventListener("click", guardCanvasNav);
+    // 「打开画布」主入口在左上角 LOGO 旁；专注模式时工具条会补一个备用入口，一并绑定生成中拦截
+    document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
     loadHistoryBtn.addEventListener("click", loadLatestHistory);
     clearHistoryBtn.addEventListener("click", clearAllHistory);
     newSessionBtn.addEventListener("click", openNewSession);

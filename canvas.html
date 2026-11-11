@@ -280,7 +280,7 @@
                 <svg class="edges" id="edgeSvg" width="8000" height="6000" xmlns="http://www.w3.org/2000/svg"></svg>
                 <div id="nodeLayer"></div>
             </div>
-            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词」新建节点，或在创作台点「⇢ 送到画布」</div>
+            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词」新建节点，或在创作台点「⇢ 送到画布」<br><button class="mini-btn purple" id="seedBtn" style="margin-top:10px">↺ 放入基础工作流示例</button></div>
             <div class="canvas-tip">拖标题栏移动 · 从右侧圆点拖到别的节点左侧圆点连线 · 点连线可删除 · 滚轮缩放 · 空白处拖动平移</div>
             <div class="zoom-bar">
                 <button id="zoomOut" title="缩小">−</button><span id="zoomLabel">100%</span><button id="zoomIn" title="放大">＋</button><button id="zoomFit" title="回到原点 100%">⌖</button>
@@ -291,6 +291,8 @@
 
 <div class="modal-overlay" id="helpModal">
     <div class="modal-box">
+        <h2>新画布自带一套基础工作流</h2>
+        <p>每份画布首次打开时，会自动放好 <b>① 提示词 / ① 参考图 → ② 生成 → ③ 结果</b> 四个节点并连好线：照着填内容、在生成节点选好引擎就能跑，不用从零搭。节点可随意改、删、拖动，也能从顶栏继续「＋」加节点。已有内容的画布不会被覆盖；若点了「清空画布」，空画布提示里可一键「↺ 放入基础工作流示例」找回这套结构。</p>
         <h2>画布怎么用</h2>
         <ul>
             <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词。全剧资产可点「拆分」按 <code>▌</code> 自动拆成一条一节点。</li>
@@ -441,10 +443,50 @@ const GLOBAL_KEY = "__global__";
 const el = id => document.getElementById(id);
 const docKey = id => "doc_"+id;
 function docName(id){ const d=docList.find(x=>x.id===id); return d?d.name:"画布"; }
+/* ===== 每份新画布的默认基础工作流：① 提示词 / 参考图 → ② 生成 → ③ 结果 =====
+   目的：新用户一进来就能看懂数据流与连线方式，不用自己从空白画布搭。
+   只在「从未打开过的画布 / 旧版空画布」时生成；已存过内容的画布一律保持原样。 */
+function seedStarterWorkflow(){
+    canvas.nodes=[]; canvas.edges=[];
+    const ref = newNode("image", 30, 110, {images:[]});
+    ref.title = "① 参考图（可选）";
+    const pmt = newNode("prompt", 30, 360, {text:"", sourceId:""});
+    pmt.title = "① 提示词";
+    const gen = newNode("generate", 350, 185, {
+        engine:"image_api", endpoint:"", model:"", apiKey:"", headers:"",
+        bodyTemplate:DEFAULT_BODY_TEMPLATE, workflowId:"", status:"",
+        pollUrl:"", taskIdPath:DEFAULT_POLL.taskIdPath, statusPath:DEFAULT_POLL.statusPath,
+        successValues:DEFAULT_POLL.successValues, failValues:DEFAULT_POLL.failValues,
+        pollInterval:DEFAULT_POLL.pollInterval, maxPoll:DEFAULT_POLL.maxPoll
+    });
+    gen.title = "② 生成";
+    const out = newNode("result", 670, 185, {kind:"", url:"", text:""});
+    out.title = "③ 结果";
+    canvas.edges = [
+        {id:uid(), from:ref.id, to:gen.id},
+        {id:uid(), from:pmt.id, to:gen.id},
+        {id:uid(), from:gen.id, to:out.id}
+    ];
+    /* 按窗口大小自动缩放到能一眼看全四个节点 */
+    const st=el("stage"), r=st?st.getBoundingClientRect():{width:1100,height:700};
+    const z=clamp(Math.min((r.width-40)/990,(r.height-40)/610,1),.6,1);
+    canvas.viewport={x:20,y:16,zoom:z};
+}
+/* 读取某份画布：有内容或已被用户动过（seeded）就原样恢复，否则放入默认基础工作流 */
+function applyDoc(doc){
+    const saved = doc && (doc.seeded===true || (Array.isArray(doc.nodes) && doc.nodes.length>0));
+    if(saved){
+        canvas.nodes=Array.isArray(doc.nodes)?doc.nodes:[];
+        canvas.edges=Array.isArray(doc.edges)?doc.edges:[];
+        canvas.viewport=doc.viewport||{x:40,y:40,zoom:1};
+    }else{
+        seedStarterWorkflow();
+    }
+}
 async function persist(){
     await idbPut("canvas",docKey(docId),{
         id:docId, name:docName(docId),
-        nodes:canvas.nodes, edges:canvas.edges, viewport:canvas.viewport
+        nodes:canvas.nodes, edges:canvas.edges, viewport:canvas.viewport, seeded:true
     });
     await idbPut("canvas",GLOBAL_KEY,{settings:canvas.settings,docList:docList,activeDocId:docId});
 }
@@ -523,11 +565,7 @@ async function loadCanvas(){
     canvas=normalize({settings:g.settings||{}});
     let doc=null;
     try{ doc=await idbGet("canvas",docKey(docId)); }catch(e){ console.warn("画布读取失败：",e); }
-    if(doc){
-        canvas.nodes=Array.isArray(doc.nodes)?doc.nodes:[];
-        canvas.edges=Array.isArray(doc.edges)?doc.edges:[];
-        canvas.viewport=doc.viewport||canvas.viewport;
-    }
+    applyDoc(doc);
     resetRuntimeFlags();
     el("comfyBase").value = canvas.settings.comfyBase || "";
     applyViewport();
@@ -577,9 +615,7 @@ async function switchDoc(id){
     try{ await persist(); }catch(e){ console.warn("切换前保存失败：",e); }
     docId=id;
     let doc=null; try{ doc=await idbGet("canvas",docKey(id)); }catch(e){}
-    canvas.nodes=doc&&Array.isArray(doc.nodes)?doc.nodes:[];
-    canvas.edges=doc&&Array.isArray(doc.edges)?doc.edges:[];
-    canvas.viewport=doc&&doc.viewport?doc.viewport:{x:40,y:40,zoom:1};
+    applyDoc(doc);
     resetRuntimeFlags();
     try{ await persist(); }catch(e){}
     applyViewport(); renderAll(); renderDocTabs(); renderWorkflowInfo();
@@ -592,7 +628,7 @@ async function newDoc(){
     const id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     docList.push({id:id,name:"画布"+n});
     docId=id;
-    canvas.nodes=[]; canvas.edges=[]; canvas.viewport={x:40,y:40,zoom:1};
+    seedStarterWorkflow();
     resetRuntimeFlags();
     try{ await persist(); }catch(e){}
     applyViewport(); renderAll(); renderDocTabs(); renderWorkflowInfo();
@@ -614,9 +650,7 @@ async function deleteDoc(id){
     if(id===docId){
         docId=docList[0].id;
         let doc=null; try{ doc=await idbGet("canvas",docKey(docId)); }catch(e){}
-        canvas.nodes=doc&&Array.isArray(doc.nodes)?doc.nodes:[];
-        canvas.edges=doc&&Array.isArray(doc.edges)?doc.edges:[];
-        canvas.viewport=doc&&doc.viewport?doc.viewport:{x:40,y:40,zoom:1};
+        applyDoc(doc);
         resetRuntimeFlags();
         applyViewport();
     }
@@ -1606,6 +1640,12 @@ function bindToolbar(){
         if(!confirm("清空整个画布（含参考图与结果）？此操作不可撤销。")) return;
         canvas.nodes=[]; canvas.edges=[]; resetRuntimeFlags();
         renderAll(); await persist(); setStatus("画布已清空","ok");
+    });
+    el("seedBtn").addEventListener("click",async ()=>{
+        if(canvas.nodes.length && !confirm("当前画布还有节点，放入基础工作流会替换掉它们。继续？")) return;
+        seedStarterWorkflow(); resetRuntimeFlags();
+        applyViewport(); renderAll(); await persist();
+        setStatus("已放入基础工作流示例","ok");
     });
     el("helpBtn").addEventListener("click",()=>el("helpModal").classList.add("show"));
     el("closeHelpBtn").addEventListener("click",()=>el("helpModal").classList.remove("show"));
