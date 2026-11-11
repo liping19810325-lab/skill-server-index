@@ -2,1226 +2,443 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-    <title>漫流 Manflows - AI漫剧前期创作台</title>
-    <link rel="icon" type="image/png" href="/static/logo.png?v=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫流星核 AI 漫剧前期创作台</title>
     <style>
         * {
-            box-sizing: border-box;
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
         }
-        html, body {
-            height: 100%;
-            background-color: #0f1117;
-            color: #e5e7eb;
-            font-family: "Microsoft YaHei", system-ui, -apple-system, sans-serif;
-        }
-        .wrap {
-            max-width: 1300px;
-            width: 100%;
-            height: 100%;
-            margin: 0 auto;
+        body {
+            background: #121217;
+            color: #eee;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            padding: 20px;
-            gap: 16px;
         }
-        .header-bar {
+        header {
+            padding: 14px 20px;
+            background: #1b1b26;
+            border-bottom: 1px solid #333;
             display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .logo-img {
-            height: 48px;
-            object-fit: contain;
-        }
-        .header-title h1 {
-            font-size: 22px;
-            color: #ffffff;
-            font-weight: 600;
-        }
-        .header-title p {
-            font-size: 13px;
-            color: #9ca3af;
-        }
-        .card {
-            background: #171a23;
-            border-radius: 14px;
-            padding: 16px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-            border: 1px solid #242834;
-        }
-        .card-title {
-            font-size: 15px;
-            color: #cbd5e1;
-            margin-bottom: 12px;
-            font-weight: 500;
-        }
-        .btn-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .param-panel .param-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin: 6px 16px 6px 0;
-            flex-wrap: wrap;
-        }
-        .param-item label {
-            font-size: 14px;
-            color: #d1d5db;
-        }
-        .param-note {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 8px;
-            line-height: 1.5;
-        }
-        .api-config-block {
-            margin:12px 0;
-            padding:12px;
-            background:#1f232e;
-            border-radius:10px;
-            display:none;
-        }
-        .api-row{
-            margin:8px 0;
-            display:flex;
-            gap:8px;
-            align-items:center;
-            flex-wrap:wrap;
-        }
-        .api-row label{
-            width:90px;
-            flex-shrink:0;
-        }
-        .api-config-block input, .api-config-block select{
-            flex:1;
-            min-width:180px;
-            padding:9px 10px;
-            background:#171a23;
-            border:1px solid #2f3440;
-            border-radius:6px;
-            color:#e5e7eb;
-        }
-        .api-manage-row{
-            display:flex;
-            gap:8px;
-            margin:8px 0;
-            flex-wrap:wrap;
-        }
-        .token-quick-btn{
-            padding:5px 8px;
-            border:none;
-            border-radius:4px;
-            background:#374151;
-            color:#fff;
-            cursor:pointer;
-            font-size:12px;
-        }
-        .token-quick-btn:hover{
-            background:#4b5563;
-        }
-        .test-api-btn{
-            background-color:#16a34a;
-            color:#fff;
-            border:none;
-            padding:9px 14px;
-            border-radius:6px;
-            cursor:pointer;
-        }
-        .api-del-btn{
-            background-color:#dc2626;
-            color:#fff;
-            border:none;
-            padding:9px 14px;
-            border-radius:6px;
-            cursor:pointer;
-        }
-        .api-add-btn{
-            background-color:#2563eb;
-            color:#fff;
-            border:none;
-            padding:9px 14px;
-            border-radius:6px;
-            cursor:pointer;
-        }
-        .help-open-btn{
-            background-color:#9333ea;
-            color:#fff;
-            border:none;
-            padding:9px 14px;
-            border-radius:6px;
-            cursor:pointer;
-        }
-        .file-head-row {
-            display: flex;
-            align-items: center;
             justify-content: space-between;
-            margin-bottom: 10px;
-        }
-        .file-item {
-            display: flex;
             align-items: center;
+        }
+        h1 {
+            font-size: 20px;
+            color: #7dd3fc;
+        }
+        .skill-bar {
+            padding: 12px 20px;
+            background: #171720;
+            display: flex;
             gap: 10px;
-            padding: 8px 10px;
-            background: #1f232e;
-            border-radius: 8px;
-            margin: 6px 0;
             flex-wrap: wrap;
-        }
-        .file-item span {
-            font-size: 14px;
-            color: #e5e7eb;
-        }
-        .skill-btn, .ctrl-btn {
-            padding: 11px 16px;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-height:42px;
+            align-items: center;
         }
         .skill-btn {
-            background: linear-gradient(135deg, #2563eb, #3b82f6);
-            color: #fff;
-        }
-        .skill-btn:hover {
-            background: linear-gradient(135deg, #1d4ed8, #2563eb);
-            transform: translateY(-1px);
-        }
-        .clear-btn {
-            background-color: #991b1b;
-            color: #fff;
-        }
-        .clear-btn:hover {
-            background-color: #b91c1c;
-        }
-        .pause-btn {
-            background-color: #d97706;
-            color: #fff;
-        }
-        .stop-btn {
-            background-color: #dc2626;
-            color: #fff;
-        }
-        .copy-btn {
-            background-color: #7c3aed;
-            color: #fff;
-        }
-        .download-btn {
-            background-color: #0891b2;
-            color: #fff;
-        }
-        .newtab-btn {
-            background-color: #16a34a;
-            color: #fff;
-        }
-        .clear-history-btn{
-            background-color:#92400e;
-            color:#fff;
-        }
-        .load-history-btn{
-            background-color:#0369a1;
-            color:#fff;
-        }
-        .start-btn {
-            background: linear-gradient(135deg, #059669, #10b981);
-            color: white;
-            font-weight: 500;
-        }
-        .plus-upload-btn {
-            width: 38px;
-            height: 38px;
-            font-size: 20px;
-            padding: 0;
-            background: #4f46e5;
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-        .preview-btn {
-            background: #4b5563;
-            color: white;
-            padding: 6px 9px;
+            padding: 8px 12px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size:12px;
-            min-height:32px;
+            font-size: 14px;
         }
-        .del-file-btn {
-            background: #ef4444;
+        .skill-active {
+            background: #2563eb;
             color: white;
-            padding: 6px 9px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size:12px;
-            min-height:32px;
         }
-        .control-row-top {
+        .skill-normal {
+            background: #272735;
+            color: #fff;
+        }
+        .new-chat-btn {
+            margin-left: 20px;
+            background: #047857;
+            color: white;
+        }
+        .param-panel {
+            padding: 10px 20px;
+            background: #15151f;
             display: flex;
-            gap: 8px;
+            gap: 18px;
             flex-wrap: wrap;
             align-items: center;
+            font-size: 13px;
         }
-        .control-row-top .spacer {
-            flex-grow: 1;
-            min-width: 20px;
+        .param-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        .status {
-            padding: 12px 16px;
-            border-radius: 12px;
-            background-color: #1f232e;
-            color: #d1d5db;
-            font-size:14px;
+        .param-item input[type="range"] {
+            width: 140px;
         }
-        #chatBox {
+        .chat-container {
             flex: 1;
-            border: 1px solid #242834;
-            padding: 16px;
-            border-radius: 14px;
+            padding: 16px 20px;
             overflow-y: auto;
-            background-color: #171a23;
         }
-        .msg {
-            margin: 10px 0;
-            line-height: 1.7;
+        .chat-bubble {
+            margin-bottom: 16px;
+            max-width: 900px;
             white-space: pre-wrap;
-            font-size:14px;
         }
-        .user {
-            color: #60a5fa;
+        .user-msg {
+            color: #a7f3d0;
         }
-        .ai {
-            color: #f3f4f6;
+        .ai-msg {
+            color: #fef3c7;
         }
-        .tip {
-            color: #9ca3af;
+        .file-list-area {
+            padding: 10px 20px;
+            background: #14141c;
         }
-        .err {
-            color: #f87171;
+        .file-item {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #222;
+            border-radius: 4px;
+            margin: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #93c5fd;
+        }
+        .input-area-wrap {
+            padding: 14px 20px;
+            border-top: 1px solid #2c2c3a;
+            background: #181822;
         }
         .input-row {
             display: flex;
-            gap: 8px;
+            gap: 10px;
             align-items: flex-end;
         }
-        #userInput {
+        textarea {
             flex: 1;
-            min-height: 52px;
-            padding: 12px 14px;
-            border: 1px solid #2f3440;
-            border-radius: 12px;
-            font-size: 15px;
+            min-height: 70px;
+            max-height: 160px;
+            background: #222230;
+            color: #fff;
+            border: 1px solid #383848;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 14px;
             resize: vertical;
-            background: #1f232e;
-            color: #e5e7eb;
-            outline: none;
         }
-        #userInput:focus {
-            border-color: #3b82f6;
+        .btn-group-left {
+            display: flex;
+            gap: 8px;
         }
-        input[type="range"] {
-            width: 140px;
-            accent-color: #3b82f6;
+        button {
+            padding: 9px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
         }
-        input[type="number"] {
-            width: 74px;
-            padding: 5px 6px;
-            background: #1f232e;
-            border:1px solid #2f3440;
-            border-radius:6px;
-            color:#e5e7eb;
+        .btn-stop {
+            background: #b91c1c;
+            color: white;
         }
-        #fileInput {
+        .btn-pause {
+            background: #b45309;
+            color: white;
+        }
+        .btn-send {
+            background: #2563eb;
+            color: white;
+        }
+        .btn-upload {
+            background: #313144;
+            color: white;
+        }
+        .copy-btn {
+            margin-top: 6px;
+            background: #334155;
+            color: white;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+        .hint-text {
+            font-size: 13px;
+            color: #9ca3af;
+            margin-top: 6px;
+        }
+        .modal {
             display: none;
-        }
-        .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.65);
-            display: none;
+            background: rgba(0,0,0,0.75);
+            z-index: 99;
             align-items: center;
             justify-content: center;
-            z-index: 999;
         }
         .modal-box {
-            width: 94%;
-            max-width: 920px;
-            height: 85vh;
-            background: #171a23;
-            border-radius: 14px;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            border:1px solid #242834;
-        }
-        .modal-content {
-            flex: 1;
-            overflow: auto;
-            white-space: pre-wrap;
-            padding: 12px;
-            border: 1px solid #2f3440;
-            background:#1f232e;
-            color:#e5e7eb;
-            border-radius:10px;
+            width: 650px;
+            max-height: 75vh;
+            background: #1b1b26;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-y: auto;
         }
         .modal-close {
             margin-top: 12px;
-            align-self: flex-end;
-            padding: 9px 16px;
-        }
-        /*帮助弹窗样式*/
-        .help-modal-content{
-            line-height:1.7;
-            font-size:14px;
-        }
-        .help-modal-content h2{
-            color:#60a5fa;
-            margin:16px 0 8px;
-            font-size:17px;
-        }
-        .help-modal-content h3{
-            color:#a5b4fc;
-            margin:12px 0 6px;
-            font-size:15px;
-        }
-        .help-modal-content p{
-            margin:6px 0;
-        }
-        .help-modal-content pre{
-            background:#0f1117;
-            padding:10px;
-            border-radius:6px;
-            overflow-x:auto;
-            margin:8px 0;
-        }
-        .help-modal-content ul{
-            padding-left:22px;
-            margin:8px 0;
-        }
-        @media (max-width: 720px) {
-            .wrap {
-                padding:12px;
-                gap:12px;
-            }
-            .input-row {
-                flex-wrap:wrap;
-                align-items:stretch;
-            }
-            .input-row button {
-                flex:1;
-            }
-            .control-row-top {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .header-bar {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .param-panel .param-item{
-                flex-direction:column;
-                align-items:flex-start;
-            }
-            input[type="range"]{
-                width:100%;
-            }
-            .modal-box{
-                width:98%;
-                height:92vh;
-                padding:12px;
-            }
+            background: #374151;
+            color: white;
         }
     </style>
 </head>
 <body>
-<div class="wrap">
-    <div class="header-bar">
-        <img class="logo-img" src="/static/logo.png?v=1" alt="漫流 MANFLOWS">
-        <div class="header-title">
-            <h1>漫流 AI 漫剧前期创作台</h1>
-            <p>剧本原创改编｜全剧分镜生视频提示词｜全剧美术资产生图提示词</p>
-        </div>
+    <header>
+        <h1>漫流星核 AI 漫剧前期创作台</h1>
+        <span class="hint-text">网页公开 · 技能接口受白名单管控</span>
+    </header>
+
+    <div class="skill-bar">
+        <button class="skill-btn skill-normal" onclick="loadSkill('A')">漫剧创作助手 V5</button>
+        <button class="skill-btn skill-normal" onclick="loadSkill('B')">导演分镜助手 V5</button>
+        <button class="skill-btn skill-normal" onclick="loadSkill('C')">美术画风助手 V5</button>
+        <button class="skill-btn new-chat-btn" onclick="newChatTab()">新建对话（新开标签）</button>
     </div>
-    <div class="card">
-        <div class="card-title">创作技能</div>
-        <div class="btn-group">
-            <button class="skill-btn" onclick="loadSkill('a')">剧本创作助手 V5</button>
-            <button class="skill-btn" onclick="loadSkill('b')">导演分镜助手 V5（生视频提示词）</button>
-            <button class="skill-btn" onclick="loadSkill('d')">导演分镜助手V5 MiniMaxH3</button>
-            <button class="skill-btn" onclick="loadSkill('c')">美术画风助手 V5（资产图提示词）</button>
-            <button class="skill-btn" onclick="loadSkill('e')">美术画风助手V5 Midjourney</button>
-            <button class="clear-btn" onclick="unloadSkill()">🗑️ 卸载当前技能</button>
-            <button class="help-open-btn" onclick="openHelpModal()">📖 使用帮助</button>
-        </div>
-    </div>
-    <div class="card param-panel">
-        <div class="card-title">推理参数</div>
+
+    <div class="param-panel">
         <div class="param-item">
-            <label>算力模式：</label>
-            <label><input type="radio" name="computeMode" value="local"> 本地算力</label>
-            <label><input type="radio" name="computeMode" value="api"> API云算力</label>
-        </div>
-        <div class="api-config-block" id="apiConfigBlock">
-            <div class="api-row">
-                <label>API配置：</label>
-                <select id="apiProfileSelect"></select>
-            </div>
-            <div class="api-manage-row">
-                <button class="api-add-btn" id="addApiProfileBtn">新增API配置</button>
-                <button class="api-del-btn" id="delApiProfileBtn">删除当前API</button>
-            </div>
-            <div class="api-row">
-                <label>接口地址：</label>
-                <input id="apiEndpoint" placeholder="https://api.xxx.com/v1/chat/completions">
-            </div>
-            <div class="api-row">
-                <label>API‑Key：</label>
-                <input id="apiKey" type="password" placeholder="sk‑xxxx">
-            </div>
-            <div class="api-row">
-                <label>模型名称：</label>
-                <input id="apiModel" placeholder="model-name">
-            </div>
-            <div class="api-row">
-                <label></label>
-                <button class="test-api-btn" id="testApiBtn">测试连通性</button>
-                <span style="font-size:12px;color:#9ca3af">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
-            </div>
+            <label>脑洞大小：</label>
+            <input type="range" id="tempVal" min="0" max="1" step="0.05" value="0.7">
+            <span id="tempShow">0.7</span>
         </div>
         <div class="param-item">
-            <label>脑洞大小（随机创意）：</label>
-            <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7">
-            <input type="number" id="tempInput" min="0" max="2" step="0.05" value="0.7">
+            <label>画面范围：</label>
+            <input type="range" id="topPVal" min="0" max="1" step="0.05" value="0.85">
+            <span id="topPShow">0.85</span>
         </div>
         <div class="param-item">
-            <label>创意候选范围：</label>
-            <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9">
-            <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
-        </div>
-        <div class="param-item">
-            <label>上下文窗口 token（本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡或切换云API)：</label>
-            <input type="number" id="maxTokenInput" min="64" max="1048576" value="16384">
-            <button class="token-quick-btn" onclick="setToken(32768)">32K</button>
-            <button class="token-quick-btn" onclick="setToken(65536)">64K</button>
-            <button class="token-quick-btn" onclick="setToken(131072)">128K</button>
-            <button class="token-quick-btn" onclick="setToken(262144)">256K</button>
-            <button class="token-quick-btn" onclick="setToken(1048576)">1M</button>
-        </div>
-        <div class="param-note">
-            提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
+            <label>上下文 Token：</label>
+            <select id="ctxLen">
+                <option value="8192">8K</option>
+                <option value="16384" selected>16K</option>
+                <option value="32768">32K</option>
+                <option value="65536">64K</option>
+                <option value="131072">128K</option>
+                <option value="262144">256K</option>
+            </select>
         </div>
     </div>
-    <div class="card file-panel">
-        <div class="file-head-row">
-            <span class="card-title" style="margin-bottom:0;">载入剧本文件</span>
-            <button class="plus-upload-btn" id="plusUploadBtn">+</button>
-            <input type="file" id="fileInput" accept=".txt,.docx">
+
+    <div class="file-list-area">
+        <button class="btn-upload" onclick="document.getElementById('fileInput').click()">+ 载入剧本文件</button>
+        <input type="file" id="fileInput" accept=".txt,.docx" hidden>
+        <div id="loadedFileList"></div>
+    </div>
+
+    <div class="chat-container" id="chatBox"></div>
+
+    <div class="input-area-wrap">
+        <div class="input-row">
+            <div class="btn-group-left">
+                <button class="btn-pause" id="pauseBtn" onclick="togglePause()">暂停</button>
+                <button class="btn-stop" onclick="stopGenerate()">停止生成</button>
+            </div>
+            <textarea id="userInput" placeholder="在这里输入你的提示词 / 指令..."></textarea>
+            <button class="btn-send" onclick="sendChat()">开始</button>
         </div>
-        <div id="fileList"></div>
     </div>
-    <div class="control-row-top">
-        <button class="ctrl-btn copy-btn" onclick="copyAiText()">复制AI剧本</button>
-        <button class="ctrl-btn download-btn" onclick="downloadAiText()">下载剧本 TXT</button>
-        <button class="ctrl-btn load-history-btn" onclick="loadLatestHistory()">加载最近对话</button>
-        <button class="ctrl-btn clear-history-btn" onclick="clearAllHistory()">清空本地全部历史</button>
-        <div class="spacer"></div>
-        <button class="ctrl-btn newtab-btn" onclick="openNewSession()">新建对话（开新网页）</button>
+
+    <div class="modal" id="fileViewModal">
+        <div class="modal-box">
+            <pre id="fileViewContent" style="white-space:pre-wrap; color:#ddd;"></pre>
+            <br>
+            <button class="modal-close" onclick="closeFileModal()">关闭</button>
+        </div>
     </div>
-    <div class="status" id="skillStatus">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
-    <div id="chatBox"></div>
-    <div class="input-row">
-        <button class="ctrl-btn pause-btn" id="pauseBtn" onclick="togglePause()">暂停</button>
-        <button class="ctrl-btn stop-btn" id="stopBtn" onclick="stopGenerate()">停止生成</button>
-        <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
-        <button class="ctrl-btn start-btn" onclick="sendMessage()">开始</button>
-    </div>
-</div>
-<div class="modal-overlay" id="previewModal">
-    <div class="modal-box">
-        <div class="modal-content" id="modalText"></div>
-        <button class="ctrl-btn modal-close" onclick="closePreview()">关闭预览</button>
-    </div>
-</div>
-<!--帮助弹窗-->
-<div class="modal-overlay" id="helpModal">
-    <div class="modal-box">
-        <div class="modal-content help-modal-content" id="helpContent"></div>
-        <button class="ctrl-btn modal-close" onclick="closeHelpModal()">关闭帮助</button>
-    </div>
-</div>
 
-<script>
-    const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
-    const SKILL_TOKEN = "CU001-ABC123";
-    const LOCAL_LLAMA_URL = "http://127.0.0.1:8080/v1/chat/completions";
-    const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
-    const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
-    const STORAGE_KEY_HISTORY = "manflows_chat_history";
+    <script>
+        // ========= 配置区，按需修改 =========
+        const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
+        const LLAMA_SERVER_URL = "http://127.0.0.1:8080/v1/chat/completions";
 
-    let computeMode = localStorage.getItem("computeMode") || "local";
-    let apiProfiles = [];
-    let currentProfileId = null;
+        let currentSkill = null;
+        let currentSkillText = "";
+        let abortController = null;
+        let isPaused = false;
+        let loadedFiles = [];
 
-    let docxLibReady = false;
-    let fileStore = [];
-    let currentSystemPrompt = "";
-    let currentSkillName = "";
-    let abortController = null;
-    let isPaused = false;
-    let pendingText = "";
-    let aiMsgDom = null;
-    let fullAiText = "";
-    let chatHistory = [];
+        // 同步滑块显示
+        document.getElementById("tempVal").oninput = () => {
+            document.getElementById("tempShow").textContent = document.getElementById("tempVal").value;
+        };
+        document.getElementById("topPVal").oninput = () => {
+            document.getElementById("topPShow").textContent = document.getElementById("topPVal").value;
+        };
 
-    const chatBox = document.getElementById("chatBox");
-    const skillStatusEl = document.getElementById("skillStatus");
-    const pauseBtn = document.getElementById("pauseBtn");
-    const tempSlider = document.getElementById("tempSlider");
-    const tempInput = document.getElementById("tempInput");
-    const topPSlider = document.getElementById("topPSlider");
-    const topPInput = document.getElementById("topPInput");
-    const maxTokenInput = document.getElementById("maxTokenInput");
-    const userInput = document.getElementById("userInput");
-    const plusUploadBtn = document.getElementById("plusUploadBtn");
-    const fileInput = document.getElementById("fileInput");
-    const fileListEl = document.getElementById("fileList");
-    const previewModal = document.getElementById("previewModal");
-    const modalTextEl = document.getElementById("modalText");
-    const helpModal = document.getElementById("helpModal");
-    const helpContent = document.getElementById("helpContent");
-
-    const apiConfigBlock = document.getElementById("apiConfigBlock");
-    const radioLocal = document.querySelector('input[name="computeMode"][value="local"]');
-    const radioApi = document.querySelector('input[name="computeMode"][value="api"]');
-    const apiProfileSelect = document.getElementById("apiProfileSelect");
-    const inpEndpoint = document.getElementById("apiEndpoint");
-    const inpKey = document.getElementById("apiKey");
-    const inpModel = document.getElementById("apiModel");
-    const testApiBtn = document.getElementById("testApiBtn");
-    const addApiProfileBtn = document.getElementById("addApiProfileBtn");
-    const delApiProfileBtn = document.getElementById("delApiProfileBtn");
-
-    //帮助文档内容
-    const HELP_HTML = `
-<h2>漫流AI漫剧创作台 使用帮助</h2>
-<p>💡说明：技能模板由后端服务提供；算力分为【本地算力模式】和【API云算力模式】两种。
-所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
-
-<h2>一、本地算力模式：部署本地 llama‑server(Ollama)完整步骤</h2>
-<h3>适用场景</h3>
-<ul>
-<li>电脑有Nvidia独立显卡，显存≥12G；</li>
-<li>模型在本机运行，不需要花钱调用网上API；</li>
-<li>网页会访问本机地址：http://127.0.0.1:8080/v1/chat/completions</li>
-</ul>
-
-<h3>步骤1：下载安装 Ollama</h3>
-<p>官网下载 Ollama：https://ollama.com/ ，安装Windows版本。</p>
-
-<h3>步骤2：拉取大模型</h3>
-<p>打开Windows命令提示符CMD，执行，示例（可替换为你想要的模型）：</p>
-<pre>ollama pull qwen14b:chat</pre>
-
-<h3>步骤3：开启OpenAI兼容接口，端口8080</h3>
-<p>Windows设置系统环境变量：</p>
-<pre>OLLAMA_HOST=127.0.0.1
-OLLAMA_PORT=8080</pre>
-<p>重启 Ollama服务。验证访问，浏览器打开：</p>
-<pre>http://127.0.0.1:8080/v1/models</pre>
-<p>能返回模型JSON，代表服务启动成功。</p>
-
-<h3>步骤4：网页选择【本地算力】模式</h3>
-<ul>
-<li>网页算力模式选择“本地算力”；</li>
-<li>加载技能模板，输入指令直接发送；</li>
-<li>注意：模型名字要和Ollama内模型名称对应。</li>
-</ul>
-<p>⚠️注意：本地模式仅在你当前这台电脑浏览器生效，外网网页无法访问别人电脑本地Ollama服务。</p>
-
-<h2>二、API云算力模式：接入商用大模型平台</h2>
-<p>切换到API云算力模式，需要点【新增API配置】填写平台信息。</p>
-<p>通用格式：
-接口地址 / API‑Key / 模型名称，全部由对应服务商后台获取。</p>
-
-<h3>1. DeepSeek深度求索</h3>
-<ul>
-<li>接口地址：https://api.deepseek.com/v1/chat/completions</li>
-<li>API‑Key：平台个人中心创建sk‑开头密钥</li>
-<li>模型名称：deepseek‑v3</li>
-</ul>
-
-<h3>2. 硅基流动 SiliconFlow</h3>
-<ul>
-<li>接口地址：https://api.siliconflow.cn/v1/chat/completions</li>
-<li>API‑Key：个人API密钥</li>
-<li>模型名称：如 qwen/Qwen2.5‑14B‑Instruct</li>
-</ul>
-
-<h3>3. MiniMax</h3>
-<ul>
-<li>接口地址：https://api.minimax.chat/v1/chat/completions</li>
-<li>API‑Key：MiniMax后台密钥</li>
-<li>模型名称：abab6.5s‑chat</li>
-</ul>
-
-<h3>4. OpenAI / 兼容OpenAI格式中转服务商</h3>
-<ul>
-<li>接口地址：https://api.openai.com/v1/chat/completions</li>
-<li>API‑Key：sk‑xxx</li>
-<li>模型名称：gpt‑4o‑mini</li>
-</ul>
-
-<h3>API模式常见问题</h3>
-<ul>
-<li>⚠️部分浏览器存在跨域限制，需要CORS解除跨域插件；</li>
-<li>密钥不要泄露给其他人；密钥仅保存在本机浏览器；</li>
-<li>余额不足、模型名称写错、接口地址写错，都会请求失败；</li>
-<li>填写完成后点【测试连通性】验证是否可以正常连通。</li>
-</ul>
-
-<h2>三、通用使用流程</h2>
-<ol>
-<li>点击上方按钮加载对应的创作技能模板；</li>
-<li>选择算力模式（本地 / API云算力）；</li>
-<li>可上传剧本txt/docx文件并勾选，会附带喂给AI；</li>
-<li>输入你的创作指令，点击开始生成；</li>
-<li>支持复制、下载剧本，本地保存对话历史。</li>
-</ol>
-
-<h2>四、常见报错</h2>
-<ul>
-<li>技能加载失败：网络无法访问后端技能服务；</li>
-<li>API请求报错：核对接口地址、key、模型名称；检查余额；检查跨域插件；</li>
-<li>本地模式无响应：确认ollama服务正常运行，端口8080；</li>
-</ul>
-`;
-
-    function openHelpModal(){
-        helpContent.innerHTML = HELP_HTML;
-        helpModal.style.display = "flex";
-    }
-    function closeHelpModal(){
-        helpModal.style.display = "none";
-    }
-
-    tempSlider.oninput = () => tempInput.value = tempSlider.value;
-    tempInput.onchange = () => tempSlider.value = tempInput.value;
-    topPSlider.oninput = () => topPInput.value = topPSlider.value;
-    topPInput.onchange = () => topPSlider.value = topPInput.value;
-
-    function setToken(v) {
-        maxTokenInput.value = v;
-    }
-
-    const nameMap = {
-        a: "漫剧创作助手 V5",
-        b: "导演分镜助手 V5（生视频提示词）",
-        d: "导演分镜助手V5 MiniMaxH3",
-        c: "美术画风助手 V5（资产图提示词）",
-        e: "美术画风助手V5 Midjourney"
-    };
-
-    function uuid() {
-        return Math.random().toString(36).slice(2)+Date.now().toString(36);
-    }
-
-    function loadApiProfiles(){
-        const raw = localStorage.getItem(STORAGE_KEY_API_PROFILES);
-        if(raw) apiProfiles = JSON.parse(raw);
-        const savedId = localStorage.getItem(STORAGE_KEY_CURR_PROFILE);
-        if(savedId && apiProfiles.find(p=>p.id===savedId)) {
-            currentProfileId = savedId;
-        } else {
-            currentProfileId = apiProfiles.length>0 ? apiProfiles[0].id : null;
-        }
-        renderApiSelect();
-        bindCurrentProfile();
-    }
-    function saveApiProfiles(){
-        localStorage.setItem(STORAGE_KEY_API_PROFILES, JSON.stringify(apiProfiles));
-        if(currentProfileId){
-            localStorage.setItem(STORAGE_KEY_CURR_PROFILE, currentProfileId);
-        }else{
-            localStorage.removeItem(STORAGE_KEY_CURR_PROFILE);
-        }
-        renderApiSelect();
-    }
-    function renderApiSelect(){
-        apiProfileSelect.innerHTML = "";
-        if(apiProfiles.length === 0){
-            const opt = document.createElement("option");
-            opt.innerText = "暂无配置，请点新增API配置";
-            opt.disabled = true;
-            apiProfileSelect.appendChild(opt);
-            return;
-        }
-        apiProfiles.forEach(p=>{
-            const opt = document.createElement("option");
-            opt.value = p.id;
-            opt.innerText = p.name;
-            if(p.id === currentProfileId) opt.selected = true;
-            apiProfileSelect.appendChild(opt);
-        })
-    }
-    function bindCurrentProfile(){
-        const p = apiProfiles.find(x=>x.id === currentProfileId);
-        if(!p) {
-            inpEndpoint.value = "";
-            inpKey.value = "";
-            inpModel.value = "";
-            return;
-        }
-        inpEndpoint.value = p.endpoint;
-        inpKey.value = p.key;
-        inpModel.value = p.model;
-    }
-    function syncProfileToCurrent(){
-        const p = apiProfiles.find(x=>x.id === currentProfileId);
-        if(!p) return;
-        p.endpoint = inpEndpoint.value.trim();
-        p.key = inpKey.value.trim();
-        p.model = inpModel.value.trim();
-        saveApiProfiles();
-    }
-    apiProfileSelect.onchange = ()=>{
-        currentProfileId = apiProfileSelect.value;
-        bindCurrentProfile();
-        saveApiProfiles();
-    }
-    addApiProfileBtn.onclick = ()=>{
-        const name = prompt("输入这套API的别名（例如Deepseek、OpenAI）");
-        if(!name) return;
-        const newP = {id:uuid(), name, endpoint:"", key:"", model:""};
-        apiProfiles.push(newP);
-        currentProfileId = newP.id;
-        saveApiProfiles();
-        bindCurrentProfile();
-    }
-    delApiProfileBtn.onclick = ()=>{
-        if(apiProfiles.length <=1) return alert("至少保留一条API配置");
-        if(!confirm("确认删除当前这条API配置？")) return;
-        apiProfiles = apiProfiles.filter(x=>x.id!==currentProfileId);
-        currentProfileId = apiProfiles[0].id;
-        saveApiProfiles();
-        bindCurrentProfile();
-    }
-    inpEndpoint.oninput = syncProfileToCurrent;
-    inpKey.oninput = syncProfileToCurrent;
-    inpModel.oninput = syncProfileToCurrent;
-
-    function initComputeModeUI(){
-        if(computeMode === "api"){
-            radioApi.checked = true;
-            apiConfigBlock.style.display = "block";
-        }else{
-            radioLocal.checked = true;
-            apiConfigBlock.style.display = "none";
-        }
-    }
-    function saveComputeMode(){
-        computeMode = document.querySelector('input[name="computeMode"]:checked').value;
-        localStorage.setItem("computeMode", computeMode);
-        if(computeMode === "api"){
-            apiConfigBlock.style.display = "block";
-            if(apiProfiles.length === 0){
-                alert("⚠️ 尚未配置任何API！请点击【新增API配置】填写你自己的API信息。\n所有API密钥仅保存在你本机浏览器，不会上传到服务器。");
+        // 加载技能（互斥）
+        async function loadSkill(skillId) {
+            currentSkill = skillId;
+            const resp = await fetch(`${SKILL_API_BASE}?id=${skillId}`);
+            if (!resp.ok) {
+                alert("获取技能失败：不在白名单或后端异常");
+                return;
             }
-        }else{
-            apiConfigBlock.style.display = "none";
+            currentSkillText = await resp.text();
+            addSystemMsg(`✅ 技能【${skillId === 'A' ? '漫剧创作助手 V5' : skillId === 'B' ? '导演分镜助手 V5' : '美术画风助手 V5'}】加载完成`);
         }
-    }
-    radioLocal.addEventListener("change", saveComputeMode);
-    radioApi.addEventListener("change", saveComputeMode);
 
-    testApiBtn.addEventListener("click", async ()=>{
-        if(apiProfiles.length ===0 || !currentProfileId){
-            alert("请先新增并填写API配置！");
-            return;
-        }
-        const ep = inpEndpoint.value.trim();
-        const key = inpKey.value.trim();
-        const model = inpModel.value.trim();
-        if(!ep || !key || !model){
-            alert("请完整填写：接口地址、API‑Key、模型名称");
-            return;
-        }
-        const ctrl = new AbortController();
-        try{
-            const resp = await fetch(ep,{
-                method:"POST",
-                headers:{
-                    "Content-Type":"application/json",
-                    "Authorization":`Bearer ${key}`
-                },
-                signal:ctrl.signal,
-                body:JSON.stringify({
-                    model:model,
-                    messages:[{role:"user",content:"hi"}],
-                    max_tokens:16,
-                    stream:false
-                })
+        // 文件上传
+        document.getElementById("fileInput").onchange = async (e) => {
+            const f = e.target.files[0];
+            if (!f) return;
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                let content = ev.target.result;
+                loadedFiles.push({ name: f.name, text: content });
+                renderFileList();
+            };
+            reader.readAsText(f);
+        };
+
+        function renderFileList() {
+            const wrap = document.getElementById("loadedFileList");
+            wrap.innerHTML = "";
+            loadedFiles.forEach((item, idx) => {
+                const el = document.createElement("span");
+                el.className = "file-item";
+                el.textContent = item.name;
+                el.onclick = () => openFileModal(item.text);
+                wrap.appendChild(el);
             });
-            if(resp.ok){
-                alert("✅ 连通测试成功！配置正常");
-            }else{
-                const txt = await resp.text();
-                alert(`❌ HTTP ${resp.status}\n${txt}`);
-            }
-        }catch(err){
-            console.error(err);
-            alert(`⚠️ 请求异常：${err.message}\n检查CORS插件是否开启，地址密钥是否正确`);
         }
-    });
 
-    (function loadDocxLib() {
-        const s = document.createElement("script");
-        s.src = "https://unpkg.com/docx@8.5.0/build/index.js";
-        s.onload = () => {
-            docxLibReady = true;
-        };
-        s.onerror = () => {
-            console.warn("docx 库加载失败，docx 解析禁用");
-        };
-        document.head.appendChild(s);
-    })();
+        function openFileModal(txt) {
+            document.getElementById("fileViewContent").textContent = txt;
+            document.getElementById("fileViewModal").style.display = "flex";
+        }
+        function closeFileModal() {
+            document.getElementById("fileViewModal").style.display = "none";
+        }
 
-    function renderFileList() {
-        fileListEl.innerHTML = "";
-        fileStore.forEach((item, idx) => {
+        // 新增对话窗口
+        function newChatTab() {
+            window.open(window.location.href, "_blank");
+        }
+
+        // 追加消息
+        function addUserMsg(text) {
+            const box = document.getElementById("chatBox");
             const div = document.createElement("div");
-            div.className = "file-item";
-            div.innerHTML = `
-                <input type="checkbox" ${item.checked ? "checked" : ""} onchange="toggleFileCheck(${idx})">
-                <span>${item.name}</span>
-                <button class="preview-btn" onclick="openPreview(${idx})">预览</button>
-                <button class="del-file-btn" onclick="removeFile(${idx})">删除</button>
-            `;
-            fileListEl.appendChild(div);
-        });
-    }
-    function toggleFileCheck(idx) {
-        fileStore[idx].checked = !fileStore[idx].checked;
-        renderFileList();
-    }
-    function openPreview(idx) {
-        modalTextEl.textContent = fileStore[idx].content;
-        previewModal.style.display = "flex";
-    }
-    function closePreview() {
-        previewModal.style.display = "none";
-    }
-    function removeFile(idx) {
-        fileStore.splice(idx, 1);
-        renderFileList();
-    }
-    function append(text, type = "tip") {
-        const div = document.createElement("div");
-        div.className = `msg ${type}`;
-        div.innerText = text;
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
-        return div;
-    }
-    function togglePause() {
-        isPaused = !isPaused;
-        if (isPaused) {
-            pauseBtn.innerText = "继续";
-        } else {
-            pauseBtn.innerText = "暂停";
-            if (aiMsgDom && pendingText) {
-                aiMsgDom.innerText += pendingText;
-                fullAiText += pendingText;
-                pendingText = "";
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
+            div.className = "chat-bubble user-msg";
+            div.textContent = `【用户】：${text}`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
         }
-    }
-    function stopGenerate() {
-        if (abortController) {
-            abortController.abort();
+        function addSystemMsg(text) {
+            const box = document.getElementById("chatBox");
+            const div = document.createElement("div");
+            div.className = "chat-bubble";
+            div.style.color = "#a5b4fc";
+            div.textContent = text;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+        function createAiBubble() {
+            const box = document.getElementById("chatBox");
+            const div = document.createElement("div");
+            div.className = "chat-bubble ai-msg";
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+            return div;
+        }
+
+        // 暂停 / 继续
+        function togglePause() {
+            isPaused = !isPaused;
+            document.getElementById("pauseBtn").textContent = isPaused ? "继续" : "暂停";
+        }
+
+        // 停止生成
+        function stopGenerate() {
+            if (abortController) abortController.abort();
             abortController = null;
-            append("⚠️ 已停止生成", "tip");
         }
-    }
-    async function copyAiText() {
-        if (!fullAiText) {
-            alert("还没有 AI 输出内容！");
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(fullAiText);
-            alert("✅ 剧本已复制到剪贴板！");
-        } catch (err) {
-            console.error(err);
-            alert("复制失败");
-        }
-    }
-    function downloadAiText() {
-        if (!fullAiText) {
-            alert("还没有 AI 输出内容！");
-            return;
-        }
-        const blob = new Blob([fullAiText], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-        a.href = url;
-        a.download = `漫剧剧本_${date}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-    function openNewSession() {
-        window.open(window.location.href, "_blank");
-    }
-    plusUploadBtn.onclick = () => {
-        fileInput.click();
-    };
-    fileInput.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const ext = file.name.split(".").pop().toLowerCase();
-        let text = "";
-        try {
-            if (ext === "txt") {
-                text = await file.text();
-            } else if (ext === "docx") {
-                if (!docxLibReady || !window.docx || !window.docx.DocumentReader) {
-                    alert("docx 解析库还没加载好，暂时只能读取 txt！");
-                    return;
-                }
-                const arrayBuffer = await file.arrayBuffer();
-                const doc = await window.docx.DocumentReader.readDocument(new Uint8Array(arrayBuffer));
-                text = doc.paragraphs.map(p => p.text).join("\n");
-            } else {
-                alert("仅支持 txt / docx");
-                return;
-            }
-            fileStore.push({
-                name: file.name,
-                content: text,
-                checked: true
-            });
-            renderFileList();
-            alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
-        } catch (err) {
-            console.error(err);
-            alert("读取文件失败");
-        }
-        fileInput.value = "";
-    };
-    async function loadSkill(type) {
-        append(`正在加载技能：${nameMap[type]} ...`, "tip");
-        try {
-            const res = await fetch(`${SKILL_API_BASE}?token=${SKILL_TOKEN}&type=${type}`);
-            if (!res.ok) {
-                append("❌ 技能接口返回错误，请检查地址", "err");
-                return;
-            }
-            currentSystemPrompt = await res.text();
-            currentSkillName = nameMap[type];
-            skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
-            append(`✅ 技能【${currentSkillName}】加载完成`, "tip");
-        } catch (err) {
-            console.error(err);
-            append("⚠️ 连接技能服务器失败", "err");
-        }
-    }
-    function unloadSkill() {
-        stopGenerate();
-        currentSystemPrompt = "";
-        currentSkillName = "";
-        aiMsgDom = null;
-        pendingText = "";
-        fullAiText = "";
-        isPaused = false;
-        pauseBtn.innerText = "暂停";
-        skillStatusEl.innerText = "📌 当前：尚未加载任何技能模板，请点击上方按钮";
-        append("🗑️ 技能已清空", "tip");
-    }
 
-    function saveHistoryToLocal() {
-        const record = {
-            time: new Date().toISOString(),
-            skillName: currentSkillName,
-            systemPrompt: currentSystemPrompt,
-            chatHtml: chatBox.innerHTML,
-            aiResult: fullAiText,
-            fileStore: JSON.parse(JSON.stringify(fileStore))
-        }
-        let all = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || "[]");
-        all.unshift(record);
-        if(all.length>30) all = all.slice(0,30);
-        localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(all));
-    }
-    function loadLatestHistory() {
-        const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
-        if(!raw) return alert("本地无历史对话");
-        const all = JSON.parse(raw);
-        const rec = all[0];
-        if(!confirm("加载最近一条对话，会清空当前聊天框，确认？")) return;
-        chatBox.innerHTML = rec.chatHtml;
-        fullAiText = rec.aiResult;
-        currentSkillName = rec.skillName || "";
-        currentSystemPrompt = rec.systemPrompt || "";
-        fileStore = rec.fileStore || [];
-        renderFileList();
-        if(currentSkillName) skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
-        else skillStatusEl.innerText = "📌 当前：尚未加载任何技能模板，请点击上方按钮";
-        alert("✅ 最近对话已加载");
-    }
-    function clearAllHistory(){
-        if(!confirm("确认清空浏览器本地全部历史对话（最多30条）？不可恢复！")) return;
-        localStorage.removeItem(STORAGE_KEY_HISTORY);
-        alert("✅ 本地历史已清空");
-    }
+        // 发送消息，流式，修复 TextDecoder("utf8")
+        async function sendChat() {
+            const userText = document.getElementById("userInput").value.trim();
+            if (!userText) return;
+            addUserMsg(userText);
+            document.getElementById("userInput").value = "";
 
-    async function sendMessage() {
-        stopGenerate();
-        isPaused = false;
-        pauseBtn.innerText = "暂停";
-        pendingText = "";
-        fullAiText = "";
-        const userCmd = userInput.value.trim();
-        const attachedFiles = fileStore.filter(x => x.checked);
-        let combinedContent = "";
-        if (attachedFiles.length > 0) {
-            combinedContent += "【附加剧本素材】\n";
-            for (const f of attachedFiles) {
-                combinedContent += `--- 文件：${f.name} ---\n${f.content}\n\n`;
-            }
-        }
-        if (userCmd) {
-            combinedContent += "【用户指令】\n" + userCmd;
-        }
-        if (!combinedContent.trim()) {
-            alert("请输入指令，或者勾选剧本文件");
-            return;
-        }
-        if(computeMode === "api"){
-            if(apiProfiles.length===0 || !currentProfileId){
-                alert("API模式：请先点新增API配置，填入属于你自己的API信息！");
-                return;
-            }
-            const ep = inpEndpoint.value.trim();
-            const key = inpKey.value.trim();
-            const model = inpModel.value.trim();
-            if(!ep || !key || !model){
-                alert("API模式：请填写完整接口地址、API‑Key、模型名称");
-                return;
-            }
-        }
-        const temperature = parseFloat(tempInput.value);
-        const top_p = parseFloat(topPInput.value);
-        const max_tokens = parseInt(maxTokenInput.value);
-        append(`【用户】：${userCmd}（附带${attachedFiles.length}个勾选文件）`, "user");
-        userInput.value = "";
-        aiMsgDom = append("【AI】：", "ai");
-        abortController = new AbortController();
+            const temp = parseFloat(document.getElementById("tempVal").value);
+            const topP = parseFloat(document.getElementById("topPVal").value);
+            const ctx = parseInt(document.getElementById("ctxLen").value);
 
-        let fetchUrl, fetchHeaders, bodyObj;
-        const messagesArr = [
-            { role: "system", content: currentSystemPrompt || "你是专业漫剧编剧，严格按照用户要求创作" },
-            { role: "user", content: combinedContent }
-        ];
-        if(computeMode === "local"){
-            fetchUrl = LOCAL_LLAMA_URL;
-            fetchHeaders = {"Content-Type":"application/json"};
-            bodyObj = {
-                model:"local",
-                messages:messagesArr,
-                temperature,
-                top_p,
-                max_tokens,
-                stream:true
-            };
-        }else{
-            fetchUrl = inpEndpoint.value.trim();
-            fetchHeaders = {
-                "Content-Type":"application/json",
-                "Authorization":`Bearer ${inpKey.value.trim()}`
-            };
-            bodyObj = {
-                model:inpModel.value.trim(),
-                messages:messagesArr,
-                temperature,
-                max_tokens,
-                stream:true
-            };
-        }
-        try {
-            const response = await fetch(fetchUrl, {
-                method: "POST",
-                headers: fetchHeaders,
-                signal: abortController.signal,
-                body: JSON.stringify(bodyObj)
-            });
-            if (!response.ok) {
-                append(`❌ HTTP 错误：${response.status}`, "err");
-                const errText = await response.text();
-                console.error("接口返回错误：", errText);
-                append(`错误详情：${errText}`, "err");
-                return;
+            const messages = [];
+            if (currentSkillText) {
+                messages.push({ role: "system", content: currentSkillText });
             }
-            if (!response.body) {
-                append("❌ 当前接口不支持流式输出", "err");
-                return;
-            }
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf‑8");
-            let buffer = "";
-            while(true){
-                const {done, value} = await reader.read();
-                if(done) break;
-                buffer += decoder.decode(value, {stream:true});
-                const lines = buffer.split(/\r?\n/);
-                buffer = lines.pop();
-                for(const line of lines){
-                    const trimLine = line.trim();
-                    if(!trimLine) continue;
-                    if(!trimLine.startsWith("data: ")) continue;
-                    const payload = trimLine.slice(6).trim();
-                    if(payload === "[DONE]") continue;
-                    try{
-                        const json = JSON.parse(payload);
-                        const delta = json.choices?.[0]?.delta?.content || json.choices?.[0]?.delta?.text || "";
-                        if(delta){
-                            console.log("delta：", delta);
-                            if(isPaused){
-                                pendingText += delta;
-                            }else{
-                                aiMsgDom.innerText += delta;
-                                fullAiText += delta;
-                                chatBox.scrollTop = chatBox.scrollHeight;
+            // 把载入文件内容一并带入上下文
+            const fileMerge = loadedFiles.map(f => `【文件：${f.name}】\n${f.text}`).join("\n\n");
+            const finalUserContent = fileMerge ? `${fileMerge}\n\n用户指令：${userText}` : userText;
+            messages.push({ role: "user", content: finalUserContent });
+
+            abortController = new AbortController();
+            const aiDom = createAiBubble();
+            let fullResp = "";
+
+            try {
+                const res = await fetch(LLAMA_SERVER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: "local",
+                        messages,
+                        temperature: temp,
+                        top_p: topP,
+                        max_tokens: ctx,
+                        stream: true
+                    }),
+                    signal: abortController.signal
+                });
+                if (!res.ok) throw new Error("后端请求失败");
+                const reader = res.body.getReader();
+                // 修复点：使用 utf8，不带横杠
+                const decoder = new TextDecoder("utf8");
+
+                while (true) {
+                    if (isPaused) {
+                        await new Promise(r => setTimeout(r, 200));
+                        continue;
+                    }
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split("\n");
+                    for (const line of lines) {
+                        if (!line.startsWith("data: ")) continue;
+                        const raw = line.slice(6).trim();
+                        if (raw === "[DONE]") continue;
+                        try {
+                            const j = JSON.parse(raw);
+                            if (j.choices?.[0]?.delta?.content) {
+                                fullResp += j.choices[0].delta.content;
+                                aiDom.textContent = `【AI】：${fullResp}`;
+                                document.getElementById("chatBox").scrollTop = document.getElementById("chatBox").scrollHeight;
                             }
-                        }
-                    }catch(e){
-                        //静默忽略解析异常
+                        } catch (e) {}
                     }
                 }
+                // 复制按钮
+                const copyBtn = document.createElement("button");
+                copyBtn.className = "copy-btn";
+                copyBtn.textContent = "一键复制内容";
+                copyBtn.onclick = () => navigator.clipboard.writeText(fullResp);
+                aiDom.appendChild(copyBtn);
+            } catch (err) {
+                addSystemMsg(`❌ 请求异常：${err.message}`);
             }
-            append("✅ 生成完毕", "tip");
-            saveHistoryToLocal();
-        } catch (e) {
-            console.error(e);
-            if(e.name !== "AbortError"){
-                append(`❌ 请求异常：${e.message}`,"err");
-            }
-        } finally {
             abortController = null;
         }
-    }
-
-    loadApiProfiles();
-    initComputeModeUI();
-</script>
+    </script>
 </body>
 </html>
