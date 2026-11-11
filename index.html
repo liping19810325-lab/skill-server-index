@@ -149,6 +149,14 @@
             border-radius:6px;
             cursor:pointer;
         }
+        .help-open-btn{
+            background-color:#9333ea;
+            color:#fff;
+            border:none;
+            padding:9px 14px;
+            border-radius:6px;
+            cursor:pointer;
+        }
         .file-head-row {
             display: flex;
             align-items: center;
@@ -370,6 +378,35 @@
             align-self: flex-end;
             padding: 9px 16px;
         }
+        /*帮助弹窗样式*/
+        .help-modal-content{
+            line-height:1.7;
+            font-size:14px;
+        }
+        .help-modal-content h2{
+            color:#60a5fa;
+            margin:16px 0 8px;
+            font-size:17px;
+        }
+        .help-modal-content h3{
+            color:#a5b4fc;
+            margin:12px 0 6px;
+            font-size:15px;
+        }
+        .help-modal-content p{
+            margin:6px 0;
+        }
+        .help-modal-content pre{
+            background:#0f1117;
+            padding:10px;
+            border-radius:6px;
+            overflow-x:auto;
+            margin:8px 0;
+        }
+        .help-modal-content ul{
+            padding-left:22px;
+            margin:8px 0;
+        }
         @media (max-width: 720px) {
             .wrap {
                 padding:12px;
@@ -423,6 +460,7 @@
             <button class="skill-btn" onclick="loadSkill('c')">美术画风助手 V5（资产图提示词）</button>
             <button class="skill-btn" onclick="loadSkill('e')">美术画风助手V5 Midjourney</button>
             <button class="clear-btn" onclick="unloadSkill()">🗑️ 卸载当前技能</button>
+            <button class="help-open-btn" onclick="openHelpModal()">📖 使用帮助</button>
         </div>
     </div>
     <div class="card param-panel">
@@ -456,7 +494,7 @@
             <div class="api-row">
                 <label></label>
                 <button class="test-api-btn" id="testApiBtn">测试连通性</button>
-                <span style="font-size:12px;color:#9ca3af">⚠️API模式必须开启CORS解除跨域插件</span>
+                <span style="font-size:12px;color:#9ca3af">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
             </div>
         </div>
         <div class="param-item">
@@ -513,6 +551,14 @@
         <button class="ctrl-btn modal-close" onclick="closePreview()">关闭预览</button>
     </div>
 </div>
+<!--帮助弹窗-->
+<div class="modal-overlay" id="helpModal">
+    <div class="modal-box">
+        <div class="modal-content help-modal-content" id="helpContent"></div>
+        <button class="ctrl-btn modal-close" onclick="closeHelpModal()">关闭帮助</button>
+    </div>
+</div>
+
 <script>
     const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
     const SKILL_TOKEN = "CU001-ABC123";
@@ -550,6 +596,8 @@
     const fileListEl = document.getElementById("fileList");
     const previewModal = document.getElementById("previewModal");
     const modalTextEl = document.getElementById("modalText");
+    const helpModal = document.getElementById("helpModal");
+    const helpContent = document.getElementById("helpContent");
 
     const apiConfigBlock = document.getElementById("apiConfigBlock");
     const radioLocal = document.querySelector('input[name="computeMode"][value="local"]');
@@ -561,6 +609,109 @@
     const testApiBtn = document.getElementById("testApiBtn");
     const addApiProfileBtn = document.getElementById("addApiProfileBtn");
     const delApiProfileBtn = document.getElementById("delApiProfileBtn");
+
+    //帮助文档内容
+    const HELP_HTML = `
+<h2>漫流AI漫剧创作台 使用帮助</h2>
+<p>💡说明：技能模板由后端服务提供；算力分为【本地算力模式】和【API云算力模式】两种。
+所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
+
+<h2>一、本地算力模式：部署本地 llama‑server(Ollama)完整步骤</h2>
+<h3>适用场景</h3>
+<ul>
+<li>电脑有Nvidia独立显卡，显存≥12G；</li>
+<li>模型在本机运行，不需要花钱调用网上API；</li>
+<li>网页会访问本机地址：http://127.0.0.1:8080/v1/chat/completions</li>
+</ul>
+
+<h3>步骤1：下载安装 Ollama</h3>
+<p>官网下载 Ollama：https://ollama.com/ ，安装Windows版本。</p>
+
+<h3>步骤2：拉取大模型</h3>
+<p>打开Windows命令提示符CMD，执行，示例（可替换为你想要的模型）：</p>
+<pre>ollama pull qwen14b:chat</pre>
+
+<h3>步骤3：开启OpenAI兼容接口，端口8080</h3>
+<p>Windows设置系统环境变量：</p>
+<pre>OLLAMA_HOST=127.0.0.1
+OLLAMA_PORT=8080</pre>
+<p>重启 Ollama服务。验证访问，浏览器打开：</p>
+<pre>http://127.0.0.1:8080/v1/models</pre>
+<p>能返回模型JSON，代表服务启动成功。</p>
+
+<h3>步骤4：网页选择【本地算力】模式</h3>
+<ul>
+<li>网页算力模式选择“本地算力”；</li>
+<li>加载技能模板，输入指令直接发送；</li>
+<li>注意：模型名字要和Ollama内模型名称对应。</li>
+</ul>
+<p>⚠️注意：本地模式仅在你当前这台电脑浏览器生效，外网网页无法访问别人电脑本地Ollama服务。</p>
+
+<h2>二、API云算力模式：接入商用大模型平台</h2>
+<p>切换到API云算力模式，需要点【新增API配置】填写平台信息。</p>
+<p>通用格式：
+接口地址 / API‑Key / 模型名称，全部由对应服务商后台获取。</p>
+
+<h3>1. DeepSeek深度求索</h3>
+<ul>
+<li>接口地址：https://api.deepseek.com/v1/chat/completions</li>
+<li>API‑Key：平台个人中心创建sk‑开头密钥</li>
+<li>模型名称：deepseek‑v3</li>
+</ul>
+
+<h3>2. 硅基流动 SiliconFlow</h3>
+<ul>
+<li>接口地址：https://api.siliconflow.cn/v1/chat/completions</li>
+<li>API‑Key：个人API密钥</li>
+<li>模型名称：如 qwen/Qwen2.5‑14B‑Instruct</li>
+</ul>
+
+<h3>3. MiniMax</h3>
+<ul>
+<li>接口地址：https://api.minimax.chat/v1/chat/completions</li>
+<li>API‑Key：MiniMax后台密钥</li>
+<li>模型名称：abab6.5s‑chat</li>
+</ul>
+
+<h3>4. OpenAI / 兼容OpenAI格式中转服务商</h3>
+<ul>
+<li>接口地址：https://api.openai.com/v1/chat/completions</li>
+<li>API‑Key：sk‑xxx</li>
+<li>模型名称：gpt‑4o‑mini</li>
+</ul>
+
+<h3>API模式常见问题</h3>
+<ul>
+<li>⚠️部分浏览器存在跨域限制，需要CORS解除跨域插件；</li>
+<li>密钥不要泄露给其他人；密钥仅保存在本机浏览器；</li>
+<li>余额不足、模型名称写错、接口地址写错，都会请求失败；</li>
+<li>填写完成后点【测试连通性】验证是否可以正常连通。</li>
+</ul>
+
+<h2>三、通用使用流程</h2>
+<ol>
+<li>点击上方按钮加载对应的创作技能模板；</li>
+<li>选择算力模式（本地 / API云算力）；</li>
+<li>可上传剧本txt/docx文件并勾选，会附带喂给AI；</li>
+<li>输入你的创作指令，点击开始生成；</li>
+<li>支持复制、下载剧本，本地保存对话历史。</li>
+</ol>
+
+<h2>四、常见报错</h2>
+<ul>
+<li>技能加载失败：网络无法访问后端技能服务；</li>
+<li>API请求报错：核对接口地址、key、模型名称；检查余额；检查跨域插件；</li>
+<li>本地模式无响应：确认ollama服务正常运行，端口8080；</li>
+</ul>
+`;
+
+    function openHelpModal(){
+        helpContent.innerHTML = HELP_HTML;
+        helpModal.style.display = "flex";
+    }
+    function closeHelpModal(){
+        helpModal.style.display = "none";
+    }
 
     tempSlider.oninput = () => tempInput.value = tempSlider.value;
     tempInput.onchange = () => tempSlider.value = tempInput.value;
@@ -587,27 +738,32 @@
         const raw = localStorage.getItem(STORAGE_KEY_API_PROFILES);
         if(raw) apiProfiles = JSON.parse(raw);
         const savedId = localStorage.getItem(STORAGE_KEY_CURR_PROFILE);
-        if(apiProfiles.length ===0){
-            apiProfiles.push({
-                id:uuid(),
-                name:"默认",
-                endpoint:"https://api.seedance.nz/v1/chat/completions",
-                key:"",
-                model:"zhenzhen/g8-luna"
-            });
+        if(savedId && apiProfiles.find(p=>p.id===savedId)) {
+            currentProfileId = savedId;
+        } else {
+            currentProfileId = apiProfiles.length>0 ? apiProfiles[0].id : null;
         }
-        if(savedId && apiProfiles.find(p=>p.id===savedId)) currentProfileId = savedId;
-        else currentProfileId = apiProfiles[0].id;
         renderApiSelect();
         bindCurrentProfile();
     }
     function saveApiProfiles(){
         localStorage.setItem(STORAGE_KEY_API_PROFILES, JSON.stringify(apiProfiles));
-        localStorage.setItem(STORAGE_KEY_CURR_PROFILE, currentProfileId);
+        if(currentProfileId){
+            localStorage.setItem(STORAGE_KEY_CURR_PROFILE, currentProfileId);
+        }else{
+            localStorage.removeItem(STORAGE_KEY_CURR_PROFILE);
+        }
         renderApiSelect();
     }
     function renderApiSelect(){
         apiProfileSelect.innerHTML = "";
+        if(apiProfiles.length === 0){
+            const opt = document.createElement("option");
+            opt.innerText = "暂无配置，请点新增API配置";
+            opt.disabled = true;
+            apiProfileSelect.appendChild(opt);
+            return;
+        }
         apiProfiles.forEach(p=>{
             const opt = document.createElement("option");
             opt.value = p.id;
@@ -618,7 +774,12 @@
     }
     function bindCurrentProfile(){
         const p = apiProfiles.find(x=>x.id === currentProfileId);
-        if(!p) return;
+        if(!p) {
+            inpEndpoint.value = "";
+            inpKey.value = "";
+            inpModel.value = "";
+            return;
+        }
         inpEndpoint.value = p.endpoint;
         inpKey.value = p.key;
         inpModel.value = p.model;
@@ -637,7 +798,7 @@
         saveApiProfiles();
     }
     addApiProfileBtn.onclick = ()=>{
-        const name = prompt("输入这套API的别名（例如Seedance、Deepseek）");
+        const name = prompt("输入这套API的别名（例如Deepseek、OpenAI）");
         if(!name) return;
         const newP = {id:uuid(), name, endpoint:"", key:"", model:""};
         apiProfiles.push(newP);
@@ -671,6 +832,9 @@
         localStorage.setItem("computeMode", computeMode);
         if(computeMode === "api"){
             apiConfigBlock.style.display = "block";
+            if(apiProfiles.length === 0){
+                alert("⚠️ 尚未配置任何API！请点击【新增API配置】填写你自己的API信息。\n所有API密钥仅保存在你本机浏览器，不会上传到服务器。");
+            }
         }else{
             apiConfigBlock.style.display = "none";
         }
@@ -679,6 +843,10 @@
     radioApi.addEventListener("change", saveComputeMode);
 
     testApiBtn.addEventListener("click", async ()=>{
+        if(apiProfiles.length ===0 || !currentProfileId){
+            alert("请先新增并填写API配置！");
+            return;
+        }
         const ep = inpEndpoint.value.trim();
         const key = inpKey.value.trim();
         const model = inpModel.value.trim();
@@ -939,6 +1107,10 @@
             return;
         }
         if(computeMode === "api"){
+            if(apiProfiles.length===0 || !currentProfileId){
+                alert("API模式：请先点新增API配置，填入属于你自己的API信息！");
+                return;
+            }
             const ep = inpEndpoint.value.trim();
             const key = inpKey.value.trim();
             const model = inpModel.value.trim();
@@ -1004,7 +1176,7 @@
                 return;
             }
             const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
+            const decoder = new TextDecoder("utf‑8");
             let buffer = "";
             while(true){
                 const {done, value} = await reader.read();
@@ -1032,7 +1204,7 @@
                             }
                         }
                     }catch(e){
-                        // 静默忽略解析异常，不打印刷屏
+                        //静默忽略解析异常
                     }
                 }
             }
