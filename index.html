@@ -62,7 +62,7 @@
         .stop-btn { background-color: #dc2626; color: #fff; }
         .copy-btn { background-color: #7c3aed; color: #fff; }
         .download-btn { background-color: #0891b2; color: #fff; }
-        .newtab-btn { background-color: #16a34a; color: #fff; }
+        .newtab-btn { background-color: #16a34a; color: white; }
         .clear-history-btn{ background-color:#92400e; color:#fff; }
         .load-history-btn{ background-color:#0369a1; color:#fff; }
         .start-btn { background: linear-gradient(135deg, #059669, #10b981); color: white; font-weight: 500; }
@@ -95,6 +95,20 @@
         .help-modal-content p{ margin:6px 0; }
         .help-modal-content pre{ background:#0f1117; padding:10px; border-radius:6px; overflow-x:auto; margin:8px 0; }
         .help-modal-content ul, .help-modal-content ol{ padding-left:22px; margin:8px 0; }
+
+        /* 展开收起样式 */
+        .param-content {
+            transition: all 0.25s ease;
+            overflow: hidden;
+        }
+        .param-content.collapse {
+            height: 0;
+            opacity: 0;
+        }
+        .toggle-param-btn {
+            padding:3px 8px;font-size:12px;border:none;border-radius:6px;background:#2f3440;color:#fff;cursor:pointer;
+        }
+
         @media (max-width: 720px) {
             .wrap { padding:12px; gap:12px; }
             .input-row { flex-wrap:wrap; align-items:stretch; }
@@ -131,60 +145,65 @@
         </div>
     </div>
     <div class="card param-panel">
-        <div class="card-title">推理参数</div>
-        <div class="param-item">
-            <label>算力模式：</label>
-            <label><input type="radio" name="computeMode" value="local"> 本地算力</label>
-            <label><input type="radio" name="computeMode" value="api"> API云算力</label>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            推理参数
+            <button class="toggle-param-btn">收起</button>
         </div>
-        <div class="api-config-block" id="apiConfigBlock">
-            <div class="api-row">
-                <label>API配置：</label>
-                <select id="apiProfileSelect"></select>
+        <div class="param-content">
+            <div class="param-item">
+                <label>算力模式：</label>
+                <label><input type="radio" name="computeMode" value="local"> 本地算力</label>
+                <label><input type="radio" name="computeMode" value="api"> API云算力</label>
             </div>
-            <div class="api-manage-row">
-                <button class="api-add-btn" id="addApiProfileBtn">新增API配置</button>
-                <button class="api-del-btn" id="delApiProfileBtn">删除当前API</button>
+            <div class="api-config-block" id="apiConfigBlock">
+                <div class="api-row">
+                    <label>API配置：</label>
+                    <select id="apiProfileSelect"></select>
+                </div>
+                <div class="api-manage-row">
+                    <button class="api-add-btn" id="addApiProfileBtn">新增API配置</button>
+                    <button class="api-del-btn" id="delApiProfileBtn">删除当前API</button>
+                </div>
+                <div class="api-row">
+                    <label>接口地址：</label>
+                    <input id="apiEndpoint" placeholder="https://api.xxx.com/v1/chat/completions">
+                </div>
+                <div class="api-row">
+                    <label>API‑Key：</label>
+                    <input id="apiKey" type="password" placeholder="sk‑xxxx">
+                </div>
+                <div class="api-row">
+                    <label>模型名称：</label>
+                    <input id="apiModel" placeholder="model-name">
+                </div>
+                <div class="api-row">
+                    <label></label>
+                    <button class="test-api-btn" id="testApiBtn">测试连通性</button>
+                    <span style="font-size:12px;color:#9ca3af">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
+                </div>
             </div>
-            <div class="api-row">
-                <label>接口地址：</label>
-                <input id="apiEndpoint" placeholder="https://api.xxx.com/v1/chat/completions">
+            <div class="param-item">
+                <label>脑洞大小（随机创意）：</label>
+                <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7">
+                <input type="number" id="tempInput" min="0" max="2" step="0.05" value="0.7">
             </div>
-            <div class="api-row">
-                <label>API‑Key：</label>
-                <input id="apiKey" type="password" placeholder="sk‑xxxx">
+            <div class="param-item">
+                <label>创意候选范围：</label>
+                <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9">
+                <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
             </div>
-            <div class="api-row">
-                <label>模型名称：</label>
-                <input id="apiModel" placeholder="model-name">
+            <div class="param-item">
+                <label>上下文窗口 token（本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡或切换云API)：</label>
+                <input type="number" id="maxTokenInput" min="64" max="1048576" value="16384">
+                <button class="token-quick-btn" onclick="setToken(32768)">32K</button>
+                <button class="token-quick-btn" onclick="setToken(65536)">64K</button>
+                <button class="token-quick-btn" onclick="setToken(131072)">128K</button>
+                <button class="token-quick-btn" onclick="setToken(262144)">256K</button>
+                <button class="token-quick-btn" onclick="setToken(1048576)">1M</button>
             </div>
-            <div class="api-row">
-                <label></label>
-                <button class="test-api-btn" id="testApiBtn">测试连通性</button>
-                <span style="font-size:12px;color:#9ca3af">⚠️API模式部分浏览器需要CORS解除跨域插件</span>
+            <div class="param-note">
+                提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
             </div>
-        </div>
-        <div class="param-item">
-            <label>脑洞大小（随机创意）：</label>
-            <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7">
-            <input type="number" id="tempInput" min="0" max="2" step="0.05" value="0.7">
-        </div>
-        <div class="param-item">
-            <label>创意候选范围：</label>
-            <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9">
-            <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
-        </div>
-        <div class="param-item">
-            <label>上下文窗口 token（本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡或切换云API)：</label>
-            <input type="number" id="maxTokenInput" min="64" max="1048576" value="16384">
-            <button class="token-quick-btn" onclick="setToken(32768)">32K</button>
-            <button class="token-quick-btn" onclick="setToken(65536)">64K</button>
-            <button class="token-quick-btn" onclick="setToken(131072)">128K</button>
-            <button class="token-quick-btn" onclick="setToken(262144)">256K</button>
-            <button class="token-quick-btn" onclick="setToken(1048576)">1M</button>
-        </div>
-        <div class="param-note">
-            提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
         </div>
     </div>
     <div class="card file-panel">
@@ -226,7 +245,7 @@
 </div>
 
 <script>
-// 全局异常捕获兜底，局部报错不瘫痪整个页面
+// 全局异常捕获兜底
 window.addEventListener('error', (ev) => {
     console.error("全局捕获JS异常：", ev.error);
     try{
@@ -256,7 +275,6 @@ let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
 
-// 自定义md技能内存数组，不写入localStorage，只内存保存
 let customSkillList = [];
 
 const chatBox = document.getElementById("chatBox");
@@ -288,6 +306,7 @@ const downloadAiBtn = document.getElementById("downloadAiBtn");
 const loadHistoryBtn = document.getElementById("loadHistoryBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const newSessionBtn = document.getElementById("newSessionBtn");
+const stopBtn = document.getElementById("stopBtn");
 
 const apiConfigBlock = document.getElementById("apiConfigBlock");
 const radioLocal = document.querySelector('input[name="computeMode"][value="local"]');
@@ -502,7 +521,6 @@ testApiBtn.addEventListener("click", async ()=>{
     }
 });
 
-// docx库加固：加载失败不会阻塞页面主逻辑，仅禁用docx解析
 (function loadDocxLib() {
     const s = document.createElement("script");
     s.src = "https://unpkg.com/docx@8.5.0/build/index.js";
@@ -579,7 +597,6 @@ function downloadAiText() {
 }
 function openNewSession() { window.open(window.location.href, "_blank"); }
 
-// 渲染自定义md技能按钮
 function renderCustomSkillButtons(){
     document.querySelectorAll(".custom-skill-btn").forEach(el=>el.remove());
     customSkillList.forEach((sk, idx)=>{
@@ -606,7 +623,6 @@ function renderCustomSkillButtons(){
     })
 }
 
-// 加载后端内置技能：增加超时10秒，最多重试2次
 async function loadSkill(type, retryCount=2, timeoutMs=10000) {
     append(`正在加载技能：${nameMap[type]} ...`, "tip");
     const ctrl = new AbortController();
@@ -627,7 +643,7 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
         currentSkillName = nameMap[type];
         skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
         append(`✅ 技能【${currentSkillName}】加载完成`, "tip");
-    } catch (err) {
+    } catch (err)
         clearTimeout(timer);
         if(retryCount > 0){
             append(`⚠️ 技能请求超时，自动重试（剩余${retryCount}次）`,"err");
@@ -639,7 +655,6 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
     }
 }
 
-// 加载内存中自定义md技能
 function loadCustomSkill(skillItem){
     stopGenerate();
     currentSystemPrompt = skillItem.content;
@@ -648,7 +663,6 @@ function loadCustomSkill(skillItem){
     append(`✅ 自定义技能【${currentSkillName}】加载完成`, "tip");
 }
 
-// 读取md文件，加入内存自定义技能列表
 function importSkillMdFile(file){
     const reader = new FileReader();
     reader.onload = (ev)=>{
@@ -825,53 +839,30 @@ async function sendMessage() {
     }
 }
 
-// DOM加载完成后统一绑定全部事件，彻底消除inline onclick时序bug
 document.addEventListener('DOMContentLoaded', ()=>{
-    // 内置5个技能按钮绑定
+    loadApiProfiles();
+    initComputeModeUI();
+    renderCustomSkillButtons();
+
+    // 内置技能按钮
     document.querySelectorAll('[data-skill-key]').forEach(btn=>{
         const key = btn.getAttribute("data-skill-key");
         btn.addEventListener("click", ()=>{ loadSkill(key); });
     });
 
-    // 按钮事件绑定
+    // 参数展开收起
+    const toggleParamBtn = document.querySelector('.toggle-param-btn');
+    const paramContent = document.querySelector('.param-content');
+    toggleParamBtn.addEventListener('click', ()=>{
+        paramContent.classList.toggle('collapse');
+        toggleParamBtn.innerText = paramContent.classList.contains('collapse') ? '展开' : '收起';
+    });
+
+    // 绑定所有按钮
     unloadSkillBtn.addEventListener("click", unloadSkill);
     openHelpBtn.addEventListener("click", openHelpModal);
     closeHelpBtn.addEventListener("click", closeHelpModal);
     closePreviewBtn.addEventListener("click", closePreview);
-
-    plusUploadBtn.addEventListener("click", ()=>{ fileInput.click(); });
-    fileInput.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const ext = file.name.split(".").pop().toLowerCase();
-        let text = "";
-        try {
-            if (ext === "txt") { text = await file.text(); }
-            else if (ext === "docx") {
-                if (!docxLibReady || !window.docx || !window.docx.DocumentReader) {
-                    alert("docx 解析库尚未加载完成或者加载失败，暂时只能读取 txt！");
-                    return;
-                }
-                const arrayBuffer = await file.arrayBuffer();
-                const doc = await window.docx.DocumentReader.readDocument(new Uint8Array(arrayBuffer));
-                text = doc.paragraphs.map(p => p.text).join("\n");
-            } else { alert("仅支持 txt / docx"); return; }
-            fileStore.push({ name: file.name, content: text, checked: true });
-            renderFileList();
-            alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
-        } catch (err) { console.error(err); alert("读取文件失败"); }
-        fileInput.value = "";
-    };
-
-    // 导入md技能按钮
-    importSkillMdBtn.addEventListener("click", ()=>{ skillMdInput.click(); });
-    skillMdInput.onchange = (e)=>{
-        const f = e.target.files[0];
-        if(!f) return;
-        importSkillMdFile(f);
-        skillMdInput.value = "";
-    };
-
     pauseBtn.addEventListener("click", togglePause);
     stopBtn.addEventListener("click", stopGenerate);
     sendMsgBtn.addEventListener("click", sendMessage);
@@ -881,38 +872,75 @@ document.addEventListener('DOMContentLoaded', ()=>{
     clearHistoryBtn.addEventListener("click", clearAllHistory);
     newSessionBtn.addEventListener("click", openNewSession);
 
-    apiProfileSelect.onchange = ()=>{
+    plusUploadBtn.addEventListener("click", ()=> fileInput.click());
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const ext = file.name.split(".").pop().toLowerCase();
+        let text = "";
+        try {
+            if (ext === "txt") {
+                text = await file.text();
+            } else if (ext === "docx") {
+                if (!docxLibReady || !window.docx || !window.docx.DocumentReader) {
+                    alert("docx 解析库尚未加载完成或者加载失败，暂时只能读取 txt！");
+                    return;
+                }
+                const arrayBuffer = await file.arrayBuffer();
+                const doc = await window.docx.DocumentReader.readDocument(new Uint8Array(arrayBuffer));
+                text = doc.paragraphs.map(p => p.text).join("\n");
+            } else {
+                alert("仅支持 txt / docx");
+                return;
+            }
+            fileStore.push({ name: file.name, content: text, checked: true });
+            renderFileList();
+            alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
+        } catch (err) {
+            console.error(err);
+            alert("读取文件失败");
+        }
+        fileInput.value = "";
+    };
+
+    importSkillMdBtn.addEventListener("click", ()=> skillMdInput.click());
+    skillMdInput.onchange = (e)=>{
+        const f = e.target.files[0];
+        if(!f) return;
+        importSkillMdFile(f);
+        skillMdInput.value = "";
+    };
+
+    addApiProfileBtn.addEventListener("click", ()=>{
+        const name = prompt("给这个API配置起个名字：");
+        if(!name) return;
+        const newId = uuid();
+        apiProfiles.push({ id: newId, name, endpoint:"", key:"", model:"" });
+        currentProfileId = newId;
+        saveApiProfiles();
+        bindCurrentProfile();
+    });
+    delApiProfileBtn.addEventListener("click", ()=>{
+        if(apiProfiles.length <= 1){
+            alert("至少保留一条API配置！");
+            return;
+        }
+        if(!confirm("确认删除当前API配置？")) return;
+        const idx = apiProfiles.findIndex(x=>x.id === currentProfileId);
+        apiProfiles.splice(idx,1);
+        currentProfileId = apiProfiles[0].id;
+        saveApiProfiles();
+        bindCurrentProfile();
+    });
+    apiProfileSelect.addEventListener("change", ()=>{
         currentProfileId = apiProfileSelect.value;
         bindCurrentProfile();
-        saveApiProfiles();
-    };
-    addApiProfileBtn.onclick = ()=>{
-        const name = prompt("输入这套API的别名（例如DeepSeek、OpenAI）");
-        if(!name) return;
-        const newP = {id:uuid(), name, endpoint:"", key:"", model:""};
-        apiProfiles.push(newP);
-        currentProfileId = newP.id;
-        saveApiProfiles();
-        bindCurrentProfile();
-    };
-    delApiProfileBtn.onclick = ()=>{
-        if(apiProfiles.length <= 0) return alert("当前没有可删除的API配置");
-        if(!confirm("确认删除当前这条API配置？")) return;
-        apiProfiles = apiProfiles.filter(x=>x.id!==currentProfileId);
-        currentProfileId = apiProfiles.length>0 ? apiProfiles[0].id : null;
-        saveApiProfiles();
-        bindCurrentProfile();
-    };
-    inpEndpoint.oninput = syncProfileToCurrent;
-    inpKey.oninput = syncProfileToCurrent;
-    inpModel.oninput = syncProfileToCurrent;
+    });
+    inpEndpoint.onchange = syncProfileToCurrent;
+    inpKey.onchange = syncProfileToCurrent;
+    inpModel.onchange = syncProfileToCurrent;
     radioLocal.addEventListener("change", saveComputeMode);
     radioApi.addEventListener("change", saveComputeMode);
-
-    // 页面初始化
-    loadApiProfiles();
-    initComputeModeUI();
-    renderCustomSkillButtons();
 });
 </script>
 </body>
