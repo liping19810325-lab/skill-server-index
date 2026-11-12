@@ -84,6 +84,10 @@
     .node-actions button:hover{background:#4b5563;}
     .node-actions button.act-run{background:var(--green);}
     .node-actions button.act-split{width:auto;padding:0 6px;background:#4338ca;}
+    .node-body .act-row{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0;}
+    .node-body .act-row button{flex:1;min-width:0;border:none;border-radius:6px;background:#4338ca;color:#fff;font-size:11px;height:27px;cursor:pointer;padding:0 4px;font-family:inherit;white-space:nowrap;overflow:hidden;}
+    .node-body .act-row button:hover{background:#4f46e5;}
+    .node-body .act-row button:disabled{opacity:.55;cursor:not-allowed;}
     .node-body{padding:9px 10px 11px;}
     .node-body textarea,.node-body input[type=text],.node-body select{width:100%;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11.5px;padding:7px 8px;outline:none;}
     .node-body textarea{resize:vertical;line-height:1.55;min-height:96px;}
@@ -348,7 +352,7 @@
         <p>每份画布首次打开时，会自动放好 <b>① 提示词 / ① 参考图 / ① 声音参考 / ① 视频参考（可选） → ② 生成 → ③ 结果</b> 六个节点并连好线：照着填内容、在生成节点选好引擎就能跑，不用从零搭。节点可随意改、删、拖动，也能从顶栏继续「＋」加节点。已有内容的画布不会被覆盖；若点了「清空画布」，空画布提示里可一键「↺ 放入基础工作流示例」找回这套结构。</p>
         <h2>画布怎么用</h2>
         <ul>
-            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词。点「拆分」：<b>文本含 ▌ 直接拆</b>；没有 ▌ 时会<b>自动调用大语言模型智能分段</b>（优先本地 llama / Ollama，其次创作台已接通的 API 大模型），分段规则沿用分镜方法：以情绪转折 / 动作段落 / 说话人切换划片、单段约 15 秒、台词逐字保留。拆完一条一节点。</li>
+            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词，底部三个处理按钮：<br>· <b>「图片提示词」</b>＝拆文生图提示词：<b>文本含 ▌ 直接拆</b>；没有 ▌ 时会<b>自动调用大语言模型智能分段</b>（优先本地 llama / Ollama，其次创作台已接通的 API 大模型），拆完一条一节点，原节点被替换。<br>· <b>「SD提示词」</b>＝调「导演分镜助手 V5（生视频提示词）」技能，按 Seedance 生视频标准调整并拆分成镜头节点；<b>「H3提示词」</b>＝调「导演分镜助手 V5 MiniMaxH3」技能，按 MiniMax H3 标准调整并拆分。两者都<b>不改剧本与台词本意</b>，新节点生成在原节点右侧、原文保留，大语言模型同样本地优先。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
@@ -973,7 +977,6 @@ function buildNode(n){
     box.dataset.id = n.id;
     box.style.left = n.x+"px"; box.style.top = n.y+"px";
     const actions = [];
-    if(n.type==="prompt") actions.push('<button class="act-split" data-act="split" title="拆成多条提示词节点：含 ▌ 直接拆；没有 ▌ 会自动调用大语言模型智能分段（本地优先）">拆分</button>');
     if(n.type==="generate") actions.push('<button class="act-run" data-act="run" title="运行生成">▶</button>');
     actions.push('<button data-act="del" title="删除节点">×</button>');
     box.innerHTML =
@@ -1010,7 +1013,18 @@ function buildPromptBody(body,n){
     body.appendChild(ta);
     const line = document.createElement("div"); line.className="mini-line";
     const cnt = document.createElement("span"); const tip = document.createElement("span");
-    tip.textContent = "无 ▌ 时点「拆分」会自动调用大语言模型"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
+    tip.textContent = "无 ▌ 时点「图片提示词」会自动调用大语言模型分段"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
+    /* 三个处理按钮：图片提示词（拆文生图） / SD提示词（Seedance 标准） / H3提示词（MiniMax H3 标准） */
+    const actRow=document.createElement("div"); actRow.className="act-row";
+    const mkAct=(act,label,title)=>{
+        const b=document.createElement("button"); b.type="button"; b.dataset.act=act;
+        b.textContent=label; b.title=title; actRow.appendChild(b);
+        return b;
+    };
+    mkAct("split","图片提示词","拆出美术资产的文生图提示词：含 ▌ 直接拆，没有 ▌ 会自动调大语言模型分段");
+    mkAct("sd","SD提示词","调「导演分镜助手 V5」按 Seedance 生视频标准调整并拆分镜头，不改剧本本意");
+    mkAct("h3","H3提示词","调「导演分镜助手 V5 MiniMaxH3」按 MiniMax H3 标准调整并拆分镜头，不改剧本本意");
+    body.appendChild(actRow);
     const pv=document.createElement("button"); pv.className="mini-btn gray"; pv.textContent="🔍 浮窗预览";
     pv.title="放大查看提示词全文，方便对照参考";
     pv.addEventListener("click",e=>{
@@ -1661,6 +1675,8 @@ function handleNodeAction(act,n){
     if(act==="del"){ removeNode(n.id); }
     else if(act==="run"){ runGenerate(n); }
     else if(act==="split"){ splitAction(n); }
+    else if(act==="sd"){ skillRefineLLM(n,"b","SD提示词"); }
+    else if(act==="h3"){ skillRefineLLM(n,"d","H3提示词"); }
 }
 /* ===== 提示词拆分：含 ▌ 直接拆；没有 ▌ 就调大语言模型智能分段（本地优先，云端兜底） ===== */
 function splitAction(n){
@@ -1726,10 +1742,11 @@ const SPLIT_SYSTEM_PROMPT=[
     "4. 每个片段输出一行：以「▌」开头，后接完整提示词（画面描述＋完整台词）。",
     "5. 只输出这些 ▌ 开头的行，不要解释、不要代码块。"
 ].join("\n");
-async function llmSplitText(text){
+async function llmSplitText(text,systemPrompt){
+    const sys=systemPrompt||SPLIT_SYSTEM_PROMPT;
     for(const c of llmCandidates()){
         try{
-            const body={messages:[{role:"system",content:SPLIT_SYSTEM_PROMPT},{role:"user",content:text}],temperature:0.3,stream:false};
+            const body={messages:[{role:"system",content:sys},{role:"user",content:text}],temperature:0.3,stream:false};
             if(c.model) body.model=c.model;
             const ctrl=new AbortController();
             const t=setTimeout(()=>ctrl.abort(),c.local?25000:90000);
@@ -1746,6 +1763,68 @@ async function llmSplitText(text){
         }catch(e){ console.warn("拆分模型「"+c.name+"」不可用：",e&&e.message||e); }
     }
     return {ok:false};
+}
+/* ===== SD / H3 提示词调整：从技能库拉「导演分镜助手」全文当系统提示词，本地大语言模型优先 ===== */
+const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
+const SKILL_TOKEN = "CU001-ABC123";
+const skillTextCache = {};   /* 内存缓存：同一会话内每个技能只拉一次 */
+async function fetchSkillText(type){
+    if(skillTextCache[type]) return {ok:true,text:skillTextCache[type]};
+    for(let i=0;i<2;i++){
+        try{
+            const ctrl=new AbortController();
+            const t=setTimeout(()=>ctrl.abort(),10000);
+            const res=await fetch(SKILL_API_BASE+"?token="+SKILL_TOKEN+"&type="+encodeURIComponent(type),{signal:ctrl.signal});
+            clearTimeout(t);
+            if(!res.ok) throw new Error("HTTP "+res.status);
+            const text=String(await res.text()||"").trim();
+            if(!text||/^</.test(text)) throw new Error("返回内容为空或非技能文本");
+            skillTextCache[type]=text;
+            return {ok:true,text:text};
+        }catch(e){ console.warn("拉取技能（"+type+"）失败：",e&&e.message||e); }
+    }
+    return {ok:false};
+}
+/* SD提示词（skillType=b，Seedance 标准） / H3提示词（skillType=d，MiniMax H3 标准）：
+   拉技能全文 → 组装系统提示词（强调不改本意）→ 走画布现有大语言模型链路 → 按 ▌ 拆成多个新节点，原节点保留 */
+async function skillRefineLLM(n,skillType,label){
+    const text=String(n.data.text||"").trim();
+    if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); return; }
+    if(n.data.splitting) return;
+    n.data.splitting=true;
+    const act=skillType==="b"?"sd":"h3";
+    const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="'+act+'"]');
+    if(btn){ btn.disabled=true; btn.textContent=label+"处理中…"; }
+    setStatus("正在加载技能并调整提示词（本地大语言模型优先）…","busy");
+    try{
+        const skill=await fetchSkillText(skillType);
+        if(!skill.ok){ setStatus("技能拉取失败：连不上技能服务器（skill-api.manflows.com），请稍后再试","err"); return; }
+        const sys=skill.text+"\n\n——————\n你是漫流画布的提示词调整助手。请严格按照上面技能的提示词技术标准，把用户给出的剧本 / 提示词整理成可直接生成视频的分镜提示词，并遵守：\n1. 忠实原文：剧情、人物、场景与台词的本意一个都不能改；台词逐字保留，不新增剧情、台词或配乐说明。\n2. 每个镜头输出一行，以「▌」开头，后接完整镜头提示词（画面描述＋完整台词）。\n3. 只输出这些 ▌ 开头的行，不要解释、不要代码块。";
+        const r=await llmSplitText(text,sys);
+        if(!r.ok){
+            setStatus("调整失败：本地与云端大语言模型都没连上。请先启动本地 llama / Ollama，或到创作台「API云算力」配置大模型接口。","err");
+            return;
+        }
+        /* 模型偶尔包代码块，先剥掉再取 ▌ 行 */
+        const lines=r.text.replace(/```[a-z]*\n?/gi,"").split("\n").map(s=>s.trim()).filter(Boolean);
+        const segs=lines.filter(s=>s.startsWith("▌"));
+        if(!segs.length){ setStatus("「"+r.via+"」没有按 ▌ 分段返回，调整已取消","err"); return; }
+        if(!confirm("已用「"+r.via+"」按技能调整为 "+segs.length+" 条提示词，将在原节点右侧生成 "+segs.length+" 个新节点（原节点保留）。继续？")) return;
+        spawnRefinedNodes(n,segs);
+        setStatus("已按技能调整为 "+segs.length+" 条（原文节点保留）","ok");
+    }finally{
+        n.data.splitting=false;
+        if(btn){ btn.disabled=false; btn.textContent=label; }
+    }
+}
+/* 在原节点右侧纵向生成调整后的提示词节点；原节点与其连线原样保留 */
+function spawnRefinedNodes(n,segs){
+    segs.forEach((part,i)=>{
+        const title=(part.split("\n")[0]||("镜头 "+(i+1))).replace(/^▌\s*/,"").slice(0,28);
+        const q=newNode("prompt",n.x+330,n.y+i*250,{text:part,sourceId:n.data.sourceId||""});
+        q.title=title;
+    });
+    renderAll(); scheduleSave();
 }
 function removeNodes(ids){
     const set=new Set(ids);
