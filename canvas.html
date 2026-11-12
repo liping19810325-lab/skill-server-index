@@ -354,7 +354,7 @@
         <ul>
             <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词，底部三个处理按钮：<br>· <b>「图片提示词」</b>＝拆文生图提示词：<b>文本含 ▌ 直接拆</b>；没有 ▌ 时会<b>自动调用大语言模型智能分段</b>（优先本地 llama / Ollama，其次创作台已接通的 API 大模型），拆完一条一节点，原节点被替换。<br>· <b>「SD提示词」</b>＝调「导演分镜助手 V5（生视频提示词）」技能，按 Seedance 生视频标准调整并拆分成镜头节点；<b>「H3提示词」</b>＝调「导演分镜助手 V5 MiniMaxH3」技能，按 MiniMax H3 标准调整并拆分。两者都<b>不改剧本与台词本意</b>，新节点生成在原节点右侧、原文保留，大语言模型同样本地优先。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
-            <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。</li>
+            <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。本地 ComfyUI：<b>MiniMax H3 工作流不用预先接声音节点</b>——画布会自动注入 LoadAudio 并接到 H3 的 <code>ref_audios</code>（上限 3 段）；含 LoadAudio 的其它工作流则直接写入载入节点。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
             <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 会把比例换算成宽高写进工作流的 Latent 节点、把时长按工作流 fps 换算成帧数写进 length / num_frames 等字段，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
@@ -2928,14 +2928,76 @@ async function comfyUploadImage(base,dataUrl,index){
    只选分辨率没选比例时，按工作流现有宽高比例把长边换到对应档位，不硬掰画幅。
    时长：秒数 × fps 换算成帧数写进 length / num_frames / video_length 等数字字段；
    fps 优先取工作流里 fps / frame_rate / rate 字段，找不到按 24 换算。 */
+/* ===== MiniMax H3 等 autogrow 参考注入 =====
+   MiniMaxH3ReferenceToVideo 的 ref_audios / ref_videos / ref_video_audios 是 COMFY_AUTOGROW_V3 可选输入：
+   用户在 ComfyUI 里没接声音/视频载入节点时，导出的 API JSON 里连这些键都没有，
+   画布连入了素材就会「识别不到载入节点」。此时动态注入载入节点并接线：
+     ref_audios.ref_audio_N             = ["注入的LoadAudio", 0]       （AUDIO，官方上限 3）
+     ref_videos.ref_video_N             = ["注入的VHS_LoadVideo", 0]   （IMAGE 帧，上限 3）
+     ref_video_audios.ref_video_audio_N = [同上, 2]                    （该视频的音轨）
+   注入格式已在本机 ComfyUI 实测通过 /prompt 校验。 */
+function comfyH3Targets(work){
+    return Object.keys(work).filter(id=>{
+        const node=work[id]||{}, ins=node.inputs||{};
+        return ins.ref_audios!==undefined||ins.ref_videos!==undefined
+            ||/MiniMaxH3|ReferenceToVideo/i.test(String(node.class_type||""));
+    });
+}
+async function comfyInjectAutogrowAudio(work,audios,base,n){
+    const targets=comfyH3Targets(work);
+    if(!targets.length) return 0;
+    const t=work[targets[0]];
+    if(!t.inputs.ref_audios||typeof t.inputs.ref_audios!=="object") t.inputs.ref_audios={};
+    let baseIdx=0;
+    Object.keys(t.inputs.ref_audios).forEach(k=>{ const mm=/ref_audio_(\d+)/.exec(k); if(mm) baseIdx=Math.max(baseIdx,+mm[1]+1); });
+    let written=0;
+    for(let i=0;i<audios.length&&baseIdx+i<3;i++){
+        const a=audios[i];
+        if(!a||!/^data:/i.test(String(a.url))) continue;   /* 公网直链无法经本机上传通道提交 */
+        const ext=(String(a.name||"").match(/\.[a-z0-9]+$/i)||[".mp3"])[0];
+        if(n) setGenStatus(n,"正在上传声音参考并注入 H3（ref_audio_"+(baseIdx+i)+"）…","busy");
+        const name=await comfyUploadFile(base,a.url,"manflows_audio_inj_"+(baseIdx+i)+ext);
+        const nid="mf_audio_inj_"+(baseIdx+i);
+        work[nid]={class_type:"LoadAudio",inputs:{audio:name}};
+        t.inputs.ref_audios["ref_audio_"+(baseIdx+i)]=[nid,0];
+        written++;
+    }
+    return written;
+}
+async function comfyInjectAutogrowVideo(work,videos,base,n){
+    const targets=comfyH3Targets(work);
+    if(!targets.length) return 0;
+    const t=work[targets[0]];
+    if(!t.inputs.ref_videos||typeof t.inputs.ref_videos!=="object") t.inputs.ref_videos={};
+    if(!t.inputs.ref_video_audios||typeof t.inputs.ref_video_audios!=="object") t.inputs.ref_video_audios={};
+    let baseIdx=0;
+    Object.keys(t.inputs.ref_videos).forEach(k=>{ const mm=/ref_video_(\d+)/.exec(k); if(mm) baseIdx=Math.max(baseIdx,+mm[1]+1); });
+    let written=0;
+    for(let i=0;i<videos.length&&baseIdx+i<3;i++){
+        const v=videos[i];
+        if(!v||!/^data:/i.test(String(v.url))) continue;
+        const ext=(String(v.name||"").match(/\.[a-z0-9]+$/i)||[".mp4"])[0];
+        if(n) setGenStatus(n,"正在上传视频参考并注入 H3（ref_video_"+(baseIdx+i)+"）…","busy");
+        const name=await comfyUploadFile(base,v.url,"manflows_video_inj_"+(baseIdx+i)+ext);
+        const nid="mf_video_inj_"+(baseIdx+i);
+        work[nid]={class_type:"VHS_LoadVideo",inputs:{video:name,force_rate:24,custom_width:0,custom_height:0,frame_load_cap:0,skip_first_frames:0,select_every_nth:1}};
+        t.inputs.ref_videos["ref_video_"+(baseIdx+i)]=[nid,0];
+        t.inputs.ref_video_audios["ref_video_audio_"+(baseIdx+i)]=[nid,2];
+        written++;
+    }
+    return written;
+}
 function comfySizeTargets(wf){
-    const latent=[],any=[];
+    const latent=[],any=[],h3=[];
     Object.keys(wf).forEach(id=>{
         const node=wf[id]||{}, ins=node.inputs||{};
-        if(typeof ins.width!=="number"||typeof ins.height!=="number") return;
-        (/(Latent|Size)/i.test(String(node.class_type||""))?latent:any).push(id);
+        if(!("width" in ins)||!("height" in ins)) return;
+        if(typeof ins.width==="number"&&typeof ins.height==="number")
+            (/(Latent|Size)/i.test(String(node.class_type||""))?latent:any).push(id);
+        else if(/MiniMaxH3|ReferenceToVideo/i.test(String(node.class_type||"")))
+            h3.push(id);   /* H3 主节点的 width/height 常是来自 ResolutionSelector 的链接，直接覆盖为数字即可生效 */
     });
-    return latent.length?latent:any;
+    return latent.length?latent:(any.length?any:h3);
 }
 function comfyFrameTargets(wf){
     const out=[];
@@ -2965,13 +3027,15 @@ function applyComfySpec(wf,d,kindVideo){
         const targets=comfySizeTargets(wf);
         targets.forEach(id=>{
             const ins=wf[id].inputs;
+            const isH3=/MiniMaxH3|ReferenceToVideo/i.test(String(wf[id].class_type||""));
+            const step=isH3?32:8;   /* H3 官方要求宽高 32 的倍数；普通 Latent 取 8 的倍数 */
+            const rnd=x=>Math.max(step*4,Math.round(x/step)*step);
             if(dims){
-                ins.width=dims.w; ins.height=dims.h;
+                ins.width=rnd(dims.w); ins.height=rnd(dims.h);
             }else{
                 const w=Number(ins.width)||1024, h=Number(ins.height)||1024;
                 const edge=RESO_EDGE_MAP[reso]||1024, k=edge/Math.max(w,h);
-                ins.width=Math.max(240,Math.round(w*k/8)*8);
-                ins.height=Math.max(240,Math.round(h*k/8)*8);
+                ins.width=rnd(w*k); ins.height=rnd(h*k);
             }
         });
         if(targets.length) msgs.push("尺寸→"+(dims?(dims.w+"×"+dims.h):reso.toUpperCase())+"（"+targets.length+" 处）");
@@ -2983,6 +3047,18 @@ function applyComfySpec(wf,d,kindVideo){
         const hits=comfyFrameTargets(wf);
         hits.forEach(t=>{ wf[t.node].inputs[t.field]=frames; });
         if(hits.length) msgs.push("时长 "+secs+" 秒×"+fps+"fps→"+frames+" 帧（"+hits.length+" 处）");
+        if(!hits.length){
+            /* H3 主节点的 length 也是链接不是数字；按官方 24fps + 合法帧位（5+17k）写入 */
+            const h3=Object.keys(wf).find(id=>{
+                const nd=wf[id]||{};
+                return /MiniMaxH3|ReferenceToVideo/i.test(String(nd.class_type||""))&&nd.inputs&&("length" in nd.inputs);
+            });
+            if(h3){
+                const h3frames=Math.max(5,5+17*Math.max(0,Math.round((secs*24-5)/17)));
+                wf[h3].inputs.length=h3frames;
+                msgs.push("时长 "+secs+" 秒→H3 "+h3frames+" 帧");
+            }
+        }
     }
     return msgs.join(" · ");
 }
@@ -3025,10 +3101,18 @@ async function genComfy(n,input){
         throw new Error("工作流里没识别到提示词节点，画布提示词无法写入（所以出图会一直是工作流自带的那句提示词）。\n解决办法：① 左侧「ComfyUI 工作流」面板点「重新推断映射」；② 或在「映射」框里把 promptNodes 指到真正的提示词节点；③ 或删掉该模板重新导入「导出(API)」JSON。");
     if(input.images.length&&!m.imageNodes.length)
         throw new Error("已连入 "+input.images.length+" 张参考图，但工作流里没识别到图片载入节点（LoadImage 等），参考图无法写入。\n解决办法：左侧「映射」框里把 imageNodes 指到图片载入节点（如 [\"6\"] 或 [{\"node\":\"6\",\"field\":\"image\"}]），或点「重新推断映射」。");
+    /* 声音 / 视频参考落点：先看映射里的载入节点；没有时 MiniMax H3 类工作流支持动态注入
+       （H3 主节点的 ref_audios / ref_videos 是 autogrow 可选输入，UI 里没连线时 API JSON 连键都没有——
+        这就是「已连入声音参考却报识别不到载入节点」的根因。注入格式已实测通过 ComfyUI /prompt 校验） */
+    let audInjected=0,vidInjected=0;
     if(input.audios.length&&!m.audioNodes.length)
-        throw new Error("已连入 "+input.audios.length+" 段声音参考，但工作流里没识别到声音载入节点（LoadAudio / VHS_LoadAudio 等），声音无法写入。\n解决办法：用包含 LoadAudio 的工作流（如 MiniMax H3），或在「映射」框里补 audioNodes。");
+        audInjected=await comfyInjectAutogrowAudio(work,input.audios.slice(0,3),base,n);
+    if(input.audios.length&&!m.audioNodes.length&&!audInjected)
+        throw new Error("已连入 "+input.audios.length+" 段声音参考，但工作流里既没有声音载入节点（LoadAudio / VHS_LoadAudio 等），也没有 MiniMax H3 这类支持 ref_audios 自动注入的节点，声音无法写入。\n解决办法：换用 MiniMax H3 / 含 LoadAudio 的工作流，或在「映射」框里补 audioNodes。");
     if(input.videos.length&&!m.videoNodes.length)
-        throw new Error("已连入 "+input.videos.length+" 个视频参考，但工作流里没识别到视频载入节点（LoadVideo / VHS_LoadVideo 等），视频无法写入。\n解决办法：用包含视频载入节点的工作流，或在「映射」框里补 videoNodes。");
+        vidInjected=await comfyInjectAutogrowVideo(work,input.videos.slice(0,3),base,n);
+    if(input.videos.length&&!m.videoNodes.length&&!vidInjected)
+        throw new Error("已连入 "+input.videos.length+" 个视频参考，但工作流里既没有视频载入节点（LoadVideo / VHS_LoadVideo 等），也没有 MiniMax H3 这类支持 ref_videos 自动注入的节点，视频无法写入。\n解决办法：换用含视频载入节点的工作流，或在「映射」框里补 videoNodes。");
     let written=0;
     targets.forEach(t=>{
         if(!work[t.node]) return;
@@ -3072,12 +3156,15 @@ async function genComfy(n,input){
     (m.seedNodes||[]).forEach(s=>{
         if(work[s.node]&&work[s.node].inputs) work[s.node].inputs[s.field||"seed"]=Math.floor(Math.random()*2147483647);
     });
-    /* 生成节点选的画幅 / 分辨率 / 时长写进工作流（留空「跟随工作流」则完全不碰） */
-    const specMsg=applyComfySpec(work,n.data,tpl.kind);
+    /* 生成节点选的画幅 / 分辨率 / 时长写进工作流（留空「跟随工作流」则完全不碰）
+       模板类型标错时自动纠正：工作流输出是 SaveVideo / CreateVideo 等就按生视频处理，
+       否则「参考视频minimax_h3_r2v」这类标成生图的模板会漏写时长。 */
+    const hasVideoOut=(m.outputNodes||[]).some(id=>wf[id]&&/SaveVideo|CreateVideo|VHS_SaveVideo|SaveAnimated/i.test(String((wf[id]||{}).class_type||"")));
+    const specMsg=applyComfySpec(work,n.data,tpl.kind==="video"||hasVideoOut?"video":tpl.kind);
     const injectMsg="提示词→"+written+" 处"
         +(input.images.length?(" · 参考图 "+imgWritten+"/"+input.images.length):"")
-        +(input.audios.length?(" · 声音 "+audWritten+"/"+input.audios.length):"")
-        +(input.videos.length?(" · 视频 "+vidWritten+"/"+input.videos.length):"");
+        +(input.audios.length?(" · 声音 "+(audWritten+audInjected)+"/"+input.audios.length):"")
+        +(input.videos.length?(" · 视频 "+(vidWritten+vidInjected)+"/"+input.videos.length):"");
     n.data.lastInject=injectMsg+(specMsg?(" · "+specMsg):"");   /* 轮询状态会覆盖中途提示，摘要并入完成消息 */
     setGenStatus(n,"["+tpl.name+"] "+n.data.lastInject,"busy");
     const clientId="manflows_"+Math.random().toString(36).slice(2,10);
