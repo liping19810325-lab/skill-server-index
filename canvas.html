@@ -317,7 +317,7 @@
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
             <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 会把比例换算成宽高写进工作流的 Latent 节点、把时长按工作流 fps 换算成帧数写进 length / num_frames 等字段，留空「跟随工作流」则完全不修改原工作流。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
-            <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。</li>
+            <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。视频若因跨域 / 直链格式受限无法直接播放，点一下视频窗口会<b>自动缓存到本地播放</b>，连缓存也被挡时自动转下载。</li>
         </ul>
         <h2>多参考素材怎么生效（异步任务型网关）</h2>
         <p>连入声音或视频参考节点、且生成类型选「生视频」时，模型会自动推荐 <code>-multi</code> 多模态版本；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
@@ -1409,12 +1409,12 @@ function buildGenerateBody(body,n){
         e.stopPropagation();
         d.preset="custom"; preSel.value="custom"; d.modelTouched=true;
         tpl.value=QWEN_IMAGE_TEMPLATE; d.bodyTemplate=tpl.value;
-        mdl.value="qwen-image-2.1-pro"; d.model=mdl.value;
-        ep.value="https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation"; d.endpoint=ep.value;
-        hdr.value='{\n  "X-DashScope-Async": "enable"\n}'; d.headers=hdr.value;
-        pollUrl.value="https://dashscope.aliyuncs.com/api/v1/tasks/{{task_id}}"; d.pollUrl=pollUrl.value;
+        mdl.value=""; d.model="";
+        ep.value=""; d.endpoint="";
+        hdr.value=""; d.headers="";
+        pollUrl.value=""; d.pollUrl="";
         adv.open=true; d.advOpen=true; syncFields(); scheduleSave();
-        setStatus("已填入自定义模板示例，请核对地址与 Key","ok");
+        setStatus("已填入自定义模板骨架：接口地址 / Key / 模型名请自己填写","ok");
     });
     run.addEventListener("click",e=>{ e.stopPropagation(); runGenerate(n); });
 }
@@ -1436,6 +1436,41 @@ async function downloadUrl(url,name){
         window.open(url,"_blank","noopener");
     }
 }
+/* 视频直连播放的兜底：不少生视频接口的直链是 octet-stream / 需要跨域，
+   <video> 直接加载会黑屏无声。这里监听加载失败 / 点击时：
+   ① 先尝试把视频抓成本地 blob（强制 video/mp4 类型）再播放 —— 等于自动下载到内存并开播；
+   ② 抓取也被跨域挡住时，退回「下载结果」（blob 下载 → 新标签）。 */
+function ensurePlayableVideo(v,url,name){
+    if(!v||!url) return;
+    v.preload="metadata";
+    let retried=false, fallback=null;
+    const start=()=>{ if(!v.src) v.src=url; };
+    fallback=async()=>{
+        if(retried) return; retried=true;
+        try{
+            const r=await fetch(url,{mode:"cors"});
+            if(!r.ok) throw new Error("HTTP "+r.status);
+            const raw=await r.blob();
+            const blob=(raw.type&&/^video\//i.test(raw.type))?raw:new Blob([raw],{type:"video/mp4"});
+            v.src=URL.createObjectURL(blob);
+            v.load();
+            const p=v.play(); if(p&&p.catch) p.catch(()=>{});
+            setStatus("视频直连播放受限，已缓存到本地播放","ok");
+        }catch(e){
+            setStatus("视频无法在线播放（跨域限制），已转为下载","err");
+            downloadUrl(url,name||"manflows_video.mp4");
+        }
+    };
+    v.addEventListener("error",fallback);
+    /* 视频加载不出来时点一下视频窗口 → 立即走兜底，并拦住浮窗打开 */
+    v.addEventListener("click",e=>{
+        if(v.readyState===0||v.networkState===v.NETWORK_NO_SOURCE){
+            e.stopImmediatePropagation();
+            fallback();
+        }
+    });
+    start();
+}
 function buildResultBody(body,n){
     const d = n.data || {};
     const holder = document.createElement("div"); body.appendChild(holder);
@@ -1444,7 +1479,8 @@ function buildResultBody(body,n){
     if(d.kind==="image" && d.url){
         const img=document.createElement("img"); img.className="result-media"; img.src=d.url; img.alt="生成结果"; img.title="点击浮窗放大预览"; holder.appendChild(img); media=img;
     } else if(d.kind==="video" && d.url){
-        const v=document.createElement("video"); v.className="result-media"; v.src=d.url; v.controls=true; v.title="点击浮窗放大预览"; holder.appendChild(v); media=v;
+        const v=document.createElement("video"); v.className="result-media"; v.controls=true; v.title="点击视频浮窗放大预览；加载失败时点击会自动缓存播放"; holder.appendChild(v); media=v;
+        ensurePlayableVideo(v,d.url,d.name);
     } else if(d.text){
         const pre=document.createElement("div"); pre.className="result-text"; pre.textContent=d.text; holder.appendChild(pre);
     } else {
@@ -1477,7 +1513,8 @@ function openLightbox(d){
     const oldCap=lb.querySelector(".lb-title"); if(oldCap) oldCap.remove();
     if(d.title){ const cap=document.createElement("div"); cap.className="lb-title"; cap.textContent=d.title; lb.appendChild(cap); }
     if(d.kind==="video"){
-        const v=document.createElement("video"); v.src=d.url; v.controls=true; v.autoplay=true; v.loop=true; h.appendChild(v);
+        const v=document.createElement("video"); v.controls=true; v.autoplay=true; v.loop=true; h.appendChild(v);
+        ensurePlayableVideo(v,d.url,d.name||d.title);
     }else if(d.kind==="audio"){
         const a=document.createElement("audio"); a.src=d.url; a.controls=true; a.autoplay=true; h.appendChild(a);
     }else if(d.kind==="text"){
@@ -2501,12 +2538,24 @@ function tracePromptSources(wf){
     const badField=/^(negative|negative_prompt|system_prompt|template|prefix|suffix|ckpt_name|filename_prefix|clip_name|unet_name|vae_name|lora_name)$/i;
     const isInstruction=s=>/^\s*#|you are an? |rewrite|system prompt|输出要求/i.test(String(s||""));
     const looksTextField=/^(text|prompt|positive.*|caption|description|words|value|string|on_false|on_true|source)$/i;
+    /* 负面提示词反查：凡是被下游节点 negative / negative_prompt 输入引用的节点一律排除，
+       否则画布提示词会把工作流的负面词也覆盖掉（负面节点同样叫 text 字段，字段名区分不出来）。 */
+    const negSet=new Set();
+    Object.keys(wf).forEach(id=>{
+        const ins=(wf[id]||{}).inputs||{};
+        Object.keys(ins).forEach(f=>{
+            if(/^negative(_prompt)?$/i.test(f)){
+                const v=ins[f];
+                if(Array.isArray(v)&&typeof v[0]==="string") negSet.add(v[0]);
+            }
+        });
+    });
     const add=(id,f,score)=>{
         const key=id+"|"+f;
         if(score>4&&!found.has(key)) found.set(key,{node:id,field:f,score:score});
     };
     const visit=(id,depth)=>{
-        if(depth>6||seen.has(id)||!wf[id]||!wf[id].inputs) return;
+        if(depth>6||seen.has(id)||!wf[id]||!wf[id].inputs||negSet.has(id)) return;
         seen.add(id);
         const ins=wf[id].inputs;
         Object.keys(ins).forEach(f=>{
@@ -2518,6 +2567,7 @@ function tracePromptSources(wf){
         });
     };
     Object.keys(wf).forEach(id=>{
+        if(negSet.has(id)) return;
         const cls=String((wf[id]||{}).class_type||"");
         if(!/TextEncode|CLIPText|Text.*Encode|Prompt|Sampler|Generate|Switch/i.test(cls)) return;
         const ins=(wf[id]||{}).inputs||{};
@@ -2530,12 +2580,28 @@ function tracePromptSources(wf){
     });
     return Array.from(found.values()).sort((a,b)=>b.score-a.score).slice(0,6).map(x=>({node:x.node,field:x.field}));
 }
+/* 反查负面提示词节点：被下游 negative / negative_prompt 输入引用的节点 id 集合 */
+function comfyNegativeNodes(wf){
+    const negSet=new Set();
+    Object.keys(wf||{}).forEach(id=>{
+        const ins=(wf[id]||{}).inputs||{};
+        Object.keys(ins).forEach(f=>{
+            if(/^negative(_prompt)?$/i.test(f)){
+                const v=ins[f];
+                if(Array.isArray(v)&&typeof v[0]==="string") negSet.add(v[0]);
+            }
+        });
+    });
+    return negSet;
+}
 /* 自动推断：兼容标准 CLIPTextEncode、Qwen/自定义文本节点、多 LoadImage、各类 seed 字段 */
 function inferMapping(wf){
     const ids=Object.keys(wf||{});
+    const negSet=comfyNegativeNodes(wf);
     let promptNode=null,promptField="text",best=-1;
     const badFields=["negative","negative_prompt","system_prompt","ckpt_name","filename_prefix","image","vae_name","lora_name","clip_name","unet_name"];
     ids.forEach(id=>{
+        if(negSet.has(id)) return;
         const node=wf[id]||{}, ins=node.inputs||{}, cls=String(node.class_type||"");
         const isTextNode=/TextEncode|CLIPText|Text.*Encode|Prompt|Caption/i.test(cls);
         Object.keys(ins).forEach(f=>{
@@ -2548,7 +2614,22 @@ function inferMapping(wf){
     });
     const promptNodes=tracePromptSources(wf);
     if(!promptNodes.length&&promptNode) promptNodes.push({node:promptNode,field:promptField});
-    const imageNodes=ids.filter(id=>/^(LoadImage|LoadImageMask|ImageLoader)/i.test(String((wf[id]||{}).class_type||""))).map(id=>({node:id,field:"image"}));
+    /* 参考图节点识别：① 图片载入类节点（LoadImage / VHS_LoadImage / LoadImageMask 等）的 image 字段；
+       ② 任何字段名像图片入口、值是图片文件名（xxx.png）的节点（如 start_image）。
+       识别不到就不会写参考图 —— 宁可覆盖面大一点，也不要静默丢图。 */
+    const imageNodes=[];
+    ids.forEach(id=>{
+        const cls=String((wf[id]||{}).class_type||"");
+        const ins=(wf[id]||{}).inputs||{};
+        if(/LoadImage|ImageLoad|ImageInput|ImageFromBase/i.test(cls)&&typeof ins.image==="string"){
+            imageNodes.push({node:id,field:"image"}); return;
+        }
+        Object.keys(ins).forEach(f=>{
+            if(/^(image|start_image|ref_image|reference_image|image_1|image_file)$/i.test(f)
+                &&typeof ins[f]==="string"&&/\.(png|jpe?g|webp|bmp)$/i.test(ins[f].trim()))
+                imageNodes.push({node:id,field:f});
+        });
+    });
     const seedNodes=[];
     ids.forEach(id=>{
         const ins=(wf[id]||{}).inputs||{};
@@ -2655,18 +2736,41 @@ async function genComfy(n,input){
     if(!tpl) throw new Error("请先在左侧导入 ComfyUI 工作流模板（生图与生视频可各导一份）。");
     const wf=tpl.workflow;
     if(!wf||typeof wf!=="object") throw new Error("工作流模板内容为空，请重新导入「导出(API)」格式 JSON。");
-    const m=tpl.mapping||inferMapping(wf);
+    /* 映射：手工保存的映射优先，但早期导入的旧存档可能缺 promptNodes / imageNodes，
+       一旦只信旧映射，就会出现「什么都没写入、ComfyUI 按工作流自带提示词出图」的静默失效。
+       因此每次运行都用最新推断补齐空缺字段，并过滤掉已不存在于工作流里的节点。 */
+    const fresh=inferMapping(wf);
+    const saved=(tpl.mapping&&typeof tpl.mapping==="object")?tpl.mapping:{};
+    const m=Object.assign({},fresh,saved);
+    if(!(m.promptNodes||[]).length) m.promptNodes=fresh.promptNodes||[];
+    if(!m.promptNode){ m.promptNode=fresh.promptNode; m.promptField=fresh.promptField; }
+    if(!(m.imageNodes||[]).length) m.imageNodes=fresh.imageNodes||[];
+    if(!(m.seedNodes||[]).length) m.seedNodes=fresh.seedNodes||[];
+    if(!(m.outputNodes||[]).length) m.outputNodes=fresh.outputNodes||[];
+    m.promptNodes=(m.promptNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
+    m.imageNodes=(m.imageNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
+    m.seedNodes=(m.seedNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
+    tpl.mapping=m; scheduleSave();
     const work=JSON.parse(JSON.stringify(wf));
     /* 提示词可能分布在多个节点（Switch 的 on_false / LLM 扩写分支 / PrimitiveString），
        全部都写一遍，才不会出现「改了提示词却仍出默认图」。 */
-    const targets=(m.promptNodes&&m.promptNodes.length)?m.promptNodes
-        :(m.promptNode?[{node:m.promptNode,field:m.promptField||"text"}]:[]);
+    let targets=(m.promptNodes.length)?m.promptNodes
+        :(m.promptNode&&wf[m.promptNode]?[{node:m.promptNode,field:m.promptField||"text"}]:[]);
+    /* 目标里混进负面词节点时剔除（全被剔除则保留原目标——尊重手工指定的映射） */
+    const negTargets=targets.filter(t=>!comfyNegativeNodes(wf).has(t.node));
+    if(negTargets.length) targets=negTargets;
+    if(!targets.length)
+        throw new Error("工作流里没识别到提示词节点，画布提示词无法写入（所以出图会一直是工作流自带的那句提示词）。\n解决办法：① 左侧「ComfyUI 工作流」面板点「重新推断映射」；② 或在「映射」框里把 promptNodes 指到真正的提示词节点；③ 或删掉该模板重新导入「导出(API)」JSON。");
+    if(input.images.length&&!m.imageNodes.length)
+        throw new Error("已连入 "+input.images.length+" 张参考图，但工作流里没识别到图片载入节点（LoadImage 等），参考图无法写入。\n解决办法：左侧「映射」框里把 imageNodes 指到图片载入节点（如 [\"6\"] 或 [{\"node\":\"6\",\"field\":\"image\"}]），或点「重新推断映射」。");
+    let written=0;
     targets.forEach(t=>{
-        if(work[t.node]){
-            if(!work[t.node].inputs) work[t.node].inputs={};
-            work[t.node].inputs[t.field||"text"]=input.prompt;
-        }
+        if(!work[t.node]) return;
+        if(!work[t.node].inputs) work[t.node].inputs={};
+        work[t.node].inputs[t.field||"text"]=input.prompt;
+        written++;
     });
+    let imgWritten=0;
     for(let i=0;i<(m.imageNodes||[]).length;i++){
         if(!input.images[i]) break;
         const cfg=m.imageNodes[i];
@@ -2674,13 +2778,16 @@ async function genComfy(n,input){
         const name=await comfyUploadImage(base,input.images[i],i);
         if(!work[cfg.node].inputs) work[cfg.node].inputs={};
         work[cfg.node].inputs[cfg.field||"image"]=name;
+        imgWritten++;
     }
     (m.seedNodes||[]).forEach(s=>{
         if(work[s.node]&&work[s.node].inputs) work[s.node].inputs[s.field||"seed"]=Math.floor(Math.random()*2147483647);
     });
     /* 生成节点选的画幅 / 分辨率 / 时长写进工作流（留空「跟随工作流」则完全不碰） */
     const specMsg=applyComfySpec(work,n.data,tpl.kind);
-    if(specMsg) setGenStatus(n,"["+tpl.name+"] "+specMsg,"busy");
+    const injectMsg="提示词→"+written+" 处"+(input.images.length?(" · 参考图 "+imgWritten+"/"+input.images.length):"");
+    n.data.lastInject=injectMsg+(specMsg?(" · "+specMsg):"");   /* 轮询状态会覆盖中途提示，摘要并入完成消息 */
+    setGenStatus(n,"["+tpl.name+"] "+n.data.lastInject,"busy");
     const clientId="manflows_"+Math.random().toString(36).slice(2,10);
     const submit=await postJson(base+"/prompt","",{prompt:work,client_id:clientId},30000);
     if(submit.error) throw new Error("ComfyUI 拒绝工作流："+JSON.stringify(submit.error).slice(0,500));
@@ -2720,6 +2827,9 @@ async function runGenerate(n){
     n.data.busy=true; renderAll(); selectNode(n.id);
     const input=collectInputs(n);
     if(!input.prompt && n.data.engine!=="comfyui"){ setGenStatus(n,"没有连入提示词：请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; renderAll(); return; }
+    if(n.data.engine==="comfyui" && !input.prompt && !input.images.length && !input.audios.length && !input.videos.length){
+        setGenStatus(n,"没有连入提示词 / 参考图：连入后才会写入工作流，否则等于按工作流自带内容原样跑。","err"); n.data.busy=false; renderAll(); return;
+    }
     setGenStatus(n,"正在生成…","busy");
     if((input.audios.length||input.videos.length) && n.data.kind!=="video" && n.data.engine!=="comfyui")
         setStatus("已连入声音/视频参考：请把「生成类型」切到生视频，才会作为多模态素材提交","busy");
@@ -2733,7 +2843,8 @@ async function runGenerate(n){
         if(input.images.length) parts.push("参考图 "+input.images.length+" 张");
         if(input.audios.length) parts.push("声音 "+input.audios.length+" 段");
         if(input.videos.length) parts.push("视频 "+input.videos.length+" 个");
-        setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):""),"ok");
+        const inj=(n.data.engine==="comfyui"&&n.data.lastInject)?(" · "+n.data.lastInject):"";
+        setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):"")+inj,"ok");
         renderAll(); scheduleSave();
     }catch(e){
         console.error(e);
