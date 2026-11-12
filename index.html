@@ -59,40 +59,19 @@
         .api-manage-row { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
         .token-quick-btn { padding: 4px 6px; border: 1px solid var(--border2); border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer; font-size: 11px; }
         .token-quick-btn:hover, .preview-btn:hover { background: var(--hover); }
-        /* ===== 本机程序启停面板（与画布页同款样式） ===== */
-        .bridge-block { margin: 10px 0 4px; padding: 10px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; }
-        .bridge-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 8px; cursor: pointer; user-select: none; }
-        .bridge-block.collapsed .bridge-head { margin-bottom: 0; }
-        .bridge-block.collapsed .bridge-body { display: none; }
-        .bridge-fold { padding: 2px 7px; font-size: 10.5px; border: 1px solid var(--border2); border-radius: 6px; background: var(--card); color: var(--muted); cursor: pointer; white-space: nowrap; }
-        .bridge-fold:hover { background: var(--hover); }
-        .bridge-state { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border2); white-space: nowrap; }
-        .bridge-state.on { color: #a7f3d0; background: var(--bg); border-color: var(--green); }
-        .bridge-state.off { color: var(--muted); background: var(--bg); }
-        .bridge-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
-        .bridge-row > label { flex: 0 0 54px; font-size: 11px; color: var(--muted); }
-        .bridge-block input { flex: 1 1 100px; min-width: 0; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 11.5px; outline: none; }
-        .bridge-block input:focus { border-color: var(--blue); }
-        .bridge-block input::placeholder { color: var(--muted); }
-        .bridge-btn { padding: 6px 9px; min-height: 30px; border: 1px solid var(--border2); border-radius: 6px; background: var(--card); color: var(--text); font-size: 11.5px; cursor: pointer; white-space: nowrap; }
-        .bridge-btn:hover:not(:disabled) { background: var(--hover); }
-        .bridge-btn:disabled { opacity: .55; cursor: not-allowed; }
-        .bridge-btn.primary { background: var(--green); color: #fff; border-color: rgba(255,255,255,.06); }
-        .bridge-btn.danger { background: var(--red); color: #fff; border-color: rgba(255,255,255,.06); }
-        .bridge-msg { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 6px 0; min-height: 16px; word-break: break-word; }
-        .bridge-msg.ok { color: #a7f3d0; }
-        .bridge-msg.err { color: #fca5a5; }
-        .bridge-note { font-size: 10.5px; color: var(--muted); line-height: 1.6; margin-top: 6px; }
-        .bridge-note a { color: #93c5fd; text-decoration: none; }
-        .bridge-note a:hover { text-decoration: underline; }
-        .bridge-note code { background: var(--bg); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 4px; font-size: 10px; }
+        /* 本地算力：只留一行提示，具体部署与启动方式见「使用帮助」 */
+        .local-hint { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0; padding: 7px 9px;
+                      background: var(--panel); border: 1px solid var(--border2); border-radius: 8px;
+                      font-size: 11px; line-height: 1.6; color: #fcd34d; }
+        .local-hint b { color: var(--text); font-weight: 600; }
+        .file-note { font-size: 10.5px; color: var(--muted); line-height: 1.6; margin: 0 0 8px; }
         .test-api-btn { background-color: var(--green); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
         .api-del-btn { background-color: var(--red); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
         .api-add-btn { background-color: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
         .help-open-btn { background-color: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
         .test-api-btn:hover, .api-del-btn:hover, .api-add-btn:hover, .help-open-btn:hover { filter: brightness(1.15); }
-        .file-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-        .file-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .file-head-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .file-head-row .card-title { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
         .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; margin: 5px 0; flex-wrap: wrap; }
         .file-item span { font-size: 12px; color: var(--text); word-break: break-all; }
         /* ===== 统一按钮体系：纯色 + 细边框，无渐变 / 无阴影 / 无位移（与画布页一致） ===== */
@@ -110,7 +89,12 @@
         /* 画布页互链入口：与创作页同为静态单文件，同源共享本地配置 */
         .canvas-nav-btn { background-color: var(--purple); color: #fff; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
         .canvas-nav-btn:hover { background-color: #8b5cf6; }
-        .header-title { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+        .header-title { display: flex; flex-direction: row; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+        .header-title h1 { white-space: nowrap; }
+        .header-title .canvas-nav-btn { min-height: 26px; padding: 4px 9px; font-size: 11px; border-radius: 7px; white-space: nowrap; }
+        /* 专注模式收起左栏时，工具条补一个同款隐藏入口，避免切换入口消失 */
+        .canvas-nav-btn-alt { display: none; }
+        .side.collapsed ~ .main .canvas-nav-btn-alt { display: inline-flex; }
         /* 右上角「漫流主站」：两页同款中性按钮，新标签页打开主站，不打断当前页面 */
         .home-btn { margin-left: auto; background: var(--panel); color: var(--text); border: 1px solid var(--border2); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
         .home-btn:hover { background: var(--hover); }
@@ -136,10 +120,9 @@
         .preview-btn { background: var(--panel); color: var(--text); padding: 4px 7px; border: 1px solid var(--border2); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
         .del-file-btn { background: var(--red); color: #fff; padding: 4px 7px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
 
-        /* ===== 页面顶部「历史产物」快捷条 =====
+        /* ===== 顶部单行工具条里的「历史产物」快捷按钮 =====
            与画布页顶栏「画布1 / 画布2 / 画布3 / 更多画布」同一套视觉：中性小按钮 + 细边框 + 无阴影；
-           数据只来自本机浏览器 localStorage，不上传、不进源码。 */
-        .history-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+           数据只来自本机浏览器 localStorage，不上传、不进源码；与下载等按钮同排，尽量把高度留给输出区。 */
         .history-label { font-size: 11px; color: var(--muted); margin-right: 2px; white-space: nowrap; }
         .history-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .hist-btn { padding: 5px 9px; min-height: 28px; font-size: 11px; border: 1px solid var(--border2); border-radius: 7px;
@@ -161,19 +144,18 @@
         .hist-menu-item:hover { background: var(--panel); }
         .hist-menu-item .hm-title { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .hist-menu-item .hm-meta { font-size: 10px; color: var(--muted); }
-        .history-note { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
-        .history-bar .spacer { flex-grow: 1; min-width: 6px; }
-        /* 「◈ 打开画布」与顶部条同高，放在顶部条右端，和画布页「← 返回创作台」同属导航区 */
-        .history-bar .canvas-nav-btn { min-height: 28px; padding: 5px 10px; font-size: 11px; }
         /* 历史产物预览弹窗：沿用已有 modal，另加一排本机操作 */
         .history-preview-actions { display: none; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
         .history-preview-actions .ctrl-btn { padding: 6px 10px; font-size: 11.5px; min-height: 30px; }
         .history-preview-hint { margin-right: auto; font-size: 10.5px; color: var(--muted); }
 
-        /* ===== 右侧主区：工具条 + 大聊天框 + 输入行（配色/圆角/控件高度对齐画布页） ===== */
-        .main-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
-        .main-toolbar .spacer { flex-grow: 1; min-width: 6px; }
-        .main-toolbar .ctrl-btn { padding: 5px 8px; font-size: 11px; min-height: 30px; }
+        /* ===== 右侧主区：单行工具条 + 大聊天框 + 输入行（配色/圆角/控件高度对齐画布页） ===== */
+        .main-toolbar { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; flex-shrink: 0; }
+        .main-toolbar .spacer { flex-grow: 1; min-width: 4px; }
+        .main-toolbar .ctrl-btn, .main-toolbar .focus-btn { padding: 4px 7px; font-size: 10.5px; min-height: 26px; }
+        .main-toolbar .hist-btn { min-height: 26px; padding: 4px 8px; font-size: 10.5px; }
+        .main-toolbar .status { flex: 0 1 auto; max-width: 120px; min-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; font-size: 10.5px; }
+        .main-toolbar .history-label { margin-right: 0; }
         .focus-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 9px; font-size: 11px; min-height: 30px; cursor: pointer; white-space: nowrap; }
         .focus-btn:hover { background: var(--hover); }
         .status { padding: 6px 9px; border-radius: 8px; background-color: var(--panel); border: 1px solid var(--border2); color: #d1d5db; font-size: 11.5px; }
@@ -210,6 +192,7 @@
         .help-modal-content { line-height: 1.8; font-size: 14px; }
         .help-modal-content h2 { color: #93c5fd; margin: 16px 0 8px; font-size: 16px; font-weight: 500; }
         .help-modal-content h3 { color: #c4b5fd; margin: 12px 0 6px; font-size: 14px; font-weight: 500; }
+        .help-modal-content h4 { color: #a7f3d0; margin: 12px 0 6px; font-size: 13px; font-weight: 600; }
         .help-modal-content p, .help-modal-content li { margin: 6px 0; color: #d1d5db; }
         .help-modal-content pre { background: var(--bg); padding: 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
         .help-modal-content ul, .help-modal-content ol { padding-left: 22px; margin: 8px 0; }
@@ -258,6 +241,7 @@
             </a>
             <div class="header-title">
                 <h1>漫流 AI 漫剧前期创作台</h1>
+                <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
             </div>
         </div>
 
@@ -270,7 +254,6 @@
                 <button class="skill-btn" data-skill-key="c">美术画风助手 V5（资产图提示词）</button>
                 <button class="skill-btn" data-skill-key="e">美术画风助手V5 Midjourney</button>
                 <button class="skill-btn import-skill-btn" id="importSkillMdBtn">📥 导入本地 .md 技能</button>
-                <button class="clear-btn skill-btn" id="unloadSkillBtn">🗑️ 卸载当前技能</button>
                 <button class="help-open-btn" id="openHelpBtn">📖 使用帮助</button>
                 <input type="file" id="skillMdInput" accept=".md">
             </div>
@@ -291,32 +274,8 @@
                     <label>本地模型名称（可选）：</label>
                     <input type="text" id="localModel" placeholder="留空 = local；部分服务需填真实模型名">
                 </div>
-                <div class="bridge-block collapsed" id="llamaBridgeBlock">
-                    <div class="bridge-head" id="llamaBridgeHead" title="点击展开 / 收起本机启停设置">
-                        <span>启停 llama / Ollama</span>
-                        <span class="bridge-state off" id="llamaBridgeState">○ 未检测</span>
-                        <button class="bridge-fold" id="llamaBridgeFold" type="button">展开</button>
-                    </div>
-                    <div class="bridge-body" id="llamaBridgeBody">
-                    <div class="bridge-row"><label>桥接服务</label><input id="llamaBridgeBase" placeholder="http://127.0.0.1:8787"></div>
-                    <div class="bridge-row"><label>启动程序</label><input id="llamaBridgePath" placeholder="选 .exe / .bat / .cmd / .app，或粘贴完整路径"></div>
-                    <div class="bridge-row"><button class="bridge-btn" id="llamaBridgePick">浏览…</button><button class="bridge-btn" id="llamaBridgeSave">保存设置</button></div>
-                    <div class="bridge-row"><label>启动参数</label><input id="llamaBridgeArgs" placeholder="可选：Ollama 填 serve"></div>
-                    <div class="bridge-row"><label>健康检查</label><input id="llamaBridgeHealth" placeholder="http://127.0.0.1:8080/health（可留空）"></div>
-                    <div class="bridge-row"><label>进程名</label><input id="llamaBridgeNames" placeholder="可选，逗号分隔"></div>
-                    <div class="bridge-row">
-                        <button class="bridge-btn primary" id="llamaBridgeStart">▶ 启动 llama</button>
-                        <button class="bridge-btn danger" id="llamaBridgeStop">■ 关闭 llama</button>
-                        <button class="bridge-btn" id="llamaBridgeRefresh">刷新状态</button>
-                    </div>
-                    <div class="bridge-msg" id="llamaBridgeMsg"></div>
-                    <div class="bridge-note">
-                        浏览器不能直接启动电脑程序，需先在本机双击
-                        <a href="./启动漫流桥接.bat" download>启动漫流桥接.bat</a>
-                        （或 <a href="./manflows-bridge.py" download>下载桥接脚本</a>），并保持黑窗口开启。程序路径只存你本机，不进网页源码。<br>
-                        Ollama 预设：启动程序 <code>ollama</code>、参数 <code>serve</code>、健康检查 <code>http://127.0.0.1:11434/api/tags</code>。
-                    </div>
-                    </div>
+                <div class="local-hint" id="localComputeHint">
+                    <span>ℹ️ <b>需先启动 llama / Ollama</b>，才能调用本地大语言模型和算力。启动程序、脚本写法与连接方式见左栏【📖 使用帮助】→「一、本地算力模式」。</span>
                 </div>
                 <div class="api-config-block" id="apiConfigBlock">
                     <div class="api-row">
@@ -372,14 +331,13 @@
 
         <div class="card file-panel">
             <div class="file-head-row">
-                <span class="card-title" style="margin-bottom:0;">载入剧本文件</span>
-                <div class="file-head-actions">
-                    <button class="plus-upload-btn" id="plusUploadBtn" title="载入 txt / docx 剧本文件">+</button>
-                    <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 2 张）">🖼 上传画风参考图</button>
-                    <input type="file" id="fileInput" accept=".txt,.docx">
-                    <input type="file" id="refImageInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple>
-                </div>
+                <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件">+</button>
+                <span class="card-title">载入剧本文件</span>
+                <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 2 张）">🖼 上传画风参考图</button>
+                <input type="file" id="fileInput" accept=".txt">
+                <input type="file" id="refImageInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple>
             </div>
+            <div class="file-note">仅支持TXT剧本上传（可先把docx另存为txt）</div>
             <div class="ref-note">需大模型支持图片输入（多模态），纯文本模型无法识别</div>
             <div class="ref-preview-list" id="refPreviewList"></div>
             <div id="fileList"></div>
@@ -388,8 +346,8 @@
 
     <!-- ============ 右：AI 输出区 ============ -->
     <main class="main">
-        <!-- ============ 页面顶部：历史产物快捷入口（本机浏览器缓存） + 打开画布 ============ -->
-        <div class="history-bar" id="historyBar">
+        <!-- ============ 顶部单行工具条：历史产物 + 状态 + 全部操作按钮（把高度留给输出区） ============ -->
+        <div class="main-toolbar" id="mainToolbar">
             <span class="history-label">历史产物</span>
             <div class="history-tabs" id="historyTabs">
                 <button type="button" class="hist-btn" data-hist-slot="0" disabled>历史产物1</button>
@@ -400,20 +358,16 @@
                 <button type="button" class="hist-btn" id="historyMoreBtn" title="查看全部历史产物（最多30条，仅存本机）">更多 ▾</button>
                 <div class="hist-menu" id="historyMenu"></div>
             </div>
-            <span class="spacer"></span>
-            <span class="history-note">仅存本机浏览器</span>
-            <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
-        </div>
-        <div class="main-toolbar">
             <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
-            <div class="status" id="skillStatus">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
+            <div class="status" id="skillStatus" title="📌 当前：尚未加载任何技能，请点选所需技能按钮">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
             <span class="ref-badge" id="refBadge"></span>
             <div class="spacer"></div>
+            <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
             <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（新开标签页，不打断生成）">⇢ 送到画布</button>
             <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
             <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
-            <button class="ctrl-btn newtab-btn" id="newSessionBtn">新建对话（开新网页）</button>
+            <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         </div>
         <div id="chatBox"></div>
@@ -492,7 +446,6 @@ let computeMode = safeStorage.get("computeMode") || "local";
 let apiProfiles = [];
 let currentProfileId = null;
 
-let docxLibReady = false;
 let fileStore = [];
 let currentSystemPrompt = "";
 let currentSkillName = "";
@@ -521,7 +474,6 @@ const helpContent = document.getElementById("helpContent");
 const skillBtnGroup = document.getElementById("skillBtnGroup");
 const skillMdInput = document.getElementById("skillMdInput");
 const importSkillMdBtn = document.getElementById("importSkillMdBtn");
-const unloadSkillBtn = document.getElementById("unloadSkillBtn");
 const openHelpBtn = document.getElementById("openHelpBtn");
 const closeHelpBtn = document.getElementById("closeHelpBtn");
 const closePreviewBtn = document.getElementById("closePreviewBtn");
@@ -590,17 +542,48 @@ const HELP_HTML = `
 <li>注意：本地模式只对当前这台电脑生效，外网网页访问不到别人电脑上的本地服务。</li>
 </ul>
 
-<h3>步骤5（可选）：在网页里直接启停本机程序</h3>
-<p>浏览器本身不能启动电脑程序，需要配一个只在你本机运行的小服务：</p>
+<h3>步骤5：先在本机启动模型服务，网页才能调用</h3>
+<p><b>网页本身不会启动电脑程序</b>。必须先在电脑上启动 llama-server / Ollama 并保持运行，再回到网页选【本地算力】。下面是一套已经在用的启动案例。</p>
+
+<h4>方式 A：用 .bat 启动 llama-server（推荐案例）</h4>
+<p>把启动脚本放在 <code>llama-server.exe</code> 所在目录，例如 <code>C:/Llama_server/start_server.bat</code>，内容示例（模型文件名与参数按你的实际情况改）：</p>
+<pre>@echo off
+chcp 65001
+llama-server.exe ^
+-m "models/Manflows-Qwen3.5-9B-abliterated.Q8_0.gguf" ^
+-ngl 99 ^
+-c 32768 ^
+--keep 1024 ^
+--temp 0.7 ^
+--top-p 0.85 ^
+--min-p 0.05 ^
+--repeat-penalty 1.08 ^
+--host 0.0.0.0 ^
+--port 8080 ^
+--cors-origins *
+pause</pre>
 <ul>
-<li>把 <b>manflows-bridge.py</b> 与 <b>启动漫流桥接.bat</b> 放在同一文件夹，双击 .bat 并保持黑窗口开启（只监听 127.0.0.1:8787）；</li>
-<li>左侧「推理参数」里点开 <b>启停 llama / Ollama</b> → 点【浏览…】选中启动程序（如 <code>C:\\Llama_server\\start_server.bat</code>、<code>llama-server.exe</code>、<code>ollama</code>），也可直接粘贴完整路径；</li>
-<li>点一次【保存设置】，以后直接点【▶ 启动 llama】/【■ 关闭 llama】即可，状态灯显示运行中 / 未运行；</li>
-<li>Ollama 写法：启动程序 <code>ollama</code>、启动参数 <code>serve</code>、健康检查 <code>http://127.0.0.1:11434/api/tags</code>；llama.cpp 用 <code>http://127.0.0.1:8080/health</code>；健康检查留空则只按进程存活判断；</li>
-<li>「进程名」填 <code>llama-server.exe</code> 这类具体名字，可让手动双击启动的程序也能被网页关闭；<b>不要填 python.exe / node.exe 等通用名</b>，桥接会自动忽略它们以防误杀；</li>
-<li>路径只存你本机（桥接目录的 manflows-bridge.json + 浏览器本地存储），不写进网页源码、不上传服务器；关掉桥接黑窗口不影响已启动的程序。</li>
+<li>双击这个 .bat 即可启动，<b>黑窗口要一直开着</b>；关掉窗口就等于停止服务。末尾的 <code>pause</code> 让报错时窗口不会一闪而过，方便排查；</li>
+<li>脚本里 <code>-m</code> 用的是相对路径 <code>models/xxx.gguf</code>，所以 .bat 必须放在 llama-server.exe 所在目录（双击时工作目录就是它所在目录）；改写成绝对路径也可以；</li>
+<li><code>--port 8080</code> 对应网页默认接口 <code>http://127.0.0.1:8080/v1/chat/completions</code>；<code>--cors-origins *</code> 允许网页跨域访问本机服务；</li>
+<li><code>-ngl 99</code> 表示尽量把模型放进显卡，显存不够就调小；<code>-c 32768</code> 是上下文长度，按显存调整。</li>
 </ul>
-<p>注意：正式部署到 HTTPS 主站后，浏览器会拦截网页直连本机 http://127.0.0.1 的请求；内测期用 http:// 本机地址打开页面即可，正式部署阶段再做同源反代 / TLS。</p>
+
+<h4>方式 B：用 Ollama</h4>
+<pre>ollama pull qwen2.5:14b
+set OLLAMA_HOST=127.0.0.1
+set OLLAMA_PORT=8080
+ollama serve</pre>
+<p>保持命令行窗口开启即可。也可以把 <code>OLLAMA_HOST</code> / <code>OLLAMA_PORT</code> 设成系统环境变量，重启 Ollama 后生效。</p>
+
+<h4>怎么确认启动成功 / 网页怎么连</h4>
+<ol>
+<li>浏览器打开 <code>http://127.0.0.1:8080/health</code> 或 <code>http://127.0.0.1:8080/v1/models</code>，有返回就代表服务已就绪；</li>
+<li>网页左栏【推理参数】选【本地算力】，需要时在【本地模型名称】填真实模型名，留空则按 <code>local</code> 发送；</li>
+<li>点选技能 → 输入指令 →【开始】。网页只访问本机的 127.0.0.1，剧本与产物不会上传到服务器；</li>
+<li>本地模式只对这台电脑生效：别人通过网址打开页面时，连的是他自己电脑上的 127.0.0.1，不是你的。</li>
+</ol>
+<p>注意：页面如果部署在 HTTPS 主站，浏览器会拦截网页直连本机 http 地址；内测期请用本机 http 地址打开页面，正式部署阶段再做同源反代 / TLS。常见故障：黑窗口关了、端口被占用、模型路径写错、显存不足，都会表现为「本地模式无响应」。</p>
 
 <h2>二、API云算力模式：接入商用大模型平台</h2>
 <p>切换到API云算力模式后，点【新增API配置】，填写平台信息：接口地址 / API-Key / 模型名称。</p>
@@ -646,7 +629,7 @@ const HELP_HTML = `
 <ol>
 <li>点击上方按钮加载对应的创作技能模板；</li>
 <li>选择算力模式（本地 / API云算力）；</li>
-<li>可上传剧本 txt/docx 文件并勾选，会一并喂给AI；</li>
+<li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史。</li>
 <li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。</li>
@@ -657,7 +640,7 @@ const HELP_HTML = `
 
 <h2>五、上传画风参考图（仅美术技能可用）</h2>
 <ul>
-<li>入口：【载入剧本文件】卡片中，剧本加号旁的【🖼 上传画风参考图】；支持 jpg / jpeg / png / webp，最多 2 张。</li>
+<li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持 jpg / jpeg / png / webp，最多 2 张。</li>
 <li>浏览器内自动压缩：长边超过 1024px 才等比缩放（小图不放大），统一转为 JPEG、质量 0.8；单张压缩后需 ≤1.5MB，仍超限会提示换图。</li>
 <li>图片以 base64 只存在当前网页内存，刷新或关闭页面即丢弃；不写入本地历史、不上传技能服务，只随你自己的大模型请求发送。</li>
 <li>带图技能：c 美术画风助手 V5（资产图提示词）、e 美术画风助手 V5 Midjourney；a 剧本创作、b 导演分镜、d MiniMaxH3 发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
@@ -668,6 +651,7 @@ const HELP_HTML = `
 <h2>六、界面布局</h2>
 <ul>
 <li>左侧为配置栏，可独立滚动；右侧为 AI 输出窗口，占满整屏高度，配置再多也不会挤小它。</li>
+<li>顶部工具条只有一行：【历史产物1 / 2 / 3 / 更多】与【下载产物 TXT】【送到画布】【新建对话】【漫流主站】同排，尽量把高度留给输出窗口。</li>
 <li>【推理参数】的 收起 / 展开 保持原有用法；顶部【▤ 专注模式】可一键收起整个左侧配置栏，让输出窗口占满宽度，再点一次恢复，所有功能按钮不会丢失。</li>
 <li>窄屏（手机）自动切回上下单列布局，专注模式同样可用。</li>
 </ul>
@@ -763,15 +747,15 @@ function initComputeModeUI(){
     else { radioLocal.checked = true; apiConfigBlock.style.display = "none"; }
     if(inpLocalModel) inpLocalModel.value = localModelName;
     if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
-    const bb = document.getElementById("llamaBridgeBlock");
-    if(bb) bb.style.display = (computeMode === "api") ? "none" : "block";
+    const hint = document.getElementById("localComputeHint");
+    if(hint) hint.style.display = (computeMode === "api") ? "none" : "flex";
 }
 function saveComputeMode(){
     computeMode = document.querySelector('input[name="computeMode"]:checked').value;
     safeStorage.set("computeMode", computeMode);
     if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
-    const bb = document.getElementById("llamaBridgeBlock");
-    if(bb) bb.style.display = (computeMode === "api") ? "none" : "block";
+    const hint = document.getElementById("localComputeHint");
+    if(hint) hint.style.display = (computeMode === "api") ? "none" : "flex";
     if(computeMode === "api"){
         apiConfigBlock.style.display = "block";
         if(apiProfiles.length === 0){
@@ -807,33 +791,6 @@ testApiBtn.addEventListener("click", async ()=>{
         clearTimeout(timer);
     }
 });
-
-/* docx 解析库：主 CDN 失败时自动切备用 CDN；全部失败只禁用 docx，txt / 聊天 / 技能不受影响 */
-(function loadDocxLib(){
-    const sources = [
-        "https://unpkg.com/docx@8.5.0/build/index.js",
-        "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js",
-        "https://fastly.jsdelivr.net/npm/docx@8.5.0/build/index.js"
-    ];
-    let i = 0;
-    function tryNext(){
-        if(i >= sources.length){
-            console.warn("docx 库全部 CDN 均加载失败，docx解析功能禁用；txt、聊天、技能功能不受影响");
-            try{ append("⚠️ docx解析库加载失败，仅支持TXT剧本上传（可先把docx另存为txt）","tip"); }catch(e){}
-            return;
-        }
-        const url = sources[i++];
-        const s = document.createElement("script");
-        s.src = url;
-        s.onload = () => {
-            if(window.docx){ docxLibReady = true; console.log("docx库加载完成：" + url); }
-            else tryNext();
-        };
-        s.onerror = () => { console.warn("docx 库加载失败，尝试备用 CDN：" + url); tryNext(); };
-        document.head.appendChild(s);
-    }
-    tryNext();
-})();
 
 function renderFileList() {
     fileListEl.innerHTML = "";
@@ -1252,20 +1209,6 @@ function importSkillMdFile(file){
     reader.readAsText(file);
 }
 
-function unloadSkill() {
-    stopGenerate();
-    currentSystemPrompt = "";
-    currentSkillName = "";
-    currentSkillKey = "";
-    updateRefBadge();
-    updateDownloadLabel();
-    aiMsgDom = null;
-    pendingText = "";
-    fullAiText = "";
-    skillStatusEl.innerText = "📌 当前：尚未加载任何技能模板，请点击上方按钮";
-    append("🗑️ 技能已清空", "tip");
-}
-
 /* 历史记录只保存文本与技能 key，绝不写入参考图 base64。
    配额兜底：localStorage 超限（漫剧长输出常见）时自动丢弃最旧记录重试，不再让 setItem 抛错打断生成结束流程。 */
 function saveHistoryToLocal() {
@@ -1576,201 +1519,23 @@ async function sendMessage() {
             }
         }
         append("✅ 生成完毕", "tip");
-        saveHistoryToLocal();
     } catch (e) {
         console.error(e);
         if(e.name !== "AbortError") append(`❌ 请求异常：${e.message}`, "err");
     } finally {
         abortController = null;
+        // 正常结束、用户点停止、请求异常三种情况都把已生成的产物写入历史（只写一次）
+        if (fullAiText && fullAiText.trim()) saveHistoryToLocal();
     }
 }
 
 /* 初始化改为独立函数 + readyState 判断：
    预览面板 / iframe srcdoc / 脚本被延后注入时 DOMContentLoaded 可能已经过去，
    只监听事件会导致所有按钮永远不被绑定。 */
-/* ==================================================================
-   本机程序启停 · index.html / canvas.html 共用同一份实现
-   浏览器沙箱不能直接启动 .exe / .bat / .app，所有动作经本机
-   manflows-bridge.py 完成。桥地址、程序路径只存用户本机
-   （浏览器 localStorage + 桥旁的 manflows-bridge.json），
-   不写进网页源码、不上传服务器。
-   ================================================================== */
-const MF_BRIDGE_KEY = "manflows_bridge_base";
-const MF_BRIDGE_DEFAULT = "http://127.0.0.1:8787";
-function mfBridgeBase(){
-    return (safeStorage.get(MF_BRIDGE_KEY) || "").trim().replace(/\/+$/, "") || MF_BRIDGE_DEFAULT;
-}
-async function mfBridgeCall(api, body, timeoutMs){
-    const base = mfBridgeBase();
-    const ctl = new AbortController();
-    const timer = setTimeout(()=>ctl.abort(), timeoutMs || 15000);
-    try{
-        const opt = body
-            ? { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal:ctl.signal }
-            : { method:"GET", signal:ctl.signal };
-        const r = await fetch(base + api, opt);
-        let j;
-        try { j = await r.json(); }
-        catch(e){ throw new Error("桥接服务返回的不是 JSON（HTTP " + r.status + "）"); }
-        if(!r.ok || j.ok === false) throw new Error(j.error || ("桥接服务返回 HTTP " + r.status));
-        return j;
-    }catch(e){
-        if(e && e.name === "AbortError") throw new Error("请求超时，程序可能仍在加载，请点「刷新状态」再看。");
-        if(e instanceof TypeError) throw new Error(
-            "连不上本机桥接服务 " + base + "。请先双击运行「启动漫流桥接.bat」并保留黑窗口；" +
-            "页面也要用 http:// 本机地址打开（HTTPS 页面直连本机 HTTP 会被浏览器拦截）。");
-        throw e;
-    }finally{ clearTimeout(timer); }
-}
-function mfBridgePanel(cfg){
-    const els = {};
-    Object.keys(cfg.ids).forEach(k => { els[k] = document.getElementById(cfg.ids[k]); });
-    function setBusy(v){
-        ["pick","save","start","stop","refresh"].forEach(k => {
-            if(els[k]) els[k].disabled = v;
-        });
-    }
-    function syncBase(){
-        if(els.base) safeStorage.set(MF_BRIDGE_KEY, (els.base.value || "").trim().replace(/\/+$/, ""));
-    }
-    function msg(text, kind){
-        if(!els.msg) return;
-        els.msg.textContent = text || "";
-        els.msg.className = "bridge-msg" + (kind ? " " + kind : "");
-    }
-    function state(running, label){
-        if(!els.state) return;
-        els.state.textContent = label || (running ? "● 运行中" : "○ 未运行");
-        els.state.className = "bridge-state " + (running ? "on" : "off");
-    }
-    /* includeEmpty=false 时只提交非空字段，避免「输入框还没回填就点启动」
-      把桥上预填的默认路径覆盖成空。用户明确点「保存设置」才全量提交。 */
-    function configFromUI(includeEmpty){
-        const c = {};
-        const put = (k, v) => { if(includeEmpty || String(v || "").trim() !== "") c[k] = v; };
-        put("path",   (els.path && els.path.value || "").trim());
-        put("args",   (els.args && els.args.value || "").trim());
-        put("health", (els.health && els.health.value || "").trim());
-        if(includeEmpty || (els.names && els.names.value || "").trim() !== ""){
-            c.process_names = (els.names && els.names.value || "").split(/[,，\s]+/).filter(Boolean);
-        }
-        return c;
-    }
-    function applyConfig(c){
-        if(!c) return;
-        const set = (k, v) => { if(els[k] && !els[k].value && typeof v === "string") els[k].value = v; };
-        set("path", c.path); set("args", c.args); set("health", c.health);
-        if(els.names && !els.names.value && Array.isArray(c.process_names))
-            els.names.value = c.process_names.join(", ");
-    }
-    async function refresh(silent){
-        syncBase();
-        try{
-            const j = await mfBridgeCall("/api/status?target=" + encodeURIComponent(cfg.target), null, 12000);
-            state(j.running, j.running ? "● 运行中" : "○ 未运行");
-            applyConfig(j);
-            if(!silent) msg(j.running
-                ? "程序正在运行" + (j.pid ? "（PID " + j.pid + "）" : "") + (j.healthUp ? "，服务端口已就绪" : "") + "。"
-                : "程序未运行，可点「启动」打开。", "ok");
-            return j;
-        }catch(e){
-            state(false, "○ 桥接未连接");
-            if(!silent) msg(e.message, "err");
-            return null;
-        }
-    }
-    async function save(){
-        syncBase(); setBusy(true); msg("正在保存设置…");
-        try{
-            const j = await mfBridgeCall("/api/config",
-                Object.assign({ target:cfg.target }, configFromUI(true)), 15000);
-            applyConfig(j.config);
-            msg(j.message || "设置已保存到本机。", "ok");
-            await refresh(true);
-        }catch(e){ msg(e.message, "err"); }
-        finally{ setBusy(false); }
-    }
-    async function pick(){
-        syncBase(); setBusy(true); msg("已弹出本机文件选择框，请在电脑上选程序…");
-        try{
-            const j = await mfBridgeCall("/api/pick", { target:cfg.target }, 125000);
-            if(els.path) els.path.value = j.path || "";
-            msg("已选定：" + (j.path || "") + "　可直接点「启动」。", "ok");
-            await refresh(true);
-        }catch(e){ msg(e.message + "（也可以直接把完整路径粘贴到输入框）", "err"); }
-        finally{ setBusy(false); }
-    }
-    async function start(){
-        syncBase(); setBusy(true); msg("正在启动程序，加载模型可能需要几十秒…");
-        try{
-            const j = await mfBridgeCall("/api/start",
-                { target:cfg.target, config:configFromUI(false) }, 100000);
-            msg(j.message || "已启动。", "ok");
-            await refresh(true);
-        }catch(e){ msg(e.message, "err"); await refresh(true); }
-        finally{ setBusy(false); }
-    }
-    async function stop(){
-        syncBase(); setBusy(true); msg("正在关闭程序…");
-        try{
-            const j = await mfBridgeCall("/api/stop",
-                { target:cfg.target, config:configFromUI(false) }, 30000);
-            msg(j.message || "已关闭。", j.stopped ? "ok" : "err");
-            await refresh(true);
-        }catch(e){ msg(e.message, "err"); }
-        finally{ setBusy(false); }
-    }
-    function init(){
-        if(els.base){
-            els.base.value = safeStorage.get(MF_BRIDGE_KEY) || MF_BRIDGE_DEFAULT;
-            els.base.addEventListener("change", syncBase);
-        }
-        ["path","args","health","names"].forEach(k => {
-            const e = els[k]; if(!e) return;
-            const key = "manflows_bridge_" + cfg.target + "_" + k;
-            const old = safeStorage.get(key);
-            if(old) e.value = old;
-            e.addEventListener("change", () => safeStorage.set(key, e.value));
-        });
-        const acts = {
-            pick:pick, save:save, start:start, stop:stop,
-            refresh:function(){ refresh(false); }
-        };
-        Object.keys(acts).forEach(k => {
-            if(els[k]) els[k].addEventListener("click", acts[k]);
-        });
-        /* 默认折叠：状态灯常显但不占左侧栏高度；展开状态记在本机 */
-        if(els.head && els.body && els.block){
-            const foldKey = "manflows_bridge_fold_" + cfg.target;
-            const applyFold = v => {
-                els.block.classList.toggle("collapsed", v);
-                if(els.fold) els.fold.textContent = v ? "展开" : "收起";
-            };
-            applyFold(safeStorage.get(foldKey) !== "open");
-            els.head.addEventListener("click", () => {
-                const nowFolded = !els.block.classList.contains("collapsed");
-                applyFold(nowFolded);
-                safeStorage.set(foldKey, nowFolded ? "closed" : "open");
-            });
-        }
-        refresh(true);
-    }
-    return { init:init, refresh:refresh };
-}
-
 function initUI(){
     try {
     loadApiProfiles();
     initComputeModeUI();
-    mfBridgePanel({
-        target:"llama",
-        ids:{ block:"llamaBridgeBlock", body:"llamaBridgeBody", head:"llamaBridgeHead", fold:"llamaBridgeFold",
-              base:"llamaBridgeBase", path:"llamaBridgePath", args:"llamaBridgeArgs",
-              health:"llamaBridgeHealth", names:"llamaBridgeNames",
-              state:"llamaBridgeState", msg:"llamaBridgeMsg",
-              pick:"llamaBridgePick", save:"llamaBridgeSave", start:"llamaBridgeStart",
-              stop:"llamaBridgeStop", refresh:"llamaBridgeRefresh" }
-    }).init();
     renderCustomSkillButtons();
     renderRefPreview();
     updateRefBadge();
@@ -1799,7 +1564,6 @@ function initUI(){
     });
 
     // 绑定所有按钮
-    unloadSkillBtn.addEventListener("click", unloadSkill);
     openHelpBtn.addEventListener("click", openHelpModal);
     closeHelpBtn.addEventListener("click", closeHelpModal);
     closePreviewBtn.addEventListener("click", closePreview);
@@ -1808,7 +1572,7 @@ function initUI(){
     downloadAiBtn.addEventListener("click", downloadAiText);
     const sendToCanvasBtn = document.getElementById("sendToCanvasBtn");
     if(sendToCanvasBtn) sendToCanvasBtn.addEventListener("click", sendToCanvas);
-    // 「打开画布」主入口在页面顶部条右端，生成中切换页面时先拦截确认
+    // 「打开画布」主入口在左上角标题旁；专注模式时工具条的备用入口一并绑定生成中拦截
     document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
     loadHistoryBtn.addEventListener("click", loadLatestHistory);
     clearHistoryBtn.addEventListener("click", clearAllHistory);
@@ -1836,22 +1600,13 @@ function initUI(){
         const file = e.target.files[0];
         if (!file) return;
         const ext = file.name.split(".").pop().toLowerCase();
-        let text = "";
+        if (ext !== "txt") {
+            alert("仅支持TXT剧本上传（可先把docx另存为txt）");
+            fileInput.value = "";
+            return;
+        }
         try {
-            if (ext === "txt") {
-                text = await file.text();
-            } else if (ext === "docx") {
-                if (!docxLibReady || !window.docx || !window.docx.DocumentReader) {
-                    alert("docx 解析库尚未加载完成或者加载失败，暂时只能读取 txt！");
-                    return;
-                }
-                const arrayBuffer = await file.arrayBuffer();
-                const doc = await window.docx.DocumentReader.readDocument(new Uint8Array(arrayBuffer));
-                text = doc.paragraphs.map(p => p.text).join("\n");
-            } else {
-                alert("仅支持 txt / docx");
-                return;
-            }
+            const text = await file.text();
             fileStore.push({ name: file.name, content: text, checked: true });
             renderFileList();
             alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
@@ -1861,7 +1616,6 @@ function initUI(){
         }
         fileInput.value = "";
     };
-
     // 画风参考图：点击按钮前先挡住已满情况，change 里再做完整校验
     refUploadBtn.addEventListener("click", ()=>{
         if(refImages.length >= REF_MAX_COUNT){

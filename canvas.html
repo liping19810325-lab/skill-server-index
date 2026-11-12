@@ -135,8 +135,10 @@
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
     .result-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
 
-    .empty-hint{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);font-size:13px;line-height:2;pointer-events:none;}
+    .empty-hint{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);font-size:13px;line-height:2;pointer-events:none;z-index:4;}
     .empty-hint b{color:#cbd5e1;font-weight:500;font-size:15px;}
+    /* 提示层整体不吃鼠标事件（不影响画布平移），但按钮必须能点 */
+    .empty-hint button{pointer-events:auto;cursor:pointer;}
     .zoom-bar{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:5px;}
     .zoom-bar button{border:none;background:var(--panel);color:var(--text);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;}
     .zoom-bar button:hover{background:var(--hover);}
@@ -218,16 +220,17 @@
             </div>
 
             <div class="card">
-                <h2>② API 配置（只读）</h2>
-                <div class="hint">与创作台同源共享，这里只读取、不修改。接口地址 / Key / 模型都在创作台配置，默认全部为空。</div>
+                <h2>② API 配置（只读 · 两类接入共用）</h2>
+                <div class="hint">与创作台同源共享，这里只读取、不修改。接口地址 / Key / 模型都在创作台配置，默认全部为空。<b>「第三方 API 接入」会直接复用这里的接口地址与 Key</b>，接通大语言模型后无需再填一遍。</div>
                 <div class="api-box" id="apiInfo">读取中…</div>
                 <div class="row"><a class="mini-btn gray" href="./index.html" style="text-decoration:none;display:inline-block;">去创作台修改</a></div>
             </div>
 
             <div class="card">
-                <h2>③ 生图 / 生视频接口</h2>
-                <div class="hint">在「生成」节点里选引擎：<br>· <b>生图 API</b>：OpenAI 兼容 <code>/images/generations</code>，也适用 Qwen Image 2.1 兼容模式<br>· <b>通用 JSON 接口</b>：自定义地址 / 请求头 / 请求体模板 / 异步任务轮询，适配百炼 Qwen、各家生视频 API<br>· <b>本地 ComfyUI</b>：可存多个工作流模板，<b>生图与生视频各用各的</b></div>
-                <div class="hint">生成失败时结果节点会显示接口原始返回，方便边测边调。详细配置见两份对接操作手册。</div>
+                <h2>③ 两类接入方式</h2>
+                <div class="hint">生成节点只需二选一：<br>· <b>① 第三方 API 接入</b>：云端生图 / 生视频。默认服务商 <code>api.seedance.nz</code>、异步任务自动轮询，接口与 Key 复用创作台，选好「生成类型 + 模型」即可运行；也可切 OpenAI 兼容 / 百炼 Qwen / 自定义 JSON。<br>· <b>② 本地 ComfyUI 接入</b>：本机工作流，可存多份模板，<b>生图与生视频各用各的</b>。</div>
+                <div class="hint"><code>api.seedance.nz</code> 用异步任务：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>。<b>不能用 OpenAI 的复数 <code>/v1/images/generations</code></b>，否则返回 400。</div>
+                <div class="hint">生成失败时结果节点会显示接口原始返回，方便边测边调。</div>
             </div>
 
             <div class="card">
@@ -239,7 +242,7 @@
                         <button class="bridge-fold" id="comfyBridgeFold" type="button">展开</button>
                     </div>
                     <div class="bridge-body" id="comfyBridgeBody">
-                    <div class="hint" style="margin:0 0 8px">只有生成节点选「本地 ComfyUI 工作流」引擎时才需要启动 ComfyUI；选「生图 API」或「通用 JSON 接口」走云端 / 第三方接口，<b>不启动 ComfyUI 也一样能生图、生视频</b>。上面的「测试连接」就是它的连通检查。</div>
+                    <div class="hint" style="margin:0 0 8px">只有生成节点选「② 本地 ComfyUI 接入」时才需要启动 ComfyUI；选「① 第三方 API 接入」走云端接口，<b>不启动 ComfyUI、不跑桥接也一样能生图、生视频</b>。上面的「测试连接」就是它的连通检查。</div>
                     <div class="bridge-row"><label>桥接服务</label><input id="comfyBridgeBase" placeholder="http://127.0.0.1:8787"></div>
                     <div class="bridge-row"><label>启动程序</label><input id="comfyBridgePath" placeholder="选 ComfyUI 的 .bat / .exe，或粘贴路径"></div>
                     <div class="bridge-row"><button class="bridge-btn" id="comfyBridgePick">浏览…</button><button class="bridge-btn" id="comfyBridgeSave">保存设置</button></div>
@@ -297,7 +300,7 @@
         <ul>
             <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词。全剧资产可点「拆分」按 <code>▌</code> 自动拆成一条一节点。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
-            <li><b>生成节点</b>：选引擎后点「运行」，会自动收集所有连进来的提示词与参考图。</li>
+            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词与参考图。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文，可下载，也可作为下一轮参考图。</li>
         </ul>
         <h2>连线规则</h2>
@@ -306,24 +309,25 @@
         <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
         <h2>多画布切换</h2>
         <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
-        <h2>是否必须启动 ComfyUI？本机程序启停</h2>
+        <h2>两类接入方式（生成节点二选一）</h2>
+        <h2>① 第三方 API 接入 · 最快零配置跑通</h2>
         <ul>
-            <li><b>不启动 ComfyUI 也能生图、生视频</b>：生成节点选「生图 API」或「通用 JSON 接口」时，请求直接发到云端 / 第三方接口，画布页只负责转发，本机不用跑 ComfyUI，也不用跑桥接服务。</li>
-            <li><b>只有选「本地 ComfyUI 工作流」引擎才必须启动</b>：该引擎要调本机的 /upload/image、/prompt、/history、/view，ComfyUI 没开就会连接失败。左侧「测试连接」可随时确认。</li>
-            <li>想从网页一键开关：双击运行 <b>启动漫流桥接.bat</b>（与 manflows-bridge.py 同目录），在「④ 本地 ComfyUI 工作流」点开「启停 ComfyUI」，【浏览…】选中你的 ComfyUI 启动 bat / exe 并保存，之后用【▶ 】【■ 】即可。</li>
-            <li>创作台与画布页共用同一个桥接服务，只开一个黑窗口两页就都能启停；桥只监听 127.0.0.1:8787，关掉窗口不影响已经启动的程序。</li>
+            <li><b>默认不用填任何东西</b>：创作台接通大语言模型后，画布页自动复用同一份接口地址与 API Key，并把 <code>…/v1/chat/completions</code> 归一到域名层；生成节点默认「ZZAI / api.seedance.nz + 生图」，模型名自动推荐，<b>直接点「▶ 运行生成」即可</b>。</li>
+            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名自动跟着换成文生 / 图生版本；有参考图连入时自动用 <code>-i2i</code> / <code>-i2v</code>。</li>
+            <li><b>api.seedance.nz 是异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，网关会返回 400 <code>invalid_request</code>。</li>
+            <li>常用模型：生图 <code>seedream-v5-pro-t2i / -i2i</code>、<code>qwen-image-2.1-turbo</code>；生视频 <code>seedance-2.0-mini-t2v / -i2v</code>、<code>seedance-2.0-fast-*</code>。模型名可随时手改。</li>
+            <li>其它服务商：预设里可切「OpenAI 兼容同步生图」「阿里百炼 Qwen Image 2.1 异步生图」「自定义 JSON 接口」。切到非 seedance 预设时，请在「▸ 高级」里填该服务商的独立 API Key。</li>
+            <li>「▸ 高级」可改接口地址、独立 Key、请求头、视频时长、画幅与分辨率；自定义预设还能填请求体模板与轮询路径，占位符支持 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{images}}</code> <code>{{content_array}}</code> 等。</li>
+            <li>结果直链是带签名的临时地址（约 24 小时），拿到后请及时下载转存。</li>
         </ul>
-        <h2>本地 ComfyUI 接入要点（生图 / 生视频都支持）</h2>
+        <h2>② 本地 ComfyUI 接入</h2>
         <ul>
-            <li>先在左侧选「生图工作流」或「生视频工作流」，再导入；<b>可反复导入多个模板</b>，生成节点里下拉选要用哪一个。Qwen Image 2.1 生图、MiniMax H3 生视频各存一份即可。</li>
-            <li>工作流必须是「文件 → 导出工作流 (API)」格式（顶层是节点 id + class_type），普通保存格式提交会 400。</li>
-            <li>导入时自动推断：提示词文本节点（含 Qwen / 自定义节点）、所有 LoadImage 参考图、各类 seed 字段、输出节点；不对就在映射框里改节点 id 和字段名。</li>
-            <li>每次运行随机 seed，避免命中 ComfyUI 缓存不出新片；多张参考图按映射顺序逐张上传。</li>
-            <li>队列串行、8188 端口无鉴权，不要暴露公网；结果最多等 10 分钟。</li>
+            <li><b>只有选这一类才必须启动 ComfyUI</b>：它要调本机 <code>/upload/image</code>、<code>/prompt</code>、<code>/history</code>、<code>/view</code>。选「① 第三方 API 接入」时，<b>不启动 ComfyUI、不跑桥接也一样能生图生视频</b>。左侧「测试连接」可随时确认连通。</li>
+            <li>先在左侧选「生图工作流」或「生视频工作流」，再导入；<b>可反复导入多个模板</b>，生成节点里下拉选要用哪一个。工作流必须是「文件 → 导出工作流 (API)」格式（顶层是节点 id + class_type），普通保存格式提交会 400。</li>
+            <li>导入时自动推断提示词文本节点、所有 LoadImage 参考图、各类 seed 与输出节点；不对就在映射框里改节点 id 和字段名。每次运行随机 seed，避免命中缓存；多张参考图按顺序逐张上传。</li>
+            <li>想从网页一键开关：双击运行 <b>启动漫流桥接.bat</b>（与 manflows-bridge.py 同目录），在左侧「④ 本地 ComfyUI 工作流」展开「启停 ComfyUI」，【浏览…】选中启动 bat / exe 并保存，之后用【▶】【■】即可。桥只监听 127.0.0.1:8787，创作台与画布页共用一个黑窗口。</li>
+            <li>浏览器直连需给 ComfyUI 加 <code>--enable-cors-header "来源"</code>；队列串行、8188 端口无鉴权，不要暴露公网；结果最多等 10 分钟。</li>
         </ul>
-        <h2>异步任务型 API（Qwen Image 2.1 / 多数生视频）</h2>
-        <p>选「通用 JSON 接口」，展开节点里的「▸ 高级」填：结果查询地址（含 <code>{{task_id}}</code>）、任务ID路径、状态路径、成功/失败状态值、轮询间隔与次数。提交返回 task_id 后会自动轮询，成功后再解析图片/视频地址。节点里的「填入 Qwen Image 2.1 异步模板」可一键填好百炼 DashScope 的地址、请求头与轮询配置，再把 Key 填进生成节点或创作台。</p>
-        <p>请求体模板可用 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{size}}</code> <code>{{images}}</code> <code>{{content_array}}</code> <code>{{image_objects}}</code> <code>{{images_base64}}</code>；<code>{{content_array}}</code> 会展开成「参考图对象 + 文本」的完整 content 数组，正好对应 Qwen 图生图。</p>
         <h2>数据与隐私</h2>
         <p>API Key、画布、参考图全部只在你本机浏览器；源码里没有任何密钥。清空画布只清画布数据，不会动创作台的历史记录。</p>
         <button class="modal-close" id="closeHelpBtn">关闭</button>
@@ -424,6 +428,70 @@ const DEFAULT_POLL = {
     successValues:"SUCCEEDED,success,COMPLETED,succeeded", failValues:"FAILED,CANCELED,UNKNOWN,failed,error",
     pollInterval:3, maxPoll:60
 };
+/* ===== 生成接入只有两类：① 第三方 API（云端） ② 本地 ComfyUI（本机） =====
+   第三方 API 内部用「服务商预设」自动选协议；用户默认一个字都不用填：
+   接口地址 / Key 复用创作台已接通的配置并自动派生到域名层，模型名按预设推荐。 */
+const API_PRESETS = {
+    seedance:{
+        label:"ZZAI / api.seedance.nz（推荐 · 异步任务）",
+        fallback:"https://api.seedance.nz",
+        models:{image:"seedream-v5-pro-t2i", imageRef:"seedream-v5-pro-i2i",
+                video:"seedance-2.0-mini-t2v", videoRef:"seedance-2.0-mini-i2v"}
+    },
+    openai:{
+        label:"OpenAI 兼容接口（同步生图）",
+        fallback:"https://api.openai.com/v1",
+        models:{image:"gpt-image-1", imageRef:"gpt-image-1", video:"", videoRef:""}
+    },
+    dashscope:{
+        label:"阿里百炼 Qwen Image 2.1（异步生图）",
+        fallback:"https://dashscope.aliyuncs.com/api/v1",
+        models:{image:"qwen-image-2.1-pro", imageRef:"qwen-image-2.1-pro", video:"", videoRef:""}
+    },
+    custom:{
+        label:"自定义 JSON 接口（高级 · 完全自定义）",
+        fallback:"",
+        models:{image:"", imageRef:"", video:"", videoRef:""}
+    }
+};
+function presetOf(n){
+    const p=String((n&&n.data&&n.data.preset)||"seedance");
+    return API_PRESETS[p]?p:"seedance";
+}
+function hasUpstreamImages(n){
+    return upstream(n.id,"image").some(x=>(x.data.images||[]).length) ||
+           upstream(n.id,"result").some(x=>x.data&&x.data.kind==="image"&&x.data.url);
+}
+function recommendedModel(n){
+    const m=API_PRESETS[presetOf(n)].models;
+    const ref=hasUpstreamImages(n), video=n.data.kind==="video";
+    return (video?(ref?m.videoRef:m.video):(ref?m.imageRef:m.image))||"";
+}
+function defaultGenData(){
+    return {
+        engine:"third_party", preset:"seedance", kind:"image", model:"", modelTouched:false,
+        endpoint:"", apiKey:"", headers:"", bodyTemplate:DEFAULT_BODY_TEMPLATE,
+        workflowId:"", status:"", seconds:"5", resolution:"", ratio:"",
+        pollUrl:"", taskIdPath:DEFAULT_POLL.taskIdPath, statusPath:DEFAULT_POLL.statusPath,
+        successValues:DEFAULT_POLL.successValues, failValues:DEFAULT_POLL.failValues,
+        pollInterval:DEFAULT_POLL.pollInterval, maxPoll:DEFAULT_POLL.maxPoll
+    };
+}
+/* 旧画布里存的三引擎收敛为两类，旧参数全部保留，不会丢用户配置 */
+function migrateEngines(){
+    canvas.nodes.forEach(n=>{
+        if(n.type!=="generate"||!n.data) return;
+        const e=n.data.engine;
+        if(e==="image_api"){ n.data.engine="third_party"; n.data.preset="openai"; n.data.kind="image"; }
+        else if(e==="generic_json"){ n.data.engine="third_party"; n.data.preset="custom"; if(!n.data.kind) n.data.kind="image"; }
+        else if(e==="comfyui"){ return; }
+        else {
+            n.data.engine="third_party";
+            if(!API_PRESETS[n.data.preset]) n.data.preset="seedance";
+            if(!n.data.kind) n.data.kind="image";
+        }
+    });
+}
 let canvas = {
     version:1,
     nodes:[], edges:[],
@@ -452,13 +520,7 @@ function seedStarterWorkflow(){
     ref.title = "① 参考图（可选）";
     const pmt = newNode("prompt", 30, 360, {text:"", sourceId:""});
     pmt.title = "① 提示词";
-    const gen = newNode("generate", 350, 185, {
-        engine:"image_api", endpoint:"", model:"", apiKey:"", headers:"",
-        bodyTemplate:DEFAULT_BODY_TEMPLATE, workflowId:"", status:"",
-        pollUrl:"", taskIdPath:DEFAULT_POLL.taskIdPath, statusPath:DEFAULT_POLL.statusPath,
-        successValues:DEFAULT_POLL.successValues, failValues:DEFAULT_POLL.failValues,
-        pollInterval:DEFAULT_POLL.pollInterval, maxPoll:DEFAULT_POLL.maxPoll
-    });
+    const gen = newNode("generate", 350, 185, defaultGenData());
     gen.title = "② 生成";
     const out = newNode("result", 670, 185, {kind:"", url:"", text:""});
     out.title = "③ 结果";
@@ -675,6 +737,7 @@ function inPoint(n){ return {x:n.x,y:n.y+PORT_Y}; }
 
 /* ============ 节点渲染 ============ */
 function renderAll(){
+    migrateEngines();
     const layer = el("nodeLayer"); layer.innerHTML = "";
     canvas.nodes.forEach(n=>layer.appendChild(buildNode(n)));
     drawEdges(); updateStat();
@@ -749,7 +812,9 @@ function paintImages(grid,n){
 }
 function buildGenerateBody(body,n){
     const d = n.data;
-    if(!d.engine) d.engine = "image_api";
+    if(!d.engine) d.engine = "third_party";
+    if(!API_PRESETS[d.preset]) d.preset = "seedance";
+    if(!d.kind) d.kind = "image";
     const mkIn = (parent,label,child)=>{
         const f=document.createElement("div"); f.className="fld";
         const l=document.createElement("label"); l.textContent=label; f.appendChild(l); f.appendChild(child); parent.appendChild(f); return f;
@@ -759,14 +824,15 @@ function buildGenerateBody(body,n){
     const ta = (minH)=>{ const t=document.createElement("textarea"); t.className="code"; t.style.minHeight=minH+"px"; return t; };
 
     const sel = document.createElement("select");
-    [["image_api","生图 API（OpenAI 兼容 / Qwen 兼容模式）"],
-     ["generic_json","通用 JSON 接口（生图 / 生视频 / 异步任务）"],
-     ["comfyui","本地 ComfyUI 工作流（生图 / 生视频）"]].forEach(([v,t])=>{
+    [["third_party","① 第三方 API 接入（云端生图 / 生视频）"],
+     ["comfyui","② 本地 ComfyUI 接入（本机工作流）"]].forEach(([v,t])=>{
         const o=document.createElement("option"); o.value=v; o.textContent=t; sel.appendChild(o);
     });
-    sel.value = d.engine;
+    sel.value = d.engine==="comfyui"?"comfyui":"third_party";
+    d.engine = sel.value;
     mk("生成引擎",sel);
 
+    /* 本地 ComfyUI：只需选一份已导入的工作流 */
     const wfSel = document.createElement("select");
     const wfFld = mk("ComfyUI 工作流模板",wfSel);
     function fillWf(){
@@ -785,39 +851,72 @@ function buildGenerateBody(body,n){
     }
     fillWf();
 
-    const ep = inp("text","留空＝自动用创作台的接口地址"); ep.value=d.endpoint||"";
-    const epFld = mk("接口地址",ep);
-    const mdl = inp("text","留空＝用创作台模型；也可填 1024x1024 这类尺寸"); mdl.value=d.model||"";
-    const mdlFld = mk("模型名 或 尺寸",mdl);
-    const keyIn = inp("password","留空＝用创作台配置的 API Key"); keyIn.value=d.apiKey||"";
-    const keyFld = mk("独立 API Key（可选，只存本机画布）",keyIn);
-    const hdr = ta(46); hdr.value=d.headers||"";
-    const hdrFld = mk("自定义请求头（JSON 对象，可选）",hdr);
-    const tpl = ta(86); tpl.value=d.bodyTemplate||DEFAULT_BODY_TEMPLATE;
-    const tplFld = mk("请求体模板",tpl);
+    /* 第三方 API：服务商 + 生成类型 + 模型名，选完即可运行 */
+    const preSel = document.createElement("select");
+    Object.keys(API_PRESETS).forEach(k=>{
+        const o=document.createElement("option"); o.value=k; o.textContent=API_PRESETS[k].label; preSel.appendChild(o);
+    });
+    preSel.value = presetOf(n); d.preset=preSel.value;
+    const preFld = mk("服务商 / 接口模式",preSel);
 
+    const kindSel = document.createElement("select");
+    [["image","生图（图片）"],["video","生视频（视频）"]].forEach(([v,t])=>{
+        const o=document.createElement("option"); o.value=v; o.textContent=t; kindSel.appendChild(o);
+    });
+    kindSel.value = d.kind==="video"?"video":"image"; d.kind=kindSel.value;
+    const kindFld = mk("生成类型",kindSel);
+
+    const mdl = inp("text","留空＝自动填入推荐模型"); mdl.value=d.model||"";
+    const mdlFld = mk("模型名（可改）",mdl);
+    const modelTip=document.createElement("div"); modelTip.className="mini-line";
+    modelTip.textContent="接口与 Key 自动复用创作台配置";
+    body.appendChild(modelTip);
+
+    /* 高级：绝大多数用户不用展开 */
     const adv=document.createElement("details"); adv.className="adv"; if(d.advOpen) adv.open=true;
-    const sum=document.createElement("summary"); sum.textContent="▸ 高级：异步任务轮询 / 模板快捷填充"; adv.appendChild(sum);
+    const sum=document.createElement("summary"); sum.textContent="▸ 高级：接口地址 / 生成参数 / 自定义模板"; adv.appendChild(sum);
     const advBody=document.createElement("div"); adv.appendChild(advBody);
     const mkAdv=(label,child)=>mkIn(advBody,label,child);
-    const pollUrl=inp("text","留空＝不轮询；如 https://.../api/v1/tasks/{{task_id}}"); pollUrl.value=d.pollUrl||"";
-    mkAdv("结果查询地址（含 {{task_id}}）",pollUrl);
+
+    const ep = inp("text","留空＝自动复用创作台接口地址"); ep.value=d.endpoint||"";
+    mkAdv("接口地址（Base URL）",ep);
+    const keyIn = inp("password","留空＝用创作台配置的 API Key"); keyIn.value=d.apiKey||"";
+    mkAdv("独立 API Key（可选，只存本机画布）",keyIn);
+    const hdr = ta(46); hdr.value=d.headers||"";
+    mkAdv("自定义请求头（JSON 对象，可选）",hdr);
+    const secs=inp("text","5"); secs.value=d.seconds||"5";
+    const ratio=inp("text","留空＝自适应，可填 16:9 / 9:16"); ratio.value=d.ratio||"";
+    const pair0=document.createElement("div"); pair0.className="two"; pair0.appendChild(secs); pair0.appendChild(ratio);
+    mkAdv("视频时长（秒） / 画幅比例",pair0);
+    const reso=inp("text","留空＝平台默认，可填 1k / 2k / 720p / 1080p"); reso.value=d.resolution||"";
+    mkAdv("分辨率",reso);
+
+    const routeTip=document.createElement("div"); routeTip.className="mini-line";
+    routeTip.style.display="block"; routeTip.style.whiteSpace="normal";
+    advBody.appendChild(routeTip);
+
+    const tpl = ta(86); tpl.value=d.bodyTemplate||DEFAULT_BODY_TEMPLATE;
+    const tplFld = mkAdv("请求体模板（自定义接口）",tpl);
+    const pollUrl=inp("text","留空＝不轮询；如 https://.../tasks/{{task_id}}"); pollUrl.value=d.pollUrl||"";
+    const pollUrlFld=mkAdv("结果查询地址（含 {{task_id}}）",pollUrl);
     const taskPath=inp("text","output.task_id"); taskPath.value=d.taskIdPath||DEFAULT_POLL.taskIdPath;
     const statusPath=inp("text","output.task_status"); statusPath.value=d.statusPath||DEFAULT_POLL.statusPath;
     const pair=document.createElement("div"); pair.className="two"; pair.appendChild(taskPath); pair.appendChild(statusPath);
-    mkAdv("任务ID路径 / 状态路径",pair);
+    const pairFld=mkAdv("任务ID路径 / 状态路径",pair);
     const okVals=inp("text","SUCCEEDED,success,COMPLETED"); okVals.value=d.successValues||DEFAULT_POLL.successValues;
     const failVals=inp("text","FAILED,CANCELED,UNKNOWN"); failVals.value=d.failValues||DEFAULT_POLL.failValues;
     const pair2=document.createElement("div"); pair2.className="two"; pair2.appendChild(okVals); pair2.appendChild(failVals);
-    mkAdv("成功状态值 / 失败状态值（逗号分隔）",pair2);
+    const pair2Fld=mkAdv("成功状态值 / 失败状态值（逗号分隔）",pair2);
     const interval=inp("number","3"); interval.value=String(d.pollInterval||DEFAULT_POLL.pollInterval); interval.min="1";
     const maxPoll=inp("number","60"); maxPoll.value=String(d.maxPoll||DEFAULT_POLL.maxPoll); maxPoll.min="1";
     const pair3=document.createElement("div"); pair3.className="two"; pair3.appendChild(interval); pair3.appendChild(maxPoll);
-    mkAdv("轮询间隔（秒） / 最多次数",pair3);
+    const pair3Fld=mkAdv("轮询间隔（秒） / 最多次数",pair3);
+    const customFields=[tplFld,pollUrlFld,pairFld,pair2Fld,pair3Fld];
+
     const quick=document.createElement("div"); quick.className="row"; quick.style.margin="4px 0 0";
-    const qb=document.createElement("button"); qb.className="mini-btn purple"; qb.textContent="填入 Qwen Image 2.1 异步模板";
-    const db=document.createElement("button"); db.className="mini-btn gray"; db.textContent="恢复默认模板";
-    quick.appendChild(qb); quick.appendChild(db); advBody.appendChild(quick);
+    const rb=document.createElement("button"); rb.className="mini-btn purple"; rb.textContent="恢复本预设推荐配置";
+    const qb=document.createElement("button"); qb.className="mini-btn gray"; qb.textContent="填入自定义模板示例";
+    quick.appendChild(rb); quick.appendChild(qb); advBody.appendChild(quick);
     body.appendChild(adv);
 
     const run = document.createElement("button"); run.className="run-btn"; run.textContent="▶ 运行生成";
@@ -825,40 +924,72 @@ function buildGenerateBody(body,n){
     body.appendChild(run);
     const st = document.createElement("div"); st.className="gen-status"; st.textContent = d.status||""; body.appendChild(st);
 
+    function refreshTip(){
+        const p=presetOf(n), custom=p==="custom", video=d.kind==="video";
+        if(p==="seedance"){
+            routeTip.textContent="实际请求："+(video
+                ?"POST /v1/videos → 轮询 GET /v1/videos/{id}"
+                :"POST /v1/image/generations → 轮询 GET /v1/image/generations/{id}");
+        }else if(p==="openai"){
+            routeTip.textContent="实际请求：POST /v1/images/generations（同步返回结果）";
+        }else if(p==="dashscope"){
+            routeTip.textContent="实际请求：POST .../image-generation/generation → 轮询 /api/v1/tasks/{id}";
+        }else{
+            routeTip.textContent="自定义接口：请填完整地址，模板支持 {{prompt}} {{model}} {{images}} 等占位符";
+        }
+        ep.placeholder=custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝自动复用创作台接口地址（自动派生到域名层）";
+        modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"接口与 Key 自动复用创作台配置，无需额外填写";
+    }
     function syncFields(){
-        const g = d.engine==="generic_json", c = d.engine==="comfyui";
+        const c = d.engine==="comfyui", custom = presetOf(n)==="custom";
         wfFld.style.display = c?"":"none";
-        epFld.style.display = c?"none":""; mdlFld.style.display = c?"none":"";
-        keyFld.style.display = c?"none":""; hdrFld.style.display = c?"none":"";
-        tplFld.style.display = g?"":"none"; adv.style.display = g?"":"none";
-        ep.placeholder = g?"必填：完整接口地址，如 https://api.xxx.com/v1/video/generations":"留空＝自动用创作台的接口地址";
+        [preFld,kindFld,mdlFld,modelTip,adv].forEach(x=>x.style.display=c?"none":"");
+        customFields.forEach(x=>x.style.display=custom?"":"none");
+        refreshTip();
         if(c) fillWf();
     }
+    function applyRecommended(force){
+        if(force || !d.modelTouched){
+            const v=recommendedModel(n);
+            mdl.value=v; d.model=v; d.modelTouched=false;
+        }
+    }
+    if(!d.model) applyRecommended(true);
     syncFields();
     function bindVal(elm,key,num){
         elm.addEventListener("input",()=>{ d[key]= num? Math.max(1,Number(elm.value)||1) : elm.value; scheduleSave(); });
     }
     sel.addEventListener("change",()=>{ d.engine=sel.value; syncFields(); scheduleSave(); });
     wfSel.addEventListener("change",()=>{ d.workflowId=wfSel.value; scheduleSave(); });
-    bindVal(ep,"endpoint"); bindVal(mdl,"model"); bindVal(keyIn,"apiKey"); bindVal(hdr,"headers"); bindVal(tpl,"bodyTemplate");
+    preSel.addEventListener("change",()=>{ d.preset=API_PRESETS[preSel.value]?preSel.value:"seedance"; preSel.value=d.preset; d.model=""; d.modelTouched=false; applyRecommended(true); syncFields(); scheduleSave(); });
+    kindSel.addEventListener("change",()=>{ d.kind=kindSel.value==="video"?"video":"image"; kindSel.value=d.kind; if(!d.modelTouched){ d.model=""; applyRecommended(true); } syncFields(); scheduleSave(); });
+    mdl.addEventListener("input",()=>{ d.model=mdl.value; d.modelTouched=!!mdl.value.trim(); scheduleSave(); });
+    bindVal(ep,"endpoint"); bindVal(keyIn,"apiKey"); bindVal(hdr,"headers"); bindVal(tpl,"bodyTemplate");
+    bindVal(secs,"seconds"); bindVal(ratio,"ratio"); bindVal(reso,"resolution");
     bindVal(pollUrl,"pollUrl"); bindVal(taskPath,"taskIdPath"); bindVal(statusPath,"statusPath");
     bindVal(okVals,"successValues"); bindVal(failVals,"failValues");
     bindVal(interval,"pollInterval",true); bindVal(maxPoll,"maxPoll",true);
     adv.addEventListener("toggle",()=>{ d.advOpen=adv.open; scheduleSave(); });
+    rb.addEventListener("click",e=>{
+        e.stopPropagation();
+        d.model=""; d.modelTouched=false; applyRecommended(true);
+        ep.value=""; d.endpoint=""; hdr.value=""; d.headers="";
+        secs.value="5"; d.seconds="5"; ratio.value=""; d.ratio=""; reso.value=""; d.resolution="";
+        pollUrl.value=""; d.pollUrl="";
+        tpl.value=DEFAULT_BODY_TEMPLATE; d.bodyTemplate=tpl.value;
+        adv.open=true; d.advOpen=true; syncFields(); scheduleSave();
+        setStatus("已恢复「"+API_PRESETS[presetOf(n)].label+"」推荐配置","ok");
+    });
     qb.addEventListener("click",e=>{
         e.stopPropagation();
+        d.preset="custom"; preSel.value="custom"; d.modelTouched=true;
         tpl.value=QWEN_IMAGE_TEMPLATE; d.bodyTemplate=tpl.value;
         mdl.value="qwen-image-2.1-pro"; d.model=mdl.value;
         ep.value="https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation"; d.endpoint=ep.value;
         hdr.value='{\n  "X-DashScope-Async": "enable"\n}'; d.headers=hdr.value;
         pollUrl.value="https://dashscope.aliyuncs.com/api/v1/tasks/{{task_id}}"; d.pollUrl=pollUrl.value;
-        adv.open=true; d.advOpen=true; scheduleSave();
-        setStatus("已填入 Qwen 异步模板，请核对地址与 Key","ok");
-    });
-    db.addEventListener("click",e=>{
-        e.stopPropagation();
-        tpl.value=DEFAULT_BODY_TEMPLATE; d.bodyTemplate=tpl.value;
-        hdr.value=""; d.headers=""; pollUrl.value=""; d.pollUrl=""; scheduleSave();
+        adv.open=true; d.advOpen=true; syncFields(); scheduleSave();
+        setStatus("已填入自定义模板示例，请核对地址与 Key","ok");
     });
     run.addEventListener("click",e=>{ e.stopPropagation(); runGenerate(n); });
 }
@@ -1036,7 +1167,7 @@ function addEdge(from,to){
 }
 el("stage").addEventListener("mousedown",e=>{
     if(e.button!==0) return;
-    if(e.target.closest(".node")||e.target.closest(".zoom-bar")||e.target.tagName==="path") return;
+    if(e.target.closest(".node")||e.target.closest(".zoom-bar")||e.target.closest(".empty-hint button")||e.target.tagName==="path") return;
     drag={type:"pan",sx:e.clientX,sy:e.clientY,ox:canvas.viewport.x,oy:canvas.viewport.y};
 });
 el("stage").addEventListener("wheel",e=>{
@@ -1058,7 +1189,7 @@ function spawn(type){
     const p=toCanvasXY(r.left+r.width*.42,r.top+r.height*.32);
     const jitter=canvas.nodes.length%5*18;
     const n=newNode(type,p.x+jitter,p.y+jitter);
-    if(type==="generate") n.data={engine:"image_api",endpoint:"",model:"",bodyTemplate:DEFAULT_BODY_TEMPLATE,status:""};
+    if(type==="generate") n.data=defaultGenData();
     if(type==="result") n.data={kind:"",url:"",text:""};
     renderAll(); selectNode(n.id); scheduleSave();
     return n;
@@ -1297,35 +1428,152 @@ async function getJson(url,key,extraHeaders,timeoutMs){
         return data;
     }finally{ clearTimeout(t); }
 }
-function deriveImageEndpoint(p){
-    let base=(p&&p.endpoint||"").trim().replace(/\/+$/,"");
-    if(!base) return "";
-    if(/\/chat\/completions$/i.test(base)) return base.replace(/\/chat\/completions$/i,"/images/generations");
-    if(/\/images\/generations$/i.test(base)) return base;
-    if(/\/v1$/i.test(base)) return base+"/images/generations";
-    if(/\/compatible-mode\/v1$/i.test(base)) return base+"/images/generations";
-    return base.replace(/\/+$/,"")+"/v1/images/generations";
+/* 把创作台的 LLM 接口地址（如 https://api.seedance.nz/v1/chat/completions）
+   归一到 Base URL 层（https://api.seedance.nz），供生图 / 生视频端点拼接。 */
+function deriveApiBase(endpoint){
+    let s=String(endpoint||"").trim().replace(/\/+$/,"");
+    if(!s) return "";
+    const tails=[
+        /\/chat\/completions$/i, /\/responses$/i,
+        /\/images\/generations$/i, /\/image\/generations(?:\/[^\/]+)?$/i,
+        /\/videos(?:\/[^\/]+)?$/i, /\/video\/generations(?:\/[^\/]+)?$/i,
+        /\/compatible-mode\/v\d+(?:\.\d+)?$/i, /\/v\d+(?:\.\d+)?$/i
+    ];
+    for(let pass=0;pass<4;pass++){
+        let hit=false;
+        tails.forEach(re=>{ if(re.test(s)){ s=s.replace(re,""); hit=true; } });
+        s=s.replace(/\/+$/,"");
+        if(!hit) break;
+    }
+    return s.replace(/\/+$/,"");
+}
+function hostOf(u){ try{ return new URL(u).host; }catch(e){ return ""; } }
+/* 优先级：节点手填地址 > 创作台已接通且同域的地址 > 预设默认域名 */
+function apiBaseFor(n,fallback){
+    const own=String(n.data.endpoint||"").trim();
+    if(own) return deriveApiBase(own);
+    const p=currentProfile();
+    const fromProfile=deriveApiBase(p&&p.endpoint||"");
+    if(fromProfile && (!fallback || !hostOf(fallback) || hostOf(fromProfile)===hostOf(fallback))) return fromProfile;
+    return fallback||API_PRESETS[presetOf(n)].fallback||"";
 }
 function jsonEscape(s){ return JSON.stringify(String(s==null?"":s)).slice(1,-1); }
-/* 「模型名 或 尺寸」输入框：填 1024x1024 这类就当画幅，否则当模型名覆盖创作台配置 */
+/* 模型名只取生成节点自己的值；创作台的模型是「写作模型」，不能拿来生图/生视频 */
 function genParams(n){
-    const p=currentProfile();
     const raw=String(n.data.model||"").trim();
     const isSize=/^\d+x\d+$/i.test(raw);
     return {
-        model:isSize?"":(raw||(p?p.model:"")||""),
+        model:isSize?"":raw,
         size:isSize?raw:(n.data.size||"1024x1024"),
         key:resolveKey(n)
     };
 }
-async function genImageApi(n,input){
+function genMeta(n){
+    const m={};
+    const reso=String(n.data.resolution||"").trim();
+    const ratio=String(n.data.ratio||"").trim();
+    if(reso) m.resolution=reso;
+    if(ratio) m.ratio=ratio;
+    return m;
+}
+function pollConfig(n){
+    return {
+        interval:Math.max(1,Number(n.data.pollInterval)||DEFAULT_POLL.pollInterval),
+        max:Math.max(1,Number(n.data.maxPoll)||DEFAULT_POLL.maxPoll)
+    };
+}
+/* ===== 预设 1：ZZAI / api.seedance.nz —— 生图、生视频都是「提交 → 轮询」异步任务 =====
+   生图：POST /v1/image/generations → GET /v1/image/generations/{id}（data.status=SUCCESS → data.result_url）
+   生视频：POST /v1/videos → GET /v1/videos/{id}（status=completed → metadata.url）
+   不能用 OpenAI 的复数 /v1/images/generations，网关会返回 400 invalid_request。 */
+async function genSeedance(n,input){
     const q=genParams(n);
-    const url=n.data.endpoint||deriveImageEndpoint(currentProfile());
-    if(!url) throw new Error("接口地址为空：请到创作台配置，或在生成节点里手填 /images/generations 地址。");
+    const base=apiBaseFor(n,"https://api.seedance.nz").replace(/\/+$/,"");
+    if(!base) throw new Error("接口地址为空：请在创作台配置 API，或在生成节点「高级」里填接口地址。");
+    const headers=parseHeaders(n.data);
+    const video=n.data.kind==="video";
+    const model=q.model||recommendedModel(n);
+    if(!model) throw new Error("请填模型名，例如 "+API_PRESETS.seedance.models[video?"video":"image"]);
+    const meta=genMeta(n);
+    let submitUrl, body, pollTpl;
+    if(video){
+        submitUrl=base+"/v1/videos";
+        body={model:model,prompt:input.prompt,seconds:String(n.data.seconds||"5")};
+        if(input.images.length) body.images=input.images.slice(0,2);
+        if(Object.keys(meta).length) body.metadata=meta;
+        pollTpl=base+"/v1/videos/{id}";
+    }else{
+        submitUrl=base+"/v1/image/generations";
+        body={model:model,prompt:input.prompt};
+        if(input.images.length) body.images=input.images;
+        if(Object.keys(meta).length) body.metadata=meta;
+        pollTpl=base+"/v1/image/generations/{id}";
+    }
+    const submit=await postJson(submitUrl,q.key,body,120000,headers);
+    const tid=submit.id||submit.task_id||getPath(submit,"data.id")||getPath(submit,"data.task_id");
+    if(!tid) throw new Error("接口没有返回任务 ID，原始响应："+JSON.stringify(submit).slice(0,600));
+    const url=pollTpl.replace("{id}",encodeURIComponent(String(tid)));
+    const pc=pollConfig(n);
+    setGenStatus(n,"任务 "+tid+" 已提交，等待生成…","busy");
+    for(let i=0;i<pc.max;i++){
+        await new Promise(r=>setTimeout(r,pc.interval*1000));
+        let j,st="";
+        try{ j=await getJson(url,q.key,headers,30000); }
+        catch(e){ setGenStatus(n,"查询失败重试中："+e.message,"busy"); continue; }
+        if(video){
+            st=String(j.status||getPath(j,"data.status")||"").toLowerCase();
+            if(st==="completed"||st==="succeeded"||st==="success"){
+                const u=getPath(j,"metadata.url")||getPath(j,"data.result_url")||j.url;
+                if(u) return {kind:"video",url:u,name:"manflows_video.mp4"};
+            }
+            if(st==="failed"||st==="failure"||st==="cancelled") throw new Error("视频任务失败："+JSON.stringify(j.error||j).slice(0,500));
+        }else{
+            st=String(getPath(j,"data.status")||j.status||"").toUpperCase();
+            if(st==="SUCCESS"||st==="SUCCEEDED"||st==="COMPLETED"){
+                const u=getPath(j,"data.result_url")||getPath(j,"data.data.content.image_url")||j.result_url;
+                if(u) return {kind:"image",url:u,name:"manflows_image.png"};
+            }
+            if(st==="FAILURE"||st==="FAILED"||st==="CANCELED") throw new Error("图片任务失败："+JSON.stringify(getPath(j,"data.fail_reason")||j).slice(0,500));
+        }
+        setGenStatus(n,(video?"视频":"图片")+"任务 "+(st||"进行中")+" … "+(i+1)+"/"+pc.max,"busy");
+    }
+    throw new Error("任务轮询超时（"+pc.max+" 次 × "+pc.interval+" 秒），任务ID："+tid+"；可到服务商控制台查看结果。");
+}
+/* 预设 2：OpenAI 兼容同步生图 */
+async function genOpenai(n,input){
+    const q=genParams(n);
+    const base=apiBaseFor(n,"https://api.openai.com/v1").replace(/\/+$/,"");
+    if(!base) throw new Error("接口地址为空：请在「高级」里填 OpenAI 兼容的 Base URL。");
+    const url=base+"/v1/images/generations";
     const body={prompt:input.prompt,n:1,size:q.size};
     if(q.model) body.model=q.model;
     const d=await postJson(url,q.key,body,120000,parseHeaders(n.data));
     return parseGenResponse(d,"image");
+}
+/* 预设 3：阿里百炼 Qwen Image 2.1 异步生图 */
+async function genDashscope(n,input){
+    const q=genParams(n);
+    const base=apiBaseFor(n,"https://dashscope.aliyuncs.com/api/v1").replace(/\/+$/,"");
+    const url=/\/generation$/i.test(base)?base:base+"/services/aigc/image-generation/generation";
+    const json=renderTemplate(QWEN_IMAGE_TEMPLATE,input,{model:q.model||"qwen-image-2.1-pro",size:q.size});
+    let body; try{ body=JSON.parse(json); }catch(e){ throw new Error("Qwen 请求体生成失败："+e.message); }
+    const headers=Object.assign({"X-DashScope-Async":"enable"},parseHeaders(n.data));
+    let d=await postJson(url,q.key,body,120000,headers);
+    d=await pollTask(n,d,q.key,headers,{
+        pollUrl:"https://dashscope.aliyuncs.com/api/v1/tasks/{{task_id}}",
+        taskIdPath:"output.task_id", statusPath:"output.task_status",
+        successValues:DEFAULT_POLL.successValues, failValues:DEFAULT_POLL.failValues,
+        pollInterval:pollConfig(n).interval, maxPoll:pollConfig(n).max
+    });
+    return parseGenResponse(d,"image");
+}
+/* 第三方 API 统一入口：按服务商预设分派协议 */
+async function genThirdParty(n,input){
+    const p=presetOf(n);
+    if(p==="custom") return genGenericJson(n,input);
+    if(p==="dashscope") return genDashscope(n,input);
+    if(p==="openai") return genOpenai(n,input);
+    return genSeedance(n,input);
 }
 /* 占位符：
    {{prompt}} {{model}} {{size}}  文本
@@ -1354,8 +1602,8 @@ function renderTemplate(tpl,input,q){
         .replace(/\{\{images\}\}/g,()=>imagesJson);
 }
 /* 异步任务：提交返回 task_id → 轮询查询地址 → 状态成功后再解析结果 */
-async function pollTask(n,submitResp,key,extraHeaders){
-    const d=n.data;
+async function pollTask(n,submitResp,key,extraHeaders,cfg){
+    const d=Object.assign({},n.data,cfg||{});
     const tpl=String(d.pollUrl||"").trim();
     if(!tpl) return submitResp;
     const tid=getPath(submitResp,d.taskIdPath||DEFAULT_POLL.taskIdPath);
@@ -1380,7 +1628,7 @@ async function pollTask(n,submitResp,key,extraHeaders){
 async function genGenericJson(n,input){
     const q=genParams(n);
     const url=(n.data.endpoint||"").trim();
-    if(!url) throw new Error("通用 JSON 接口必须在生成节点里填完整接口地址。");
+    if(!url) throw new Error("自定义 JSON 接口必须在「▸ 高级 → 接口地址」里填完整接口地址。");
     const extra=parseHeaders(n.data);
     const json=renderTemplate(n.data.bodyTemplate||DEFAULT_BODY_TEMPLATE,input,q);
     let body; try{ body=JSON.parse(json); }catch(e){ throw new Error("请求体模板替换后不是合法 JSON："+e.message+"\n"+json.slice(0,500)); }
@@ -1505,8 +1753,7 @@ async function runGenerate(n){
     try{
         let out;
         if(n.data.engine==="comfyui") out=await genComfy(n,input);
-        else if(n.data.engine==="generic_json") out=await genGenericJson(n,input);
-        else out=await genImageApi(n,input);
+        else out=await genThirdParty(n,input);
         const r=resultNodeFor(n);
         r.data=Object.assign({},out);
         setGenStatus(n,"完成 ✓ "+(input.images.length?"参考图 "+input.images.length+" 张":""),"ok");
@@ -1641,10 +1888,12 @@ function bindToolbar(){
         canvas.nodes=[]; canvas.edges=[]; resetRuntimeFlags();
         renderAll(); await persist(); setStatus("画布已清空","ok");
     });
-    el("seedBtn").addEventListener("click",async ()=>{
+    el("seedBtn").addEventListener("click",async e=>{
+        e.preventDefault(); e.stopPropagation();
         if(canvas.nodes.length && !confirm("当前画布还有节点，放入基础工作流会替换掉它们。继续？")) return;
         seedStarterWorkflow(); resetRuntimeFlags();
-        applyViewport(); renderAll(); await persist();
+        applyViewport(); renderAll();
+        try{ await persist(); }catch(err){ console.warn("保存画布失败：",err); }
         setStatus("已放入基础工作流示例","ok");
     });
     el("helpBtn").addEventListener("click",()=>el("helpModal").classList.add("show"));
