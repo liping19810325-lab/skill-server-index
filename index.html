@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-    <title>漫流 Manflows - AI漫剧前期创作台</title>
+    <title>漫流 Manflows - AI漫剧编导创作台</title>
     <link rel="icon" type="image/png" href="./logo.png">
     <style>
         /* ===== 与 canvas.html 共用的视觉体系：同一色板、同一字体族、扁平无阴影 ===== */
@@ -240,7 +240,7 @@
                 <span class="logo-fallback" id="logoFallback">漫流<small>MANFLOWS</small></span>
             </a>
             <div class="header-title">
-                <h1>漫流 AI 漫剧前期创作台</h1>
+                <h1>漫流 · 编导创作台</h1>
                 <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
             </div>
         </div>
@@ -584,6 +584,15 @@ ollama serve</pre>
 <li>本地模式只对这台电脑生效：别人通过网址打开页面时，连的是他自己电脑上的 127.0.0.1，不是你的。</li>
 </ol>
 <p>注意：页面如果部署在 HTTPS 主站，浏览器会拦截网页直连本机 http 地址；内测期请用本机 http 地址打开页面，正式部署阶段再做同源反代 / TLS。常见故障：黑窗口关了、端口被占用、模型路径写错、显存不足，都会表现为「本地模式无响应」。</p>
+
+<h4>这些步骤可以让 WorkBuddy 帮你做</h4>
+<p>不想自己写 .bat、改端口、查报错？把本页面文件（<code>index.html</code>）发给 <b>WorkBuddy</b> 并说一句「帮我建立本地大语言模型和漫流创作台的互通」，它可以直接：</p>
+<ul>
+<li>帮你写好 <code>start_server.bat</code>（含模型路径、显存参数、<code>--cors-origins *</code> 跨域放行），并核对 llama-server.exe 与模型文件位置；</li>
+<li>测试 <code>http://127.0.0.1:8080/v1/chat/completions</code> 连通性，排查端口占用、显存不足、模型路径写错等问题；</li>
+<li>指导你在本页【推理参数】里选【本地算力】并填写本地模型名称，完成最后一步连接。</li>
+</ul>
+<p>画布页（canvas.html）的「拆分」智能分段也会自动优先使用这里接通的本地模型。</p>
 
 <h2>二、API云算力模式：接入商用大模型平台</h2>
 <p>切换到API云算力模式后，点【新增API配置】，填写平台信息：接口地址 / API-Key / 模型名称。</p>

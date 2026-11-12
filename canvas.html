@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>漫流 Manflows - AI 漫剧生成画布</title>
+<title>漫流 Manflows - AI 漫剧导演画布</title>
 <link rel="icon" type="image/png" href="./logo.png">
 <style>
     :root{
@@ -17,8 +17,8 @@
     button,input,textarea,select{font-family:inherit;}
     .app{height:100%;display:flex;flex-direction:column;overflow:hidden;}
 
-    .topbar{display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0;flex-wrap:wrap;}
-    .brand{display:flex;align-items:center;gap:10px;margin-right:6px;}
+    .topbar{display:flex;align-items:center;gap:2px;padding:10px 10px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0;flex-wrap:wrap;}
+    .brand{display:flex;align-items:center;gap:8px;margin-right:4px;}
     /* 左上角 LOGO = 主站入口，新标签页打开，不打断当前画布 */
     .logo-link{display:inline-flex;align-items:center;flex-shrink:0;text-decoration:none;border-radius:8px;transition:opacity .15s ease;}
     .logo-link:hover{opacity:.85;}
@@ -28,7 +28,7 @@
     .logo-fallback small{font-size:7px;font-weight:400;color:var(--muted);letter-spacing:1px;}
     .brand-text h1{font-size:15px;font-weight:600;color:#fff;line-height:1.3;}
     .brand-text p{font-size:10px;color:var(--muted);line-height:1.5;}
-    .tb-btn,.nav-btn{padding:4px 6px;border:none;border-radius:8px;font-size:11px;cursor:pointer;min-height:32px;line-height:1.35;background:var(--panel);color:var(--text);border:1px solid var(--border2);white-space:nowrap;}
+    .tb-btn,.nav-btn{padding:4px 5px;border:none;border-radius:8px;font-size:11px;cursor:pointer;min-height:32px;line-height:1.35;background:var(--panel);color:var(--text);border:1px solid var(--border2);white-space:nowrap;}
     .tb-btn:hover,.nav-btn:hover{background:var(--hover);}
     .nav-btn{text-decoration:none;display:inline-flex;align-items:center;background:var(--purple);border-color:transparent;color:#fff;}
     .nav-btn:hover{background:#8b5cf6;}
@@ -37,7 +37,7 @@
     .home-btn:hover{background:var(--hover);}
     .add-btn{background:#1e3a5f;border-color:#2b5488;color:#cfe3ff;}
     .add-btn:hover{background:#254a7a;}
-    .tb-sep{width:1px;height:24px;background:var(--border2);margin:0 2px;}
+    .tb-sep{width:1px;height:24px;background:var(--border2);margin:0 1px;}
     .save-state{position:absolute;right:14px;bottom:52px;font-size:11px;color:var(--muted);padding:4px 8px;border-radius:6px;background:var(--panel);border:1px solid var(--border2);white-space:nowrap;pointer-events:none;z-index:9;}
     .save-state.ok{color:#a7f3d0;} .save-state.busy{color:#fcd34d;} .save-state.err{color:#fca5a5;}
 
@@ -46,6 +46,11 @@
     .side::-webkit-scrollbar{width:6px;} .side::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px;}
     .card h2{font-size:13px;color:#cbd5e1;font-weight:500;margin-bottom:8px;}
+    /* 可折叠卡片：② ③ 默认收起，点标题展开 */
+    .card.collapsible h2.card-toggle{cursor:pointer;user-select:none;}
+    .card.collapsible h2.card-toggle::after{content:"▾";float:right;color:var(--muted);font-size:11px;}
+    .card.collapsible.collapsed h2.card-toggle::after{content:"▸";}
+    .card.collapsible.collapsed .card-body{display:none;}
     .hint{font-size:11px;color:var(--muted);line-height:1.6;margin:6px 0;}
     .hint.warn{color:#fcd34d;}
     .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:7px 0;}
@@ -113,6 +118,8 @@
     .audio-item .a-name{flex:1;min-width:0;font-size:11px;color:#d1d5db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .audio-item .a-meta{font-size:10px;color:var(--muted);white-space:nowrap;}
     .audio-item audio{width:100%;height:32px;margin-top:6px;}
+    /* 视频参考节点（复用声音节点样式骨架，预览控件换成视频） */
+    .audio-item video{width:100%;max-height:110px;object-fit:contain;border-radius:6px;background:#000;display:block;margin-top:6px;}
     .audio-item .a-rm{border:none;border-radius:4px;background:rgba(220,38,38,.9);color:#fff;font-size:11px;width:18px;height:18px;line-height:1;cursor:pointer;padding:0;flex-shrink:0;}
     .audio-url-row{display:flex;gap:5px;margin-top:8px;}
     .audio-url-row input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;padding:6px 7px;outline:none;}
@@ -121,7 +128,14 @@
     .audio-url-row button:hover{background:var(--hover);}
     /* 鼠标框选 */
     .select-rect{position:absolute;border:1px solid #60a5fa;background:rgba(37,99,235,.16);border-radius:4px;pointer-events:none;z-index:8;display:none;}
-    .result-media{width:100%;max-height:220px;border-radius:8px;background:#000;display:block;}
+    /* 固定高度 + object-fit:contain：宽度撑满节点也不拉伸变形（图片/视频通用） */
+    .result-media{width:100%;height:220px;object-fit:contain;border-radius:8px;background:#000;display:block;cursor:zoom-in;}
+    /* 媒体浮窗预览（点结果节点的图/视频放大看） */
+    .media-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;z-index:1200;cursor:zoom-out;}
+    .media-lightbox.show{display:flex;}
+    .media-lightbox img,.media-lightbox video{max-width:92vw;max-height:88vh;object-fit:contain;border-radius:10px;background:#000;box-shadow:0 18px 60px rgba(0,0,0,.7);}
+    .media-lightbox .lb-close{position:fixed;right:22px;top:18px;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer;line-height:1;}
+    .media-lightbox .lb-close:hover{background:rgba(255,255,255,.28);}
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
     .result-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
 
@@ -181,7 +195,7 @@
                      onerror="this.style.display='none';var f=document.getElementById('logoFallback');if(f)f.style.display='inline-flex';">
                 <span class="logo-fallback" id="logoFallback">漫流<small>MANFLOWS</small></span>
             </a>
-            <div class="brand-text"><h1>漫流 · 生成画布</h1><p>提示词 → 生图 / 生视频 → 成片</p></div>
+            <div class="brand-text"><h1>漫流 · 导演画布</h1><p>提示词 → 生图 / 生视频 → 成片</p></div>
         </div>
         <a class="nav-btn" href="./index.html" title="返回创作台（同一窗口切换）">← 返回创作台</a>
         <div class="tb-sep"></div>
@@ -195,6 +209,7 @@
         <button class="tb-btn add-btn" data-add="prompt">＋ 提示词</button>
         <button class="tb-btn add-btn" data-add="image">＋ 参考图</button>
         <button class="tb-btn add-btn" data-add="audio">＋ 声音</button>
+        <button class="tb-btn add-btn" data-add="video">＋ 视频</button>
         <button class="tb-btn add-btn" data-add="generate">＋ 生成</button>
         <button class="tb-btn add-btn" data-add="result">＋ 结果</button>
         <div class="tb-sep"></div>
@@ -219,19 +234,23 @@
                 <div class="row"><button class="mini-btn" id="pasteBtn">生成提示词节点</button></div>
             </div>
 
-            <div class="card">
-                <h2>② API 配置（只读 · 两类接入共用）</h2>
+            <div class="card collapsible collapsed" id="cardApi">
+                <h2 class="card-toggle">② API 配置（只读 · 两类接入共用）</h2>
+                <div class="card-body">
                 <div class="hint">与创作台同源共享，这里只读取、不修改。接口地址 / Key / 模型都在创作台配置，默认全部为空。<b>「第三方 API 接入」会直接复用这里的接口地址与 Key</b>，接通大语言模型后无需再填一遍。</div>
                 <div class="api-box" id="apiInfo">读取中…</div>
                 <div class="row"><a class="mini-btn gray" href="./index.html" style="text-decoration:none;display:inline-block;">去创作台修改</a></div>
+                </div>
             </div>
 
-            <div class="card">
-                <h2>③ 两类接入方式</h2>
+            <div class="card collapsible collapsed" id="cardGuide">
+                <h2 class="card-toggle">③ 两类接入方式</h2>
+                <div class="card-body">
                 <div class="hint">生成节点只需二选一：<br>· <b>① 第三方 API 接入</b>：云端生图 / 生视频。默认服务商 <code>api.seedance.nz</code>、异步任务自动轮询，接口与 Key 复用创作台，选好「生成类型 + 模型」即可运行；也可切 OpenAI 兼容 / 百炼 Qwen / 自定义 JSON。<br>· <b>② 本地 ComfyUI 接入</b>：本机工作流，可存多份模板，<b>生图与生视频各用各的</b>。</div>
                 <div class="hint"><code>api.seedance.nz</code> 用异步任务：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>。<b>不能用 OpenAI 的复数 <code>/v1/images/generations</code></b>，否则返回 400。</div>
-                <div class="hint"><b>声音参考</b>：把「＋ 声音」节点连到生成节点、生成类型切到生视频，会自动改用 <code>-multi</code> 多模态模型，按官方格式把图片与音频一起写进 <code>metadata.content</code>；本地音频先上传换直链，最多 3 段。</div>
+                <div class="hint"><b>多参考素材</b>：把「＋ 声音」「＋ 视频」节点连到生成节点、生成类型切到生视频，会自动改用 <code>-multi</code> 多模态模型，按官方格式把图片、视频与音频一起写进 <code>metadata.content</code>；本地文件先上传换直链。视频 ≤3 个、音频 ≤3 段。</div>
                 <div class="hint">生成失败时结果节点会显示接口原始返回，方便边测边调。</div>
+                </div>
             </div>
 
             <div class="card">
@@ -265,7 +284,7 @@
                 <svg class="edges" id="edgeSvg" width="8000" height="6000" xmlns="http://www.w3.org/2000/svg"></svg>
                 <div id="nodeLayer"></div>
             </div>
-            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词 / ＋ 参考图 / ＋ 声音」新建节点，或在创作台点「⇢ 送到画布」<br><button class="mini-btn purple" id="seedBtn" style="margin-top:10px">↺ 放入基础工作流示例</button></div>
+            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词 / ＋ 参考图 / ＋ 声音 / ＋ 视频」新建节点，或在创作台点「⇢ 送到画布」<br><button class="mini-btn purple" id="seedBtn" style="margin-top:10px">↺ 放入基础工作流示例</button></div>
             <div class="canvas-tip">空白处拖框多选 · 空格/中键拖动平移 · 拖标题栏移动 · 右侧圆点拖出连线 · 点连线删除 · 滚轮缩放 · Ctrl+Z 撤销 · Delete 删除选中</div>
             <div class="zoom-bar">
                 <button id="zoomOut" title="缩小">−</button><span id="zoomLabel">100%</span><button id="zoomIn" title="放大">＋</button><button id="zoomFit" title="回到原点 100%">⌖</button>
@@ -276,20 +295,27 @@
 
 <div class="ctx-menu" id="ctxMenu"></div>
 
+<!-- 媒体浮窗预览：点击结果节点里的图片 / 视频 -->
+<div class="media-lightbox" id="mediaLightbox">
+    <button class="lb-close" id="lbClose" title="关闭（Esc）">×</button>
+    <div id="lbHolder"></div>
+</div>
+
 <div class="modal-overlay" id="helpModal">
     <div class="modal-box">
         <h2>新画布自带一套基础工作流</h2>
-        <p>每份画布首次打开时，会自动放好 <b>① 提示词 / ① 参考图 / ① 声音参考（可选） → ② 生成 → ③ 结果</b> 五个节点并连好线：照着填内容、在生成节点选好引擎就能跑，不用从零搭。节点可随意改、删、拖动，也能从顶栏继续「＋」加节点。已有内容的画布不会被覆盖；若点了「清空画布」，空画布提示里可一键「↺ 放入基础工作流示例」找回这套结构。</p>
+        <p>每份画布首次打开时，会自动放好 <b>① 提示词 / ① 参考图 / ① 声音参考 / ① 视频参考（可选） → ② 生成 → ③ 结果</b> 六个节点并连好线：照着填内容、在生成节点选好引擎就能跑，不用从零搭。节点可随意改、删、拖动，也能从顶栏继续「＋」加节点。已有内容的画布不会被覆盖；若点了「清空画布」，空画布提示里可一键「↺ 放入基础工作流示例」找回这套结构。</p>
         <h2>画布怎么用</h2>
         <ul>
-            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词。全剧资产可点「拆分」按 <code>▌</code> 自动拆成一条一节点。</li>
+            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词。点「拆分」：<b>文本含 ▌ 直接拆</b>；没有 ▌ 时会<b>自动调用大语言模型智能分段</b>（优先本地 llama / Ollama，其次创作台已接通的 API 大模型），分段规则沿用分镜方法：以情绪转折 / 动作段落 / 说话人切换划片、单段约 15 秒、台词逐字保留。拆完一条一节点。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。</li>
-            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图与声音参考。</li>
-            <li><b>结果节点</b>：展示图片 / 视频 / 接口原文，可下载，也可作为下一轮参考图。</li>
+            <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
+            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。</li>
+            <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。</li>
         </ul>
-        <h2>声音参考怎么生效（api.seedance.nz）</h2>
-        <p>连入声音节点且生成类型选「生视频」时，模型会自动推荐 <code>-multi</code> 多模态版本；本地音频先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档写进 <code>metadata.content</code>：<code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。多模态模式下图也要一起写进 <code>content</code>（<code>image_url</code> 项），所以有声音时代码会自动把参考图一起转成 content 数组。<b>音频最多 3 段</b>，超出会提示。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音节点只作为素材留在画布上，需工作流本身带音频输入节点才能用。</p>
+        <h2>多参考素材怎么生效（api.seedance.nz）</h2>
+        <p>连入声音或视频参考节点、且生成类型选「生视频」时，模型会自动推荐 <code>-multi</code> 多模态版本；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
         <h2>鼠标与快捷键（贴近常用画布习惯）</h2>
         <ul>
             <li><b>框选</b>：在空白处按住左键拖出蓝框，框到的节点全部选中；按 <code>Shift</code> 拖框可追加选择，<code>Ctrl/⌘</code> 或 <code>Shift</code> 点节点可加减单个。</li>
@@ -309,11 +335,11 @@
         <h2>① 第三方 API 接入 · 最快零配置跑通</h2>
         <ul>
             <li><b>默认不用填任何东西</b>：创作台接通大语言模型后，画布页自动复用同一份接口地址与 API Key，并把 <code>…/v1/chat/completions</code> 归一到域名层；生成节点默认「ZZAI / api.seedance.nz + 生图」，模型名自动推荐，<b>直接点「▶ 运行生成」即可</b>。</li>
-            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名自动跟着换成文生 / 图生版本；有参考图连入时自动用 <code>-i2i</code> / <code>-i2v</code>。</li>
+            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名自动跟着换成文生 / 图生版本；有参考图连入时自动用 <code>-i2i</code> / <code>-i2v</code>，有声音或视频参考连入时自动用 <code>-multi</code>。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 480P / 720P / 1080P / 4K）和<b>视频时长 1–15 秒</b>。这些选项直接按各厂商官方参数生效：Seedance 生视频写进 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；Seedream 系生图不吃 ratio 字段，会自动换算成 <code>metadata.width / metadata.height</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符。<b>本地 ComfyUI 的画幅与时长由工作流自身节点决定</b>（Empty Latent 尺寸 / 帧数等），所以这三项只在第三方 API 引擎下显示。</li>
             <li><b>api.seedance.nz 是异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，网关会返回 400 <code>invalid_request</code>。</li>
             <li>常用模型：生图 <code>seedream-v5-pro-t2i / -i2i</code>、<code>qwen-image-2.1-turbo</code>；生视频 <code>seedance-2.0-mini-t2v / -i2v</code>、<code>seedance-2.0-fast-*</code>。模型名可随时手改。</li>
             <li>其它服务商：预设里可切「OpenAI 兼容同步生图」「阿里百炼 Qwen Image 2.1 异步生图」「自定义 JSON 接口」。切到非 seedance 预设时，请在「▸ 高级」里填该服务商的独立 API Key。</li>
-            <li>「▸ 高级」可改接口地址、独立 Key、请求头、视频时长、画幅与分辨率；自定义预设还能填请求体模板与轮询路径，占位符支持 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{images}}</code> <code>{{content_array}}</code> <code>{{audios}}</code> <code>{{audio_objects}}</code> 等。</li>
+            <li>「▸ 高级」可改接口地址、独立 Key、请求头；自定义预设还能填请求体模板与轮询路径，占位符支持 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{images}}</code> <code>{{content_array}}</code> <code>{{audios}}</code> <code>{{audio_objects}}</code> <code>{{videos}}</code> <code>{{video_objects}}</code> 等。比例 / 分辨率 / 时长已做成生成节点上的下拉，不用进高级。</li>
             <li>结果直链是带签名的临时地址（约 24 小时），拿到后请及时下载转存。</li>
         </ul>
         <h2>② 本地 ComfyUI 接入 · 完整建立步骤</h2>
@@ -347,7 +373,7 @@
             <li><b>出图永远是导出的那句默认提示词</b>：提示词没写进真正生效的节点，检查映射里的 <code>promptNodes</code>（第 5 步）。</li>
             <li><b>参考图没生效</b>：工作流里要有 <code>LoadImage</code> 节点，且 <code>imageNodes</code> 映射到了它；图生图 / 图生视频工作流才吃参考图。</li>
         </ul>
-        <div class="hint warn" style="margin:8px 0"><b>安全与边界</b>：8188 端口无鉴权、只监听本机，不要暴露公网；正式 HTTPS 主站直连本机 HTTP 会被浏览器拦截，按正式部署阶段做同源反代 + TLS；内测期用 <code>http://</code> 本机打开即可。「声音参考」节点目前只作为素材留在画布上，需要工作流本身带音频输入节点才能用到本地 ComfyUI。</div>
+        <div class="hint warn" style="margin:8px 0"><b>安全与边界</b>：8188 端口无鉴权、只监听本机，不要暴露公网；正式 HTTPS 主站直连本机 HTTP 会被浏览器拦截，按正式部署阶段做同源反代 + TLS；内测期用 <code>http://</code> 本机打开即可。「声音/视频参考」节点目前只作为素材留在画布上，需要工作流本身带对应输入节点才能用到本地 ComfyUI。</div>
         <h2>这些步骤可以让 WorkBuddy 代做</h2>
         <div class="hint" style="margin:0 0 8px">上面第 2～5 步都不用自己折腾，直接在 WorkBuddy 里说一句话就行。它能读你本机的文件、改启动配置、验证接口、转换工作流格式、核对映射并排错。可以直接复制下面的说法：</div>
         <ul>
@@ -368,6 +394,7 @@
 <input type="file" id="workflowImport" accept=".json,application/json" hidden>
 <input type="file" id="nodeImageInput" accept="image/*" multiple hidden>
 <input type="file" id="nodeAudioInput" accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg" multiple hidden>
+<input type="file" id="nodeVideoInput" accept="video/mp4,video/webm,video/quicktime,.mp4,.mov,.webm,.m4v" multiple hidden>
 
 <script>
 "use strict";
@@ -449,6 +476,7 @@ const NODE_META = {
     prompt:  {label:"提示词", color:"#60a5fa"},
     image:   {label:"参考图", color:"#c084fc"},
     audio:   {label:"声音参考", color:"#f472b6"},
+    video:   {label:"视频参考", color:"#38bdf8"},
     generate:{label:"生成",   color:"#34d399"},
     result:  {label:"结果",   color:"#fbbf24"}
 };
@@ -498,11 +526,14 @@ function hasUpstreamImages(n){
 function hasUpstreamAudio(n){
     return upstream(n.id,"audio").some(x=>(x.data.audios||[]).length);
 }
+function hasUpstreamVideos(n){
+    return upstream(n.id,"video").some(x=>(x.data.videos||[]).length);
+}
 function recommendedModel(n){
     const m=API_PRESETS[presetOf(n)].models;
     const ref=hasUpstreamImages(n), video=n.data.kind==="video";
-    /* 有声音参考时必须走 -multi 多模态模型，官方文档：-t2v / -i2v 不接受音频 */
-    if(video && hasUpstreamAudio(n) && m.videoMulti) return m.videoMulti;
+    /* 有声音或视频参考时必须走 -multi 多模态模型，官方文档：-t2v / -i2v 不接受音频/视频参考 */
+    if(video && (hasUpstreamAudio(n)||hasUpstreamVideos(n)) && m.videoMulti) return m.videoMulti;
     return (video?(ref?m.videoRef:m.video):(ref?m.imageRef:m.image))||"";
 }
 function defaultGenData(){
@@ -556,9 +587,9 @@ const GLOBAL_KEY = "__global__";
 const el = id => document.getElementById(id);
 const docKey = id => "doc_"+id;
 function docName(id){ const d=docList.find(x=>x.id===id); return d?d.name:"画布"; }
-/* ===== 每份新画布的默认基础工作流：① 提示词 / 参考图 / 声音参考 → ② 生成 → ③ 结果 =====
+/* ===== 每份新画布的默认基础工作流：① 提示词 / 参考图 / 声音参考 / 视频参考 → ② 生成 → ③ 结果 =====
    目的：新用户一进来就能看懂数据流与连线方式，不用自己从空白画布搭。
-   多参考生视频支持声音参考，所以左侧三类素材都给一个示例节点。
+   多参考生视频支持图片、声音、视频三类素材，左侧各给一个示例节点。
    只在「从未打开过的画布 / 旧版空画布」时生成；已存过内容的画布一律保持原样。 */
 function seedStarterWorkflow(){
     canvas.nodes=[]; canvas.edges=[];
@@ -568,19 +599,22 @@ function seedStarterWorkflow(){
     pmt.title = "① 提示词";
     const aud = newNode("audio", 30, 560, {audios:[]});
     aud.title = "① 声音参考（可选）";
-    const gen = newNode("generate", 370, 240, defaultGenData());
+    const vid = newNode("video", 30, 820, {videos:[]});
+    vid.title = "① 视频参考（可选）";
+    const gen = newNode("generate", 370, 340, defaultGenData());
     gen.title = "② 生成";
-    const out = newNode("result", 700, 240, {kind:"", url:"", text:""});
+    const out = newNode("result", 700, 340, {kind:"", url:"", text:""});
     out.title = "③ 结果";
     canvas.edges = [
         {id:uid(), from:ref.id, to:gen.id},
         {id:uid(), from:pmt.id, to:gen.id},
         {id:uid(), from:aud.id, to:gen.id},
+        {id:uid(), from:vid.id, to:gen.id},
         {id:uid(), from:gen.id, to:out.id}
     ];
-    /* 按窗口大小自动缩放到能一眼看全五个节点 */
+    /* 按窗口大小自动缩放到能一眼看全六个节点 */
     const st=el("stage"), r=st?st.getBoundingClientRect():{width:1100,height:700};
-    const z=clamp(Math.min((r.width-40)/1030,(r.height-40)/780,1),.55,1);
+    const z=clamp(Math.min((r.width-40)/1030,(r.height-40)/1080,1),.5,1);
     canvas.viewport={x:20,y:16,zoom:z};
 }
 /* 读取某份画布：有内容或已被用户动过（seeded）就原样恢复，否则放入默认基础工作流 */
@@ -896,7 +930,7 @@ function buildNode(n){
     box.dataset.id = n.id;
     box.style.left = n.x+"px"; box.style.top = n.y+"px";
     const actions = [];
-    if(n.type==="prompt") actions.push('<button class="act-split" data-act="split" title="按 ▌ 拆成多条提示词节点">拆分</button>');
+    if(n.type==="prompt") actions.push('<button class="act-split" data-act="split" title="拆成多条提示词节点：含 ▌ 直接拆；没有 ▌ 会自动调用大语言模型智能分段（本地优先）">拆分</button>');
     if(n.type==="generate") actions.push('<button class="act-run" data-act="run" title="运行生成">▶</button>');
     actions.push('<button data-act="del" title="删除节点">×</button>');
     box.innerHTML =
@@ -910,6 +944,7 @@ function buildNode(n){
     if(n.type==="prompt") buildPromptBody(body,n);
     else if(n.type==="image") buildImageBody(body,n);
     else if(n.type==="audio") buildAudioBody(body,n);
+    else if(n.type==="video") buildVideoBody(body,n);
     else if(n.type==="generate") buildGenerateBody(body,n);
     else if(n.type==="result") buildResultBody(body,n);
 
@@ -932,7 +967,7 @@ function buildPromptBody(body,n){
     body.appendChild(ta);
     const line = document.createElement("div"); line.className="mini-line";
     const cnt = document.createElement("span"); const tip = document.createElement("span");
-    tip.textContent = "按 ▌ 可一键拆分"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
+    tip.textContent = "无 ▌ 时点「拆分」会自动调用大语言模型"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
     function updateCharCount(){ cnt.textContent = (n.data.text||"").length + " 字"; }
     updateCharCount();
 }
@@ -1037,6 +1072,87 @@ async function addAudios(n,files){
     scheduleSave();
     setStatus("声音参考 "+n.data.audios.length+" 段","ok");
 }
+/* ============ 视频参考节点 ============
+   多参考生视频（-multi）支持视频参考：官方 metadata.content 里
+   {"type":"video_url","video_url":{"url":"…"}}，最多 3 个 MP4、单个 ≤50MB。
+   本地视频存 dataURL 只留本机 IndexedDB；也可直接粘贴公网直链。
+   提交前本地视频同样经 /v1/files/upload 换 24 小时直链。 */
+function buildVideoBody(body,n){
+    if(!Array.isArray(n.data.videos)) n.data.videos=[];
+    const zone=document.createElement("div"); zone.className="upload-zone";
+    zone.textContent="点这里上传 / 拖入参考视频（MP4 / MOV / WebM）";
+    zone.addEventListener("click",()=>openVideoPicker(n.id));
+    zone.addEventListener("dragover",e=>{ e.preventDefault(); e.stopPropagation(); });
+    zone.addEventListener("drop",e=>{ e.preventDefault(); e.stopPropagation(); addVideos(n,[...e.dataTransfer.files]); });
+    body.appendChild(zone);
+    const list=document.createElement("div"); list.className="audio-list"; body.appendChild(list);
+    paintVideos(list,n);
+    const row=document.createElement("div"); row.className="audio-url-row";
+    const inp=document.createElement("input"); inp.type="text"; inp.placeholder="或粘贴公网视频直链 https://…";
+    const btn=document.createElement("button"); btn.textContent="添加";
+    btn.addEventListener("click",e=>{
+        e.stopPropagation();
+        const u=inp.value.trim();
+        if(!/^https?:\/\//i.test(u)){ setStatus("请填 http(s) 开头的视频直链","err"); return; }
+        if(!/\.(mp4|mov|webm|m4v)(\?|$)/i.test(u) && !/^https?:\/\/.+\/(videos?|files?)\//i.test(u)){
+            if(!confirm("这个链接看不出是视频直链，确定添加？")) return;
+        }
+        n.data.videos.push({name:decodeURIComponent(u.split("/").pop().split("?")[0])||"视频直链",url:u,size:0,mime:"video/mp4",duration:0,remote:true});
+        inp.value=""; paintVideos(list,n); scheduleSave(); setStatus("已添加视频直链","ok");
+    });
+    row.appendChild(inp); row.appendChild(btn); body.appendChild(row);
+    const tip=document.createElement("div"); tip.className="mini-line";
+    tip.textContent="最多 3 个 · 连到生成节点 · 多参考生视频";
+    body.appendChild(tip);
+}
+function paintVideos(list,n){
+    list.innerHTML="";
+    const arr=n.data.videos||[];
+    arr.forEach((v,i)=>{
+        const item=document.createElement("div"); item.className="audio-item";
+        const top=document.createElement("div"); top.className="a-top";
+        const name=document.createElement("span"); name.className="a-name";
+        name.textContent=v.name||("视频 "+(i+1)); name.title=v.name||"";
+        const meta=document.createElement("span"); meta.className="a-meta";
+        meta.textContent=(v.duration?fmtDuration(v.duration)+" · ":"")+(v.size?fmtSize(v.size):(v.remote?"直链":""));
+        const rm=document.createElement("button"); rm.className="a-rm"; rm.textContent="×"; rm.title="移除这个视频";
+        rm.addEventListener("click",e=>{ e.stopPropagation(); n.data.videos.splice(i,1); paintVideos(list,n); scheduleSave(); });
+        top.appendChild(name); top.appendChild(meta); top.appendChild(rm); item.appendChild(top);
+        const player=document.createElement("video"); player.controls=true; player.preload="metadata"; player.src=v.url;
+        player.addEventListener("loadedmetadata",()=>{
+            if(!v.duration && isFinite(player.duration)){
+                v.duration=player.duration;
+                meta.textContent=fmtDuration(v.duration)+" · "+(v.size?fmtSize(v.size):"");
+                scheduleSave(true);
+            }
+        });
+        item.appendChild(player); list.appendChild(item);
+    });
+    if(!arr.length){ const t=document.createElement("div"); t.className="mini-line"; t.textContent="暂无视频参考"; list.appendChild(t); }
+}
+let videoTargetId=null;
+function openVideoPicker(id){ videoTargetId=id; el("nodeVideoInput").click(); }
+el("nodeVideoInput").addEventListener("change",e=>{
+    const files=[...e.target.files]; e.target.value="";
+    const n=canvas.nodes.find(x=>x.id===videoTargetId);
+    if(n&&files.length) addVideos(n,files);
+});
+async function addVideos(n,files){
+    if(!Array.isArray(n.data.videos)) n.data.videos=[];
+    const MAX=50*1024*1024;   /* 官方限制：单个视频 ≤ 50MB */
+    for(const f of files){
+        if(!/^video\//.test(f.type) && !/\.(mp4|mov|webm|m4v)$/i.test(f.name)) continue;
+        if(f.size>MAX){ setStatus("「"+f.name+"」超过 50MB，已跳过","err"); continue; }
+        try{
+            const url=await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(f); });
+            n.data.videos.push({name:f.name,url:url,size:f.size,mime:f.type||"video/mp4",duration:0,remote:false});
+        }catch(e){ console.warn("视频读取失败：",e); }
+    }
+    const list=document.querySelector('.node[data-id="'+n.id+'"] .audio-list');
+    if(list) paintVideos(list,n); else renderAll();
+    scheduleSave();
+    setStatus("视频参考 "+n.data.videos.length+" 个","ok");
+}
 function buildGenerateBody(body,n){
     const d = n.data;
     if(!d.engine) d.engine = "third_party";
@@ -1095,6 +1211,42 @@ function buildGenerateBody(body,n){
 
     const mdl = inp("text","留空＝自动填入推荐模型"); mdl.value=d.model||"";
     const mdlFld = mk("模型名（可改）",mdl);
+
+    /* ===== 画幅比例 / 分辨率 / 视频时长：主界面下拉，按生成类型自动换选项 ===== */
+    const IMG_RATIOS=[["","自适应（默认）"],["16:9","16:9 横屏"],["9:16","9:16 竖屏"],["3:2","3:2"],["2:3","2:3"],["1:1","1:1"]];
+    const VID_RATIOS=[["","自适应（默认）"],["16:9","16:9 横屏"],["9:16","9:16 竖屏"]];
+    const ratioSel=document.createElement("select");
+    function fillRatioOpts(video){
+        const opts=video?VID_RATIOS:IMG_RATIOS;
+        const cur=String(d.ratio||"");
+        ratioSel.innerHTML="";
+        opts.forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; ratioSel.appendChild(o); });
+        if(!opts.some(([v])=>v===cur)){ d.ratio=""; }
+        ratioSel.value=String(d.ratio||"");
+    }
+    fillRatioOpts(d.kind==="video");
+    const imgReso=document.createElement("select");
+    [["","默认"],["1K","1K"],["2K","2K"],["4K","4K"]].forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; imgReso.appendChild(o); });
+    imgReso.value=/^(1K|2K|4K)$/i.test(String(d.resolution||""))?String(d.resolution).toUpperCase():"";
+    const vidReso=document.createElement("select");
+    [["","默认"],["480P","480P"],["720P","720P"],["1080P","1080P"],["4K","4K"]].forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; vidReso.appendChild(o); });
+    vidReso.value=/^(480P|720P|1080P|4K)$/i.test(String(d.resolution||""))?String(d.resolution).toUpperCase():"";
+    const specRow=document.createElement("div"); specRow.className="two";
+    function mountSpecRow(video){
+        specRow.innerHTML="";
+        specRow.appendChild(ratioSel);
+        specRow.appendChild(video?vidReso:imgReso);
+    }
+    mountSpecRow(d.kind==="video");
+    const specFld=mk("画幅比例 / 分辨率",specRow);
+    const secsSel=document.createElement("select");
+    for(let s=1;s<=15;s++){ const o=document.createElement("option"); o.value=String(s); o.textContent=s+" 秒"; secsSel.appendChild(o); }
+    secsSel.value=String(clamp(parseInt(d.seconds,10)||5,1,15));
+    const secsFld=mk("视频时长",secsSel);
+    const secsTip=document.createElement("div"); secsTip.className="mini-line";
+    secsTip.style.cssText="display:block;white-space:normal";
+    secsTip.textContent="Seedance 2.0 官方支持 4–15 秒；1–3 秒个别模型可能报错";
+    secsFld.appendChild(secsTip);
     const modelTip=document.createElement("div"); modelTip.className="mini-line";
     modelTip.textContent="接口与 Key 自动复用创作台配置";
     body.appendChild(modelTip);
@@ -1111,12 +1263,6 @@ function buildGenerateBody(body,n){
     mkAdv("独立 API Key（可选，只存本机画布）",keyIn);
     const hdr = ta(46); hdr.value=d.headers||"";
     mkAdv("自定义请求头（JSON 对象，可选）",hdr);
-    const secs=inp("text","5"); secs.value=d.seconds||"5";
-    const ratio=inp("text","留空＝自适应，可填 16:9 / 9:16"); ratio.value=d.ratio||"";
-    const pair0=document.createElement("div"); pair0.className="two"; pair0.appendChild(secs); pair0.appendChild(ratio);
-    mkAdv("视频时长（秒） / 画幅比例",pair0);
-    const reso=inp("text","留空＝平台默认，可填 1k / 2k / 720p / 1080p"); reso.value=d.resolution||"";
-    mkAdv("分辨率",reso);
 
     const routeTip=document.createElement("div"); routeTip.className="mini-line";
     routeTip.style.display="block"; routeTip.style.whiteSpace="normal";
@@ -1168,9 +1314,11 @@ function buildGenerateBody(body,n){
         modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"接口与 Key 自动复用创作台配置，无需额外填写";
     }
     function syncFields(){
-        const c = d.engine==="comfyui", custom = presetOf(n)==="custom";
+        const c = d.engine==="comfyui", custom = presetOf(n)==="custom", video = d.kind==="video";
         wfFld.style.display = c?"":"none";
-        [preFld,kindFld,mdlFld,modelTip,adv].forEach(x=>x.style.display=c?"none":"");
+        [preFld,kindFld,mdlFld,modelTip,specFld,adv].forEach(x=>x.style.display=c?"none":"");
+        secsFld.style.display = (c||!video)?"none":"";
+        fillRatioOpts(video); mountSpecRow(video);
         customFields.forEach(x=>x.style.display=custom?"":"none");
         refreshTip();
         if(c) fillWf();
@@ -1191,8 +1339,11 @@ function buildGenerateBody(body,n){
     preSel.addEventListener("change",()=>{ d.preset=API_PRESETS[preSel.value]?preSel.value:"seedance"; preSel.value=d.preset; d.model=""; d.modelTouched=false; applyRecommended(true); syncFields(); scheduleSave(); });
     kindSel.addEventListener("change",()=>{ d.kind=kindSel.value==="video"?"video":"image"; kindSel.value=d.kind; if(!d.modelTouched){ d.model=""; applyRecommended(true); } syncFields(); scheduleSave(); });
     mdl.addEventListener("input",()=>{ d.model=mdl.value; d.modelTouched=!!mdl.value.trim(); scheduleSave(true); });
+    ratioSel.addEventListener("change",()=>{ d.ratio=ratioSel.value; scheduleSave(); });
+    imgReso.addEventListener("change",()=>{ d.resolution=imgReso.value; scheduleSave(); });
+    vidReso.addEventListener("change",()=>{ d.resolution=vidReso.value; scheduleSave(); });
+    secsSel.addEventListener("change",()=>{ d.seconds=secsSel.value; scheduleSave(); });
     bindVal(ep,"endpoint"); bindVal(keyIn,"apiKey"); bindVal(hdr,"headers"); bindVal(tpl,"bodyTemplate");
-    bindVal(secs,"seconds"); bindVal(ratio,"ratio"); bindVal(reso,"resolution");
     bindVal(pollUrl,"pollUrl"); bindVal(taskPath,"taskIdPath"); bindVal(statusPath,"statusPath");
     bindVal(okVals,"successValues"); bindVal(failVals,"failValues");
     bindVal(interval,"pollInterval",true); bindVal(maxPoll,"maxPoll",true);
@@ -1201,7 +1352,8 @@ function buildGenerateBody(body,n){
         e.stopPropagation();
         d.model=""; d.modelTouched=false; applyRecommended(true);
         ep.value=""; d.endpoint=""; hdr.value=""; d.headers="";
-        secs.value="5"; d.seconds="5"; ratio.value=""; d.ratio=""; reso.value=""; d.resolution="";
+        d.seconds="5"; secsSel.value="5";
+        d.ratio=""; d.resolution=""; imgReso.value=""; vidReso.value="";
         pollUrl.value=""; d.pollUrl="";
         tpl.value=DEFAULT_BODY_TEMPLATE; d.bodyTemplate=tpl.value;
         adv.open=true; d.advOpen=true; syncFields(); scheduleSave();
@@ -1242,15 +1394,17 @@ function buildResultBody(body,n){
     const d = n.data || {};
     const holder = document.createElement("div"); body.appendChild(holder);
     const actions = document.createElement("div"); actions.className="result-actions"; body.appendChild(actions);
+    let media=null;
     if(d.kind==="image" && d.url){
-        const img=document.createElement("img"); img.className="result-media"; img.src=d.url; img.alt="生成结果"; holder.appendChild(img);
+        const img=document.createElement("img"); img.className="result-media"; img.src=d.url; img.alt="生成结果"; img.title="点击浮窗放大预览"; holder.appendChild(img); media=img;
     } else if(d.kind==="video" && d.url){
-        const v=document.createElement("video"); v.className="result-media"; v.src=d.url; v.controls=true; holder.appendChild(v);
+        const v=document.createElement("video"); v.className="result-media"; v.src=d.url; v.controls=true; v.title="点击浮窗放大预览"; holder.appendChild(v); media=v;
     } else if(d.text){
         const pre=document.createElement("div"); pre.className="result-text"; pre.textContent=d.text; holder.appendChild(pre);
     } else {
         const t=document.createElement("div"); t.className="mini-line"; t.textContent="暂无结果：把提示词 / 参考图连到生成节点并运行"; holder.appendChild(t);
     }
+    if(media) media.addEventListener("click",e=>{ e.stopPropagation(); openLightbox(d); });
     if(d.url){
         const a=document.createElement("button"); a.className="mini-btn cyan"; a.textContent="下载结果";
         a.addEventListener("click",e=>{
@@ -1267,6 +1421,23 @@ function buildResultBody(body,n){
         const b=document.createElement("button"); b.className="mini-btn gray"; b.textContent="复制文本";
         b.addEventListener("click",e=>{ e.stopPropagation(); navigator.clipboard?.writeText(d.text).catch(()=>{}); }); actions.appendChild(b);
     }
+}
+/* ============ 媒体浮窗预览 ============ */
+function openLightbox(d){
+    const lb=el("mediaLightbox"), h=el("lbHolder");
+    if(!lb||!h) return;
+    h.innerHTML="";
+    if(d.kind==="video"){
+        const v=document.createElement("video"); v.src=d.url; v.controls=true; v.autoplay=true; v.loop=true; h.appendChild(v);
+    }else{
+        const img=document.createElement("img"); img.src=d.url; img.alt="预览"; h.appendChild(img);
+    }
+    lb.classList.add("show");
+}
+function closeLightbox(){
+    const lb=el("mediaLightbox"), h=el("lbHolder");
+    if(lb) lb.classList.remove("show");
+    if(h) h.innerHTML="";   /* 停掉视频播放 */
 }
 function paintSelection(){
     document.querySelectorAll(".node").forEach(x=>x.classList.toggle("selected",selectedIds.has(x.dataset.id)));
@@ -1296,7 +1467,92 @@ function startRename(n){
 function handleNodeAction(act,n){
     if(act==="del"){ removeNode(n.id); }
     else if(act==="run"){ runGenerate(n); }
-    else if(act==="split"){ splitPrompt(n); }
+    else if(act==="split"){ splitAction(n); }
+}
+/* ===== 提示词拆分：含 ▌ 直接拆；没有 ▌ 就调大语言模型智能分段（本地优先，云端兜底） ===== */
+function splitAction(n){
+    const text=String(n.data.text||"").trim();
+    if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); return; }
+    const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
+    if(parts.length>=2){ splitPrompt(n); return; }
+    if(n.data.splitting) return;
+    if(!confirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本地 llama / Ollama，其次创作台已接通的 API 模型）")) return;
+    smartSplitLLM(n);
+}
+async function smartSplitLLM(n){
+    if(n.data.splitting) return;
+    n.data.splitting=true;
+    const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-split');
+    if(btn){ btn.disabled=true; btn.textContent="拆分中…"; }
+    setStatus("正在用大语言模型拆分…","busy");
+    try{
+        const r=await llmSplitText(String(n.data.text||"").trim());
+        if(!r.ok){
+            setStatus("拆分失败：本地与云端大语言模型都没连上。请先启动本地 llama / Ollama，或到创作台「API云算力」配置大模型接口。","err");
+            return;
+        }
+        /* 模型偶尔包代码块，先剥掉再取 ▌ 行 */
+        const lines=r.text.replace(/```[a-z]*\n?/gi,"").split("\n").map(s=>s.trim()).filter(Boolean);
+        const segs=lines.filter(s=>s.startsWith("▌"));
+        if(segs.length<2){ setStatus("「"+r.via+"」没有按 ▌ 分段返回，拆分已取消","err"); return; }
+        if(!confirm("已用「"+r.via+"」拆出 "+segs.length+" 个片段，将替换原文本并生成节点。继续？")) return;
+        n.data.text=segs.join("\n");
+        splitPrompt(n);
+        setStatus("已用「"+r.via+"」智能拆分成 "+segs.length+" 条","ok");
+    }finally{
+        n.data.splitting=false;
+        if(btn){ btn.disabled=false; btn.textContent="拆分"; }
+    }
+}
+/* 拆分可用的候选模型：本机 127.0.0.1/localhost 配置最优先，其次本机 llama-server 默认口，最后云端当前配置 */
+function llmCandidates(){
+    let list=[];
+    try{ list=JSON.parse(safeStorage.get(KEY_API)||"[]")||[]; }catch(e){ list=[]; }
+    const cur=safeStorage.get(KEY_CURR);
+    const out=[];
+    list.filter(p=>p&&p.endpoint&&/^(https?:\/\/)?(127\.|localhost|\[::)/i.test(p.endpoint))
+        .forEach(p=>out.push({name:p.name||"本地模型",endpoint:p.endpoint,key:p.key||"",model:p.model||"",local:true}));
+    out.push({name:"本地 llama（默认 127.0.0.1:8080）",endpoint:"http://127.0.0.1:8080",key:"",model:"",local:true});
+    const pick=(list.find(p=>p&&p.id===cur&&p.endpoint)||list.find(p=>p&&p.endpoint)||null);
+    if(pick&&!/^(https?:\/\/)?(127\.|localhost|\[::)/i.test(pick.endpoint))
+        out.push({name:pick.name||"云端模型",endpoint:pick.endpoint,key:pick.key||"",model:pick.model||"",local:false});
+    return out;
+}
+function llmChatUrl(ep){
+    const s=String(ep||"").trim().replace(/\/+$/,"");
+    if(/\/chat\/completions$/i.test(s)) return s;
+    if(/\/v1$/i.test(s)) return s+"/chat/completions";
+    return s+"/v1/chat/completions";
+}
+/* 分段规则参考 Toonflow 分镜方法：情绪转折/动作段落/说话人切换划片、15 秒上限、台词逐字保留 */
+const SPLIT_SYSTEM_PROMPT=[
+    "你是漫剧分镜拆分助手。把用户给出的剧本文本拆成一个个可直接生成 15 秒视频的片段提示词。规则：",
+    "1. 以情绪转折、动作段落或说话人切换为界划分片段；每个片段按台词约 4 字/秒估时，加上必要停顿，整体控制在 15 秒内。",
+    "2. 台词逐字保留，一个字都不能删改；不得新增台词、情节或配乐说明。",
+    "3. 同一片段台词超过 20 字时，按语义停顿拆成相邻片段。",
+    "4. 每个片段输出一行：以「▌」开头，后接完整提示词（画面描述＋完整台词）。",
+    "5. 只输出这些 ▌ 开头的行，不要解释、不要代码块。"
+].join("\n");
+async function llmSplitText(text){
+    for(const c of llmCandidates()){
+        try{
+            const body={messages:[{role:"system",content:SPLIT_SYSTEM_PROMPT},{role:"user",content:text}],temperature:0.3,stream:false};
+            if(c.model) body.model=c.model;
+            const ctrl=new AbortController();
+            const t=setTimeout(()=>ctrl.abort(),c.local?25000:90000);
+            const headers={"Content-Type":"application/json"};
+            if(c.key) headers["Authorization"]="Bearer "+c.key;
+            const res=await fetch(llmChatUrl(c.endpoint),{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal});
+            clearTimeout(t);
+            if(!res.ok) throw new Error("HTTP "+res.status);
+            const j=await res.json();
+            const ch=j.choices&&j.choices[0];
+            const msg=ch&&(ch.message&&(ch.message.content||ch.message.reasoning_content))||ch&&ch.text;
+            if(!msg||!String(msg).trim()) throw new Error("返回里没有文本");
+            return {ok:true,text:String(msg).trim(),via:c.name};
+        }catch(e){ console.warn("拆分模型「"+c.name+"」不可用：",e&&e.message||e); }
+    }
+    return {ok:false};
 }
 function removeNodes(ids){
     const set=new Set(ids);
@@ -1577,6 +1833,7 @@ function spawn(type){
     else if(type==="result") n.data={kind:"",url:"",text:""};
     else if(type==="image") n.data={images:[]};
     else if(type==="audio") n.data={audios:[]};
+    else if(type==="video") n.data={videos:[]};
     else if(type==="prompt") n.data={text:"",sourceId:""};
     renderAll(); selectNode(n.id); scheduleSave();
     return n;
@@ -1707,11 +1964,12 @@ function upstream(nodeId,type){
 function collectInputs(gen){
     const prompts=upstream(gen.id,"prompt").map(n=>n.data.text||"").filter(Boolean);
     const texts=prompts.join("\n\n");
-    const images=[], audios=[];
+    const images=[], audios=[], videos=[];
     upstream(gen.id,"image").forEach(n=>(n.data.images||[]).forEach(u=>images.push(u)));
     upstream(gen.id,"result").forEach(n=>{ if(n.data&&n.data.kind==="image"&&n.data.url) images.push(n.data.url); });
     upstream(gen.id,"audio").forEach(n=>(n.data.audios||[]).forEach(a=>{ if(a&&a.url) audios.push(a); }));
-    return {prompt:texts,images:images,audios:audios};
+    upstream(gen.id,"video").forEach(n=>(n.data.videos||[]).forEach(v=>{ if(v&&v.url) videos.push(v); }));
+    return {prompt:texts,images:images,audios:audios,videos:videos};
 }
 function resultNodeFor(gen){
     const linked=canvas.edges.filter(e=>e.from===gen.id).map(e=>e.to);
@@ -1850,18 +2108,60 @@ function jsonEscape(s){ return JSON.stringify(String(s==null?"":s)).slice(1,-1);
 function genParams(n){
     const raw=String(n.data.model||"").trim();
     const isSize=/^\d+x\d+$/i.test(raw);
+    /* 选了比例/分辨率就派生尺寸（OpenAI 兼容 / Qwen 模板里的 {{size}} 用） */
+    const dims=(n.data.kind==="image")?ratioDims(n.data.ratio,n.data.resolution):null;
+    const size=dims?(dims.w+"x"+dims.h):(n.data.size||"1024x1024");
     return {
         model:isSize?"":raw,
-        size:isSize?raw:(n.data.size||"1024x1024"),
-        key:resolveKey(n)
+        size:isSize?raw:size,
+        key:resolveKey(n),
+        /* 供自定义模板占位符：比例 / 分辨率（官方档位值）/ 视频秒数，与生成节点下拉一致 */
+        ratio:String(n.data.ratio||"").trim(),
+        resolution:resolutionApi(n.data.resolution),
+        seconds:String(n.data.seconds||"5")
     };
+}
+/* 分辨率统一转成官方小写档位值（480p / 720p / 1080p / 1k / 2k / 4k） */
+function resolutionApi(v){
+    const s=String(v||"").trim().toLowerCase();
+    if(!s) return "";
+    if(s==="1k"||s==="2k"||s==="4k") return s;
+    if(s==="480p"||s==="720p"||s==="1080p") return s;
+    return s;   /* 用户自定义值原样透传 */
+}
+/* 生图选了比例时换算成 width/height（部分模型不吃 ratio，只认宽高，如 Seedream 文生图）
+   分辨率档对应长边：1K=1024，2K=2048，4K=3840；数值取 8 的倍数 */
+function ratioDims(ratio,reso){
+    const m=String(ratio||"").trim().match(/^(\d+)\s*[:x×]\s*(\d+)$/);
+    if(!m) return null;
+    const w=+m[1], h=+m[2];
+    if(!w||!h) return null;
+    const edgeMap={"1k":1024,"2k":2048,"4k":3840};
+    const edge=edgeMap[resolutionApi(reso)]||1024;
+    const r=w/h;
+    let W,H;
+    if(r>=1){ W=edge; H=Math.round(edge/r); } else { H=edge; W=Math.round(edge*r); }
+    const round8=x=>Math.max(240,Math.round(x/8)*8);
+    return {w:round8(W),h:round8(H)};
 }
 function genMeta(n){
     const m={};
-    const reso=String(n.data.resolution||"").trim();
+    const reso=resolutionApi(n.data.resolution);
     const ratio=String(n.data.ratio||"").trim();
-    if(reso) m.resolution=reso;
-    if(ratio) m.ratio=ratio;
+    if(n.data.kind==="video"){
+        /* 生视频：官方 metadata.ratio（16:9 / 9:16…）+ metadata.resolution（480p…4k） */
+        if(ratio) m.ratio=ratio;
+        if(reso) m.resolution=reso;
+    }else{
+        /* 生图：Seedream 系没有 ratio 字段，选了比例就换算成 width/height；
+           只选分辨率时直接传 resolution（1k / 2k / 4k） */
+        if(ratio){
+            const dims=ratioDims(ratio,reso);
+            if(dims){ m.width=dims.w; m.height=dims.h; }
+        }else if(reso){
+            m.resolution=reso;
+        }
+    }
     return m;
 }
 function pollConfig(n){
@@ -1879,22 +2179,22 @@ function effectiveModel(n,video){
     if(!n.data.modelTouched) return recommendedModel(n);
     return String(n.data.model||"").trim()||recommendedModel(n);
 }
-async function uploadSeedanceAudio(a,base,key,headers){
+async function uploadSeedanceAsset(a,base,key,headers,label){
     if(a.remote && /^https?:\/\//i.test(a.url)) return a.url;
     if(a.remoteUrl && a.uploadedAt && Date.now()-a.uploadedAt<23*3600*1000) return a.remoteUrl;
-    if(!/^data:/i.test(a.url)) throw new Error("音频不是本机文件也不是公网直链，无法作为声音参考。");
+    if(!/^data:/i.test(a.url)) throw new Error((label||"素材")+"不是本机文件也不是公网直链，无法提交。");
     const blob=await (await fetch(a.url)).blob();
     const fd=new FormData();
-    fd.append("file",blob,a.name||"audio.mp3");
+    fd.append("file",blob,a.name||"asset.bin");
     const h=Object.assign({},headers||{});
     delete h["Content-Type"]; delete h["content-type"];  /* 让浏览器自己加 multipart boundary */
     if(key) h["Authorization"]="Bearer "+key;
     const res=await fetch(base.replace(/\/+$/,"")+"/v1/files/upload",{method:"POST",headers:h,body:fd});
     const txt=await res.text();
     let j={}; try{ j=JSON.parse(txt); }catch(e){}
-    if(!res.ok) throw new Error("声音参考上传失败 HTTP "+res.status+"："+txt.slice(0,300));
+    if(!res.ok) throw new Error((label||"素材")+"上传失败 HTTP "+res.status+"："+txt.slice(0,300));
     const url=j.url||(j.data&&j.data.url);
-    if(!url) throw new Error("声音参考上传没有返回 url："+txt.slice(0,300));
+    if(!url) throw new Error((label||"素材")+"上传没有返回 url："+txt.slice(0,300));
     a.remoteUrl=url; a.uploadedAt=Date.now();
     return url;
 }
@@ -1906,7 +2206,20 @@ async function resolveAudioUrls(n,input,base,key,headers){
     const out=[];
     for(let i=0;i<list.length;i++){
         setGenStatus(n,"正在上传声音参考 "+(i+1)+"/"+list.length+" …","busy");
-        out.push(await uploadSeedanceAudio(list[i],base,key,headers));
+        out.push(await uploadSeedanceAsset(list[i],base,key,headers,"声音参考"));
+    }
+    return out;
+}
+/* 视频参考：官方上限 3 个 MP4、单个 ≤50MB，同样先经 /v1/files/upload 换直链 */
+async function resolveVideoUrls(n,input,base,key,headers){
+    const all=input.videos||[];
+    if(!all.length) return [];
+    const list=all.slice(0,3);
+    if(all.length>3) setStatus("视频参考超过 3 个，本次只用前 3 个","busy");
+    const out=[];
+    for(let i=0;i<list.length;i++){
+        setGenStatus(n,"正在上传视频参考 "+(i+1)+"/"+list.length+" …","busy");
+        out.push(await uploadSeedanceAsset(list[i],base,key,headers,"视频参考"));
     }
     return out;
 }
@@ -1928,11 +2241,14 @@ async function genSeedance(n,input){
         submitUrl=base+"/v1/videos";
         body={model:model,prompt:input.prompt,seconds:String(n.data.seconds||"5")};
         const audioUrls=await resolveAudioUrls(n,input,base,q.key,headers);
-        if(audioUrls.length){
-            /* -multi 多模态：图片 + 音频必须一起写进 metadata.content，
-               官方文档明确 content 会整体覆盖顶层 images，所以此处不再传 body.images。 */
+        const videoUrls=await resolveVideoUrls(n,input,base,q.key,headers);
+        if(audioUrls.length||videoUrls.length){
+            /* -multi 多模态：图片 / 视频 / 音频一起写进 metadata.content，
+               官方文档明确 content 会整体覆盖顶层 images，所以此处不再传 body.images。
+               上限：图 ≤9 张、视频 ≤3 个、音频 ≤3 段。 */
             const content=[];
-            input.images.forEach(u=>content.push({type:"image_url",image_url:{url:u}}));
+            input.images.slice(0,9).forEach(u=>content.push({type:"image_url",image_url:{url:u}}));
+            videoUrls.forEach(u=>content.push({type:"video_url",video_url:{url:u}}));
             audioUrls.forEach(u=>content.push({type:"audio_url",audio_url:{url:u}}));
             body.metadata=Object.assign({},meta,{content:content});
         }else{
@@ -1945,7 +2261,7 @@ async function genSeedance(n,input){
         body={model:model,prompt:input.prompt};
         if(input.images.length) body.images=input.images;
         if(Object.keys(meta).length) body.metadata=meta;
-        if((input.audios||[]).length) setStatus("声音参考只在「生视频」时生效，生图已忽略","busy");
+        if((input.audios||[]).length||(input.videos||[]).length) setStatus("声音/视频参考只在「生视频」时生效，生图已忽略","busy");
         pollTpl=base+"/v1/image/generations/{id}";
     }
     const submit=await postJson(submitUrl,q.key,body,120000,headers);
@@ -2010,10 +2326,11 @@ async function genDashscope(n,input){
 async function genThirdParty(n,input){
     const p=presetOf(n);
     if(p==="custom"){
-        /* 自定义接口若仍指向 seedance 网关，本地音频也先换直链，模板里才拿得到可用 URL */
+        /* 自定义接口若仍指向 seedance 网关，本地音频/视频也先换直链，模板里才拿得到可用 URL */
         const base=apiBaseFor(n,"");
-        if((input.audios||[]).some(a=>!a.remote) && /seedance\.nz/i.test(hostOf(base))){
+        if(((input.audios||[]).some(a=>!a.remote)||(input.videos||[]).some(v=>!v.remote)) && /seedance\.nz/i.test(hostOf(base))){
             await resolveAudioUrls(n,input,base,resolveKey(n),parseHeaders(n.data));
+            await resolveVideoUrls(n,input,base,resolveKey(n),parseHeaders(n.data));
         }
         return genGenericJson(n,input);
     }
@@ -2028,12 +2345,18 @@ async function genThirdParty(n,input){
    {{content_array}}     完整 content 数组（参考图对象 + 文本），Qwen DashScope 用
    {{image_objects}}     逗号分隔的 {"image":...} 序列，可放进自建 content 数组
    {{audios}}            声音参考直链数组（自定义接口用）
-   {{audio_objects}}     官方 audio_url 内容项数组，可直接塞进 metadata.content */
+   {{audio_objects}}     官方 audio_url 内容项数组，可直接塞进 metadata.content
+   {{videos}}            视频参考直链数组
+   {{video_objects}}     官方 video_url 内容项数组，可直接塞进 metadata.content
+   {{ratio}} {{resolution}} {{seconds}}  画幅比例 / 分辨率档位 / 视频秒数（生成节点下拉选的值） */
 function renderTemplate(tpl,input,q){
     const imgs=input.images||[];
     const auds=(input.audios||[]).map(a=>a.remoteUrl||a.url).filter(Boolean);
     const audiosJson=JSON.stringify(auds);
     const audioObjArr=JSON.stringify(auds.map(u=>({type:"audio_url",audio_url:{url:u}})));
+    const vids=(input.videos||[]).map(v=>v.remoteUrl||v.url).filter(Boolean);
+    const videosJson=JSON.stringify(vids);
+    const videoObjArr=JSON.stringify(vids.map(u=>({type:"video_url",video_url:{url:u}})));
     const imagesJson=JSON.stringify(imgs);
     const base64Json=JSON.stringify(imgs.map(u=>String(u).replace(/^data:[^;]+;base64,/,"")));
     const objSeq=imgs.map(u=>JSON.stringify({image:u})).join(",");
@@ -2046,15 +2369,22 @@ function renderTemplate(tpl,input,q){
         .replace(/"\{\{content_array\}\}"/g,()=>contentArr)
         .replace(/"\{\{audios\}\}"/g,()=>audiosJson)
         .replace(/"\{\{audio_objects\}\}"/g,()=>audioObjArr)
+        .replace(/"\{\{videos\}\}"/g,()=>videosJson)
+        .replace(/"\{\{video_objects\}\}"/g,()=>videoObjArr)
         .replace(/\{\{prompt\}\}/g,()=>jsonEscape(input.prompt))
         .replace(/\{\{model\}\}/g,()=>jsonEscape(q.model))
         .replace(/\{\{size\}\}/g,()=>jsonEscape(q.size))
+        .replace(/\{\{ratio\}\}/g,()=>jsonEscape(q.ratio||""))
+        .replace(/\{\{resolution\}\}/g,()=>jsonEscape(q.resolution||""))
+        .replace(/\{\{seconds\}\}/g,()=>jsonEscape(q.seconds||""))
         .replace(/\{\{content_array\}\}/g,()=>contentArr)
         .replace(/\{\{images_base64\}\}/g,()=>base64Json)
         .replace(/\{\{image_objects\}\}/g,()=>objSeq)
         .replace(/\{\{images\}\}/g,()=>imagesJson)
         .replace(/\{\{audios\}\}/g,()=>audiosJson)
-        .replace(/\{\{audio_objects\}\}/g,()=>audioObjArr);
+        .replace(/\{\{audio_objects\}\}/g,()=>audioObjArr)
+        .replace(/\{\{videos\}\}/g,()=>videosJson)
+        .replace(/\{\{video_objects\}\}/g,()=>videoObjArr);
 }
 /* 异步任务：提交返回 task_id → 轮询查询地址 → 状态成功后再解析结果 */
 async function pollTask(n,submitResp,key,extraHeaders,cfg){
@@ -2252,8 +2582,8 @@ async function runGenerate(n){
     const input=collectInputs(n);
     if(!input.prompt && n.data.engine!=="comfyui"){ setGenStatus(n,"没有连入提示词：请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; renderAll(); return; }
     setGenStatus(n,"正在生成…","busy");
-    if(input.audios.length && n.data.kind!=="video" && n.data.engine!=="comfyui")
-        setStatus("已连入声音参考：请把「生成类型」切到生视频，才会作为多模态素材提交","busy");
+    if((input.audios.length||input.videos.length) && n.data.kind!=="video" && n.data.engine!=="comfyui")
+        setStatus("已连入声音/视频参考：请把「生成类型」切到生视频，才会作为多模态素材提交","busy");
     try{
         let out;
         if(n.data.engine==="comfyui") out=await genComfy(n,input);
@@ -2263,6 +2593,7 @@ async function runGenerate(n){
         const parts=[];
         if(input.images.length) parts.push("参考图 "+input.images.length+" 张");
         if(input.audios.length) parts.push("声音 "+input.audios.length+" 段");
+        if(input.videos.length) parts.push("视频 "+input.videos.length+" 个");
         setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):""),"ok");
         renderAll(); scheduleSave();
     }catch(e){
@@ -2455,6 +2786,13 @@ function bindToolbar(){
     el("helpBtn").addEventListener("click",()=>el("helpModal").classList.add("show"));
     el("closeHelpBtn").addEventListener("click",()=>el("helpModal").classList.remove("show"));
     el("helpModal").addEventListener("click",e=>{ if(e.target===el("helpModal")) el("helpModal").classList.remove("show"); });
+    /* 媒体浮窗：点遮罩 / × / Esc 关闭 */
+    el("lbClose").addEventListener("click",closeLightbox);
+    el("mediaLightbox").addEventListener("click",e=>{ if(e.target===el("mediaLightbox")||e.target===el("lbHolder")) closeLightbox(); });
+    /* 左侧栏 ② ③ 面板：点标题展开 / 收起 */
+    document.querySelectorAll(".card.collapsible h2.card-toggle").forEach(h=>{
+        h.addEventListener("click",()=>h.parentElement.classList.toggle("collapsed"));
+    });
     el("zoomIn").addEventListener("click",()=>{ canvas.viewport.zoom=clamp(canvas.viewport.zoom*1.2,.3,2); applyViewport(); scheduleSave(); });
     el("zoomOut").addEventListener("click",()=>{ canvas.viewport.zoom=clamp(canvas.viewport.zoom/1.2,.3,2); applyViewport(); scheduleSave(); });
     el("zoomFit").addEventListener("click",()=>{ canvas.viewport={x:40,y:40,zoom:1}; applyViewport(); scheduleSave(); });
@@ -2512,6 +2850,7 @@ function bindToolbar(){
         const mod=e.ctrlKey||e.metaKey, key=(e.key||"").toLowerCase();
         if(e.key==="Escape"){
             el("helpModal").classList.remove("show");
+            closeLightbox();
             if(!typing) clearSelection();
             if(selectRectEl) selectRectEl.style.display="none";
             if(drag&&drag.type==="select") drag=null;
@@ -2565,6 +2904,12 @@ function bindToolbar(){
         if(audioFiles.length){
             const n=newNode("audio",p.x,p.y,{audios:[]});
             renderAll(); selectNode(n.id); addAudios(n,audioFiles);
+            return;
+        }
+        const videoFiles=files.filter(x=>/^video\//.test(x.type)||/\.(mp4|mov|webm|m4v)$/i.test(x.name));
+        if(videoFiles.length){
+            const n=newNode("video",p.x,p.y,{videos:[]});
+            renderAll(); selectNode(n.id); addVideos(n,videoFiles);
             return;
         }
         const n=newNode("image",p.x,p.y,{images:[]});
