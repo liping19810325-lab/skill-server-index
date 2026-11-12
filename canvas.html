@@ -250,8 +250,8 @@
             <div class="card collapsible collapsed" id="cardGuide">
                 <h2 class="card-toggle">③ 两类接入方式</h2>
                 <div class="card-body">
-                <div class="hint">生成节点只需二选一：<br>· <b>① 第三方 API 接入</b>：云端生图 / 生视频。默认服务商 <code>api.seedance.nz</code>、异步任务自动轮询，接口与 Key 复用创作台，选好「生成类型 + 模型」即可运行；也可切 OpenAI 兼容 / 百炼 Qwen / 自定义 JSON。<br>· <b>② 本地 ComfyUI 接入</b>：本机工作流，可存多份模板，<b>生图与生视频各用各的</b>。</div>
-                <div class="hint"><code>api.seedance.nz</code> 用异步任务：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>。<b>不能用 OpenAI 的复数 <code>/v1/images/generations</code></b>，否则返回 400。</div>
+                <div class="hint">生成节点只需二选一：<br>· <b>① 第三方 API 接入</b>：云端生图 / 生视频。接口地址与 Key 复用<b>你自己在创作台填写</b>的配置，<b>模型名必须自己填</b>（页面不预置任何接口和模型）；预设只决定请求协议：异步任务（提交 → 轮询）、OpenAI 兼容同步、百炼 Qwen、自定义 JSON。<br>· <b>② 本地 ComfyUI 接入</b>：本机工作流，可存多份模板，<b>生图与生视频各用各的</b>。</div>
+                <div class="hint">异步任务型网关的协议：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>。<b>不能用 OpenAI 的复数 <code>/v1/images/generations</code></b>，否则返回 400。</div>
                 <div class="hint"><b>多参考素材</b>：把「＋ 声音」「＋ 视频」节点连到生成节点、生成类型切到生视频，会自动改用 <code>-multi</code> 多模态模型，按官方格式把图片、视频与音频一起写进 <code>metadata.content</code>；本地文件先上传换直链。视频 ≤3 个、音频 ≤3 段。</div>
                 <div class="hint">生成失败时结果节点会显示接口原始返回，方便边测边调。</div>
                 </div>
@@ -319,7 +319,7 @@
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。</li>
         </ul>
-        <h2>多参考素材怎么生效（api.seedance.nz）</h2>
+        <h2>多参考素材怎么生效（异步任务型网关）</h2>
         <p>连入声音或视频参考节点、且生成类型选「生视频」时，模型会自动推荐 <code>-multi</code> 多模态版本；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
         <h2>鼠标与快捷键（贴近常用画布习惯）</h2>
         <ul>
@@ -331,18 +331,18 @@
             <li>输入框 / 下拉框里打字时，除 <code>Ctrl+S</code>、<code>Esc</code> 外不触发画布快捷键，不会误删节点。</li>
         </ul>
         <h2>连线规则</h2>
-        <p>从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线；点画布上的连线可删除。生成节点只读取「连进它」的上游节点，方向别接反。</p>
+        <p>从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。</p>
         <h2>与创作台的关系</h2>
         <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
         <h2>多画布切换</h2>
         <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
         <h2>两类接入方式（生成节点二选一）</h2>
-        <h2>① 第三方 API 接入 · 最快零配置跑通</h2>
+        <h2>① 第三方 API 接入 · 每个用户自己配置</h2>
         <ul>
-            <li><b>默认不用填任何东西</b>：创作台接通大语言模型后，画布页自动复用同一份接口地址与 API Key，并把 <code>…/v1/chat/completions</code> 归一到域名层；生成节点默认「ZZAI / api.seedance.nz + 生图」，模型名自动推荐，<b>直接点「▶ 运行生成」即可</b>。</li>
-            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名自动跟着换成文生 / 图生版本；有参考图连入时自动用 <code>-i2i</code> / <code>-i2v</code>，有声音或视频参考连入时自动用 <code>-multi</code>。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 480P / 720P / 1080P / 4K）和<b>视频时长 1–15 秒</b>。这些选项直接按各厂商官方参数生效：Seedance 生视频写进 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；Seedream 系生图不吃 ratio 字段，会自动换算成 <code>metadata.width / metadata.height</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符。<b>本地 ComfyUI 的画幅与时长由工作流自身节点决定</b>（Empty Latent 尺寸 / 帧数等），所以这三项只在第三方 API 引擎下显示。</li>
-            <li><b>api.seedance.nz 是异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，网关会返回 400 <code>invalid_request</code>。</li>
-            <li>常用模型：生图 <code>seedream-v5-pro-t2i / -i2i</code>、<code>qwen-image-2.1-turbo</code>；生视频 <code>seedance-2.0-mini-t2v / -i2v</code>、<code>seedance-2.0-fast-*</code>。模型名可随时手改。</li>
+            <li><b>页面不预置任何接口、Key、模型名</b>：默认全部为空。先在创作台填写你自己的接口地址与 API Key（只存你本机浏览器），画布页自动复用同一份配置并把 <code>…/v1/chat/completions</code> 归一到域名层；再在生成节点<b>手动填写模型名</b>，即可点「▶ 运行生成」。没有填接口 / Key / 模型时会明确报错提示，不会悄悄用别人的配置。</li>
+            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名按你要用的版本自己改（文生 / 图生 <code>-i2i</code> / <code>-i2v</code>、多模态 <code>-multi</code>，以你的服务商文档为准）。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 480P / 720P / 1080P / 4K）和<b>视频时长 1–15 秒</b>。这些选项<b>两种引擎都生效</b>：第三方 API 按各厂商参数写法提交（生视频 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；生图换算 <code>metadata.width / height</code> 或传 <code>resolution</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符）；本地 ComfyUI 则把比例换算成宽高写进工作流 Latent 节点、时长按 fps 换算成帧数写进 <code>length / num_frames</code> 等字段，留空「跟随工作流」就不修改原工作流。</li>
+            <li><b>异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，这类网关会返回 400 <code>invalid_request</code>。</li>
+            <li>模型名以你的服务商文档为准（同一个网关里生图、生视频、多模态模型通常各不相同），填错会收到接口原始报错，可在结果节点里看到。</li>
             <li>其它服务商：预设里可切「OpenAI 兼容同步生图」「阿里百炼 Qwen Image 2.1 异步生图」「自定义 JSON 接口」。切到非 seedance 预设时，请在「▸ 高级」里填该服务商的独立 API Key。</li>
             <li>「▸ 高级」可改接口地址、独立 Key、请求头；自定义预设还能填请求体模板与轮询路径，占位符支持 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{images}}</code> <code>{{content_array}}</code> <code>{{audios}}</code> <code>{{audio_objects}}</code> <code>{{videos}}</code> <code>{{video_objects}}</code> 等。比例 / 分辨率 / 时长已做成生成节点上的下拉，不用进高级。</li>
             <li>结果直链是带签名的临时地址（约 24 小时），拿到后请及时下载转存。</li>
@@ -494,25 +494,23 @@ const DEFAULT_POLL = {
     pollInterval:3, maxPoll:60
 };
 /* ===== 生成接入只有两类：① 第三方 API（云端） ② 本地 ComfyUI（本机） =====
-   第三方 API 内部用「服务商预设」自动选协议；用户默认一个字都不用填：
-   接口地址 / Key 复用创作台已接通的配置并自动派生到域名层，模型名按预设推荐。 */
+   第三方 API 内部用「服务商预设」只选「协议」，不预置任何接口地址、Key、模型名：
+   页面默认全空，接口地址 / Key 复用创作台里用户自己填的配置，模型名必须用户自填。 */
 const API_PRESETS = {
     seedance:{
-        label:"ZZAI / api.seedance.nz（推荐 · 异步任务）",
-        fallback:"https://api.seedance.nz",
-        models:{image:"seedream-v5-pro-t2i", imageRef:"seedream-v5-pro-i2i",
-                video:"seedance-2.0-mini-t2v", videoRef:"seedance-2.0-mini-i2v",
-                videoMulti:"seedance-2.0-mini-multi"}
+        label:"异步任务接口（提交 → 轮询）",
+        fallback:"",
+        models:{image:"", imageRef:"", video:"", videoRef:"", videoMulti:""}
     },
     openai:{
         label:"OpenAI 兼容接口（同步生图）",
         fallback:"https://api.openai.com/v1",
-        models:{image:"gpt-image-1", imageRef:"gpt-image-1", video:"", videoRef:""}
+        models:{image:"", imageRef:"", video:"", videoRef:""}
     },
     dashscope:{
-        label:"阿里百炼 Qwen Image 2.1（异步生图）",
+        label:"阿里百炼 Qwen Image（异步生图）",
         fallback:"https://dashscope.aliyuncs.com/api/v1",
-        models:{image:"qwen-image-2.1-pro", imageRef:"qwen-image-2.1-pro", video:"", videoRef:""}
+        models:{image:"", imageRef:"", video:"", videoRef:""}
     },
     custom:{
         label:"自定义 JSON 接口（高级 · 完全自定义）",
@@ -545,7 +543,7 @@ function defaultGenData(){
     return {
         engine:"third_party", preset:"seedance", kind:"image", model:"", modelTouched:false,
         endpoint:"", apiKey:"", headers:"", bodyTemplate:DEFAULT_BODY_TEMPLATE,
-        workflowId:"", status:"", seconds:"5", resolution:"", ratio:"",
+        workflowId:"", status:"", seconds:"", resolution:"", ratio:"",
         pollUrl:"", taskIdPath:DEFAULT_POLL.taskIdPath, statusPath:DEFAULT_POLL.statusPath,
         successValues:DEFAULT_POLL.successValues, failValues:DEFAULT_POLL.failValues,
         pollInterval:DEFAULT_POLL.pollInterval, maxPoll:DEFAULT_POLL.maxPoll
@@ -942,7 +940,7 @@ function buildNode(n){
         '<div class="node-head"><span class="node-dot" style="background:'+meta.color+'"></span>'+
         '<span class="node-title"></span><div class="node-actions">'+actions.join("")+'</div></div>'+
         '<div class="node-body"></div>'+
-        '<div class="port port-in" title="输入：把别的节点连到这里"></div>'+
+        '<div class="port port-in" title="输入：把别的节点连到这里；按住已连的线拖走可拔断"></div>'+
         '<div class="port port-out" title="输出：拖到别的节点左侧圆点连线"></div>';
     box.querySelector(".node-title").textContent = n.title || meta.label;
     const body = box.querySelector(".node-body");
@@ -1229,7 +1227,7 @@ function buildGenerateBody(body,n){
     kindSel.value = d.kind==="video"?"video":"image"; d.kind=kindSel.value;
     const kindFld = mk("生成类型",kindSel);
 
-    const mdl = inp("text","留空＝自动填入推荐模型"); mdl.value=d.model||"";
+    const mdl = inp("text","必填：你的服务商提供的模型名"); mdl.value=d.model||"";
     const mdlFld = mk("模型名（可改）",mdl);
 
     /* ===== 画幅比例 / 分辨率 / 视频时长：主界面下拉，按生成类型自动换选项 =====
@@ -1280,7 +1278,7 @@ function buildGenerateBody(body,n){
     secsTip.textContent="Seedance 2.0 官方支持 4–15 秒；1–3 秒个别模型可能报错";
     secsFld.appendChild(secsTip);
     const modelTip=document.createElement("div"); modelTip.className="mini-line";
-    modelTip.textContent="接口与 Key 自动复用创作台配置";
+    modelTip.textContent="接口地址与 Key 复用创作台里你自己填的配置；模型名须自己填写";
     body.appendChild(modelTip);
 
     /* 高级：绝大多数用户不用展开 */
@@ -1342,8 +1340,8 @@ function buildGenerateBody(body,n){
         }else{
             routeTip.textContent="自定义接口：请填完整地址，模板支持 {{prompt}} {{model}} {{images}} 等占位符";
         }
-        ep.placeholder=custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝自动复用创作台接口地址（自动派生到域名层）";
-        modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"接口与 Key 自动复用创作台配置，无需额外填写";
+        ep.placeholder=custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝复用你在创作台填写的接口地址（自动派生到域名层）";
+        modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"接口地址与 Key 复用你在创作台填写的配置；模型名须自己填写";
     }
     /* ComfyUI 引擎下，生图 / 生视频类型由所选工作流模板决定 */
     function wfKindOf(){
@@ -1746,6 +1744,22 @@ function onNodeMouseDown(e,n){
         return;
     }
     if(e.button!==0) return;
+    /* 从「已连线的输入端口」按住拖走＝把线拔断：橡皮筋回到源头输出端口，
+       松手到别的节点＝改接，松手在空白处＝删除这条连线 */
+    if(e.target.closest(".port-in")){
+        e.preventDefault(); e.stopPropagation();
+        const edge=canvas.edges.find(x=>x.to===n.id);
+        if(edge){
+            canvas.edges=canvas.edges.filter(x=>x.id!==edge.id);
+            drawEdges();
+            drag={type:"link",from:edge.from};
+            tempPath=svgPath("","#60a5fa"); tempPath.setAttribute("stroke-dasharray","5 4");
+            el("edgeSvg").appendChild(tempPath);
+            updateTempPath(e.clientX,e.clientY);
+            scheduleSave();
+        }
+        return;
+    }
     if(e.target.closest(".port-out")){
         e.preventDefault(); e.stopPropagation();
         drag={type:"link",from:n.id};
@@ -2129,8 +2143,8 @@ async function getJson(url,key,extraHeaders,timeoutMs){
         return data;
     }finally{ clearTimeout(t); }
 }
-/* 把创作台的 LLM 接口地址（如 https://api.seedance.nz/v1/chat/completions）
-   归一到 Base URL 层（https://api.seedance.nz），供生图 / 生视频端点拼接。 */
+/* 把创作台的 LLM 接口地址（如 https://你的域名/v1/chat/completions）
+   归一到 Base URL 层（https://你的域名），供生图 / 生视频端点拼接。 */
 function deriveApiBase(endpoint){
     let s=String(endpoint||"").trim().replace(/\/+$/,"");
     if(!s) return "";
@@ -2176,7 +2190,7 @@ function genParams(n){
         seconds:String(n.data.seconds||"5")
     };
 }
-/* 分辨率统一转成官方小写档位值（480p / 720p / 1080p / 1k / 2k / 4k） */
+/* 分辨率档位统一转成官方小写档位值（480p / 720p / 1080p / 1k / 2k / 4k） */
 function resolutionApi(v){
     const s=String(v||"").trim().toLowerCase();
     if(!s) return "";
@@ -2184,15 +2198,18 @@ function resolutionApi(v){
     if(s==="480p"||s==="720p"||s==="1080p") return s;
     return s;   /* 用户自定义值原样透传 */
 }
-/* 生图选了比例时换算成 width/height（部分模型不吃 ratio，只认宽高，如 Seedream 文生图）
-   分辨率档对应长边：1K=1024，2K=2048，4K=3840；数值取 8 的倍数 */
+/* 各档位对应的「长边」像素：生图 1K=1024 / 2K=2048 / 4K=3840；
+   生视频 480P=854 / 720P=1280 / 1080P=1920 / 4K=3840。
+   第三方 API（metadata.width/height、size）与本地 ComfyUI（Latent 宽高）共用这一张换算表。 */
+const RESO_EDGE_MAP={"480p":854,"720p":1280,"1080p":1920,"1k":1024,"2k":2048,"4k":3840};
+/* 生图选了比例时换算成 width/height（部分模型不吃 ratio，只认宽高）
+   数值取 8 的倍数；生视频比例 + 分辨率同样经此换算后写进 ComfyUI Latent 宽高 */
 function ratioDims(ratio,reso){
     const m=String(ratio||"").trim().match(/^(\d+)\s*[:x×]\s*(\d+)$/);
     if(!m) return null;
     const w=+m[1], h=+m[2];
     if(!w||!h) return null;
-    const edgeMap={"1k":1024,"2k":2048,"4k":3840};
-    const edge=edgeMap[resolutionApi(reso)]||1024;
+    const edge=RESO_EDGE_MAP[resolutionApi(reso)]||1024;
     const r=w/h;
     let W,H;
     if(r>=1){ W=edge; H=Math.round(edge/r); } else { H=edge; W=Math.round(edge*r); }
@@ -2228,11 +2245,9 @@ function pollConfig(n){
 /* ===== 声音参考：本地音频先经 /v1/files/upload 换 24 小时直链 =====
    官方文档：POST /v1/files/upload（multipart/form-data，字段 file）→ {url,file_type,size,expires_in}。
    已有公网直链可直接使用；上传结果在节点里缓存 23 小时，避免重复上传。 */
+/* 模型名完全由用户自己填写，页面不预置任何默认模型；没填就明确报错，不悄悄代填。 */
 function effectiveModel(n,video){
-    /* 用户没手改模型时，模型始终跟随当前「生成类型 + 是否有图 / 声音参考」自动推荐，
-       避免从生图切到生视频后还带着旧的生图模型名。手改过则完全尊重用户填写。 */
-    if(!n.data.modelTouched) return recommendedModel(n);
-    return String(n.data.model||"").trim()||recommendedModel(n);
+    return String(n.data.model||"").trim();
 }
 async function uploadSeedanceAsset(a,base,key,headers,label){
     if(a.remote && /^https?:\/\//i.test(a.url)) return a.url;
@@ -2278,18 +2293,19 @@ async function resolveVideoUrls(n,input,base,key,headers){
     }
     return out;
 }
-/* ===== 预设 1：ZZAI / api.seedance.nz —— 生图、生视频都是「提交 → 轮询」异步任务 =====
+/* ===== 预设 1：异步任务接口（提交 → 轮询，ZZAI 式网关通用协议）=====
    生图：POST /v1/image/generations → GET /v1/image/generations/{id}（data.status=SUCCESS → data.result_url）
    生视频：POST /v1/videos → GET /v1/videos/{id}（status=completed → metadata.url）
-   不能用 OpenAI 的复数 /v1/images/generations，网关会返回 400 invalid_request。 */
+   不能用 OpenAI 的复数 /v1/images/generations，这类网关会返回 400 invalid_request。
+   接口地址不内置：来自生成节点「高级」里用户自填的地址，或创作台里用户自己配置的接口（自动归一到域名层）。 */
 async function genSeedance(n,input){
     const q=genParams(n);
-    const base=apiBaseFor(n,"https://api.seedance.nz").replace(/\/+$/,"");
-    if(!base) throw new Error("接口地址为空：请在创作台配置 API，或在生成节点「高级」里填接口地址。");
+    const base=apiBaseFor(n,"").replace(/\/+$/,"");
+    if(!base) throw new Error("接口地址为空：请先在创作台配置你自己的 API 接口，或在生成节点「▸ 高级 → 接口地址」里填写。");
     const headers=parseHeaders(n.data);
     const video=n.data.kind==="video";
     const model=effectiveModel(n,video);
-    if(!model) throw new Error("请填模型名，例如 "+API_PRESETS.seedance.models[video?"video":"image"]);
+    if(!model) throw new Error("请填模型名：在生成节点「模型名」里填写你的服务商提供的模型（生图 / 生视频 / 多模态各不相同）。");
     const meta=genMeta(n);
     let submitUrl, body, pollTpl;
     if(video){
@@ -2365,7 +2381,8 @@ async function genDashscope(n,input){
     const q=genParams(n);
     const base=apiBaseFor(n,"https://dashscope.aliyuncs.com/api/v1").replace(/\/+$/,"");
     const url=/\/generation$/i.test(base)?base:base+"/services/aigc/image-generation/generation";
-    const json=renderTemplate(QWEN_IMAGE_TEMPLATE,input,{model:q.model||"qwen-image-2.1-pro",size:q.size});
+    if(!q.model) throw new Error("请填模型名：在生成节点「模型名」里填写（百炼 Qwen Image 系列，以你的模型列表为准）");
+    const json=renderTemplate(QWEN_IMAGE_TEMPLATE,input,{model:q.model,size:q.size});
     let body; try{ body=JSON.parse(json); }catch(e){ throw new Error("Qwen 请求体生成失败："+e.message); }
     const headers=Object.assign({"X-DashScope-Async":"enable"},parseHeaders(n.data));
     let d=await postJson(url,q.key,body,120000,headers);
@@ -2613,8 +2630,7 @@ function applyComfySpec(wf,d,kindVideo){
                 ins.width=dims.w; ins.height=dims.h;
             }else{
                 const w=Number(ins.width)||1024, h=Number(ins.height)||1024;
-                const edgeMap={"1k":1024,"2k":2048,"4k":3840};
-                const edge=edgeMap[reso]||1024, k=edge/Math.max(w,h);
+                const edge=RESO_EDGE_MAP[reso]||1024, k=edge/Math.max(w,h);
                 ins.width=Math.max(240,Math.round(w*k/8)*8);
                 ins.height=Math.max(240,Math.round(h*k/8)*8);
             }
