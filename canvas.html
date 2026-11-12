@@ -172,6 +172,13 @@
     .ctx-menu button{display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);font-size:11.5px;padding:7px 9px;border-radius:6px;cursor:pointer;}
     .ctx-menu button:hover{background:var(--hover);}
     .ctx-sep{height:1px;background:var(--border2);margin:4px 2px;}
+    /* 双击空白处弹出的快捷添加节点菜单 */
+    .quick-add{position:fixed;display:none;z-index:210;min-width:150px;background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:8px;box-shadow:0 14px 40px rgba(0,0,0,.6);}
+    .quick-add.show{display:block;}
+    .quick-add .qa-head{font-size:11px;color:#9ca3af;padding:2px 9px 7px;}
+    .quick-add button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:transparent;color:var(--text);font-size:12.5px;padding:8px 9px;border-radius:7px;cursor:pointer;font-family:inherit;}
+    .quick-add button:hover{background:var(--hover);}
+    .quick-add .qa-ico{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
 
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;align-items:center;justify-content:center;z-index:999;}
     .modal-overlay.show{display:flex;}
@@ -314,6 +321,7 @@
 </div>
 
 <div class="ctx-menu" id="ctxMenu"></div>
+<div class="quick-add" id="quickAdd"></div>
 
 <!-- 媒体浮窗预览：点击结果节点里的图片 / 视频 -->
 <div class="history-panel" id="historyPanel">
@@ -361,7 +369,7 @@
             <li>输入框 / 下拉框里打字时，除 <code>Ctrl+S</code>、<code>Esc</code> 外不触发画布快捷键，不会误删节点。</li>
         </ul>
         <h2>连线规则</h2>
-        <p>从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。</p>
+        <p>从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。<b>快捷加节点</b>：在画布空白处<b>双击鼠标</b>，弹出「添加节点」菜单，点一下就在双击位置创建对应节点（六类节点与左侧工具栏完全一致）；Esc 或点空白关闭菜单。</p>
         <h2>与创作台的关系</h2>
         <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
         <h2>多画布切换</h2>
@@ -1792,6 +1800,44 @@ function nudgeSelection(dx,dy){
     });
     moveEdgePaths(); scheduleSave(true);
 }
+/* ===== 双击空白处：快捷添加节点菜单（六类节点，与画布节点一一对应） ===== */
+let quickAddAt=null;
+el("stage").addEventListener("dblclick",e=>{
+    if(e.target.closest(".node")||e.target.closest(".zoom-bar")||e.target.closest(".empty-hint button")||e.target.tagName==="path"||e.target.closest(".quick-add")) return;
+    e.preventDefault();
+    const p=toCanvasXY(e.clientX,e.clientY);
+    showQuickAdd(e.clientX,e.clientY,p.x,p.y);
+});
+function showQuickAdd(cx,cy,wx,wy){
+    const m=el("quickAdd"); if(!m) return;
+    quickAddAt={x:Math.max(0,wx),y:Math.max(0,wy)};
+    m.innerHTML="";
+    const h=document.createElement("div"); h.className="qa-head"; h.textContent="添加节点"; m.appendChild(h);
+    Object.keys(NODE_META).forEach(type=>{
+        const meta=NODE_META[type];
+        const b=document.createElement("button");
+        const ico=document.createElement("span"); ico.className="qa-ico"; ico.style.background=meta.color;
+        b.appendChild(ico); b.appendChild(document.createTextNode(meta.label));
+        b.title="在此处添加「"+meta.label+"」节点";
+        b.addEventListener("click",ev=>{
+            ev.stopPropagation();
+            m.classList.remove("show");
+            const n=newNode(type,quickAddAt.x,quickAddAt.y,defaultNodeData(type));
+            renderAll(); selectNode(n.id); commitHistory(); scheduleSave();
+            setStatus("已添加「"+meta.label+"」节点，可拖到任意位置","ok");
+        });
+        m.appendChild(b);
+    });
+    m.classList.add("show");
+    /* 靠屏幕边缘时防溢出 */
+    const r=m.getBoundingClientRect();
+    m.style.left=Math.max(6,Math.min(cx,window.innerWidth-r.width-10))+"px";
+    m.style.top=Math.max(6,Math.min(cy,window.innerHeight-r.height-10))+"px";
+}
+document.addEventListener("click",e=>{
+    const m=el("quickAdd");
+    if(m&&m.classList.contains("show")&&!e.target.closest("#quickAdd")) m.classList.remove("show");
+});
 /* ===== 画布右键菜单 ===== */
 function showCtxMenu(x,y){
     const m=el("ctxMenu"); if(!m) return;
@@ -2025,17 +2071,19 @@ function newNode(type,x,y,extra){
     const n={id:uid(),type,x:Math.max(0,x),y:Math.max(0,y),title:(NODE_META[type]||{}).label||"节点",data:Object.assign({},extra||{})};
     canvas.nodes.push(n); return n;
 }
+function defaultNodeData(type){
+    if(type==="generate") return defaultGenData();
+    if(type==="result") return {kind:"",url:"",text:""};
+    if(type==="image") return {images:[]};
+    if(type==="audio") return {audios:[]};
+    if(type==="video") return {videos:[]};
+    return {text:"",sourceId:""};
+}
 function spawn(type){
     const v=canvas.viewport, r=el("stage").getBoundingClientRect();
     const p=toCanvasXY(r.left+r.width*.42,r.top+r.height*.32);
     const jitter=canvas.nodes.length%5*18;
-    const n=newNode(type,p.x+jitter,p.y+jitter);
-    if(type==="generate") n.data=defaultGenData();
-    else if(type==="result") n.data={kind:"",url:"",text:""};
-    else if(type==="image") n.data={images:[]};
-    else if(type==="audio") n.data={audios:[]};
-    else if(type==="video") n.data={videos:[]};
-    else if(type==="prompt") n.data={text:"",sourceId:""};
+    const n=newNode(type,p.x+jitter,p.y+jitter,defaultNodeData(type));
     renderAll(); selectNode(n.id); scheduleSave();
     return n;
 }
@@ -3285,6 +3333,7 @@ function bindToolbar(){
             el("helpModal").classList.remove("show");
             closeLightbox();
             closeHistory();
+            const qa=el("quickAdd"); if(qa) qa.classList.remove("show");
             if(!typing) clearSelection();
             if(selectRectEl) selectRectEl.style.display="none";
             if(drag&&drag.type==="select") drag=null;
