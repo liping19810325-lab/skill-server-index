@@ -110,12 +110,7 @@
         /* 画布页互链入口：与创作页同为静态单文件，同源共享本地配置 */
         .canvas-nav-btn { background-color: var(--purple); color: #fff; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
         .canvas-nav-btn:hover { background-color: #8b5cf6; }
-        /* 「◈ 打开画布」移到左上角 LOGO 旁，与画布页顶栏「← 返回创作台」位置对应 */
         .header-title { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
-        .header-title .canvas-nav-btn { min-height: 26px; padding: 4px 10px; font-size: 11.5px; border-radius: 7px; white-space: nowrap; }
-        /* 专注模式下左侧栏整体收起，工具条补一个同款隐藏入口，避免切换入口消失 */
-        .canvas-nav-btn-alt { display: none; }
-        .side.collapsed ~ .main .canvas-nav-btn-alt { display: inline-flex; }
         /* 右上角「漫流主站」：两页同款中性按钮，新标签页打开主站，不打断当前页面 */
         .home-btn { margin-left: auto; background: var(--panel); color: var(--text); border: 1px solid var(--border2); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
         .home-btn:hover { background: var(--hover); }
@@ -140,6 +135,40 @@
         .ref-empty { font-size: 10.5px; color: var(--muted); }
         .preview-btn { background: var(--panel); color: var(--text); padding: 4px 7px; border: 1px solid var(--border2); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
         .del-file-btn { background: var(--red); color: #fff; padding: 4px 7px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
+
+        /* ===== 页面顶部「历史产物」快捷条 =====
+           与画布页顶栏「画布1 / 画布2 / 画布3 / 更多画布」同一套视觉：中性小按钮 + 细边框 + 无阴影；
+           数据只来自本机浏览器 localStorage，不上传、不进源码。 */
+        .history-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+        .history-label { font-size: 11px; color: var(--muted); margin-right: 2px; white-space: nowrap; }
+        .history-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .hist-btn { padding: 5px 9px; min-height: 28px; font-size: 11px; border: 1px solid var(--border2); border-radius: 7px;
+                    background: var(--panel); color: var(--text); cursor: pointer; white-space: nowrap; transition: background-color .15s ease; }
+        .hist-btn:hover:not(:disabled) { background: var(--hover); }
+        .hist-btn.active { background: #1e3a5f; border-color: var(--blue); color: #fff; }
+        .hist-btn:disabled { opacity: .45; cursor: default; }
+        .hist-more-wrap { position: relative; }
+        .hist-menu { display: none; position: absolute; left: 0; top: 32px; width: 330px; max-height: 340px; overflow-y: auto;
+                     background: var(--card); border: 1px solid var(--border2); border-radius: 10px; padding: 6px; z-index: 60;
+                     box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+        .hist-menu.show { display: block; }
+        .hist-menu::-webkit-scrollbar { width: 6px; }
+        .hist-menu::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        .hist-menu-head { font-size: 10.5px; color: var(--muted); padding: 4px 6px 6px; }
+        .hist-menu-empty { font-size: 11px; color: var(--muted); padding: 8px 6px; line-height: 1.6; }
+        .hist-menu-item { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; padding: 6px 8px; border: none;
+                          border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+        .hist-menu-item:hover { background: var(--panel); }
+        .hist-menu-item .hm-title { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hist-menu-item .hm-meta { font-size: 10px; color: var(--muted); }
+        .history-note { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+        .history-bar .spacer { flex-grow: 1; min-width: 6px; }
+        /* 「◈ 打开画布」与顶部条同高，放在顶部条右端，和画布页「← 返回创作台」同属导航区 */
+        .history-bar .canvas-nav-btn { min-height: 28px; padding: 5px 10px; font-size: 11px; }
+        /* 历史产物预览弹窗：沿用已有 modal，另加一排本机操作 */
+        .history-preview-actions { display: none; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .history-preview-actions .ctrl-btn { padding: 6px 10px; font-size: 11.5px; min-height: 30px; }
+        .history-preview-hint { margin-right: auto; font-size: 10.5px; color: var(--muted); }
 
         /* ===== 右侧主区：工具条 + 大聊天框 + 输入行（配色/圆角/控件高度对齐画布页） ===== */
         .main-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
@@ -229,14 +258,13 @@
             </a>
             <div class="header-title">
                 <h1>漫流 AI 漫剧前期创作台</h1>
-                <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
             </div>
         </div>
 
         <div class="card">
             <div class="card-title">创作技能</div>
             <div class="btn-group" id="skillBtnGroup">
-                <button class="skill-btn" data-skill-key="a">剧本创作助手 V5</button>
+                <button class="skill-btn" data-skill-key="a">剧本创作助手（原创/改编）</button>
                 <button class="skill-btn" data-skill-key="b">导演分镜助手 V5（生视频提示词）</button>
                 <button class="skill-btn" data-skill-key="d">导演分镜助手V5 MiniMaxH3</button>
                 <button class="skill-btn" data-skill-key="c">美术画风助手 V5（资产图提示词）</button>
@@ -360,6 +388,22 @@
 
     <!-- ============ 右：AI 输出区 ============ -->
     <main class="main">
+        <!-- ============ 页面顶部：历史产物快捷入口（本机浏览器缓存） + 打开画布 ============ -->
+        <div class="history-bar" id="historyBar">
+            <span class="history-label">历史产物</span>
+            <div class="history-tabs" id="historyTabs">
+                <button type="button" class="hist-btn" data-hist-slot="0" disabled>历史产物1</button>
+                <button type="button" class="hist-btn" data-hist-slot="1" disabled>历史产物2</button>
+                <button type="button" class="hist-btn" data-hist-slot="2" disabled>历史产物3</button>
+            </div>
+            <div class="hist-more-wrap">
+                <button type="button" class="hist-btn" id="historyMoreBtn" title="查看全部历史产物（最多30条，仅存本机）">更多 ▾</button>
+                <div class="hist-menu" id="historyMenu"></div>
+            </div>
+            <span class="spacer"></span>
+            <span class="history-note">仅存本机浏览器</span>
+            <a class="ctrl-btn canvas-nav-btn" id="openCanvasBtn" href="./canvas.html" title="在同一窗口切换到画布页">◈ 打开画布</a>
+        </div>
         <div class="main-toolbar">
             <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
             <div class="status" id="skillStatus">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
@@ -367,7 +411,6 @@
             <div class="spacer"></div>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
             <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（新开标签页，不打断生成）">⇢ 送到画布</button>
-            <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
             <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
             <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn">新建对话（开新网页）</button>
@@ -385,6 +428,11 @@
 <div class="modal-overlay" id="previewModal">
     <div class="modal-box">
         <div class="modal-content" id="modalText"></div>
+        <div class="history-preview-actions" id="historyPreviewActions">
+            <span class="history-preview-hint">该产物缓存在本机浏览器，可载入当前对话或下载 TXT</span>
+            <button type="button" class="ctrl-btn load-history-btn" id="loadHistoryRecordBtn">载入当前对话</button>
+            <button type="button" class="ctrl-btn download-btn" id="downloadHistoryRecordBtn">下载 TXT</button>
+        </div>
         <button class="ctrl-btn modal-close" id="closePreviewBtn">关闭预览</button>
     </div>
 </div>
@@ -601,6 +649,7 @@ const HELP_HTML = `
 <li>可上传剧本 txt/docx 文件并勾选，会一并喂给AI；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史。</li>
+<li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。</li>
 </ol>
 
 <h2>四、导入本地md自定义技能</h2>
@@ -814,8 +863,19 @@ function renderFileList() {
         fileListEl.appendChild(div);
     });
 }
-function openPreview(idx) { modalTextEl.textContent = fileStore[idx].content; previewModal.style.display = "flex"; }
-function closePreview() { previewModal.style.display = "none"; }
+function openPreview(idx) {
+    modalTextEl.textContent = fileStore[idx].content;
+    const actions = document.getElementById("historyPreviewActions");
+    if(actions) actions.style.display = "none";
+    delete previewModal.dataset.historyIndex;
+    previewModal.style.display = "flex";
+}
+function closePreview() {
+    previewModal.style.display = "none";
+    const actions = document.getElementById("historyPreviewActions");
+    if(actions) actions.style.display = "none";
+    delete previewModal.dataset.historyIndex;
+}
 function removeFile(idx) { fileStore.splice(idx, 1); renderFileList(); }
 
 /* ================= 画风参考图：上传 / 压缩 / 预览 / 删除 ================= */
@@ -1226,7 +1286,7 @@ function saveHistoryToLocal() {
         if(all.length > 30) all = all.slice(0, 30);
         // 写入失败（配额/被禁用）就逐条裁剪最旧记录，最多再试 8 次；仍失败则只留本次
         for(let i = 0; i < 8; i++){
-            if(safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(all))) return;
+            if(safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(all))){ renderHistoryBar(); return; }
             if(all.length <= 1) break;
             all = all.slice(0, Math.max(1, Math.floor(all.length / 2)));
         }
@@ -1255,12 +1315,149 @@ function loadLatestHistory() {
     updateDownloadLabel();
     if(currentSkillName) skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
     else skillStatusEl.innerText = "📌 当前：尚未加载任何技能模板，请点击上方按钮";
+    activeHistoryIndex = 0;
+    renderHistoryBar();
     alert("✅ 最近对话已加载");
 }
 function clearAllHistory(){
     if(!confirm("确认清空浏览器本地全部历史对话（最多30条）？不可恢复！")) return;
     safeStorage.remove(STORAGE_KEY_HISTORY);
+    activeHistoryIndex = -1;
+    renderHistoryBar();
     alert("✅ 本地历史已清空");
+}
+
+/* ==================================================================
+   页面顶部「历史产物 1 / 2 / 3 / 更多」
+   · 数据源就是 saveHistoryToLocal 写入浏览器 localStorage 的对话历史，
+     每条 record.aiResult 即用户历史生成的剧本 / 生视频提示词 / 生图提示词；
+   · 全程只在本机浏览器读写，不上传、不进源码、不经过技能服务；
+   · 最近 3 条做成快捷按钮，「更多」下拉列出全部（最多 30 条）；
+   · 点击后复用已有预览弹窗，可载入当前对话或下载 TXT。
+   ================================================================== */
+let activeHistoryIndex = -1;
+
+function readHistoryRecords(){
+    try {
+        const arr = JSON.parse(safeStorage.get(STORAGE_KEY_HISTORY) || "[]");
+        return Array.isArray(arr) ? arr.filter(r => r && typeof r === "object") : [];
+    } catch(e){ return []; }
+}
+function historyMeta(rec){
+    const text = (rec && typeof rec.aiResult === "string") ? rec.aiResult.trim() : "";
+    const firstLine = text.split(/\r?\n/).map(s => s.trim()).find(Boolean) || "";
+    let time = "时间未知";
+    if(rec && rec.time){
+        const d = new Date(rec.time);
+        if(!isNaN(d.getTime())) time = d.toLocaleString("zh-CN", { hour12:false });
+    }
+    return {
+        skill: (rec && rec.skillName) ? String(rec.skillName) : "未命名产物",
+        time: time,
+        summary: firstLine.slice(0, 60),
+        length: text.length
+    };
+}
+function renderHistoryBar(){
+    const records = readHistoryRecords();
+    document.querySelectorAll("[data-hist-slot]").forEach(btn => {
+        const i = Number(btn.getAttribute("data-hist-slot"));
+        const rec = records[i];
+        btn.textContent = `历史产物${i + 1}`;
+        if(rec){
+            const m = historyMeta(rec);
+            btn.disabled = false;
+            btn.title = `${m.skill} · ${m.time}\n${m.summary}`;
+            btn.classList.toggle("active", i === activeHistoryIndex);
+        } else {
+            btn.disabled = true;
+            btn.title = "暂无历史产物，先生成一次剧本或提示词";
+            btn.classList.remove("active");
+        }
+    });
+    const menu = document.getElementById("historyMenu");
+    if(!menu) return;
+    menu.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "hist-menu-head";
+    head.textContent = `全部历史产物（${records.length} 条，仅存本机浏览器）`;
+    menu.appendChild(head);
+    if(!records.length){
+        const empty = document.createElement("div");
+        empty.className = "hist-menu-empty";
+        empty.textContent = "暂无历史产物。每次生成完毕后会自动缓存到本机浏览器。";
+        menu.appendChild(empty);
+        return;
+    }
+    records.forEach((rec, i) => {
+        const m = historyMeta(rec);
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "hist-menu-item";
+        const title = document.createElement("span");
+        title.className = "hm-title";
+        title.textContent = `${i + 1}. ${m.skill}${m.summary ? " · " + m.summary : ""}`;
+        const meta = document.createElement("span");
+        meta.className = "hm-meta";
+        meta.textContent = `${m.time} · ${m.length} 字`;
+        item.appendChild(title);
+        item.appendChild(meta);
+        item.addEventListener("click", () => { closeHistoryMenu(); openHistoryRecord(i); });
+        menu.appendChild(item);
+    });
+}
+function closeHistoryMenu(){
+    const menu = document.getElementById("historyMenu");
+    if(menu) menu.classList.remove("show");
+}
+function openHistoryRecord(idx){
+    const rec = readHistoryRecords()[idx];
+    if(!rec){ alert("这条历史产物已不存在"); renderHistoryBar(); return; }
+    const text = (typeof rec.aiResult === "string") ? rec.aiResult.trim() : "";
+    if(!text){ alert("这条历史记录没有保存产物正文"); return; }
+    activeHistoryIndex = idx;
+    renderHistoryBar();
+    modalTextEl.textContent = text;
+    const actions = document.getElementById("historyPreviewActions");
+    if(actions) actions.style.display = "flex";
+    previewModal.dataset.historyIndex = String(idx);
+    previewModal.style.display = "flex";
+}
+function currentPreviewHistoryRecord(){
+    const idx = Number(previewModal.dataset.historyIndex);
+    if(!Number.isFinite(idx) || idx < 0) return null;
+    return readHistoryRecords()[idx] || null;
+}
+function loadHistoryRecordToChat(){
+    const rec = currentPreviewHistoryRecord();
+    if(!rec) return;
+    if(!confirm("载入这条历史产物会清空当前聊天框，确认？")) return;
+    chatBox.innerHTML = rec.chatHtml || "";
+    fullAiText = rec.aiResult || "";
+    currentSkillName = rec.skillName || "";
+    currentSkillKey = rec.skillKey || "";
+    currentSystemPrompt = rec.systemPrompt || "";
+    fileStore = Array.isArray(rec.fileStore) ? rec.fileStore : [];
+    renderFileList();
+    updateRefBadge();
+    updateDownloadLabel();
+    skillStatusEl.innerText = currentSkillName ? `✅ 当前已加载技能【${currentSkillName}】` : "📌 当前：尚未加载任何技能模板，请点击上方按钮";
+    closePreview();
+    append("📜 已载入历史产物，可继续下载或送到画布。", "tip");
+}
+function downloadHistoryRecord(){
+    const rec = currentPreviewHistoryRecord();
+    if(!rec) return;
+    const blob = new Blob([rec.aiResult || ""], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    a.href = url;
+    a.download = `历史产物_${date}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
 }
 
 async function sendMessage() {
@@ -1611,11 +1808,28 @@ function initUI(){
     downloadAiBtn.addEventListener("click", downloadAiText);
     const sendToCanvasBtn = document.getElementById("sendToCanvasBtn");
     if(sendToCanvasBtn) sendToCanvasBtn.addEventListener("click", sendToCanvas);
-    // 「打开画布」主入口在左上角 LOGO 旁；专注模式时工具条会补一个备用入口，一并绑定生成中拦截
+    // 「打开画布」主入口在页面顶部条右端，生成中切换页面时先拦截确认
     document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
     loadHistoryBtn.addEventListener("click", loadLatestHistory);
     clearHistoryBtn.addEventListener("click", clearAllHistory);
     newSessionBtn.addEventListener("click", openNewSession);
+
+    // 顶部历史产物：前 3 条快捷按钮、更多下拉、预览弹窗里的本机操作
+    document.querySelectorAll("[data-hist-slot]").forEach(btn => {
+        btn.addEventListener("click", () => openHistoryRecord(Number(btn.getAttribute("data-hist-slot"))));
+    });
+    const historyMoreBtn = document.getElementById("historyMoreBtn");
+    const historyMenu = document.getElementById("historyMenu");
+    if(historyMoreBtn && historyMenu){
+        historyMoreBtn.addEventListener("click", (ev) => { ev.stopPropagation(); historyMenu.classList.toggle("show"); });
+        historyMenu.addEventListener("click", (ev) => ev.stopPropagation());
+        document.addEventListener("click", () => historyMenu.classList.remove("show"));
+    }
+    const loadHistoryRecordBtn = document.getElementById("loadHistoryRecordBtn");
+    const downloadHistoryRecordBtn = document.getElementById("downloadHistoryRecordBtn");
+    if(loadHistoryRecordBtn) loadHistoryRecordBtn.addEventListener("click", loadHistoryRecordToChat);
+    if(downloadHistoryRecordBtn) downloadHistoryRecordBtn.addEventListener("click", downloadHistoryRecord);
+    renderHistoryBar();
 
     plusUploadBtn.addEventListener("click", ()=> fileInput.click());
     fileInput.onchange = async (e) => {
