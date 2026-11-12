@@ -107,7 +107,7 @@
     .port-in{left:-8px;} .port-out{right:-8px;}
     .img-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;}
     .img-grid .thumb{position:relative;width:62px;height:62px;border-radius:6px;overflow:hidden;border:1px solid var(--border2);}
-    .img-grid img{width:100%;height:100%;object-fit:cover;}
+    .img-grid img{width:100%;height:100%;object-fit:cover;cursor:zoom-in;}
     .img-grid .rm{position:absolute;right:1px;top:1px;width:17px;height:17px;border:none;border-radius:4px;background:rgba(220,38,38,.9);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;}
     .upload-zone{border:1px dashed var(--border2);border-radius:8px;padding:12px;text-align:center;font-size:11px;color:var(--muted);cursor:pointer;}
     .upload-zone:hover{border-color:var(--purple);color:#c4b5fd;}
@@ -121,6 +121,7 @@
     /* 视频参考节点（复用声音节点样式骨架，预览控件换成视频） */
     .audio-item video{width:100%;max-height:110px;object-fit:contain;border-radius:6px;background:#000;display:block;margin-top:6px;}
     .audio-item .a-rm{border:none;border-radius:4px;background:rgba(220,38,38,.9);color:#fff;font-size:11px;width:18px;height:18px;line-height:1;cursor:pointer;padding:0;flex-shrink:0;}
+    .audio-item .a-top{cursor:pointer;}
     .audio-url-row{display:flex;gap:5px;margin-top:8px;}
     .audio-url-row input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;padding:6px 7px;outline:none;}
     .audio-url-row input:focus{border-color:var(--blue);}
@@ -134,6 +135,9 @@
     .media-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;z-index:1200;cursor:zoom-out;}
     .media-lightbox.show{display:flex;}
     .media-lightbox img,.media-lightbox video{max-width:92vw;max-height:88vh;object-fit:contain;border-radius:10px;background:#000;box-shadow:0 18px 60px rgba(0,0,0,.7);}
+    .media-lightbox audio{width:min(680px,86vw);box-shadow:0 18px 60px rgba(0,0,0,.7);border-radius:12px;}
+    .media-lightbox .lb-text{max-width:min(860px,90vw);max-height:82vh;overflow:auto;background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:18px 22px;color:var(--text);font-size:14px;line-height:2;white-space:pre-wrap;word-break:break-all;box-shadow:0 18px 60px rgba(0,0,0,.7);}
+    .media-lightbox .lb-title{position:fixed;left:0;right:0;top:20px;text-align:center;color:#cbd5e1;font-size:13px;pointer-events:none;}
     .media-lightbox .lb-close{position:fixed;right:22px;top:18px;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer;line-height:1;}
     .media-lightbox .lb-close:hover{background:rgba(255,255,255,.28);}
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
@@ -311,7 +315,8 @@
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
-            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。</li>
+            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 会把比例换算成宽高写进工作流的 Latent 节点、把时长按工作流 fps 换算成帧数写进 length / num_frames 等字段，留空「跟随工作流」则完全不修改原工作流。</li>
+            <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。</li>
         </ul>
         <h2>多参考素材怎么生效（api.seedance.nz）</h2>
@@ -968,6 +973,15 @@ function buildPromptBody(body,n){
     const line = document.createElement("div"); line.className="mini-line";
     const cnt = document.createElement("span"); const tip = document.createElement("span");
     tip.textContent = "无 ▌ 时点「拆分」会自动调用大语言模型"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
+    const pv=document.createElement("button"); pv.className="mini-btn gray"; pv.textContent="🔍 浮窗预览";
+    pv.title="放大查看提示词全文，方便对照参考";
+    pv.addEventListener("click",e=>{
+        e.stopPropagation();
+        const t=String(n.data.text||"").trim();
+        if(!t){ setStatus("提示词还是空的，先写点内容","busy"); return; }
+        openLightbox({kind:"text",text:t,title:"提示词全文（"+t.length+" 字）"});
+    });
+    body.appendChild(pv);
     function updateCharCount(){ cnt.textContent = (n.data.text||"").length + " 字"; }
     updateCharCount();
 }
@@ -987,6 +1001,8 @@ function paintImages(grid,n){
     imgs.forEach((src,i)=>{
         const wrap = document.createElement("div"); wrap.className="thumb";
         const img = document.createElement("img"); img.src = src; img.alt = "参考图 "+(i+1);
+        img.title="点击浮窗放大预览";
+        img.addEventListener("click",e=>{ e.stopPropagation(); openLightbox({kind:"image",url:src,title:"参考图 "+(i+1)}); });
         const rm = document.createElement("button"); rm.className="rm"; rm.textContent="×";
         rm.title="移除这张图";
         rm.addEventListener("click",e=>{ e.stopPropagation(); n.data.images.splice(i,1); paintImages(grid,n); scheduleSave(); });
@@ -1037,6 +1053,7 @@ function paintAudios(list,n){
         const rm=document.createElement("button"); rm.className="a-rm"; rm.textContent="×"; rm.title="移除这段音频";
         rm.addEventListener("click",e=>{ e.stopPropagation(); n.data.audios.splice(i,1); paintAudios(list,n); scheduleSave(); });
         top.appendChild(name); top.appendChild(meta); top.appendChild(rm); item.appendChild(top);
+        top.title="点击浮窗播放"; top.addEventListener("click",e=>{ e.stopPropagation(); openLightbox({kind:"audio",url:a.url,title:a.name||("音频 "+(i+1))}); });
         const player=document.createElement("audio"); player.controls=true; player.preload="metadata"; player.src=a.url;
         player.addEventListener("loadedmetadata",()=>{
             if(!a.duration && isFinite(player.duration)){
@@ -1118,7 +1135,10 @@ function paintVideos(list,n){
         const rm=document.createElement("button"); rm.className="a-rm"; rm.textContent="×"; rm.title="移除这个视频";
         rm.addEventListener("click",e=>{ e.stopPropagation(); n.data.videos.splice(i,1); paintVideos(list,n); scheduleSave(); });
         top.appendChild(name); top.appendChild(meta); top.appendChild(rm); item.appendChild(top);
+        top.title="点击浮窗放大播放"; top.addEventListener("click",e=>{ e.stopPropagation(); openLightbox({kind:"video",url:v.url,title:v.name||("视频 "+(i+1))}); });
         const player=document.createElement("video"); player.controls=true; player.preload="metadata"; player.src=v.url;
+        player.title="双击浮窗放大播放";
+        player.addEventListener("dblclick",e=>{ e.stopPropagation(); openLightbox({kind:"video",url:v.url,title:v.name||("视频 "+(i+1))}); });
         player.addEventListener("loadedmetadata",()=>{
             if(!v.duration && isFinite(player.duration)){
                 v.duration=player.duration;
@@ -1212,19 +1232,22 @@ function buildGenerateBody(body,n){
     const mdl = inp("text","留空＝自动填入推荐模型"); mdl.value=d.model||"";
     const mdlFld = mk("模型名（可改）",mdl);
 
-    /* ===== 画幅比例 / 分辨率 / 视频时长：主界面下拉，按生成类型自动换选项 ===== */
+    /* ===== 画幅比例 / 分辨率 / 视频时长：主界面下拉，按生成类型自动换选项 =====
+       两种引擎共用：第三方 API 走 metadata / size 参数；本地 ComfyUI 写进工作流的宽高 / 帧数字段。 */
     const IMG_RATIOS=[["","自适应（默认）"],["16:9","16:9 横屏"],["9:16","9:16 竖屏"],["3:2","3:2"],["2:3","2:3"],["1:1","1:1"]];
     const VID_RATIOS=[["","自适应（默认）"],["16:9","16:9 横屏"],["9:16","9:16 竖屏"]];
     const ratioSel=document.createElement("select");
-    function fillRatioOpts(video){
+    function fillRatioOpts(video,comfy){
         const opts=video?VID_RATIOS:IMG_RATIOS;
         const cur=String(d.ratio||"");
         ratioSel.innerHTML="";
-        opts.forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; ratioSel.appendChild(o); });
+        opts.forEach(([v,t])=>{
+            const o=document.createElement("option"); o.value=v;
+            o.textContent=(comfy&&v==="")?"跟随工作流（不修改）":t; ratioSel.appendChild(o);
+        });
         if(!opts.some(([v])=>v===cur)){ d.ratio=""; }
         ratioSel.value=String(d.ratio||"");
     }
-    fillRatioOpts(d.kind==="video");
     const imgReso=document.createElement("select");
     [["","默认"],["1K","1K"],["2K","2K"],["4K","4K"]].forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; imgReso.appendChild(o); });
     imgReso.value=/^(1K|2K|4K)$/i.test(String(d.resolution||""))?String(d.resolution).toUpperCase():"";
@@ -1237,11 +1260,20 @@ function buildGenerateBody(body,n){
         specRow.appendChild(ratioSel);
         specRow.appendChild(video?vidReso:imgReso);
     }
-    mountSpecRow(d.kind==="video");
     const specFld=mk("画幅比例 / 分辨率",specRow);
+    const specTip=document.createElement("div"); specTip.className="mini-line";
+    specTip.style.cssText="display:block;white-space:normal";
+    specFld.appendChild(specTip);
     const secsSel=document.createElement("select");
-    for(let s=1;s<=15;s++){ const o=document.createElement("option"); o.value=String(s); o.textContent=s+" 秒"; secsSel.appendChild(o); }
-    secsSel.value=String(clamp(parseInt(d.seconds,10)||5,1,15));
+    function fillSecsOpts(comfy){
+        secsSel.innerHTML="";
+        if(comfy){ const o=document.createElement("option"); o.value=""; o.textContent="跟随工作流（不修改）"; secsSel.appendChild(o); }
+        for(let s=1;s<=15;s++){ const o=document.createElement("option"); o.value=String(s); o.textContent=s+" 秒"; secsSel.appendChild(o); }
+        const cur=String(d.seconds==null?"":d.seconds);
+        if(comfy&&cur===""){ secsSel.value=""; return; }
+        secsSel.value=String(clamp(parseInt(cur,10)||5,1,15));
+    }
+    fillSecsOpts(false);
     const secsFld=mk("视频时长",secsSel);
     const secsTip=document.createElement("div"); secsTip.className="mini-line";
     secsTip.style.cssText="display:block;white-space:normal";
@@ -1313,12 +1345,28 @@ function buildGenerateBody(body,n){
         ep.placeholder=custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝自动复用创作台接口地址（自动派生到域名层）";
         modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"接口与 Key 自动复用创作台配置，无需额外填写";
     }
+    /* ComfyUI 引擎下，生图 / 生视频类型由所选工作流模板决定 */
+    function wfKindOf(){
+        const list=canvas.settings.workflows||[];
+        const w=list.find(x=>x.id===d.workflowId)||list[0];
+        return (w&&w.kind==="video")?"video":"image";
+    }
     function syncFields(){
-        const c = d.engine==="comfyui", custom = presetOf(n)==="custom", video = d.kind==="video";
+        const c = d.engine==="comfyui", custom = presetOf(n)==="custom";
+        const video = c ? wfKindOf()==="video" : d.kind==="video";
         wfFld.style.display = c?"":"none";
-        [preFld,kindFld,mdlFld,modelTip,specFld,adv].forEach(x=>x.style.display=c?"none":"");
-        secsFld.style.display = (c||!video)?"none":"";
-        fillRatioOpts(video); mountSpecRow(video);
+        [preFld,kindFld,mdlFld,modelTip,adv].forEach(x=>x.style.display=c?"none":"");
+        /* 比例 / 分辨率 / 时长：两种引擎都显示 —— ComfyUI 引擎写进工作流宽高 / 帧数字段 */
+        specFld.style.display="";
+        secsFld.style.display = video?"":"none";
+        fillRatioOpts(video,c); mountSpecRow(video); fillSecsOpts(c);
+        if(!c && !d.seconds) d.seconds=secsSel.value||"5";
+        imgReso.options[0].textContent=c?"跟随工作流（不修改）":"默认";
+        vidReso.options[0].textContent=c?"跟随工作流（不修改）":"默认";
+        specTip.textContent=c?"选了就写进工作流的 Latent 宽高；留空不动原工作流":"";
+        secsTip.textContent=c
+            ?"选中后按工作流 fps 换算成帧数，写进 length / num_frames 等字段"
+            :"Seedance 2.0 官方支持 4–15 秒；1–3 秒个别模型可能报错";
         customFields.forEach(x=>x.style.display=custom?"":"none");
         refreshTip();
         if(c) fillWf();
@@ -1335,7 +1383,7 @@ function buildGenerateBody(body,n){
         elm.addEventListener("input",()=>{ d[key]= num? Math.max(1,Number(elm.value)||1) : elm.value; scheduleSave(true); });
     }
     sel.addEventListener("change",()=>{ d.engine=sel.value; syncFields(); scheduleSave(); });
-    wfSel.addEventListener("change",()=>{ d.workflowId=wfSel.value; scheduleSave(); });
+    wfSel.addEventListener("change",()=>{ d.workflowId=wfSel.value; syncFields(); scheduleSave(); });
     preSel.addEventListener("change",()=>{ d.preset=API_PRESETS[preSel.value]?preSel.value:"seedance"; preSel.value=d.preset; d.model=""; d.modelTouched=false; applyRecommended(true); syncFields(); scheduleSave(); });
     kindSel.addEventListener("change",()=>{ d.kind=kindSel.value==="video"?"video":"image"; kindSel.value=d.kind; if(!d.modelTouched){ d.model=""; applyRecommended(true); } syncFields(); scheduleSave(); });
     mdl.addEventListener("input",()=>{ d.model=mdl.value; d.modelTouched=!!mdl.value.trim(); scheduleSave(true); });
@@ -1352,7 +1400,7 @@ function buildGenerateBody(body,n){
         e.stopPropagation();
         d.model=""; d.modelTouched=false; applyRecommended(true);
         ep.value=""; d.endpoint=""; hdr.value=""; d.headers="";
-        d.seconds="5"; secsSel.value="5";
+        d.seconds=""; fillSecsOpts(d.engine==="comfyui");
         d.ratio=""; d.resolution=""; imgReso.value=""; vidReso.value="";
         pollUrl.value=""; d.pollUrl="";
         tpl.value=DEFAULT_BODY_TEMPLATE; d.bodyTemplate=tpl.value;
@@ -1422,13 +1470,20 @@ function buildResultBody(body,n){
         b.addEventListener("click",e=>{ e.stopPropagation(); navigator.clipboard?.writeText(d.text).catch(()=>{}); }); actions.appendChild(b);
     }
 }
-/* ============ 媒体浮窗预览 ============ */
+/* ============ 媒体浮窗预览 ============
+   结果节点的图/视频、参考图缩略图、声音/视频参考条目、提示词全文，都可以浮窗放大查看。 */
 function openLightbox(d){
     const lb=el("mediaLightbox"), h=el("lbHolder");
     if(!lb||!h) return;
     h.innerHTML="";
+    const oldCap=lb.querySelector(".lb-title"); if(oldCap) oldCap.remove();
+    if(d.title){ const cap=document.createElement("div"); cap.className="lb-title"; cap.textContent=d.title; lb.appendChild(cap); }
     if(d.kind==="video"){
         const v=document.createElement("video"); v.src=d.url; v.controls=true; v.autoplay=true; v.loop=true; h.appendChild(v);
+    }else if(d.kind==="audio"){
+        const a=document.createElement("audio"); a.src=d.url; a.controls=true; a.autoplay=true; h.appendChild(a);
+    }else if(d.kind==="text"){
+        const pre=document.createElement("pre"); pre.className="lb-text"; pre.textContent=d.text||""; h.appendChild(pre);
     }else{
         const img=document.createElement("img"); img.src=d.url; img.alt="预览"; h.appendChild(img);
     }
@@ -1436,8 +1491,8 @@ function openLightbox(d){
 }
 function closeLightbox(){
     const lb=el("mediaLightbox"), h=el("lbHolder");
-    if(lb) lb.classList.remove("show");
-    if(h) h.innerHTML="";   /* 停掉视频播放 */
+    if(lb){ lb.classList.remove("show"); const c=lb.querySelector(".lb-title"); if(c) c.remove(); }
+    if(h) h.innerHTML="";   /* 停掉视频 / 音频播放 */
 }
 function paintSelection(){
     document.querySelectorAll(".node").forEach(x=>x.classList.toggle("selected",selectedIds.has(x.dataset.id)));
@@ -2511,6 +2566,71 @@ async function comfyUploadImage(base,dataUrl,index){
     const d=await res.json();
     return d.name||d.filename;
 }
+/* ===== 画幅 / 分辨率 / 视频时长 → ComfyUI 工作流字段 =====
+   尺寸：优先写 Latent 类节点（EmptyLatentImage / EmptySD3LatentImage / 各家视频 Latent 等）的
+   width / height；没有 Latent 就退回任何同时有数字 width/height 的节点。
+   只选分辨率没选比例时，按工作流现有宽高比例把长边换到对应档位，不硬掰画幅。
+   时长：秒数 × fps 换算成帧数写进 length / num_frames / video_length 等数字字段；
+   fps 优先取工作流里 fps / frame_rate / rate 字段，找不到按 24 换算。 */
+function comfySizeTargets(wf){
+    const latent=[],any=[];
+    Object.keys(wf).forEach(id=>{
+        const node=wf[id]||{}, ins=node.inputs||{};
+        if(typeof ins.width!=="number"||typeof ins.height!=="number") return;
+        (/(Latent|Size)/i.test(String(node.class_type||""))?latent:any).push(id);
+    });
+    return latent.length?latent:any;
+}
+function comfyFrameTargets(wf){
+    const out=[];
+    const re=/^(length|num_frames|video_length|frame_count|frames)$/i;
+    Object.keys(wf).forEach(id=>{
+        const ins=(wf[id]||{}).inputs||{};
+        Object.keys(ins).forEach(f=>{ if(re.test(f)&&typeof ins[f]==="number") out.push({node:id,field:f}); });
+    });
+    return out;
+}
+function comfyFindFps(wf){
+    let fps=0;
+    Object.keys(wf).forEach(id=>{
+        const ins=(wf[id]||{}).inputs||{};
+        Object.keys(ins).forEach(f=>{
+            if(/^(fps|frame_rate|rate)$/i.test(f)&&typeof ins[f]==="number"&&ins[f]>0) fps=Math.max(fps,ins[f]);
+        });
+    });
+    return fps||24;
+}
+function applyComfySpec(wf,d,kindVideo){
+    const ratio=String(d.ratio||"").trim();
+    const reso=resolutionApi(d.resolution);
+    const msgs=[];
+    if(ratio||reso){
+        const dims=ratio?ratioDims(ratio,reso||"1k"):null;
+        const targets=comfySizeTargets(wf);
+        targets.forEach(id=>{
+            const ins=wf[id].inputs;
+            if(dims){
+                ins.width=dims.w; ins.height=dims.h;
+            }else{
+                const w=Number(ins.width)||1024, h=Number(ins.height)||1024;
+                const edgeMap={"1k":1024,"2k":2048,"4k":3840};
+                const edge=edgeMap[reso]||1024, k=edge/Math.max(w,h);
+                ins.width=Math.max(240,Math.round(w*k/8)*8);
+                ins.height=Math.max(240,Math.round(h*k/8)*8);
+            }
+        });
+        if(targets.length) msgs.push("尺寸→"+(dims?(dims.w+"×"+dims.h):reso.toUpperCase())+"（"+targets.length+" 处）");
+    }
+    const secs=parseInt(d.seconds,10);
+    if(kindVideo==="video"&&secs>=1){
+        const fps=comfyFindFps(wf);
+        const frames=Math.round(secs*fps);
+        const hits=comfyFrameTargets(wf);
+        hits.forEach(t=>{ wf[t.node].inputs[t.field]=frames; });
+        if(hits.length) msgs.push("时长 "+secs+" 秒×"+fps+"fps→"+frames+" 帧（"+hits.length+" 处）");
+    }
+    return msgs.join(" · ");
+}
 async function genComfy(n,input){
     const base=(canvas.settings.comfyBase||"").trim().replace(/\/+$/,"")||COMFY_DEFAULT;
     const alive=await probeComfy(base,4000);
@@ -2542,6 +2662,9 @@ async function genComfy(n,input){
     (m.seedNodes||[]).forEach(s=>{
         if(work[s.node]&&work[s.node].inputs) work[s.node].inputs[s.field||"seed"]=Math.floor(Math.random()*2147483647);
     });
+    /* 生成节点选的画幅 / 分辨率 / 时长写进工作流（留空「跟随工作流」则完全不碰） */
+    const specMsg=applyComfySpec(work,n.data,tpl.kind);
+    if(specMsg) setGenStatus(n,"["+tpl.name+"] "+specMsg,"busy");
     const clientId="manflows_"+Math.random().toString(36).slice(2,10);
     const submit=await postJson(base+"/prompt","",{prompt:work,client_id:clientId},30000);
     if(submit.error) throw new Error("ComfyUI 拒绝工作流："+JSON.stringify(submit.error).slice(0,500));
@@ -2657,8 +2780,10 @@ function renderWorkflowInfo(){
     const w=activeWorkflow(), m=w.mapping||{};
     el("workflowKind").value=w.kind;
     const pn=(m.promptNodes||[]).length||(m.promptNode?1:0);
+    const szN=comfySizeTargets(w.workflow).length;
+    const frN=comfyFrameTargets(w.workflow).length;
     el("workflowInfo").innerHTML='共 <b>'+list.length+'</b> 个模板 · 当前 <b>'+esc(w.name)+'</b>（'+(w.kind==="video"?"生视频":"生图")+'，'+Object.keys(w.workflow).length+' 节点）<br>'+
-        '映射：提示词 '+pn+' 处（'+esc(m.promptNode||"未识别")+'） · 参考图 '+((m.imageNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处';
+        '映射：提示词 '+pn+' 处（'+esc(m.promptNode||"未识别")+'） · 参考图 '+((m.imageNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处 · 宽高 '+szN+' 处'+(frN?(' · 帧数 '+frN+' 处'):'');
     el("mappingBox").value=mappingText();
 }
 el("workflowImport").addEventListener("change",async e=>{
