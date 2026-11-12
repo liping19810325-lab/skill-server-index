@@ -356,7 +356,7 @@
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。本地 ComfyUI：<b>MiniMax H3 工作流不用预先接声音节点</b>——画布会自动注入 LoadAudio 并接到 H3 的 <code>ref_audios</code>（上限 3 段）；含 LoadAudio 的其它工作流则直接写入载入节点。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
-            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 会把比例换算成宽高写进工作流的 Latent 节点、把时长按工作流 fps 换算成帧数写进 length / num_frames 等字段，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。</li>
+            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 0.4（864×480）/0.9（1280×736）/2.0（1920×1088）三档百万像素），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 对 MiniMax H3 官方模板直接写 ResolutionSelector（宽高比 + 百万像素 + 32 步进）与 duration 秒数（自动换算合法帧位），其它工作流写 Latent 宽高与帧数，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。视频若因跨域 / 直链格式受限无法直接播放，点一下视频窗口会<b>自动缓存到本地播放</b>，连缓存也被挡时自动转下载。</li>
             <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
@@ -382,7 +382,7 @@
         <h2>① 第三方 API 接入 · 每个用户自己配置</h2>
         <ul>
             <li><b>页面不预置任何接口、Key、模型名</b>：默认全部为空。先在创作台填写你自己的接口地址与 API Key（只存你本机浏览器），画布页自动复用同一份配置并把 <code>…/v1/chat/completions</code> 归一到域名层；再在生成节点<b>手动填写模型名</b>，即可点「▶ 运行生成」。没有填接口 / Key / 模型时会明确报错提示，不会悄悄用别人的配置。</li>
-            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名按你要用的版本自己改（文生 / 图生 <code>-i2i</code> / <code>-i2v</code>、多模态 <code>-multi</code>，以你的服务商文档为准）。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 480P / 720P / 1080P / 4K）和<b>视频时长 1–15 秒</b>。这些选项<b>两种引擎都生效</b>：第三方 API 按各厂商参数写法提交（生视频 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；生图换算 <code>metadata.width / height</code> 或传 <code>resolution</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符）；本地 ComfyUI 则把比例换算成宽高写进工作流 Latent 节点、时长按 fps 换算成帧数写进 <code>length / num_frames</code> 等字段，留空「跟随工作流」就不修改原工作流。</li>
+            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名按你要用的版本自己改（文生 / 图生 <code>-i2i</code> / <code>-i2v</code>、多模态 <code>-multi</code>，以你的服务商文档为准）。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 0.4（864×480）/ 0.9（1280×736）/ 2.0（1920×1088））和<b>视频时长 1–15 秒</b>。这些选项<b>两种引擎都生效</b>：第三方 API 按各厂商参数写法提交（生视频 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；生图换算 <code>metadata.width / height</code> 或传 <code>resolution</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符）；本地 ComfyUI 对 H3 官方模板写 ResolutionSelector（宽高比+百万像素+32 步进）与 duration 秒数，其它工作流写 Latent 宽高与帧数，留空「跟随工作流」就不修改原工作流。</li>
             <li><b>异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，这类网关会返回 400 <code>invalid_request</code>。</li>
             <li>模型名以你的服务商文档为准（同一个网关里生图、生视频、多模态模型通常各不相同），填错会收到接口原始报错，可在结果节点里看到。</li>
             <li>其它服务商：预设里可切「OpenAI 兼容同步生图」「阿里百炼 Qwen Image 2.1 异步生图」「自定义 JSON 接口」。切到非 seedance 预设时，请在「▸ 高级」里填该服务商的独立 API Key。</li>
@@ -1304,8 +1304,10 @@ function buildGenerateBody(body,n){
     [["","默认"],["1K","1K"],["2K","2K"],["4K","4K"]].forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; imgReso.appendChild(o); });
     imgReso.value=/^(1K|2K|4K)$/i.test(String(d.resolution||""))?String(d.resolution).toUpperCase():"";
     const vidReso=document.createElement("select");
-    [["","默认"],["480P","480P"],["720P","720P"],["1080P","1080P"],["4K","4K"]].forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; vidReso.appendChild(o); });
-    vidReso.value=/^(480P|720P|1080P|4K)$/i.test(String(d.resolution||""))?String(d.resolution).toUpperCase():"";
+    /* H3 档位（百万像素）：0.4=864×480 / 0.9=1280×736 / 2.0=1920×1088（32 步进）；
+       旧存档的 480P/720P/1080P/4K 自动归到对应档 */
+    [["","跟随工作流（不修改）"],["0.4","0.4（864×480）"],["0.9","0.9（1280×736）"],["2.0","2.0（1920×1088）"]].forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; vidReso.appendChild(o); });
+    vidReso.value=vidResoToken(d.resolution);
     const specRow=document.createElement("div"); specRow.className="two";
     function mountSpecRow(video){
         specRow.innerHTML="";
@@ -1397,11 +1399,18 @@ function buildGenerateBody(body,n){
         ep.placeholder=custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝复用你在创作台填写的接口地址（自动派生到域名层）";
         modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"接口地址与 Key 复用你在创作台填写的配置；模型名须自己填写";
     }
-    /* ComfyUI 引擎下，生图 / 生视频类型由所选工作流模板决定 */
+    /* ComfyUI 引擎下，生图 / 生视频类型由所选工作流模板决定；
+       模板标成生图但实际带 SaveVideo / CreateVideo 等输出节点时按生视频对待，
+       否则「参考生视频minimax_h3_r2v」这类标错的模板不显示分辨率档位与时长选项 */
     function wfKindOf(){
         const list=canvas.settings.workflows||[];
         const w=list.find(x=>x.id===d.workflowId)||list[0];
-        return (w&&w.kind==="video")?"video":"image";
+        if(w){
+            if(w.kind==="video") return "video";
+            const wfOuts=Object.keys(w.workflow||{}).map(k=>String((w.workflow[k]||{}).class_type||""));
+            if(wfOuts.some(c=>/SaveVideo|CreateVideo|VHS_SaveVideo|SaveAnimated/i.test(c))) return "video";
+        }
+        return "image";
     }
     function syncFields(){
         const c = d.engine==="comfyui", custom = presetOf(n)==="custom";
@@ -1415,9 +1424,9 @@ function buildGenerateBody(body,n){
         if(!c && !d.seconds) d.seconds=secsSel.value||"5";
         imgReso.options[0].textContent=c?"跟随工作流（不修改）":"默认";
         vidReso.options[0].textContent=c?"跟随工作流（不修改）":"默认";
-        specTip.textContent=c?"选了就写进工作流的 Latent 宽高；留空不动原工作流":"";
+        specTip.textContent=c?"选了就写进工作流（H3 模板写 ResolutionSelector 宽高比+百万像素，其它写 Latent 宽高）；留空不动原工作流":"";
         secsTip.textContent=c
-            ?"选中后按工作流 fps 换算成帧数，写进 length / num_frames 等字段"
+            ?"H3 模板写 duration 秒数（自动换算合法帧位）；其它工作流按 fps 换算成帧数写进 length / num_frames"
             :"Seedance 2.0 官方支持 4–15 秒；1–3 秒个别模型可能报错";
         customFields.forEach(x=>x.style.display=custom?"":"none");
         refreshTip();
@@ -2462,6 +2471,32 @@ function resolutionApi(v){
    生视频 480P=854 / 720P=1280 / 1080P=1920 / 4K=3840。
    第三方 API（metadata.width/height、size）与本地 ComfyUI（Latent 宽高）共用这一张换算表。 */
 const RESO_EDGE_MAP={"480p":854,"720p":1280,"1080p":1920,"1k":1024,"2k":2048,"4k":3840};
+/* 生视频新档位：百万像素（对齐 MiniMax H3 官方 ResolutionSelector 的档位表，32 步进、16:9 基准）
+   0.4MP→864×480、0.9MP→1280×736、2.0MP→1920×1088；9:16 等竖幅按公式自动转置。
+   第三方 API 无百万像素概念，自动映射到官方档位 480p / 720p / 1080p。 */
+const VID_MP_DIMS={"0.4":[864,480],"0.9":[1280,736],"2.0":[1920,1088]};
+const VID_MP_TIER={"0.4":"480p","0.9":"720p","2.0":"1080p"};
+const MP_ASPECT_STR={"16:9":"16:9 (Widescreen)","9:16":"9:16 (Portrait Widescreen)"};
+/* 任意分辨率值归一到百万像素档位；旧档位与未知值归空（跟随工作流） */
+function vidResoToken(v){
+    const s=String(v||"").trim().toLowerCase();
+    if(s in VID_MP_DIMS) return s;
+    if(s==="480p") return "0.4";
+    if(s==="720p") return "0.9";
+    if(s==="1080p"||s==="2k"||s==="4k") return "2.0";
+    return "";
+}
+/* 复刻 ResolutionSelector 的算法：总像素=MP×1024²，按宽高比分配后取 32 的倍数 */
+function mpDims(ratio,mp){
+    const m=String(ratio||"").trim().match(/^(\d+)\s*[:x×]\s*(\d+)$/);
+    if(!m) return null;
+    const w=+m[1],h=+m[2];
+    if(!w||!h) return null;
+    const total=(parseFloat(mp)||1)*1024*1024;
+    const scale=Math.sqrt(total/(w*h));
+    const r32=x=>Math.max(32,Math.round(x/32)*32);
+    return {w:r32(w*scale),h:r32(h*scale)};
+}
 /* 生图选了比例时换算成 width/height（部分模型不吃 ratio，只认宽高）
    数值取 8 的倍数；生视频比例 + 分辨率同样经此换算后写进 ComfyUI Latent 宽高 */
 function ratioDims(ratio,reso){
@@ -2481,9 +2516,10 @@ function genMeta(n){
     const reso=resolutionApi(n.data.resolution);
     const ratio=String(n.data.ratio||"").trim();
     if(n.data.kind==="video"){
-        /* 生视频：官方 metadata.ratio（16:9 / 9:16…）+ metadata.resolution（480p…4k） */
+        /* 生视频：官方 metadata.ratio（16:9 / 9:16…）+ metadata.resolution（480p…4k）
+           百万像素档（0.4/0.9/2.0）是 ComfyUI H3 概念，提交第三方前映射回官方档位 */
         if(ratio) m.ratio=ratio;
-        if(reso) m.resolution=reso;
+        if(reso) m.resolution=VID_MP_TIER[reso]||reso;
     }else{
         /* 生图：Seedream 系没有 ratio 字段，选了比例就换算成 width/height；
            只选分辨率时直接传 resolution（1k / 2k / 4k） */
@@ -3018,12 +3054,48 @@ function comfyFindFps(wf){
     });
     return fps||24;
 }
+function comfyDurationFloatTargets(wf){
+    /* H3 官方模板的时长输入：主节点 duration 是链接，指向 PrimitiveFloat（值=秒），
+       由 MathExpression 节点换算成合法帧位（5+17k）。找到就写秒数，最干净。 */
+    const out=[];
+    Object.keys(wf).forEach(id=>{
+        const ins=(wf[id]||{}).inputs||{};
+        if(!("duration" in ins)) return;
+        const link=ins.duration;
+        if(Array.isArray(link)&&wf[link[0]]&&/PrimitiveFloat/i.test(String((wf[link[0]]||{}).class_type||""))) out.push(link[0]);
+    });
+    return out;
+}
+function comfyResoSelectorTargets(wf){
+    /* ResolutionSelector（宽高比 combo + 百万像素 float）：H3 官方模板用它决定宽高 */
+    return Object.keys(wf).filter(id=>{
+        const nd=wf[id]||{},ins=nd.inputs||{};
+        return /ResolutionSelector/i.test(String(nd.class_type||""))
+            &&typeof ins.aspect_ratio==="string"&&("megapixels" in ins);
+    });
+}
 function applyComfySpec(wf,d,kindVideo){
     const ratio=String(d.ratio||"").trim();
+    const mp=(kindVideo==="video")?vidResoToken(d.resolution):"";   /* 百万像素档只属于生视频；生图 1K/2K/4K 不受影响 */
     const reso=resolutionApi(d.resolution);
     const msgs=[];
-    if(ratio||reso){
-        const dims=ratio?ratioDims(ratio,reso||"1k"):null;
+    /* ① H3 官方模板：优先写 ResolutionSelector（宽高比字符串 + 百万像素 + 32 步进），
+       主节点 width/height 是它的链接，不用碰 */
+    const selT=comfyResoSelectorTargets(wf);
+    if((ratio||mp)&&selT.length){
+        let nA=0,nM=0;
+        selT.forEach(id=>{
+            const ins=wf[id].inputs;
+            if(ratio&&MP_ASPECT_STR[ratio]){ ins.aspect_ratio=MP_ASPECT_STR[ratio]; nA++; }
+            if(mp){ ins.megapixels=parseFloat(mp); if(typeof ins.multiple!=="number") ins.multiple=32; nM++; }
+        });
+        const parts=[];
+        if(ratio&&nA) parts.push(ratio);
+        if(mp&&nM) parts.push(mp+"MP");
+        if(parts.length) msgs.push("H3 规格 "+parts.join(" · ")+"（ResolutionSelector ×"+selT.length+"）");
+    }else if(ratio||reso){
+        /* ② 其它工作流：比例+档位换算成宽高写进 Latent 等节点 */
+        const dims=(ratio&&mp)?mpDims(ratio,mp):(ratio?ratioDims(ratio,reso||"1k"):null);
         const targets=comfySizeTargets(wf);
         targets.forEach(id=>{
             const ins=wf[id].inputs;
@@ -3034,14 +3106,20 @@ function applyComfySpec(wf,d,kindVideo){
                 ins.width=rnd(dims.w); ins.height=rnd(dims.h);
             }else{
                 const w=Number(ins.width)||1024, h=Number(ins.height)||1024;
-                const edge=RESO_EDGE_MAP[reso]||1024, k=edge/Math.max(w,h);
+                const edge=mp?(VID_MP_DIMS[mp][0]):(RESO_EDGE_MAP[reso]||1024), k=edge/Math.max(w,h);
                 ins.width=rnd(w*k); ins.height=rnd(h*k);
             }
         });
-        if(targets.length) msgs.push("尺寸→"+(dims?(dims.w+"×"+dims.h):reso.toUpperCase())+"（"+targets.length+" 处）");
+        if(targets.length) msgs.push("尺寸→"+(dims?(dims.w+"×"+dims.h):(mp?VID_MP_DIMS[mp][0]+" 长边":reso.toUpperCase()))+"（"+targets.length+" 处）");
     }
     const secs=parseInt(d.seconds,10);
     if(kindVideo==="video"&&secs>=1){
+        /* ③ 时长：有 PrimitiveFloat 挂在 duration 上就写秒数（H3 官方模板走这里） */
+        const floatT=comfyDurationFloatTargets(wf);
+        if(floatT.length){
+            floatT.forEach(id=>{ wf[id].inputs.value=secs; });
+            msgs.push("时长 "+secs+" 秒（duration 浮点 ×"+floatT.length+"）");
+        }else{
         const fps=comfyFindFps(wf);
         const frames=Math.round(secs*fps);
         const hits=comfyFrameTargets(wf);
@@ -3058,6 +3136,7 @@ function applyComfySpec(wf,d,kindVideo){
                 wf[h3].inputs.length=h3frames;
                 msgs.push("时长 "+secs+" 秒→H3 "+h3frames+" 帧");
             }
+        }
         }
     }
     return msgs.join(" · ");
@@ -3172,7 +3251,8 @@ async function genComfy(n,input){
     if(submit.error) throw new Error("ComfyUI 拒绝工作流："+JSON.stringify(submit.error).slice(0,500));
     const pid=submit.prompt_id;
     if(!pid) throw new Error("ComfyUI 未返回 prompt_id："+JSON.stringify(submit).slice(0,300));
-    const MAX_COMFY_POLL=300;
+    /* H3 多参考视频（尤其 2.0MP / 15 秒）在本机显卡上可能跑 10 分钟以上，轮询上限放宽到 30 分钟 */
+    const MAX_COMFY_POLL=900;
     const wantVideo=tpl.kind==="video";
     for(let i=0;i<MAX_COMFY_POLL;i++){
         await new Promise(r=>setTimeout(r,2000));
@@ -3189,19 +3269,25 @@ async function genComfy(n,input){
         if(!outs) continue;
         for(const key of Object.keys(outs)){
             const o=outs[key]||{};
-            const arr=(wantVideo?(o.videos||o.gifs||o.images):(o.images||o.gifs||o.videos))||null;
+            /* 不按 kind 预设键序：新版 SaveVideo 把 mp4 放在 images 键、VHS 放在 gifs，
+               统一全扫，再按文件真实扩展名定种类，杜绝「已出片却映射不过来」 */
+            const arr=o.videos||o.gifs||o.images||o.audio||null;
             if(Array.isArray(arr)&&arr.length){
                 const f=arr[0];
+                if(!f||!f.filename) continue;
                 /* 按输出文件的真实扩展名定种类：工作流模板 kind 标错（图/视频弄反）时也不会把视频当图片渲染 */
                 const outVid=/\.(mp4|webm|mov|m4v)$/i.test(String(f.filename||""));
                 const q="filename="+encodeURIComponent(f.filename||"")+"&subfolder="+encodeURIComponent(f.subfolder||"")+"&type="+encodeURIComponent(f.type||"output");
-                const r=classifyUrl(base+"/view?"+q,outVid?"video":(wantVideo?"video":"image"));
+                const r=classifyUrl(base+"/view?"+q,outVid?"video":"image");
                 r.name=f.filename||r.name;
                 return r;
             }
         }
+        /* 执行已成功结束却仍没扫到输出文件：立即明确报错，不再空等 30 分钟 */
+        if(rec.status&&rec.status.completed&&rec.status.status_str==="success")
+            throw new Error("工作流已执行完成，但输出节点里没有可识别的图片/视频文件。请确认工作流带 SaveImage / SaveVideo / VHS_SaveVideo 输出节点，并重新在左侧「重新推断映射」。任务ID："+pid);
     }
-    throw new Error("等待 ComfyUI 结果超时（10 分钟），请检查队列、显存或输出节点。任务ID："+pid);
+    throw new Error("等待 ComfyUI 结果超时（30 分钟）。请检查队列、显存或输出节点；若 ComfyUI 里还在跑，跑完后可在 ComfyUI 历史记录里取结果。任务ID："+pid);
 }
 async function runGenerate(n){
     if(n.data.busy) return;
