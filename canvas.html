@@ -140,6 +140,21 @@
     .media-lightbox .lb-title{position:fixed;left:0;right:0;top:20px;text-align:center;color:#cbd5e1;font-size:13px;pointer-events:none;}
     .media-lightbox .lb-close{position:fixed;right:22px;top:18px;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer;line-height:1;}
     .media-lightbox .lb-close:hover{background:rgba(255,255,255,.28);}
+    /* ===== 历史结果面板 ===== */
+    .history-panel{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1100;padding:24px;}
+    .history-panel.show{display:flex;}
+    .history-box{background:var(--card);border:1px solid var(--border2);border-radius:12px;max-width:1100px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 60px rgba(0,0,0,.45);}
+    .history-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;}
+    .history-count{color:var(--text2);font-size:11px;}
+    .history-spacer{flex:1;}
+    .history-grid{overflow:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;align-content:start;}
+    .history-empty{grid-column:1/-1;color:var(--text2);font-size:12px;text-align:center;padding:40px 0;}
+    .h-item{border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--panel);display:flex;flex-direction:column;}
+    .h-thumb{height:106px;background:#000;cursor:zoom-in;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+    .h-thumb img,.h-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
+    .h-meta{padding:6px 8px;font-size:10.5px;color:var(--text2);display:flex;flex-direction:column;gap:5px;}
+    .h-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+    .h-acts{display:flex;gap:6px;}
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
     .result-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
 
@@ -223,6 +238,7 @@
         <button class="tb-btn" id="exportBtn">导出画布</button>
         <button class="tb-btn" id="importBtn">导入画布</button>
         <button class="tb-btn" id="clearBtn">清空画布</button>
+        <button class="tb-btn" id="historyBtn" title="查看本机生成的历史图片 / 视频（可预览、下载）">🖼 历史结果</button>
         <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
     </header>
@@ -300,6 +316,19 @@
 <div class="ctx-menu" id="ctxMenu"></div>
 
 <!-- 媒体浮窗预览：点击结果节点里的图片 / 视频 -->
+<div class="history-panel" id="historyPanel">
+    <div class="history-box">
+        <div class="history-head">
+            <b>🖼 历史结果（图片 / 视频）</b>
+            <span class="history-count" id="historyCount"></span>
+            <span class="history-spacer"></span>
+            <button class="mini-btn" id="historyClearBtn">清空历史</button>
+            <button class="mini-btn" id="historyCloseBtn">关闭</button>
+        </div>
+        <div class="history-grid" id="historyGrid"></div>
+    </div>
+</div>
+
 <div class="media-lightbox" id="mediaLightbox">
     <button class="lb-close" id="lbClose" title="关闭（Esc）">×</button>
     <div id="lbHolder"></div>
@@ -315,9 +344,10 @@
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
-            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 会把比例换算成宽高写进工作流的 Latent 节点、把时长按工作流 fps 换算成帧数写进 length / num_frames 等字段，留空「跟随工作流」则完全不修改原工作流。</li>
+            <li><b>生成节点</b>：选「① 第三方 API 接入」或「② 本地 ComfyUI 接入」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 480P/720P/1080P/4K），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 会把比例换算成宽高写进工作流的 Latent 节点、把时长按工作流 fps 换算成帧数写进 length / num_frames 等字段，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。视频若因跨域 / 直链格式受限无法直接播放，点一下视频窗口会<b>自动缓存到本地播放</b>，连缓存也被挡时自动转下载。</li>
+            <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
         </ul>
         <h2>多参考素材怎么生效（异步任务型网关）</h2>
         <p>连入声音或视频参考节点、且生成类型选「生视频」时，模型会自动推荐 <code>-multi</code> 多模态版本；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
@@ -572,6 +602,7 @@ let canvas = {
 };
 let selectedId = null;
 let selectedIds = new Set();          /* 框选 / Shift 多选：选中的节点 id 集合 */
+let resultHistory = [];               /* 历史结果（跨画布全局存档）：{id,kind,url,name,ts,engine,prompt} */
 let seenSourceIds = new Set();
 let saveTimer = null;
 let drag = null;
@@ -636,7 +667,7 @@ async function persist(){
         id:docId, name:docName(docId),
         nodes:canvas.nodes, edges:canvas.edges, viewport:canvas.viewport, seeded:true
     });
-    await idbPut("canvas",GLOBAL_KEY,{settings:canvas.settings,docList:docList,activeDocId:docId});
+    await idbPut("canvas",GLOBAL_KEY,{settings:canvas.settings,docList:docList,activeDocId:docId,history:resultHistory});
 }
 
 function uid(){ return "n"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -805,6 +836,7 @@ async function loadCanvas(){
     }
     docList=g.docList.filter(d=>d&&d.id).map(d=>({id:String(d.id),name:String(d.name||"画布")}));
     if(!docList.length) docList=[{id:"c1",name:"画布1"}];
+    resultHistory=Array.isArray(g.history)?g.history.filter(h=>h&&h.url&&h.kind):[];   /* 历史结果全局存档 */
     docId=docList.some(d=>d.id===g.activeDocId)?g.activeDocId:docList[0].id;
     canvas=normalize({settings:g.settings||{}});
     let doc=null;
@@ -1478,6 +1510,17 @@ function buildResultBody(body,n){
     let media=null;
     if(d.kind==="image" && d.url){
         const img=document.createElement("img"); img.className="result-media"; img.src=d.url; img.alt="生成结果"; img.title="点击浮窗放大预览"; holder.appendChild(img); media=img;
+        /* 兼容旧数据：视频被误存成图片种类时，<img> 必然加载失败 —— 自动换成视频并修正 kind */
+        img.addEventListener("error",()=>{
+            if(!/(\.mp4|\.webm|\.mov|\.m4v)(\?|&|$)/i.test(d.url)) return;
+            d.kind="video";
+            holder.innerHTML="";
+            const v=document.createElement("video"); v.className="result-media"; v.controls=true;
+            v.title="点击视频浮窗放大预览；加载失败时点击会自动缓存播放"; holder.appendChild(v);
+            ensurePlayableVideo(v,d.url,d.name);
+            media=v;
+            v.addEventListener("click",e=>{ e.stopPropagation(); openLightbox(d); });
+        });
     } else if(d.kind==="video" && d.url){
         const v=document.createElement("video"); v.className="result-media"; v.controls=true; v.title="点击视频浮窗放大预览；加载失败时点击会自动缓存播放"; holder.appendChild(v); media=v;
         ensurePlayableVideo(v,d.url,d.name);
@@ -1528,6 +1571,58 @@ function closeLightbox(){
     const lb=el("mediaLightbox"), h=el("lbHolder");
     if(lb){ lb.classList.remove("show"); const c=lb.querySelector(".lb-title"); if(c) c.remove(); }
     if(h) h.innerHTML="";   /* 停掉视频 / 音频播放 */
+}
+/* ===== 历史结果面板（跨画布全局存档，存 IndexedDB） ===== */
+function fmtTime(ts){
+    const d=new Date(ts||0), p=n=>String(n).padStart(2,"0");
+    return (d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
+}
+function renderHistory(){
+    const grid=el("historyGrid"), cnt=el("historyCount");
+    if(!grid) return;
+    grid.innerHTML="";
+    if(cnt) cnt.textContent=resultHistory.length?("共 "+resultHistory.length+" 条 · 最多保留 60 条"):"";
+    if(!resultHistory.length){
+        const t=document.createElement("div"); t.className="history-empty";
+        t.textContent="还没有生成记录：在画布里跑一次生成，成功后图片 / 视频会自动记到这里。";
+        grid.appendChild(t); return;
+    }
+    resultHistory.forEach(h=>{
+        const item=document.createElement("div"); item.className="h-item";
+        const thumb=document.createElement("div"); thumb.className="h-thumb";
+        if(h.kind==="video"){
+            const v=document.createElement("video"); v.preload="metadata"; v.muted=true; v.src=h.url; thumb.appendChild(v);
+            thumb.title="点击预览（视频）";
+        }else{
+            const img=document.createElement("img"); img.loading="lazy"; img.src=h.url; img.alt="历史结果"; thumb.appendChild(img);
+            thumb.title="点击预览（图片）";
+        }
+        thumb.addEventListener("click",e=>{ e.stopPropagation(); openLightbox({kind:h.kind,url:h.url,name:h.name,title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}); });
+        item.appendChild(thumb);
+        const meta=document.createElement("div"); meta.className="h-meta";
+        const nm=document.createElement("div"); nm.className="h-name"; nm.textContent=h.name||(h.kind==="video"?"视频":"图片"); nm.title=nm.textContent;
+        const tm=document.createElement("div"); tm.textContent=fmtTime(h.ts)+" · "+(h.engine==="comfyui"?"ComfyUI":"API")+(h.prompt?(" · "+h.prompt.slice(0,26)):"");
+        const acts=document.createElement("div"); acts.className="h-acts";
+        const dl=document.createElement("button"); dl.className="mini-btn cyan"; dl.textContent="下载";
+        dl.addEventListener("click",e=>{ e.stopPropagation(); downloadUrl(h.url,h.name||("manflows_"+(h.kind==="video"?"video.mp4":"image.png"))); });
+        const del=document.createElement("button"); del.className="mini-btn"; del.textContent="删除";
+        del.addEventListener("click",e=>{
+            e.stopPropagation();
+            resultHistory=resultHistory.filter(x=>x.id!==h.id);
+            renderHistory(); scheduleSave();
+        });
+        acts.appendChild(dl); acts.appendChild(del);
+        meta.appendChild(nm); meta.appendChild(tm); meta.appendChild(acts);
+        item.appendChild(meta);
+        grid.appendChild(item);
+    });
+}
+function openHistory(){
+    renderHistory();
+    el("historyPanel").classList.add("show");
+}
+function closeHistory(){
+    el("historyPanel").classList.remove("show");
 }
 function paintSelection(){
     document.querySelectorAll(".node").forEach(x=>x.classList.toggle("selected",selectedIds.has(x.dataset.id)));
@@ -2094,7 +2189,8 @@ function setGenStatus(n,msg,kind){
 }
 function classifyUrl(u,forcedKind){
     const s=String(u||"");
-    const isVid=/\.(mp4|webm|mov|m4v|gif)(\?|$)/i.test(s)||/video_url|video\.mp4|\/videos?\//i.test(s);
+    /* 注意 ComfyUI 的 /view?filename=x.mp4&subfolder=... —— 扩展名后面跟的是 &，不能只认 ? 和结尾 */
+    const isVid=/\.(mp4|webm|mov|m4v|gif)(\?|&|$)/i.test(s)||/video_url|video\.mp4|\/videos?\//i.test(s);
     if(forcedKind==="video"||(forcedKind!=="image"&&isVid)) return {kind:"video",url:s,name:"manflows_video.mp4"};
     return {kind:"image",url:s,name:"manflows_image.png"};
 }
@@ -2630,13 +2726,43 @@ function inferMapping(wf){
                 imageNodes.push({node:id,field:f});
         });
     });
+    /* 声音 / 视频载入节点识别（多参考生视频，如 MiniMax H3）：
+       LoadAudio / VHS_LoadAudio / VHS_LoadAudioUpload → audio 字段；
+       LoadVideo（core，file 字段）/ VHS_LoadVideo（video 字段）；
+       再兜底：字段名像声音/视频入口且值是对应扩展名的文件名。 */
+    const AUDIO_EXT=/\.(mp3|wav|m4a|flac|ogg|aac|wma)$/i, VIDEO_EXT=/\.(mp4|webm|mov|avi|mkv|flv|ts)$/i;
+    const audioNodes=[], videoNodes=[], avSeen=new Set();
+    const pushAV=(arr,id,f)=>{
+        const key=arr===audioNodes?"a":"v", k=key+"|"+id+"|"+f;
+        if(avSeen.has(k)) return; avSeen.add(k);
+        (key==="a"?audioNodes:videoNodes).push({node:id,field:f});
+    };
+    ids.forEach(id=>{
+        const cls=String((wf[id]||{}).class_type||"");
+        const ins=(wf[id]||{}).inputs||{};
+        if(/LoadAudio|AudioLoad/i.test(cls)){
+            const f=typeof ins.audio==="string"?"audio":(typeof ins.file==="string"?"file":null);
+            if(f) pushAV(audioNodes,id,f);
+        }
+        if(/LoadVideo|VideoLoad/i.test(cls)&&!/FromFolder|DataSet|Path|Info/i.test(cls)){
+            const f=typeof ins.video==="string"?"video":(typeof ins.file==="string"?"file":null);
+            if(f) pushAV(videoNodes,id,f);
+        }
+        Object.keys(ins).forEach(f=>{
+            if(typeof ins[f]!=="string") return;
+            if(/Path|FromFolder|DataSet|Info/i.test(cls)) return;   /* 路径/文件夹类节点的文件字段不是上传通道，不能覆盖 */
+            const v=ins[f].trim();
+            if(/^(audio|audio_file|sound|music)$/i.test(f)&&AUDIO_EXT.test(v)) pushAV(audioNodes,id,f);
+            else if(/^(video|video_file|start_video)$/i.test(f)&&VIDEO_EXT.test(v)) pushAV(videoNodes,id,f);
+        });
+    });
     const seedNodes=[];
     ids.forEach(id=>{
         const ins=(wf[id]||{}).inputs||{};
         Object.keys(ins).forEach(f=>{ if(/^(seed|noise_seed|rand_seed)$/i.test(f)) seedNodes.push({node:id,field:f}); });
     });
     const outputNodes=ids.filter(id=>/^(SaveImage|VHS_SaveVideo|SaveVideo|SaveAnimatedWEBP|SaveWEBM|SaveGIF)/i.test(String((wf[id]||{}).class_type||"")));
-    return {promptNode:promptNode,promptField:promptField,promptNodes:promptNodes,imageNodes:imageNodes,seedNodes:seedNodes,outputNodes:outputNodes};
+    return {promptNode:promptNode,promptField:promptField,promptNodes:promptNodes,imageNodes:imageNodes,audioNodes:audioNodes,videoNodes:videoNodes,seedNodes:seedNodes,outputNodes:outputNodes};
 }
 function mappingText(){
     const w=activeWorkflow();
@@ -2654,15 +2780,20 @@ function saveMappingFromBox(){
 async function dataUrlToBlob(u){
     const res=await fetch(u); return await res.blob();
 }
-async function comfyUploadImage(base,dataUrl,index){
+/* ComfyUI 的 /upload/image 是通用文件通道：图片、音频、视频（mp3/mp4 等）都能传，
+   返回 {name, subfolder, type}，文件名保留原扩展名，可直接写进 LoadImage / LoadAudio / LoadVideo 的字段 */
+async function comfyUploadFile(base,dataUrl,filename){
     const blob=await dataUrlToBlob(dataUrl);
     const fd=new FormData();
-    fd.append("image",blob,"manflows_ref_"+(index+1)+".png");
+    fd.append("image",blob,filename);
     fd.append("overwrite","true");
     const res=await fetch(base.replace(/\/+$/,"")+"/upload/image",{method:"POST",body:fd});
-    if(!res.ok) throw new Error("上传参考图失败 HTTP "+res.status+"："+(await res.text()).slice(0,300));
+    if(!res.ok) throw new Error("上传文件失败 HTTP "+res.status+"："+(await res.text()).slice(0,300));
     const d=await res.json();
     return d.name||d.filename;
+}
+async function comfyUploadImage(base,dataUrl,index){
+    return comfyUploadFile(base,dataUrl,"manflows_ref_"+(index+1)+".png");
 }
 /* ===== 画幅 / 分辨率 / 视频时长 → ComfyUI 工作流字段 =====
    尺寸：优先写 Latent 类节点（EmptyLatentImage / EmptySD3LatentImage / 各家视频 Latent 等）的
@@ -2745,10 +2876,14 @@ async function genComfy(n,input){
     if(!(m.promptNodes||[]).length) m.promptNodes=fresh.promptNodes||[];
     if(!m.promptNode){ m.promptNode=fresh.promptNode; m.promptField=fresh.promptField; }
     if(!(m.imageNodes||[]).length) m.imageNodes=fresh.imageNodes||[];
+    if(!(m.audioNodes||[]).length) m.audioNodes=fresh.audioNodes||[];
+    if(!(m.videoNodes||[]).length) m.videoNodes=fresh.videoNodes||[];
     if(!(m.seedNodes||[]).length) m.seedNodes=fresh.seedNodes||[];
     if(!(m.outputNodes||[]).length) m.outputNodes=fresh.outputNodes||[];
     m.promptNodes=(m.promptNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
     m.imageNodes=(m.imageNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
+    m.audioNodes=(m.audioNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
+    m.videoNodes=(m.videoNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
     m.seedNodes=(m.seedNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
     tpl.mapping=m; scheduleSave();
     const work=JSON.parse(JSON.stringify(wf));
@@ -2763,6 +2898,10 @@ async function genComfy(n,input){
         throw new Error("工作流里没识别到提示词节点，画布提示词无法写入（所以出图会一直是工作流自带的那句提示词）。\n解决办法：① 左侧「ComfyUI 工作流」面板点「重新推断映射」；② 或在「映射」框里把 promptNodes 指到真正的提示词节点；③ 或删掉该模板重新导入「导出(API)」JSON。");
     if(input.images.length&&!m.imageNodes.length)
         throw new Error("已连入 "+input.images.length+" 张参考图，但工作流里没识别到图片载入节点（LoadImage 等），参考图无法写入。\n解决办法：左侧「映射」框里把 imageNodes 指到图片载入节点（如 [\"6\"] 或 [{\"node\":\"6\",\"field\":\"image\"}]），或点「重新推断映射」。");
+    if(input.audios.length&&!m.audioNodes.length)
+        throw new Error("已连入 "+input.audios.length+" 段声音参考，但工作流里没识别到声音载入节点（LoadAudio / VHS_LoadAudio 等），声音无法写入。\n解决办法：用包含 LoadAudio 的工作流（如 MiniMax H3），或在「映射」框里补 audioNodes。");
+    if(input.videos.length&&!m.videoNodes.length)
+        throw new Error("已连入 "+input.videos.length+" 个视频参考，但工作流里没识别到视频载入节点（LoadVideo / VHS_LoadVideo 等），视频无法写入。\n解决办法：用包含视频载入节点的工作流，或在「映射」框里补 videoNodes。");
     let written=0;
     targets.forEach(t=>{
         if(!work[t.node]) return;
@@ -2780,12 +2919,38 @@ async function genComfy(n,input){
         work[cfg.node].inputs[cfg.field||"image"]=name;
         imgWritten++;
     }
+    /* 声音 / 视频参考：同样走 /upload/image 通用通道上传，再写进 LoadAudio / LoadVideo 的文件字段 */
+    let audWritten=0;
+    for(let i=0;i<(m.audioNodes||[]).length;i++){
+        if(!input.audios[i]) break;
+        const cfg=m.audioNodes[i];
+        if(!work[cfg.node]||!input.audios[i].url) continue;
+        const ext=(String(input.audios[i].name||"").match(/\.[a-z0-9]+$/i)||[".mp3"])[0];
+        const name=await comfyUploadFile(base,input.audios[i].url,"manflows_audio_"+(i+1)+ext);
+        if(!work[cfg.node].inputs) work[cfg.node].inputs={};
+        work[cfg.node].inputs[cfg.field||"audio"]=name;
+        audWritten++;
+    }
+    let vidWritten=0;
+    for(let i=0;i<(m.videoNodes||[]).length;i++){
+        if(!input.videos[i]) break;
+        const cfg=m.videoNodes[i];
+        if(!work[cfg.node]||!input.videos[i].url) continue;
+        const ext=(String(input.videos[i].name||"").match(/\.[a-z0-9]+$/i)||[".mp4"])[0];
+        const name=await comfyUploadFile(base,input.videos[i].url,"manflows_video_"+(i+1)+ext);
+        if(!work[cfg.node].inputs) work[cfg.node].inputs={};
+        work[cfg.node].inputs[cfg.field||"video"]=name;
+        vidWritten++;
+    }
     (m.seedNodes||[]).forEach(s=>{
         if(work[s.node]&&work[s.node].inputs) work[s.node].inputs[s.field||"seed"]=Math.floor(Math.random()*2147483647);
     });
     /* 生成节点选的画幅 / 分辨率 / 时长写进工作流（留空「跟随工作流」则完全不碰） */
     const specMsg=applyComfySpec(work,n.data,tpl.kind);
-    const injectMsg="提示词→"+written+" 处"+(input.images.length?(" · 参考图 "+imgWritten+"/"+input.images.length):"");
+    const injectMsg="提示词→"+written+" 处"
+        +(input.images.length?(" · 参考图 "+imgWritten+"/"+input.images.length):"")
+        +(input.audios.length?(" · 声音 "+audWritten+"/"+input.audios.length):"")
+        +(input.videos.length?(" · 视频 "+vidWritten+"/"+input.videos.length):"");
     n.data.lastInject=injectMsg+(specMsg?(" · "+specMsg):"");   /* 轮询状态会覆盖中途提示，摘要并入完成消息 */
     setGenStatus(n,"["+tpl.name+"] "+n.data.lastInject,"busy");
     const clientId="manflows_"+Math.random().toString(36).slice(2,10);
@@ -2813,8 +2978,10 @@ async function genComfy(n,input){
             const arr=(wantVideo?(o.videos||o.gifs||o.images):(o.images||o.gifs||o.videos))||null;
             if(Array.isArray(arr)&&arr.length){
                 const f=arr[0];
+                /* 按输出文件的真实扩展名定种类：工作流模板 kind 标错（图/视频弄反）时也不会把视频当图片渲染 */
+                const outVid=/\.(mp4|webm|mov|m4v)$/i.test(String(f.filename||""));
                 const q="filename="+encodeURIComponent(f.filename||"")+"&subfolder="+encodeURIComponent(f.subfolder||"")+"&type="+encodeURIComponent(f.type||"output");
-                const r=classifyUrl(base+"/view?"+q,wantVideo?"video":undefined);
+                const r=classifyUrl(base+"/view?"+q,outVid?"video":(wantVideo?"video":"image"));
                 r.name=f.filename||r.name;
                 return r;
             }
@@ -2839,6 +3006,11 @@ async function runGenerate(n){
         else out=await genThirdParty(n,input);
         const r=resultNodeFor(n);
         r.data=Object.assign({},out);
+        /* 记入历史结果（跨画布全局）：blob: 链接刷新即失效，不入档 */
+        if(out&&out.url&&/^(https?:|data:)/i.test(out.url)){
+            resultHistory.unshift({id:uid(),kind:out.kind||"image",url:out.url,name:out.name||"",ts:Date.now(),engine:n.data.engine,prompt:(input.prompt||"").slice(0,120)});
+            if(resultHistory.length>60) resultHistory.length=60;
+        }
         const parts=[];
         if(input.images.length) parts.push("参考图 "+input.images.length+" 张");
         if(input.audios.length) parts.push("声音 "+input.audios.length+" 段");
@@ -2910,7 +3082,7 @@ function renderWorkflowInfo(){
     const szN=comfySizeTargets(w.workflow).length;
     const frN=comfyFrameTargets(w.workflow).length;
     el("workflowInfo").innerHTML='共 <b>'+list.length+'</b> 个模板 · 当前 <b>'+esc(w.name)+'</b>（'+(w.kind==="video"?"生视频":"生图")+'，'+Object.keys(w.workflow).length+' 节点）<br>'+
-        '映射：提示词 '+pn+' 处（'+esc(m.promptNode||"未识别")+'） · 参考图 '+((m.imageNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处 · 宽高 '+szN+' 处'+(frN?(' · 帧数 '+frN+' 处'):'');
+        '映射：提示词 '+pn+' 处（'+esc(m.promptNode||"未识别")+'） · 参考图 '+((m.imageNodes||[]).length)+' 路 · 声音 '+((m.audioNodes||[]).length)+' 路 · 视频 '+((m.videoNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处 · 宽高 '+szN+' 处'+(frN?(' · 帧数 '+frN+' 处'):'');
     el("mappingBox").value=mappingText();
 }
 el("workflowImport").addEventListener("change",async e=>{
@@ -3041,6 +3213,15 @@ function bindToolbar(){
     /* 媒体浮窗：点遮罩 / × / Esc 关闭 */
     el("lbClose").addEventListener("click",closeLightbox);
     el("mediaLightbox").addEventListener("click",e=>{ if(e.target===el("mediaLightbox")||e.target===el("lbHolder")) closeLightbox(); });
+    /* ===== 历史结果面板 ===== */
+    el("historyBtn").addEventListener("click",openHistory);
+    el("historyCloseBtn").addEventListener("click",closeHistory);
+    el("historyClearBtn").addEventListener("click",()=>{
+        if(!resultHistory.length) return;
+        if(!confirm("确定清空全部历史结果？此操作不可恢复。")) return;
+        resultHistory=[]; renderHistory(); scheduleSave(); setStatus("历史结果已清空","ok");
+    });
+    el("historyPanel").addEventListener("click",e=>{ if(e.target===el("historyPanel")) closeHistory(); });
     /* 左侧栏 ② ③ 面板：点标题展开 / 收起 */
     document.querySelectorAll(".card.collapsible h2.card-toggle").forEach(h=>{
         h.addEventListener("click",()=>h.parentElement.classList.toggle("collapsed"));
@@ -3103,6 +3284,7 @@ function bindToolbar(){
         if(e.key==="Escape"){
             el("helpModal").classList.remove("show");
             closeLightbox();
+            closeHistory();
             if(!typing) clearSelection();
             if(selectRectEl) selectRectEl.style.display="none";
             if(drag&&drag.type==="select") drag=null;
