@@ -406,6 +406,7 @@
             <li><b>兜底顺序</b>：本机已接通地址 → 创作台 API 配置里你填的本机地址 → 自动扫描结果 → 默认 8080 → 创作台的云端 API。全都连不上才明确报错，每个候选的具体原因会打到浏览器控制台。</li>
             <li><b>连不上时按顺序查</b>：① 模型软件的黑窗口 / 服务要一直开着；② 端口对不对（浏览器能打开 <code>http://127.0.0.1:端口/v1/models</code> 就说明服务在）；③ 跨域放行：llama.cpp 加 <code>--cors-origins *</code>，Ollama 设 <code>OLLAMA_ORIGINS=*</code>；④ 页面若部署在 HTTPS 主站，部分新版浏览器会拦截直连本机 http 地址，可改用本机 http 地址打开页面或做同源反代；⑤ 在左侧点一次「⚡ 自动接通」重新扫描。</li>
             <li><b>确认框与运行反馈</b>：这三个按钮的确认框已改成<b>页面内弹窗</b>（不再是浏览器原生对话框），在预览面板 / 嵌入式窗口里也能正常弹出，不会出现「点了没反应」；点完按钮，节点里会直接显示「⏳ 正在调用本机大模型」以及失败原因（红字），不再只靠底部状态栏。技能服务器临时不可用时，SD / H3 会自动改用内置精简规则继续，不会直接失效；取消确认后按钮会立即恢复，可随时重试。</li>
+            <li><b>只吐思考过程、正文空白</b>：Qwen3 / Qwen3.5 一类推理模型会把生成内容放进 <code>reasoning_content</code>、把 <code>content</code> 留空。画布页已在本地请求里自动关闭 thinking（<code>enable_thinking:false</code>），普通模型不受影响；若仍只返回思维链，请在模型软件里关闭 thinking / reasoning 模式。</li>
         </ul>
         <h2>多画布切换</h2>
         <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
@@ -1566,8 +1567,11 @@ function buildGenerateBody(body,n){
     });
     run.addEventListener("click",e=>{ e.stopPropagation(); runGenerate(n); });
 }
-/* 跨域结果 URL 的 download 属性会被浏览器忽略，先尝试转 blob 再下载；失败则新开标签让用户手动保存 */
-async function downloadUrl(url,name){
+/* 跨域结果 URL 的 download 属性会被浏览器忽略，先尝试转 blob 再下载。
+   只有用户主动点「下载 / 下载结果」时才允许兜底新开标签；自动路径一律不弹窗，
+   否则新建 / 删除节点触发 renderAll() 重建结果节点时，会反复弹出 127.0.0.1:8188 的错误页。 */
+async function downloadUrl(url,name,opts){
+    const o=opts||{};
     if(/^data:/i.test(url)){
         const a=document.createElement("a"); a.href=url; a.download=name;
         document.body.appendChild(a); a.click(); a.remove(); return;
@@ -1580,14 +1584,33 @@ async function downloadUrl(url,name){
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(()=>URL.revokeObjectURL(u),30000);
     }catch(e){
-        console.warn("结果下载被跨域限制，改为新标签打开：",e);
-        window.open(url,"_blank","noopener");
+        console.warn("结果下载被跨域限制：",e);
+        if(o.userClick){
+            window.open(url,"_blank","noopener");   /* 用户主动点下载：保留原来的手动保存兜底 */
+        }else{
+            try{ setStatus("下载未完成：本机服务未启动或跨域被拦，请启动后点「下载结果」重试","err"); }catch(_){}
+        }
     }
 }
+/* 媒体加载失败时的可见提示：只写在节点里，不自动下载、不自动开新标签 */
+function cvShowMediaError(v,msg){
+    if(!v||!v.parentNode) return;
+    let tip=v.parentNode.querySelector(".result-load-tip");
+    if(!tip){
+        tip=document.createElement("div");
+        tip.className="result-load-tip";
+        tip.style.cssText="margin:6px 0 2px;padding:6px 8px;border-radius:6px;background:rgba(239,68,68,.12);color:#fca5a5;font-size:11px;line-height:1.6;";
+        tip.addEventListener("click",e=>e.stopPropagation());
+        v.parentNode.appendChild(tip);
+    }
+    tip.textContent=msg;
+    try{ setStatus(msg,"err"); }catch(_){}
+}
 /* 视频直连播放的兜底：不少生视频接口的直链是 octet-stream / 需要跨域，
-   <video> 直接加载会黑屏无声。这里监听加载失败 / 点击时：
-   ① 先尝试把视频抓成本地 blob（强制 video/mp4 类型）再播放 —— 等于自动下载到内存并开播；
-   ② 抓取也被跨域挡住时，退回「下载结果」（blob 下载 → 新标签）。 */
+   <video> 直接加载会黑屏无声。加载失败时：
+   ① 先尝试把视频抓成本地 blob（强制 video/mp4 类型）再播放；
+   ② 抓取也失败就只在节点里给提示 —— 不再自动「转下载」，避免在新建 / 删除节点时
+      因 renderAll() 重建 <video> 而反复弹出本机 8188 的错误页。 */
 function ensurePlayableVideo(v,url,name){
     if(!v||!url) return;
     v.preload="metadata";
@@ -1603,10 +1626,11 @@ function ensurePlayableVideo(v,url,name){
             v.src=URL.createObjectURL(blob);
             v.load();
             const p=v.play(); if(p&&p.catch) p.catch(()=>{});
+            const old=v.parentNode&&v.parentNode.querySelector(".result-load-tip"); if(old) old.remove();
             setStatus("视频直连播放受限，已缓存到本地播放","ok");
         }catch(e){
-            setStatus("视频无法在线播放（跨域限制），已转为下载","err");
-            downloadUrl(url,name||"manflows_video.mp4");
+            console.warn("视频直连与本地缓存都失败：",e);
+            cvShowMediaError(v,"⚠️ 视频暂时无法加载：请确认本机 ComfyUI（8188）已启动并放行跨域；需要保存请点下方「下载结果」。");
         }
     };
     v.addEventListener("error",fallback);
@@ -1650,7 +1674,7 @@ function buildResultBody(body,n){
         const a=document.createElement("button"); a.className="mini-btn cyan"; a.textContent="下载结果";
         a.addEventListener("click",e=>{
             e.stopPropagation();
-            downloadUrl(d.url,d.name||("manflows_result_"+(d.kind==="video"?"mp4":"png")));
+            downloadUrl(d.url,d.name||("manflows_result_"+(d.kind==="video"?"mp4":"png")),{userClick:true});
         });
         actions.appendChild(a);
         if(d.kind==="image"){
@@ -1720,7 +1744,7 @@ function renderHistory(){
         const tm=document.createElement("div"); tm.textContent=fmtTime(h.ts)+" · "+(h.engine==="comfyui"?"ComfyUI":"API")+(h.prompt?(" · "+h.prompt.slice(0,26)):"");
         const acts=document.createElement("div"); acts.className="h-acts";
         const dl=document.createElement("button"); dl.className="mini-btn cyan"; dl.textContent="下载";
-        dl.addEventListener("click",e=>{ e.stopPropagation(); downloadUrl(h.url,h.name||("manflows_"+(h.kind==="video"?"video.mp4":"image.png"))); });
+        dl.addEventListener("click",e=>{ e.stopPropagation(); downloadUrl(h.url,h.name||("manflows_"+(h.kind==="video"?"video.mp4":"image.png")),{userClick:true}); });
         const del=document.createElement("button"); del.className="mini-btn"; del.textContent="删除";
         del.addEventListener("click",e=>{
             e.stopPropagation();
@@ -1785,7 +1809,7 @@ async function splitAction(n){
     if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
     const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
     if(parts.length>=2){ await splitPrompt(n); return; }
-    if(n.data.splitting){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
+    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
     setLlmNote(n,"⏳ 等待确认是否调用本机大模型…","busy");
     const go=await cvConfirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本机已接通的 llama / Ollama 等，任意端口；其次创作台的云端 API）","智能拆分提示词");
     if(!go){ setLlmNote(n); return; }
@@ -1795,6 +1819,7 @@ async function splitAction(n){
 async function smartSplitLLM(n){
     if(n.data.splitting) return;
     n.data.splitting=true;
+    cvBusyAt.set(n.id,Date.now());
     const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="split"]');
     if(btn){ btn.disabled=true; btn.textContent="拆分中…"; }
     setStatus("正在用大语言模型拆分…","busy");
@@ -1824,6 +1849,7 @@ async function smartSplitLLM(n){
         setStatus("已用「"+r.via+"」智能拆分成 "+segs.length+" 条","ok");
     }finally{
         n.data.splitting=false;
+        cvBusyAt.delete(n.id);
         const b2=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="split"]')||btn;
         if(b2){ b2.disabled=false; b2.textContent="图片提示词"; }
     }
@@ -1987,23 +2013,44 @@ const SPLIT_SYSTEM_PROMPT=[
 ].join("\n");
 /* 单个模型的一次请求：model 字段必须带上（Ollama / OpenAI 兼容接口缺了会直接 400），
    本地长剧本拆分较慢，超时放宽到 90 秒；云端 120 秒。 */
+function cvStripThink(s){
+    return String(s||"").replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/<\/?think>/gi,"").trim();
+}
+/* 任务被浏览器挂起 / 系统取消请求时 splitting 可能残留，超过 2.5 分钟自动解锁，
+   避免节点永远卡在「上一个任务还在处理中」。用 Map 存时间戳，不写进画布 JSON。 */
+const cvBusyAt=new Map();
+function cvBusy(n){
+    if(!n.data.splitting) return false;
+    const t=cvBusyAt.get(n.id)||0;
+    if(t && Date.now()-t>150000){ cvBusyAt.delete(n.id); n.data.splitting=false; return false; }
+    if(!t) cvBusyAt.set(n.id,Date.now());
+    return true;
+}
 async function cvCallOnce(c,sys,text){
     const body={model:c.model||"local",messages:[{role:"system",content:sys},{role:"user",content:text}],temperature:0.3,stream:false};
+    /* 推理型本地模型默认只吐思维链、content 为空：关掉 thinking 才能拿到正文。
+       云端 API 不加该字段；本地服务端不支持时会忽略它，返回 400 则按原请求重试。 */
+    if(c.local) body.chat_template_kwargs={enable_thinking:false};
     const ctrl=new AbortController();
     const t=setTimeout(()=>ctrl.abort(),c.local?120000:120000);
     /* 本地模型首次加载可能很慢，8 秒还没返回就明确提示，避免看起来像按钮卡死 */
     const prog=setTimeout(()=>{ try{ setStatus("本地大模型正在生成（首次加载模型可能较慢，请稍候）…","busy"); }catch(e){} },8000);
     const headers={"Content-Type":"application/json"};
     if(c.key) headers["Authorization"]="Bearer "+c.key;
-    let res;
     try{
-        res=await fetch(llmChatUrl(c.endpoint),{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal});
+        const post=()=>fetch(llmChatUrl(c.endpoint),{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal});
+        let res=await post();
+        if(!res.ok && res.status===400 && body.chat_template_kwargs){
+            delete body.chat_template_kwargs;   /* Windows 上严格的服务端：完全按原方式重来 */
+            res=await post();
+        }
         if(!res.ok) throw new Error("HTTP "+res.status+" "+(await res.text().catch(()=>"")).slice(0,120));
         const j=await res.json();
         const ch=j.choices&&j.choices[0];
-        const msg=(ch&&ch.message&&(ch.message.content||ch.message.reasoning_content))||(ch&&ch.text)||j.response||"";
-        if(!String(msg).trim()) throw new Error("返回里没有文本");
-        return String(msg).trim();
+        const m=(ch&&ch.message)||{};
+        const msg=cvStripThink(m.content||m.reasoning_content||(ch&&ch.text)||j.response||"");
+        if(!msg) throw new Error("返回里没有文本");
+        return msg;
     }finally{ clearTimeout(t); clearTimeout(prog); }
 }
 async function llmSplitText(text,systemPrompt){
@@ -2065,8 +2112,9 @@ async function fetchSkillText(type){
 async function skillRefineLLM(n,skillType,label){
     const text=String(n.data.text||"").trim();
     if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
-    if(n.data.splitting){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
+    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
     n.data.splitting=true;
+    cvBusyAt.set(n.id,Date.now());
     const act=skillType==="b"?"sd":"h3";
     const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="'+act+'"]');
     if(btn){ btn.disabled=true; btn.textContent=label+"处理中…"; }
@@ -2096,6 +2144,7 @@ async function skillRefineLLM(n,skillType,label){
         setStatus("已按技能调整为 "+segs.length+" 条（原文节点保留）","ok");
     }finally{
         n.data.splitting=false;
+        cvBusyAt.delete(n.id);
         const b2=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="'+act+'"]')||btn;
         if(b2){ b2.disabled=false; b2.textContent=label; }
     }

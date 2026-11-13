@@ -611,9 +611,10 @@ ollama serve</pre>
 <li>看左栏【本机地址】下方的状态：绿色「✓ 已接通 …」即可开始创作；检测到多个服务时用下拉框选你要的那个；</li>
 <li>一直「✗ 没发现」：确认软件正在运行、端口没写错、启动参数带了跨域放行、防火墙没拦本机回环；也可手动填完整地址；</li>
 <li>请求里模型名不对：Ollama / LM Studio 需要真实模型名，自动探测会填好，也可在【本地模型名称】手动改；llama-server 留空按 <code>local</code> 发送即可；</li>
+<li><b>只吐「思考过程」、正文空白</b>：Qwen3 / Qwen3.5 一类推理模型会把生成内容放进 <code>reasoning_content</code>、把 <code>content</code> 留空；本页已在本地请求里自动关闭 thinking（<code>enable_thinking:false</code>），普通模型完全不受影响。若仍只看到英文思维链，请在模型软件里关闭 thinking / reasoning 模式；</li>
 <li>常见故障还有：黑窗口关了、端口被占用、模型路径写错、显存不足，都会表现为「本地模式无响应」。</li>
 </ul>
-<p>HTTPS 主站访问本机 http 地址时，个别浏览器会做私有网络拦截；给软件加跨域放行（<code>--cors-origins *</code> / <code>OLLAMA_ORIGINS=*</code>）后，Windows（llama_server）与 macOS（llama）均已实测可直接接通。若你的浏览器仍拦截，用本机 http 地址打开页面即可。本地模式只对当前这台电脑生效：别人通过网址打开页面时，连的是他自己电脑上的 127.0.0.1。</p>
+<p>HTTPS 主站访问本机 http 地址时，个别浏览器会做私有网络拦截；给软件加跨域放行（<code>--cors-origins *</code> / <code>OLLAMA_ORIGINS=*</code>）后，Windows（llama_server）与 macOS（llama）均已实测可直接接通。若你的浏览器仍拦截，可在【本机地址】填带私有网络放行头的本机桥接地址（例如 <code>http://127.0.0.1:8080</code>），或用本机 http 地址打开页面。本地模式只对当前这台电脑生效：别人通过网址打开页面时，连的是他自己电脑上的 127.0.0.1。</p>
 
 <h3>这些步骤可以让 WorkBuddy 帮你做</h3>
 <p>把本页面文件（<code>index.html</code>）发给 <b>WorkBuddy</b> 并说一句「帮我建立本地大语言模型和漫流创作台的互通」，它可以直接帮你写启动脚本（含模型路径、任意端口、跨域放行）、核对可执行文件与模型文件位置、测试 <code>/v1/chat/completions</code> 连通性并排查报错。</p>
@@ -1483,6 +1484,13 @@ const MF_LOCAL_PORT_PRESETS = [
 const MF_LOCAL_HOSTS = ["127.0.0.1", "localhost"];
 let localConnReady = false;
 let localDetectRunning = false;
+/* Qwen3 / Qwen3.5 一类「先输出思维链」的模型：llama.cpp 会把思考过程放进
+   reasoning_content、把 content 留空。请求里关掉 thinking 才能拿到正文；
+   不支持该字段的服务端会直接忽略它，行为与原来完全一致（400 时另有回退）。 */
+const MF_NO_THINK = { chat_template_kwargs: { enable_thinking: false } };
+function mfStripThink(s){
+    return String(s || "").replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<\/?think>/gi, "").trim();
+}
 
 function mfNormalizeBase(v){
     let s = String(v || "").trim().replace(/\/+$/, "");
@@ -1506,6 +1514,18 @@ function mfChatUrl(base){
     if(/\/v1\/chat\/completions$/i.test(s)) return s;
     if(/\/api\/chat$/i.test(s)) return s.replace(/\/api\/chat$/i, "/v1/chat/completions");
     return s + "/v1/chat/completions";
+}
+/* 仅当首选地址在网络层连不上时（HTTPS 主站的私有网络拦截、软件刚重启、端口变了）才会用到：
+   按已探测到的其它本机服务 + 常见端口依次补试，选中能正常返回的那个。
+   首选地址能通时一次都不会走这里，Windows 原有通路不变。 */
+function mfFallbackBases(currentUrl){
+    const out = [];
+    const sel = mfEl("localServiceSelect");
+    if(sel && sel.options) Array.from(sel.options).forEach(o => out.push(mfNormalizeBase(o.value)));
+    ["http://127.0.0.1:8080", "http://127.0.0.1:9931", "http://127.0.0.1:11434"].forEach(b => {
+        if(!out.includes(b)) out.push(b);
+    });
+    return out.filter(b => b && mfChatUrl(b) !== currentUrl).slice(0, 4);
 }
 async function mfProbeOne(base){
     // 依次试 OpenAI 兼容模型列表、Ollama 原生模型列表、llama.cpp 健康检查
@@ -1668,19 +1688,47 @@ async function sendMessage() {
         fetchUrl = mfChatUrl(mfCurrentBase());
         fetchHeaders = { "Content-Type":"application/json" };
         // 留空时保持原来的 "local"，兼容 llama-server / Ollama 默认行为
-        bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true };
+        // 关闭 thinking：推理型模型否则只吐思维链、content 恒为空（Windows 上不支持该字段的服务端会忽略它）
+        bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true, ...MF_NO_THINK };
     } else {
         fetchUrl = inpEndpoint.value.trim();
         fetchHeaders = { "Content-Type":"application/json", "Authorization":`Bearer ${inpKey.value.trim()}` };
         bodyObj = { model:inpModel.value.trim(), messages:messagesArr, temperature, top_p, max_tokens, stream:true };
     }
     try {
-        const response = await fetch(fetchUrl, {
-            method: "POST",
-            headers: fetchHeaders,
-            signal: abortController.signal,
-            body: JSON.stringify(bodyObj)
+        const mfPost = (url, body) => fetch(url, {
+            method: "POST", headers: fetchHeaders,
+            signal: abortController.signal, body: JSON.stringify(body)
         });
+        let response;
+        try{
+            response = await mfPost(fetchUrl, bodyObj);
+        }catch(netErr){
+            /* 首选地址在网络层连不上（HTTPS 主站的私有网络拦截、软件刚重启、换了端口）：
+               自动补试其它已探测到的本机服务 / 常见端口，选中能正常返回的那个。
+               首选地址能通时一次都不会走这里，Windows 原有通路不变。 */
+            if(computeMode !== "local") throw netErr;
+            for(const b of mfFallbackBases(fetchUrl)){
+                try{
+                    const r = await mfPost(mfChatUrl(b), bodyObj);
+                    if(r.ok){
+                        fetchUrl = mfChatUrl(b); response = r;
+                        append("ℹ️ 已自动切到可用的本机地址：" + b, "tip");
+                        break;
+                    }
+                }catch(e2){ /* 试下一个 */ }
+            }
+            if(!response) throw netErr;
+        }
+        /* 少数旧服务端 / 自建代理会拒绝未知字段：去掉 thinking 参数按原样重试一次，
+           Windows 上原来能通的接口在这里完全不受影响。 */
+        if(!response.ok && response.status === 400 && bodyObj.chat_template_kwargs){
+            const plain = Object.assign({}, bodyObj);
+            delete plain.chat_template_kwargs;
+            bodyObj = plain;
+            append("ℹ️ 本机服务不接受 thinking 参数，已按原方式重试", "tip");
+            response = await mfPost(fetchUrl, bodyObj);
+        }
         if (!response.ok) {
             append(`❌ HTTP 错误：${response.status}`, "err");
             const errText = await response.text();
@@ -1692,6 +1740,7 @@ async function sendMessage() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf8");
         let buffer = "";
+        let reasoningText = "";
         while(true){
             const {done, value} = await reader.read();
             if(done) break;
@@ -1706,16 +1755,35 @@ async function sendMessage() {
                 if(payload === "[DONE]") continue;
                 try{
                     const json = JSON.parse(payload);
-                    const delta = json.choices?.[0]?.delta?.content || json.choices?.[0]?.delta?.text || "";
+                    const ch = json.choices?.[0];
+                    const d = (ch && (ch.delta || ch.message)) || {};
+                    const delta = (typeof d.content === "string" ? d.content : "")
+                               || (typeof d.text === "string" ? d.text : "") || "";
                     if(delta){
                         aiMsgDom.innerText += delta;
                         fullAiText += delta;
                         chatBox.scrollTop = chatBox.scrollHeight;
+                    }else if(d.reasoning_content){
+                        /* 推理模型的「思考过程」单独收集，不混进正文 */
+                        reasoningText += d.reasoning_content;
                     }
                 }catch(e){ /*忽略单行json解析异常*/ }
             }
         }
-        append("✅ 生成完毕", "tip");
+        let onlyReasoning = false;
+        if(!fullAiText.trim() && reasoningText.trim()){
+            /* 服务端忽略了关闭 thinking 的参数：至少把内容吐出来，并明确告知原因 */
+            onlyReasoning = true;
+            const fallback = mfStripThink(reasoningText);
+            if(fallback){
+                aiMsgDom.innerText += fallback;
+                fullAiText += fallback;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+            append("⚠️ 本机模型只返回了思考过程、未输出正文：请在模型软件里关闭「思考 / reasoning」模式，或升级到支持 enable_thinking 的版本。", "err");
+        }
+        if(fullAiText.trim() && !onlyReasoning) append("✅ 生成完毕", "tip");
+        else if(!fullAiText.trim()) append("❌ 本次没有生成任何正文：请确认模型软件正在运行、模型已加载，且未开启「仅思考」模式。", "err");
     } catch (e) {
         console.error(e);
         if(e.name !== "AbortError") append(`❌ 请求异常：${e.message}`, "err");
