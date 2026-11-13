@@ -221,8 +221,9 @@
         .help-modal-content ul, .help-modal-content ol { padding-left: 22px; margin: 8px 0; }
         .help-modal-content code { background: var(--card); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; color: #a7f3d0; }
         .help-contact-box { background: var(--panel); border: 1px solid var(--purple); border-radius: 10px; padding: 10px 14px; margin: 10px 0 16px; }
-        .help-contact-box .help-contact { color: #e9d5ff; font-size: 14px; margin: 4px 0; line-height: 1.7; }
+        .help-contact-box .help-contact { color: #e9d5ff; font-size: 14px; margin: 4px 0; line-height: 1.7; overflow-wrap: anywhere; }
         .help-contact-box .help-contact:first-child { color: #fbbf24; font-weight: 600; font-size: 15px; }
+        .help-contact-box .help-model-file { color: #a7f3d0; font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.9; margin: 6px 0 8px; }
         /* 展开收起样式（原有推理参数折叠，保留） */
         .param-content { transition: all 0.25s ease; overflow: hidden; }
         .param-content.collapse { height: 0; opacity: 0; }
@@ -546,7 +547,10 @@ const HELP_HTML = `
 <h2>漫流AI漫剧创作台 使用帮助</h2>
 <div class="help-contact-box">
 <p class="help-contact">抖音微信同号：onetone001</p>
-<p class="help-contact">如需购买含8千多部红果爆款漫剧数据集的特调大语言模型和定制Skill技能包请联系。</p>
+<p class="help-contact help-model-file">Manflows-screenwriter-director-abliterated.Q6_K.gguf<br>Manflows-screenwriter-director-abliterated.Q8_0.gguf</p>
+<p class="help-contact">这两个模型是漫流Manflows开发的专业小说、剧本和提示词基座大语言模型，去除了通用大模型的众多无关专家（体量小巧且消除干扰），写入了12637部小说和8276部爆款漫剧数据集，可以更好的辅助小说、漫剧创作者，创作出更优秀的小说和漫剧。</p>
+<p class="help-contact">本人开发的剧本创作助手、导演分镜助手和美术画风助手3个skill在扣子平台技能商店，累计用户付费订阅3万➕。是经过大量创作者使用和验证的专业技能包。</p>
+<p class="help-contact">如需购买这两个特调大语言模型或定制Skill技能包请联系</p>
 </div>
 <p>说明：技能模板由后端服务提供；算力分为【本地算力模式】和【API云算力模式】两种。所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
 
