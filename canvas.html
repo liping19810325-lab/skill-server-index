@@ -88,6 +88,11 @@
     .node-body .act-row button{flex:1;min-width:0;border:none;border-radius:6px;background:#4338ca;color:#fff;font-size:11px;height:27px;cursor:pointer;padding:0 4px;font-family:inherit;white-space:nowrap;overflow:hidden;}
     .node-body .act-row button:hover{background:#4f46e5;}
     .node-body .act-row button:disabled{opacity:.55;cursor:not-allowed;}
+    /* 三个提示词按钮的运行状态：直接显示在节点里，避免「点了没反应」 */
+    .node-body .llm-note{display:none;font-size:11px;line-height:1.55;margin:6px 0 0;padding:6px 8px;border-radius:6px;background:var(--panel);border:1px solid var(--border2);white-space:pre-wrap;word-break:break-word;color:#93c5fd;}
+    .cv-confirm-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
+    .cv-confirm-btns button{padding:8px 16px;border:none;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;background:var(--blue);color:#fff;}
+    .cv-confirm-btns button.cv-no{background:var(--panel);border:1px solid var(--border2);color:var(--text);}
     .node-body{padding:9px 10px 11px;}
     .node-body textarea,.node-body input[type=text],.node-body select{width:100%;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11.5px;padding:7px 8px;outline:none;}
     .node-body textarea{resize:vertical;line-height:1.55;min-height:96px;}
@@ -396,6 +401,7 @@
             <li><b>支持范围</b>：llama_server / llama.cpp llama-server / Ollama / LM Studio / Jan / GPT4All / vLLM / KoboldCpp / text-generation-webui 等提供 OpenAI 兼容 <code>/v1/chat/completions</code> 的软件都行；Windows 与 macOS 一样，无需额外桥接程序。请求里始终带 <code>model</code> 字段（探测到真实模型名就用真名，没探测到按 <code>local</code>）。</li>
             <li><b>兜底顺序</b>：本机已接通地址 → 创作台 API 配置里你填的本机地址 → 自动扫描结果 → 默认 8080 → 创作台的云端 API。全都连不上才明确报错，每个候选的具体原因会打到浏览器控制台。</li>
             <li><b>连不上时按顺序查</b>：① 模型软件的黑窗口 / 服务要一直开着；② 端口对不对（浏览器能打开 <code>http://127.0.0.1:端口/v1/models</code> 就说明服务在）；③ 跨域放行：llama.cpp 加 <code>--cors-origins *</code>，Ollama 设 <code>OLLAMA_ORIGINS=*</code>；④ 页面若部署在 HTTPS 主站，部分新版浏览器会拦截直连本机 http 地址，可改用本机 http 地址打开页面或做同源反代；⑤ 在左侧点一次「⚡ 自动接通」重新扫描。</li>
+            <li><b>确认框与运行反馈</b>：这三个按钮的确认框已改成<b>页面内弹窗</b>（不再是浏览器原生对话框），在预览面板 / 嵌入式窗口里也能正常弹出，不会出现「点了没反应」；点完按钮，节点里会直接显示「⏳ 正在调用本机大模型」以及失败原因（红字），不再只靠底部状态栏。技能服务器临时不可用时，SD / H3 会自动改用内置精简规则继续，不会直接失效；取消确认后按钮会立即恢复，可随时重试。</li>
         </ul>
         <h2>多画布切换</h2>
         <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
@@ -455,6 +461,18 @@
         <h2>数据与隐私</h2>
         <p>API Key、画布、参考图全部只在你本机浏览器；源码里没有任何密钥。清空画布只清画布数据，不会动创作台的历史记录。</p>
         <button class="modal-close" id="closeHelpBtn">关闭</button>
+    </div>
+</div>
+
+<!-- 页面内确认弹窗：不依赖 window.confirm（iframe / 预览沙箱里原生对话框会被静默阻止，导致按钮点了没反应） -->
+<div class="modal-overlay" id="cvConfirmModal">
+    <div class="modal-box" style="max-width:440px">
+        <h2 id="cvConfirmTitle">请确认</h2>
+        <p id="cvConfirmText" style="white-space:pre-wrap"></p>
+        <div class="cv-confirm-btns">
+            <button type="button" class="cv-no" id="cvConfirmNo">取消</button>
+            <button type="button" id="cvConfirmYes">确认</button>
+        </div>
     </div>
 </div>
 
@@ -709,6 +727,40 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function setStatus(text,kind){
     const s = el("saveState"); if(!s) return;
     s.textContent = text; s.className = "save-state"+(kind?" "+kind:"");
+}
+/* ===== 页面内确认弹窗 =====
+   原生 window.confirm 在 iframe 预览 / 沙箱 / 浏览器抑制对话框时会静默返回 false，
+   提示词节点「图片提示词 / SD提示词 / H3提示词」的多道确认就会让按钮表现为「点了没反应」。
+   改成页面内弹窗后，任何运行环境都能正常交互。 */
+let cvConfirmResolve=null;
+function cvConfirm(msg,title){
+    return new Promise(resolve=>{
+        const ov=el("cvConfirmModal");
+        if(!ov||!el("cvConfirmYes")){ resolve(false); return; }
+        el("cvConfirmTitle").textContent=title||"请确认";
+        el("cvConfirmText").textContent=String(msg||"");
+        cvConfirmResolve=resolve;
+        ov.classList.add("show");
+        try{ el("cvConfirmYes").focus(); }catch(e){}
+    });
+}
+function cvConfirmClose(v){
+    const ov=el("cvConfirmModal"); if(ov) ov.classList.remove("show");
+    const r=cvConfirmResolve; cvConfirmResolve=null;
+    if(r) r(!!v);
+}
+/* 节点内可见的运行状态：只存内存，不写进画布 JSON，不进本地持久化 */
+const cvNotes=new Map();
+function setLlmNote(n,text,kind){
+    if(!n) return;
+    if(text) cvNotes.set(n.id,{text:String(text),kind:kind||"busy"});
+    else cvNotes.delete(n.id);
+    const box=document.querySelector('.node[data-id="'+n.id+'"] .llm-note');
+    if(!box) return;
+    const nt=cvNotes.get(n.id);
+    if(!nt){ box.style.display="none"; box.textContent=""; return; }
+    box.style.display="block"; box.textContent=nt.text;
+    box.style.color = nt.kind==="err" ? "#fca5a5" : (nt.kind==="ok" ? "#86efac" : "#93c5fd");
 }
 function updateStat(){
     el("statInfo").textContent = "节点 "+canvas.nodes.length+" · 连线 "+canvas.edges.length;
@@ -1046,6 +1098,14 @@ function buildPromptBody(body,n){
     mkAct("sd","SD提示词","调「导演分镜助手 V5」按 Seedance 生视频标准调整并拆分镜头，不改剧本本意");
     mkAct("h3","H3提示词","调「导演分镜助手 V5 MiniMaxH3」按 MiniMax H3 标准调整并拆分镜头，不改剧本本意");
     body.appendChild(actRow);
+    /* 三按钮的运行状态 / 失败原因，直接显示在节点里 */
+    const note=document.createElement("div"); note.className="llm-note";
+    const nt=cvNotes.get(n.id);
+    if(nt){
+        note.style.display="block"; note.textContent=nt.text;
+        note.style.color = nt.kind==="err" ? "#fca5a5" : (nt.kind==="ok" ? "#86efac" : "#93c5fd");
+    }
+    body.appendChild(note);
     const pv=document.createElement("button"); pv.className="mini-btn gray"; pv.textContent="🔍 浮窗预览";
     pv.title="放大查看提示词全文，方便对照参考";
     pv.addEventListener("click",e=>{
@@ -1702,21 +1762,31 @@ function startRename(n){
     renderAll(); scheduleSave();
 }
 function handleNodeAction(act,n){
-    if(act==="del"){ removeNode(n.id); }
-    else if(act==="run"){ runGenerate(n); }
-    else if(act==="split"){ splitAction(n); }
-    else if(act==="sd"){ skillRefineLLM(n,"b","SD提示词"); }
-    else if(act==="h3"){ skillRefineLLM(n,"d","H3提示词"); }
+    const onErr=(label,e)=>{
+        console.error(label+"异常：",e);
+        setStatus(label+"异常："+(e&&e.message||e),"err");
+        setLlmNote(n,"❌ "+label+"异常："+(e&&e.message||e),"err");
+    };
+    try{
+        if(act==="del"){ removeNode(n.id); }
+        else if(act==="run"){ runGenerate(n); }
+        else if(act==="split"){ splitAction(n).catch(e=>onErr("图片提示词",e)); }
+        else if(act==="sd"){ skillRefineLLM(n,"b","SD提示词").catch(e=>onErr("SD提示词",e)); }
+        else if(act==="h3"){ skillRefineLLM(n,"d","H3提示词").catch(e=>onErr("H3提示词",e)); }
+    }catch(e){ onErr("按钮操作",e); }
 }
 /* ===== 提示词拆分：含 ▌ 直接拆；没有 ▌ 就调大语言模型智能分段（本地优先，云端兜底） ===== */
-function splitAction(n){
+async function splitAction(n){
     const text=String(n.data.text||"").trim();
-    if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); return; }
+    if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
     const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
-    if(parts.length>=2){ splitPrompt(n); return; }
-    if(n.data.splitting) return;
-    if(!confirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本机已接通的 llama / Ollama 等，任意端口；其次创作台的云端 API）")) return;
-    smartSplitLLM(n);
+    if(parts.length>=2){ await splitPrompt(n); return; }
+    if(n.data.splitting){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
+    setLlmNote(n,"⏳ 等待确认是否调用本机大模型…","busy");
+    const go=await cvConfirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本机已接通的 llama / Ollama 等，任意端口；其次创作台的云端 API）","智能拆分提示词");
+    if(!go){ setLlmNote(n); return; }
+    setLlmNote(n,"⏳ 正在调用本机大模型拆分…","busy");
+    await smartSplitLLM(n);
 }
 async function smartSplitLLM(n){
     if(n.data.splitting) return;
@@ -1724,24 +1794,34 @@ async function smartSplitLLM(n){
     const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="split"]');
     if(btn){ btn.disabled=true; btn.textContent="拆分中…"; }
     setStatus("正在用大语言模型拆分…","busy");
+    setLlmNote(n,"⏳ 正在调用本机大模型拆分…","busy");
     try{
         const r=await llmSplitText(String(n.data.text||"").trim());
         if(!r.ok){
+            const why=(r.tried||[]).slice(0,2).join("；")||"没有可用模型";
             console.warn("拆分尝试过的模型：",(r.tried||[]).join(" ｜ "));
-            setStatus("拆分失败：本机与云端大模型都没连上。请在左侧「② API 配置」点「⚡ 自动接通」，并确认 llama / Ollama 已启动、已放行跨域（详细原因见浏览器控制台）。","err");
+            setStatus("拆分失败：本机与云端大模型都没连上（原因见节点内提示）","err");
+            setLlmNote(n,"❌ 拆分失败："+why+"\n排查：① 模型软件保持运行；② 左侧「② API 配置」点「⚡ 自动接通」；③ HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面；④ llama.cpp 加 --cors-origins * / Ollama 设 OLLAMA_ORIGINS=*","err");
             return;
         }
         /* 模型偶尔包代码块，先剥掉再取 ▌ 行 */
         const lines=r.text.replace(/```[a-z]*\n?/gi,"").split("\n").map(s=>s.trim()).filter(Boolean);
         const segs=lines.filter(s=>s.startsWith("▌"));
-        if(segs.length<2){ setStatus("「"+r.via+"」没有按 ▌ 分段返回，拆分已取消","err"); return; }
-        if(!confirm("已用「"+r.via+"」拆出 "+segs.length+" 个片段，将替换原文本并生成节点。继续？")) return;
+        if(segs.length<2){
+            setStatus("「"+r.via+"」没有按 ▌ 分段返回，拆分已取消","err");
+            setLlmNote(n,"❌ 「"+r.via+"」返回内容里没有 ▌ 分段，已取消（可换个模型或稍后重试）","err");
+            return;
+        }
+        const ok=await cvConfirm("已用「"+r.via+"」拆出 "+segs.length+" 个片段，将替换原文本并生成节点。继续？","确认拆分结果");
+        if(!ok){ setStatus("已取消拆分","busy"); setLlmNote(n,"已取消，原文保持不变","busy"); return; }
         n.data.text=segs.join("\n");
-        splitPrompt(n);
+        await splitPrompt(n);
+        setLlmNote(n);
         setStatus("已用「"+r.via+"」智能拆分成 "+segs.length+" 条","ok");
     }finally{
         n.data.splitting=false;
-        if(btn){ btn.disabled=false; btn.textContent="图片提示词"; }
+        const b2=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="split"]')||btn;
+        if(b2){ b2.disabled=false; b2.textContent="图片提示词"; }
     }
 }
 /* ==================================================================
@@ -1906,7 +1986,9 @@ const SPLIT_SYSTEM_PROMPT=[
 async function cvCallOnce(c,sys,text){
     const body={model:c.model||"local",messages:[{role:"system",content:sys},{role:"user",content:text}],temperature:0.3,stream:false};
     const ctrl=new AbortController();
-    const t=setTimeout(()=>ctrl.abort(),c.local?90000:120000);
+    const t=setTimeout(()=>ctrl.abort(),c.local?120000:120000);
+    /* 本地模型首次加载可能很慢，8 秒还没返回就明确提示，避免看起来像按钮卡死 */
+    const prog=setTimeout(()=>{ try{ setStatus("本地大模型正在生成（首次加载模型可能较慢，请稍候）…","busy"); }catch(e){} },8000);
     const headers={"Content-Type":"application/json"};
     if(c.key) headers["Authorization"]="Bearer "+c.key;
     let res;
@@ -1918,7 +2000,7 @@ async function cvCallOnce(c,sys,text){
         const msg=(ch&&ch.message&&(ch.message.content||ch.message.reasoning_content))||(ch&&ch.text)||j.response||"";
         if(!String(msg).trim()) throw new Error("返回里没有文本");
         return String(msg).trim();
-    }finally{ clearTimeout(t); }
+    }finally{ clearTimeout(t); clearTimeout(prog); }
 }
 async function llmSplitText(text,systemPrompt){
     const sys=systemPrompt||SPLIT_SYSTEM_PROMPT;
@@ -1950,6 +2032,11 @@ async function llmSplitText(text,systemPrompt){
 const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
 const SKILL_TOKEN = "CU001-ABC123";
 const skillTextCache = {};   /* 内存缓存：同一会话内每个技能只拉一次 */
+/* 技能服务器偶发不可用时，SD / H3 仍然能用内置精简规则继续工作，不让按钮变成「点了没用」 */
+const CV_FALLBACK_SKILL = {
+    b:"Seedance 2.0 生视频分镜标准：每镜头 ≤15 秒；写清画面主体、动作、运镜、光线氛围与构图；台词逐字保留，不新增剧情；以情绪转折或说话人切换分段。",
+    d:"MiniMax H3 Ref2VA 生视频分镜标准：每镜头 ≤15 秒；写清主体描述、动作时序、运镜、光影与构图；台词逐字保留，不新增剧情；以情绪转折或说话人切换分段。"
+};
 async function fetchSkillText(type){
     if(skillTextCache[type]) return {ok:true,text:skillTextCache[type]};
     for(let i=0;i<2;i++){
@@ -1965,39 +2052,48 @@ async function fetchSkillText(type){
             return {ok:true,text:text};
         }catch(e){ console.warn("拉取技能（"+type+"）失败：",e&&e.message||e); }
     }
+    const fb=CV_FALLBACK_SKILL[type];
+    if(fb){ console.warn("技能服务器不可用，已改用内置精简规则继续"); return {ok:true,text:fb,fallback:true}; }
     return {ok:false};
 }
 /* SD提示词（skillType=b，Seedance 标准） / H3提示词（skillType=d，MiniMax H3 标准）：
    拉技能全文 → 组装系统提示词（强调不改本意）→ 走画布现有大语言模型链路 → 按 ▌ 拆成多个新节点，原节点保留 */
 async function skillRefineLLM(n,skillType,label){
     const text=String(n.data.text||"").trim();
-    if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); return; }
-    if(n.data.splitting) return;
+    if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
+    if(n.data.splitting){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
     n.data.splitting=true;
     const act=skillType==="b"?"sd":"h3";
     const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="'+act+'"]');
     if(btn){ btn.disabled=true; btn.textContent=label+"处理中…"; }
     setStatus("正在加载技能并调整提示词（本地大语言模型优先）…","busy");
+    setLlmNote(n,"⏳ 正在加载"+label+"技能并调用本机大模型…","busy");
     try{
         const skill=await fetchSkillText(skillType);
-        if(!skill.ok){ setStatus("技能拉取失败：连不上技能服务器（skill-api.manflows.com），请稍后再试","err"); return; }
+        if(!skill.ok){ setStatus("技能拉取失败：连不上技能服务器（skill-api.manflows.com）","err"); setLlmNote(n,"❌ 技能服务器不可用，请稍后再试","err"); return; }
+        if(skill.fallback) setLlmNote(n,"⏳ 技能服务器暂时不可用，已用内置精简规则继续调用本机大模型…","busy");
         const sys=skill.text+"\n\n——————\n你是漫流画布的提示词调整助手。请严格按照上面技能的提示词技术标准，把用户给出的剧本 / 提示词整理成可直接生成视频的分镜提示词，并遵守：\n1. 忠实原文：剧情、人物、场景与台词的本意一个都不能改；台词逐字保留，不新增剧情、台词或配乐说明。\n2. 每个镜头输出一行，以「▌」开头，后接完整镜头提示词（画面描述＋完整台词）。\n3. 只输出这些 ▌ 开头的行，不要解释、不要代码块。";
         const r=await llmSplitText(text,sys);
         if(!r.ok){
+            const why=(r.tried||[]).slice(0,2).join("；")||"没有可用模型";
             console.warn("调整尝试过的模型：",(r.tried||[]).join(" ｜ "));
-            setStatus("调整失败：本机与云端大模型都没连上。请在左侧「② API 配置」点「⚡ 自动接通」，并确认 llama / Ollama 已启动、已放行跨域（详细原因见浏览器控制台）。","err");
+            setStatus("调整失败：本机与云端大模型都没连上（原因见节点内提示）","err");
+            setLlmNote(n,"❌ 调整失败："+why+"\n排查：① 模型软件保持运行；② 左侧「② API 配置」点「⚡ 自动接通」；③ HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面；④ llama.cpp 加 --cors-origins * / Ollama 设 OLLAMA_ORIGINS=*","err");
             return;
         }
         /* 模型偶尔包代码块，先剥掉再取 ▌ 行 */
         const lines=r.text.replace(/```[a-z]*\n?/gi,"").split("\n").map(s=>s.trim()).filter(Boolean);
         const segs=lines.filter(s=>s.startsWith("▌"));
-        if(!segs.length){ setStatus("「"+r.via+"」没有按 ▌ 分段返回，调整已取消","err"); return; }
-        if(!confirm("已用「"+r.via+"」按技能调整为 "+segs.length+" 条提示词，将在原节点右侧生成 "+segs.length+" 个新节点（原节点保留）。继续？")) return;
+        if(!segs.length){ setStatus("「"+r.via+"」没有按 ▌ 分段返回，调整已取消","err"); setLlmNote(n,"❌ 「"+r.via+"」返回内容里没有 ▌ 分段，已取消（可换个模型或稍后重试）","err"); return; }
+        const ok=await cvConfirm("已用「"+r.via+"」按技能调整为 "+segs.length+" 条提示词，将在原节点右侧生成 "+segs.length+" 个新节点（原节点保留）。继续？","确认生成节点");
+        if(!ok){ setStatus("已取消调整","busy"); setLlmNote(n,"已取消，原文节点保持不变","busy"); return; }
         spawnRefinedNodes(n,segs);
+        setLlmNote(n);
         setStatus("已按技能调整为 "+segs.length+" 条（原文节点保留）","ok");
     }finally{
         n.data.splitting=false;
-        if(btn){ btn.disabled=false; btn.textContent=label; }
+        const b2=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="'+act+'"]')||btn;
+        if(b2){ b2.disabled=false; b2.textContent=label; }
     }
 }
 /* 在原节点右侧纵向生成调整后的提示词节点；原节点与其连线原样保留 */
@@ -2349,11 +2445,11 @@ function spawn(type){
     renderAll(); selectNode(n.id); scheduleSave();
     return n;
 }
-function splitPrompt(n){
+async function splitPrompt(n){
     const text=n.data.text||"";
     const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
     if(parts.length<2){ setStatus("没有找到 ▌ 分段，未拆分","err"); return; }
-    if(!confirm("将拆成 "+parts.length+" 个提示词节点，原节点会被替换。继续？")) return;
+    if(!await cvConfirm("将拆成 "+parts.length+" 个提示词节点，原节点会被替换。继续？","确认拆分")) return;
     canvas.nodes=canvas.nodes.filter(x=>x.id!==n.id);
     const inbound=canvas.edges.filter(e=>e.to===n.id).map(e=>e.from);
     const outbound=canvas.edges.filter(e=>e.from===n.id).map(e=>e.to);
@@ -3665,6 +3761,14 @@ async function testComfy(){
 
 /* ============ 工具栏绑定 ============ */
 function bindToolbar(){
+    /* 页面内确认弹窗：完全不依赖原生 window.confirm，预览面板 / iframe 沙箱里也能正常点 */
+    const cy=el("cvConfirmYes"), cn=el("cvConfirmNo"), cm=el("cvConfirmModal");
+    if(cy) cy.addEventListener("click",()=>cvConfirmClose(true));
+    if(cn) cn.addEventListener("click",()=>cvConfirmClose(false));
+    if(cm){
+        cm.addEventListener("click",e=>{ if(e.target===cm) cvConfirmClose(false); });
+        document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&cm.classList.contains("show")) cvConfirmClose(false); });
+    }
     document.querySelectorAll("[data-add]").forEach(b=>b.addEventListener("click",()=>spawn(b.dataset.add)));
     el("newDocBtn").addEventListener("click",newDoc);
     el("moreDocsBtn").addEventListener("click",e=>{ e.stopPropagation(); el("docMenu").classList.toggle("show"); });
