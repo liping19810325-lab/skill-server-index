@@ -275,6 +275,9 @@
                 <div class="card-body">
                 <div class="hint">与创作台同源共享，这里只读取、不修改。接口地址 / Key / 模型都在创作台配置，默认全部为空。<b>「第三方 API 接入」会直接复用这里的接口地址与 Key</b>，接通大语言模型后无需再填一遍。</div>
                 <div class="api-box" id="apiInfo">读取中…</div>
+                <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点的智能拆分 / 图片提示词 / SD / H3 用）</label></div>
+                <div class="row"><button class="mini-btn cyan" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
+                <div class="hint" style="margin:4px 0 0">与创作台共用同一份本机地址：创作台「推理参数 → ⚡ 自动接通」扫到的 llama / Ollama / LM Studio 等，画布页直接复用；也可以在这里再点一次，独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
                 <div class="row"><a class="mini-btn gray" href="./index.html" style="text-decoration:none;display:inline-block;">去创作台修改</a></div>
                 </div>
             </div>
@@ -384,7 +387,16 @@
         <h2>连线规则</h2>
         <p>从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。<b>快捷加节点</b>：在画布空白处<b>双击鼠标</b>，弹出「添加节点」菜单，点一下就在双击位置创建对应节点（六类节点与左侧工具栏完全一致）；Esc 或点空白关闭菜单。</p>
         <h2>与创作台的关系</h2>
-        <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
+        <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置与一份本机大模型接通结果；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
+        <h2>提示词节点调用本地大模型（任意端口 · Windows / macOS 通用）</h2>
+        <p>提示词节点上的 <b>「拆分」「图片提示词」「SD提示词」「H3提示词」</b> 需要调用大语言模型：文本里没有 <code>▌</code> 分段标记时会自动分段，SD / H3 会先拉「导演分镜助手」技能全文再调整镜头。<b>只要本机开着大模型软件，这些按钮就用本地算力，不花钱、剧本不上传。</b></p>
+        <ul>
+            <li><b>和创作台共用一份接通结果</b>：创作台「推理参数 → 本机地址 → ⚡ 自动接通」扫到的地址与模型名存在本机浏览器（<code>manflows_local_base</code> / <code>manflows_local_model</code>），两页同源，画布页直接复用。所以创作台能通，画布页的提示词节点就能通 —— 包括 <code>9931</code> 这类自定义端口，不再只认默认的 <code>8080</code>。</li>
+            <li><b>画布页也能独立接通</b>：左侧「② API 配置」里点 <b>「⚡ 自动接通」</b>，会独立扫描 <code>127.0.0.1</code> / <code>localhost</code> 上的 9931（llama_server）、8080（llama.cpp llama-server）、11434（Ollama）、1234（LM Studio）、8000（vLLM）、5000、1337（Jan）、4891（GPT4All）、5001、8081、3000，依次探测 <code>/v1/models</code>、<code>/api/tags</code>、<code>/health</code>；接通后写回共用键，创作台下次打开也直接可用。也可以在创作台手填任意 <code>http://IP:端口</code>。</li>
+            <li><b>支持范围</b>：llama_server / llama.cpp llama-server / Ollama / LM Studio / Jan / GPT4All / vLLM / KoboldCpp / text-generation-webui 等提供 OpenAI 兼容 <code>/v1/chat/completions</code> 的软件都行；Windows 与 macOS 一样，无需额外桥接程序。请求里始终带 <code>model</code> 字段（探测到真实模型名就用真名，没探测到按 <code>local</code>）。</li>
+            <li><b>兜底顺序</b>：本机已接通地址 → 创作台 API 配置里你填的本机地址 → 自动扫描结果 → 默认 8080 → 创作台的云端 API。全都连不上才明确报错，每个候选的具体原因会打到浏览器控制台。</li>
+            <li><b>连不上时按顺序查</b>：① 模型软件的黑窗口 / 服务要一直开着；② 端口对不对（浏览器能打开 <code>http://127.0.0.1:端口/v1/models</code> 就说明服务在）；③ 跨域放行：llama.cpp 加 <code>--cors-origins *</code>，Ollama 设 <code>OLLAMA_ORIGINS=*</code>；④ 页面若部署在 HTTPS 主站，部分新版浏览器会拦截直连本机 http 地址，可改用本机 http 地址打开页面或做同源反代；⑤ 在左侧点一次「⚡ 自动接通」重新扫描。</li>
+        </ul>
         <h2>多画布切换</h2>
         <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
         <h2>两类接入方式（生成节点二选一）</h2>
@@ -1703,19 +1715,20 @@ function splitAction(n){
     const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
     if(parts.length>=2){ splitPrompt(n); return; }
     if(n.data.splitting) return;
-    if(!confirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本地 llama / Ollama，其次创作台已接通的 API 模型）")) return;
+    if(!confirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本机已接通的 llama / Ollama 等，任意端口；其次创作台的云端 API）")) return;
     smartSplitLLM(n);
 }
 async function smartSplitLLM(n){
     if(n.data.splitting) return;
     n.data.splitting=true;
-    const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-split');
+    const btn=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="split"]');
     if(btn){ btn.disabled=true; btn.textContent="拆分中…"; }
     setStatus("正在用大语言模型拆分…","busy");
     try{
         const r=await llmSplitText(String(n.data.text||"").trim());
         if(!r.ok){
-            setStatus("拆分失败：本地与云端大语言模型都没连上。请先启动本地 llama / Ollama，或到创作台「API云算力」配置大模型接口。","err");
+            console.warn("拆分尝试过的模型：",(r.tried||[]).join(" ｜ "));
+            setStatus("拆分失败：本机与云端大模型都没连上。请在左侧「② API 配置」点「⚡ 自动接通」，并确认 llama / Ollama 已启动、已放行跨域（详细原因见浏览器控制台）。","err");
             return;
         }
         /* 模型偶尔包代码块，先剥掉再取 ▌ 行 */
@@ -1728,21 +1741,149 @@ async function smartSplitLLM(n){
         setStatus("已用「"+r.via+"」智能拆分成 "+segs.length+" 条","ok");
     }finally{
         n.data.splitting=false;
-        if(btn){ btn.disabled=false; btn.textContent="拆分"; }
+        if(btn){ btn.disabled=false; btn.textContent="图片提示词"; }
     }
 }
-/* 拆分可用的候选模型：本机 127.0.0.1/localhost 配置最优先，其次本机 llama-server 默认口，最后云端当前配置 */
-function llmCandidates(){
+/* ==================================================================
+   提示词节点调用大语言模型：与创作台共用同一套「本机任意端口自动接通」
+   · 创作台 index.html 探测到的地址存 manflows_local_base、模型名存 manflows_local_model；
+     两页同源，画布页直接复用，不再写死 8080（否则 9931 等自定义端口永远连不上）；
+   · 即使从没打开过创作台、或端口变了，画布页也会独立扫描常用端口补齐；
+   · Windows / macOS 通用：llama_server、llama.cpp llama-server、Ollama、LM Studio、
+     Jan、GPT4All、vLLM、KoboldCpp 等都走同样的 OpenAI 兼容 /v1/chat/completions；
+   · 兜底顺序：创作台已接通 → API 配置里的本机地址 → 扫描结果 → 8080 → 云端。
+   ================================================================== */
+const CV_KEY_LOCAL_BASE  = "manflows_local_base";
+const CV_KEY_LOCAL_MODEL = "manflows_local_model";
+const CV_LLM_PORT_PRESETS = [
+    {port:9931, name:"llama_server / 自定义端口"},
+    {port:8080, name:"llama.cpp llama-server"},
+    {port:11434,name:"Ollama"},
+    {port:1234, name:"LM Studio"},
+    {port:8000, name:"vLLM / FastChat"},
+    {port:5000, name:"text-generation-webui"},
+    {port:1337, name:"Jan"},
+    {port:4891, name:"GPT4All"},
+    {port:5001, name:"KoboldCpp / 备用"},
+    {port:8081, name:"备用 8081"},
+    {port:3000, name:"备用 3000"}
+];
+const CV_LLM_HOSTS = ["127.0.0.1","localhost"];
+let cvLocalScanCache = null;     /* 本次页面会话内复用扫描结果 */
+let cvLocalScanAt = 0;
+let cvLocalScanRunning = null;
+
+function cvNormBase(v){
+    let s=String(v||"").trim().replace(/\/+$/,"");
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) s="http://"+s;
+    return s.replace(/\/v1\/chat\/completions$/i,"").replace(/\/v1$/i,"");
+}
+function cvSetLlmState(msg,ok){
+    const box=el("localLlmState"); if(!box) return;
+    box.textContent=msg;
+    box.style.color = ok===true ? "#86efac" : (ok===false ? "#fca5a5" : "");
+}
+async function cvProbeLlm(base){
+    for(const p of ["/v1/models","/api/tags","/health"]){
+        const ctrl=new AbortController();
+        const timer=setTimeout(()=>ctrl.abort(),1400);
+        try{
+            const res=await fetch(base+p,{method:"GET",signal:ctrl.signal,cache:"no-store"});
+            if(!res.ok) continue;
+            let data=null; try{ data=await res.json(); }catch(e){}
+            let model="";
+            if(data&&Array.isArray(data.data)&&data.data.length) model=String(data.data[0].id||"");
+            else if(data&&Array.isArray(data.models)&&data.models.length) model=String(data.models[0].name||data.models[0].model||"");
+            return {base:base,model:model};
+        }catch(e){ /* 端口没开或跨域被拦，试下一个端点 */ }
+        finally{ clearTimeout(timer); }
+    }
+    return null;
+}
+/* 并发扫描本机常用端口，会话内缓存；空结果 30 秒内不重复扫，方便「先开页面后启服务」 */
+async function cvScanLocal(force){
+    const fresh = cvLocalScanCache && cvLocalScanCache.length;
+    if(!force && cvLocalScanCache!==null && (fresh || Date.now()-cvLocalScanAt<30000)) return cvLocalScanCache;
+    if(cvLocalScanRunning) return cvLocalScanRunning;
+    cvLocalScanRunning=(async()=>{
+        const saved=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+        const bases=[];
+        if(saved) bases.push(saved);
+        CV_LLM_PORT_PRESETS.forEach(p=>CV_LLM_HOSTS.forEach(h=>{
+            const b="http://"+h+":"+p.port;
+            if(!bases.includes(b)) bases.push(b);
+        }));
+        let found=[];
+        try{
+            const settled=await Promise.allSettled(bases.map(b=>cvProbeLlm(b)));
+            found=settled.filter(r=>r.status==="fulfilled"&&r.value).map(r=>r.value);
+            const seen=new Set();   /* 同端口 127.0.0.1 与 localhost 只留一条 */
+            found=found.filter(f=>{
+                const port=(f.base.match(/:(\d+)$/)||[])[1]||f.base;
+                if(seen.has(port)) return false;
+                seen.add(port); return true;
+            });
+        }catch(e){}
+        cvLocalScanCache=found; cvLocalScanAt=Date.now(); cvLocalScanRunning=null;
+        return found;
+    })();
+    return cvLocalScanRunning;
+}
+/* 接通后把地址 / 模型名写回创作台的共用键，两个页面双向受益 */
+async function cvAutoConnectLlm(opts){
+    const o=opts||{};
+    /* 创作台已经接通时，页面一打开就先显示同步状态，不等后台扫描跑完 */
+    const saved0=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(o.silent && saved0){
+        const m0=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
+        cvSetLlmState("✓ 已同步创作台接通的 "+saved0.replace(/^https?:\/\//i,"")+(m0?" · "+m0:""),true);
+    }else if(!o.silent){
+        cvSetLlmState("⏳ 正在扫描本机大模型端口…");
+    }
+    const found=await cvScanLocal(true);
+    if(!found.length){
+        cvSetLlmState("✗ 没发现本机大模型服务：请先启动 llama / Ollama 等软件",false);
+        if(!o.silent) setStatus("本机大模型未接通：请先在电脑上启动 llama / Ollama，或到创作台手动填写地址","err");
+        return null;
+    }
+    const saved=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    /* 创作台存的地址仍可用就保持不动，避免覆盖用户手填值 */
+    const keep=(saved&&found.some(f=>f.base===saved)) ? found.find(f=>f.base===saved) : found[0];
+    safeStorage.set(CV_KEY_LOCAL_BASE,keep.base);
+    if(keep.model && !String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim())
+        safeStorage.set(CV_KEY_LOCAL_MODEL,keep.model);
+    const host=keep.base.replace(/^https?:\/\//i,"");
+    const model=(keep.model||String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim());
+    cvSetLlmState("✓ 已接通 "+host+(model?" · "+model:"")+(found.length>1?"（共 "+found.length+" 个服务）":""),true);
+    if(!o.silent) setStatus("本机大模型已接通 "+host+"，提示词节点可调用本地算力","ok");
+    return {base:keep.base,model:model};
+}
+/* 候选模型：本机任意端口优先，云端兜底 */
+async function llmCandidates(){
     let list=[];
     try{ list=JSON.parse(safeStorage.get(KEY_API)||"[]")||[]; }catch(e){ list=[]; }
     const cur=safeStorage.get(KEY_CURR);
     const out=[];
+    const push=c=>{ if(c&&c.endpoint&&!out.some(x=>x.endpoint===c.endpoint&&x.model===c.model&&x.key===c.key)) out.push(c); };
+    /* ① 创作台已自动接通的本机地址（9931 等任意端口）＋ 探测到的真实模型名 */
+    const saved=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    const savedModel=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
+    if(saved) push({name:"本机大模型 · "+saved.replace(/^https?:\/\//i,""),endpoint:saved,key:"",model:savedModel,local:true});
+    /* ② 用户在创作台 API 配置里自己填的本机地址 */
     list.filter(p=>p&&p.endpoint&&/^(https?:\/\/)?(127\.|localhost|\[::)/i.test(p.endpoint))
-        .forEach(p=>out.push({name:p.name||"本地模型",endpoint:p.endpoint,key:p.key||"",model:p.model||"",local:true}));
-    out.push({name:"本地 llama（默认 127.0.0.1:8080）",endpoint:"http://127.0.0.1:8080",key:"",model:"",local:true});
+        .forEach(p=>push({name:p.name||"本地模型",endpoint:cvNormBase(p.endpoint),key:p.key||"",model:p.model||"",local:true}));
+    /* ③ 独立扫描：没打开过创作台 / 端口变了也能接通（结果会话内缓存，几乎零耗时） */
+    try{
+        const found=await cvScanLocal(false);
+        (found||[]).forEach(f=>push({name:"本机大模型 · "+f.base.replace(/^https?:\/\//i,""),endpoint:f.base,key:"",model:f.model||"",local:true}));
+    }catch(e){}
+    /* ④ 兼容老配置：Windows 上 llama_server 常用的默认 8080 兜底 */
+    push({name:"本地 llama（默认 127.0.0.1:8080）",endpoint:"http://127.0.0.1:8080",key:"",model:"",local:true});
+    /* ⑤ 云端兜底 */
     const pick=(list.find(p=>p&&p.id===cur&&p.endpoint)||list.find(p=>p&&p.endpoint)||null);
     if(pick&&!/^(https?:\/\/)?(127\.|localhost|\[::)/i.test(pick.endpoint))
-        out.push({name:pick.name||"云端模型",endpoint:pick.endpoint,key:pick.key||"",model:pick.model||"",local:false});
+        push({name:pick.name||"云端模型",endpoint:pick.endpoint,key:pick.key||"",model:pick.model||"",local:false});
     return out;
 }
 function llmChatUrl(ep){
@@ -1760,27 +1901,50 @@ const SPLIT_SYSTEM_PROMPT=[
     "4. 每个片段输出一行：以「▌」开头，后接完整提示词（画面描述＋完整台词）。",
     "5. 只输出这些 ▌ 开头的行，不要解释、不要代码块。"
 ].join("\n");
+/* 单个模型的一次请求：model 字段必须带上（Ollama / OpenAI 兼容接口缺了会直接 400），
+   本地长剧本拆分较慢，超时放宽到 90 秒；云端 120 秒。 */
+async function cvCallOnce(c,sys,text){
+    const body={model:c.model||"local",messages:[{role:"system",content:sys},{role:"user",content:text}],temperature:0.3,stream:false};
+    const ctrl=new AbortController();
+    const t=setTimeout(()=>ctrl.abort(),c.local?90000:120000);
+    const headers={"Content-Type":"application/json"};
+    if(c.key) headers["Authorization"]="Bearer "+c.key;
+    let res;
+    try{
+        res=await fetch(llmChatUrl(c.endpoint),{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal});
+        if(!res.ok) throw new Error("HTTP "+res.status+" "+(await res.text().catch(()=>"")).slice(0,120));
+        const j=await res.json();
+        const ch=j.choices&&j.choices[0];
+        const msg=(ch&&ch.message&&(ch.message.content||ch.message.reasoning_content))||(ch&&ch.text)||j.response||"";
+        if(!String(msg).trim()) throw new Error("返回里没有文本");
+        return String(msg).trim();
+    }finally{ clearTimeout(t); }
+}
 async function llmSplitText(text,systemPrompt){
     const sys=systemPrompt||SPLIT_SYSTEM_PROMPT;
-    for(const c of llmCandidates()){
+    const cands=await llmCandidates();
+    const tried=[];
+    for(const c of cands){
         try{
-            const body={messages:[{role:"system",content:sys},{role:"user",content:text}],temperature:0.3,stream:false};
-            if(c.model) body.model=c.model;
-            const ctrl=new AbortController();
-            const t=setTimeout(()=>ctrl.abort(),c.local?25000:90000);
-            const headers={"Content-Type":"application/json"};
-            if(c.key) headers["Authorization"]="Bearer "+c.key;
-            const res=await fetch(llmChatUrl(c.endpoint),{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal});
-            clearTimeout(t);
-            if(!res.ok) throw new Error("HTTP "+res.status);
-            const j=await res.json();
-            const ch=j.choices&&j.choices[0];
-            const msg=ch&&(ch.message&&(ch.message.content||ch.message.reasoning_content))||ch&&ch.text;
-            if(!msg||!String(msg).trim()) throw new Error("返回里没有文本");
-            return {ok:true,text:String(msg).trim(),via:c.name};
-        }catch(e){ console.warn("拆分模型「"+c.name+"」不可用：",e&&e.message||e); }
+            const msg=await cvCallOnce(c,sys,text);
+            return {ok:true,text:msg,via:c.name};
+        }catch(e){
+            tried.push(c.name+"："+(e&&e.message||e));
+            console.warn("拆分模型「"+c.name+"」不可用：",e&&e.message||e);
+        }
     }
-    return {ok:false};
+    /* 全部失败：强制重扫一次（用户可能是先开了画布才启动模型、或刚换了端口） */
+    try{
+        const fresh=await cvAutoConnectLlm({silent:true});
+        if(fresh){
+            const c={name:"本机大模型 · "+fresh.base.replace(/^https?:\/\//i,""),endpoint:fresh.base,key:"",model:fresh.model||"",local:true};
+            if(!cands.some(x=>x.endpoint===c.endpoint&&x.model===c.model)){
+                try{ return {ok:true,text:await cvCallOnce(c,sys,text),via:c.name}; }
+                catch(e){ tried.push(c.name+"："+(e&&e.message||e)); }
+            }
+        }
+    }catch(e){}
+    return {ok:false,tried:tried};
 }
 /* ===== SD / H3 提示词调整：从技能库拉「导演分镜助手」全文当系统提示词，本地大语言模型优先 ===== */
 const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
@@ -1820,7 +1984,8 @@ async function skillRefineLLM(n,skillType,label){
         const sys=skill.text+"\n\n——————\n你是漫流画布的提示词调整助手。请严格按照上面技能的提示词技术标准，把用户给出的剧本 / 提示词整理成可直接生成视频的分镜提示词，并遵守：\n1. 忠实原文：剧情、人物、场景与台词的本意一个都不能改；台词逐字保留，不新增剧情、台词或配乐说明。\n2. 每个镜头输出一行，以「▌」开头，后接完整镜头提示词（画面描述＋完整台词）。\n3. 只输出这些 ▌ 开头的行，不要解释、不要代码块。";
         const r=await llmSplitText(text,sys);
         if(!r.ok){
-            setStatus("调整失败：本地与云端大语言模型都没连上。请先启动本地 llama / Ollama，或到创作台「API云算力」配置大模型接口。","err");
+            console.warn("调整尝试过的模型：",(r.tried||[]).join(" ｜ "));
+            setStatus("调整失败：本机与云端大模型都没连上。请在左侧「② API 配置」点「⚡ 自动接通」，并确认 llama / Ollama 已启动、已放行跨域（详细原因见浏览器控制台）。","err");
             return;
         }
         /* 模型偶尔包代码块，先剥掉再取 ▌ 行 */
@@ -2296,10 +2461,18 @@ function currentProfile(){
 function renderApiInfo(){
     const p=currentProfile();
     const box=el("apiInfo");
-    if(!p){ box.innerHTML='<span style="color:#fcd34d">尚无 API 配置</span><br>请到创作台「API云算力」里填接口地址 / Key / 模型。本页只读，不会保存任何密钥到源码。'; return; }
-    const key=(p.key||"");
-    const masked=key?key.slice(0,4)+"••••"+key.slice(-4):'<span style="color:#fcd34d">（空）</span>';
-    box.innerHTML='<b>名称：</b>'+esc(p.name||"未命名")+'<br><b>接口：</b>'+esc(p.endpoint||"（空）")+'<br><b>模型：</b>'+esc(p.model||"（空）")+'<br><b>Key：</b>'+masked;
+    let html="";
+    if(!p){
+        html='<span style="color:#fcd34d">尚无云端 API 配置</span><br>需要云端兜底时，到创作台「API云算力」里填接口地址 / Key / 模型。本页只读，不会保存任何密钥到源码。';
+    }else{
+        const key=(p.key||"");
+        const masked=key?key.slice(0,4)+"••••"+key.slice(-4):'<span style="color:#fcd34d">（空）</span>';
+        html='<b>名称：</b>'+esc(p.name||"未命名")+'<br><b>接口：</b>'+esc(p.endpoint||"（空）")+'<br><b>模型：</b>'+esc(p.model||"（空）")+'<br><b>Key：</b>'+masked;
+    }
+    const base=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    const model=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
+    html+='<br><b>本机大模型：</b>'+(base?esc(base)+(model?' · '+esc(model):' · 模型名留空按 local'):'<span style="color:#fcd34d">未接通（点下方「⚡ 自动接通」）</span>');
+    box.innerHTML=html;
 }
 
 /* ============ 生成引擎 ============ */
@@ -3666,6 +3839,8 @@ async function initUI(){
     try{
         bindToolbar();
         renderApiInfo();
+        const llmBtn=el("localLlmAutoBtn");
+        if(llmBtn) llmBtn.addEventListener("click",()=>cvAutoConnectLlm({}));
         if(!safeStorage.available) console.warn("本地存储不可用：仅本次会话有效，其余功能正常。");
         await loadCanvas();
         renderDocTabs();
@@ -3673,9 +3848,18 @@ async function initUI(){
         renderAll();
         await drainInbox();
         setupChannel();
-        window.addEventListener("storage",e=>{ if(e.key===KEY_API||e.key===KEY_CURR) renderApiInfo(); });
+        window.addEventListener("storage",e=>{
+            if(e.key===KEY_API||e.key===KEY_CURR) renderApiInfo();
+            if(e.key===CV_KEY_LOCAL_BASE||e.key===CV_KEY_LOCAL_MODEL){
+                cvScanLocal(false);
+                renderApiInfo();
+                const b=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+                if(b) cvSetLlmState("✓ 已同步创作台的接通地址 "+b.replace(/^https?:\/\//i,""),true);
+            }
+        });
         resetHistory();   /* 初始化时渲染会补默认模型名，历史基线取最终稳定状态 */
         setStatus("就绪","ok");
+        cvAutoConnectLlm({silent:true});   /* 页面一打开就静默接通本机大模型，提示词节点随时可用 */
         autoDetectComfy({silent:true});   /* 静默体检：只更新左侧状态灯，不改用户已填地址 */
     }catch(e){
         console.error("界面初始化异常：",e);
