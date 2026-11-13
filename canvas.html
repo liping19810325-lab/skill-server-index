@@ -373,7 +373,7 @@
         <p>每份画布首次打开时，会自动放好 <b>① 提示词 / ① 参考图 / ① 声音参考 / ① 视频参考（可选） → ② 生成 → ③ 结果</b> 六个节点并连好线：照着填内容、在生成节点选好引擎就能跑，不用从零搭。节点可随意改、删、拖动，也能从顶栏继续「＋」加节点。已有内容的画布不会被覆盖；若点了「清空画布」，空画布提示里可一键「↺ 放入基础工作流示例」找回这套结构。</p>
         <h2>画布怎么用</h2>
         <ul>
-            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词，底部三个处理按钮：<br>· <b>「图片提示词」</b>＝拆文生图提示词：<b>文本含 ▌ 直接拆</b>；没有 ▌ 时会<b>自动调用大语言模型智能分段</b>（优先本地 llama / Ollama，其次创作台已接通的 API 大模型），拆完一条一节点，原节点被替换。<br>· <b>「SD提示词」</b>＝调「导演分镜助手 V5（生视频提示词）」技能，按 Seedance 生视频标准调整并拆分成镜头节点；<b>「H3提示词」</b>＝调「导演分镜助手 V5 MiniMaxH3」技能，按 MiniMax H3 标准调整并拆分。两者都<b>不改剧本与台词本意</b>，新节点生成在原节点右侧、原文保留，大语言模型同样本地优先。</li>
+            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词，底部三个处理按钮：<br>· <b>「图片提示词」</b>＝把全集 / 全剧美术资产提示词<b>按条拆开：一条资产 = 一个节点</b>。人物 7 条就是 7 个节点，人物四视图有几条就几个节点，场景 6 条、道具 5 条同样逐条独立；<b>绝不把同一类资产合并成一个大节点</b>。优先在本机直接解析（不调模型、不改原文），识别不出逐条结构时才自动调用大语言模型补标记（本地 llama / Ollama 优先，其次创作台 API）。拆前会显示各类条数供确认，原文逐字保留，原节点被替换。<br>· <b>「SD提示词」</b>＝调「导演分镜助手 V5（生视频提示词）」技能，按 Seedance 生视频标准调整并拆分成镜头节点；<b>「H3提示词」</b>＝调「导演分镜助手 V5 MiniMaxH3」技能，按 MiniMax H3 标准调整并拆分。两者都<b>不改剧本与台词本意</b>，新节点生成在原节点右侧、原文保留，大语言模型同样本地优先。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。本地 ComfyUI：<b>MiniMax H3 工作流不用预先接声音节点</b>——画布会自动注入 LoadAudio 并接到 H3 的 <code>ref_audios</code>（上限 3 段）；含 LoadAudio 的其它工作流则直接写入载入节点。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
@@ -398,7 +398,7 @@
         <h2>与创作台的关系</h2>
         <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置与一份本机大模型接通结果；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
         <h2>提示词节点调用本地大模型（任意端口 · Windows / macOS 通用）</h2>
-        <p>提示词节点上的 <b>「拆分」「图片提示词」「SD提示词」「H3提示词」</b> 需要调用大语言模型：文本里没有 <code>▌</code> 分段标记时会自动分段，SD / H3 会先拉「导演分镜助手」技能全文再调整镜头。<b>只要本机开着大模型软件，这些按钮就用本地算力，不花钱、剧本不上传。</b></p>
+        <p>提示词节点上的 <b>「图片提示词」「SD提示词」「H3提示词」</b>：<b>「图片提示词」优先在本机直接按条解析，不调用大模型</b>（人物 / 四视图 / 场景 / 道具逐条独立成节点）；只有文本里识别不出逐条结构时才会请大语言模型补标记。SD / H3 会先拉「导演分镜助手」技能全文再按镜头调整。<b>只要本机开着大模型软件，这些按钮就用本地算力，不花钱、剧本不上传。</b></p>
         <ul>
             <li><b>和创作台共用一份接通结果</b>：创作台「推理参数 → 本机地址 → ⚡ 自动接通」扫到的地址与模型名存在本机浏览器（<code>manflows_local_base</code> / <code>manflows_local_model</code>），两页同源，画布页直接复用。所以创作台能通，画布页的提示词节点就能通 —— 包括 <code>9931</code> 这类自定义端口，不再只认默认的 <code>8080</code>。</li>
             <li><b>画布页也能独立接通</b>：左侧「② API 配置」里点 <b>「⚡ 自动接通」</b>，会独立扫描 <code>127.0.0.1</code> / <code>localhost</code> 上的 9931（llama_server）、8080（llama.cpp llama-server）、11434（Ollama）、1234（LM Studio）、8000（vLLM）、5000、1337（Jan）、4891（GPT4All）、5001、8081、3000，依次探测 <code>/v1/models</code>、<code>/api/tags</code>、<code>/health</code>；接通后写回共用键，创作台下次打开也直接可用。也可以在创作台手填任意 <code>http://IP:端口</code>。</li>
@@ -1114,7 +1114,7 @@ function buildPromptBody(body,n){
     body.appendChild(ta);
     const line = document.createElement("div"); line.className="mini-line";
     const cnt = document.createElement("span"); const tip = document.createElement("span");
-    tip.textContent = "无 ▌ 时点「图片提示词」会自动调用大语言模型分段"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
+    tip.textContent = "点「图片提示词」按条拆：一条资产 = 一个节点"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
     /* 三个处理按钮：图片提示词（拆文生图） / SD提示词（Seedance 标准） / H3提示词（MiniMax H3 标准） */
     const actRow=document.createElement("div"); actRow.className="act-row";
     const mkAct=(act,label,title)=>{
@@ -1122,7 +1122,7 @@ function buildPromptBody(body,n){
         b.textContent=label; b.title=title; actRow.appendChild(b);
         return b;
     };
-    mkAct("split","图片提示词","拆出美术资产的文生图提示词：含 ▌ 直接拆，没有 ▌ 会自动调大语言模型分段");
+    mkAct("split","图片提示词","把全剧美术资产按条拆开：人物 / 人物四视图 / 场景 / 道具各按条数生成独立节点，一条资产一个节点");
     mkAct("sd","SD提示词","调「导演分镜助手 V5」按 Seedance 生视频标准调整并拆分镜头，不改剧本本意");
     mkAct("h3","H3提示词","调「导演分镜助手 V5 MiniMaxH3」按 MiniMax H3 标准调整并拆分镜头，不改剧本本意");
     body.appendChild(actRow);
@@ -1824,17 +1824,161 @@ function handleNodeAction(act,n){
         else if(act==="h3"){ skillRefineLLM(n,"d","H3提示词").catch(e=>onErr("H3提示词",e)); }
     }catch(e){ onErr("按钮操作",e); }
 }
-/* ===== 提示词拆分：含 ▌ 直接拆；没有 ▌ 就调大语言模型智能分段（本地优先，云端兜底） ===== */
+/* ===== 美术资产提示词：一条资产＝一个节点 =====
+   通用规则（Mac / Windows 一致，纯前端解析，与所用大模型软件无关）：
+   人物 N 条 → N 个节点；人物四视图有 M 条 → M 个节点；场景 P 条、道具 Q 条同理。
+   绝不把同一类资产整块塞进一个节点。
+   兼容写法：① 技能标准「▌人物 01/07 ｜ 名字 ｜ 来源」每条一标记；
+             ② 分组写法「▌人物提示词 / ## 人物（共 7 条）」下面用 1. / （1）/ **名字** 逐条列；
+             ③ 大模型分段后输出的 ▌ 段。只切分、不改写，原文逐字保留。 */
+const CV_ASSET_KINDS=["人物","四视图","场景","道具"];
+function cvAssetKind(line){
+    const s=String(line||"")
+        .replace(/^[\s▌>*#\-•]+/,"").replace(/^[【\[（(]\s*/,"").replace(/\*\*/g,"")
+        .replace(/^\d{1,3}\s*[.、．\)）]\s*/,"").replace(/^(?:第)?[一二三四五六七八九十]+\s*[、.．]\s*/,"")
+        .trim();
+    if(/^(?:人物|角色)?四视图/.test(s)) return "四视图";
+    if(/^(?:人物|角色)/.test(s)) return "人物";
+    if(/^场景/.test(s)) return "场景";
+    if(/^(?:道具|物品|器物)/.test(s)) return "道具";
+    return "";
+}
+/* 分组标题（「▌人物提示词」「## 人物（共 7 条）」）与逐条资产标记（「▌人物 01/07 ｜ 林深」）的区分 */
+function cvIsGroupHeader(line){
+    const t=String(line||"").trim();
+    /* 标题一定很短；资产条目正文里也常出现「提示词」三个字，必须先按长度排除 */
+    if(!t || t.length>48 || !cvAssetKind(t)) return false;
+    const s=t.replace(/^[\s▌>*#\-•【\[（(]+/,"").replace(/\*\*/g,"").trim();
+    if(/\d{1,3}\s*[/／]\s*\d{1,3}/.test(s)) return false;     /* 01/07 是逐条资产 */
+    if(/[｜|]/.test(s)) return false;                           /* 带名字分隔是逐条资产 */
+    /* 纯标题（「人物提示词：」「人物（共 7 条）」）也算分组；「人物 01：林深」不是 */
+    if(/^(?:人物|角色|四视图|场景|道具)(?:提示词|设定|资产|清单|列表)?\s*[：:]?\s*$/.test(s)) return true;
+    if(/共\s*\d+\s*条/.test(s) && s.length<=24) return true;
+    if(/[：:]/.test(s)) return false;
+    const numberedSection=/^\d{1,2}\s*[、.．]\s*(?:人物|角色|四视图|场景|道具)/.test(s);
+    if(/^\d/.test(s) && !numberedSection) return false;        /* 「01 林深」是资产 */
+    if(numberedSection) return true;
+    if(/^第?[一二三四五六七八九十]+\s*[、.．]/.test(s)) return true;
+    /* 必须有明确的标题记号，否则正文里以「人物」开头的短句会被误当成新分组 */
+    if(!/^[▌#>【\[（(]/.test(t)) return false;
+    if(/(提示词|资产|清单|列表|一览|总表|台账|共\s*\d+|部分|章节|设定图)/.test(s)) return true;
+    return s.length<=12;                                        /* 「▌人物」这类裸标题 */
+}
+function cvItemStartKind(line){
+    const t=String(line||"").trim();
+    if(!t) return "";
+    if(/^▌/.test(t)) return "marker";
+    if(/^#{2,6}\s+\S/.test(t)) return "heading";
+    if(/^\d{1,3}\s*[\.、．\)）]\s*\S/.test(t)) return "num";
+    if(/^[（(]\s*\d{1,3}\s*[）)]\s*\S/.test(t)) return "num";
+    if(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]\s*\S/.test(t)) return "num";
+    if(/^\*\*[^\*]{1,60}\*\*/.test(t)) return "bold";
+    if(/^(?:人物|角色|四视图|场景|道具)\s*\d{1,3}\s*(?:[/／]\s*\d{1,3})?\s*[:：、.．\-｜|]/.test(t)) return "label";
+    if(/^[-•*]\s+\S/.test(t)) return "bullet";
+    return "";
+}
+/* 数字 / 项目符号开头的行，只有看起来像「资产标题」才算新的一条，避免把正文里的编号说明误切 */
+function cvItemTitleLike(line,kind){
+    if(kind==="marker") return true;
+    const t=String(line||"").trim();
+    const body=t.replace(/^(?:#{2,6}\s+|\d{1,3}\s*[\.、．\)）]\s*|[（(]\s*\d{1,3}\s*[）)]\s*|[①-⑳]\s*|[-•*]\s+|\*\*)/,"").trim();
+    if(/[：:｜|]/.test(body.slice(0,40))) return true;
+    if(/^(?:人物|角色|四视图|场景|道具)/.test(body)) return true;
+    if(/^\*\*/.test(t)) return true;
+    return t.length<=36;
+}
+function cvAssetLabel(first,index){
+    const raw=String(first||"").trim()
+        .replace(/^▌\s*/,"").replace(/^#{1,6}\s*/,"")
+        .replace(/^\d{1,3}\s*[\.、．\)）]\s*/,"").replace(/^[（(]\s*\d{1,3}\s*[）)]\s*/,"")
+        .replace(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]\s*/,"").replace(/^[-•*]\s+/,"")
+        .replace(/^\*\*/,"").replace(/\*\*[\s\S]*$/,"");
+    const seg=raw.split(/[｜|]/).map(x=>x.trim()).filter(Boolean);
+    let s=seg.length>=2 ? seg[1] : raw.split(/[：:\n]/)[0].trim();
+    /* 去掉「人物 01/07」「人物1」这类编号前缀，但别把「人物1号」截成「号」 */
+    const cleaned=s.replace(/^(?:人物|角色|四视图|场景|道具)\s*\d{1,3}(?:\s*[/／]\s*\d{1,3})?\s*[｜|、.．:：\-]?\s*/,"").trim();
+    if(cleaned.length>=2) s=cleaned;
+    else s=s.replace(/^(?:人物|角色|四视图|场景|道具)\s*/,"").trim()||s;
+    /* 标题里已经带了类别，名字前面若还重复类别词就去掉，避免「人物 · 人物1号」 */
+    if(/^(?:人物|角色|四视图|场景|道具).{1,}/.test(s)) s=s.replace(/^(?:人物|角色|四视图|场景|道具)\s*/,"").trim()||s;
+    return (s||"资产 "+index).slice(0,24);
+}
+/* 返回 [{cat,label,text}]；识别不出「逐条」结构时返回 null，交给大模型补标记 */
+function cvParseAssetItems(text){
+    const lines=String(text||"").replace(/\r\n?/g,"\n").split("\n").map(l=>/^\s*```/.test(l)?"":l);
+    const heads=[];
+    lines.forEach((l,i)=>{
+        if(/^\s*▌/.test(l)) heads.push({i:i,kind:cvIsGroupHeader(l)?"group":"asset",line:l});
+        else if(cvIsGroupHeader(l)) heads.push({i:i,kind:"group",line:l});
+    });
+    const bounds=[], catOf=new Map();
+    if(heads.length){
+        heads.forEach((h,hi)=>{
+            const end=hi+1<heads.length?heads[hi+1].i:lines.length;
+            const cat=cvAssetKind(h.line)||"资产";
+            /* 技能标准格式：一条 ▌ 就是一条资产，段内不再细分（正文里可能有编号说明） */
+            if(h.kind==="asset"){ bounds.push(h.i); catOf.set(h.i,cat); return; }
+            /* 分组标题：在段内找逐条资产起始行，7 个人物就是 7 个起点 */
+            const starts=[];
+            for(let j=h.i+1;j<end;j++){
+                const k=cvItemStartKind(lines[j]);
+                if(!k || k==="marker" || cvIsGroupHeader(lines[j]) || !cvItemTitleLike(lines[j],k)) continue;
+                starts.push(j);
+            }
+            if(starts.length) starts.forEach(s=>{ bounds.push(s); catOf.set(s,cat); });
+            else { bounds.push(h.i); catOf.set(h.i,cat); }
+        });
+    }else{
+        for(let i=0;i<lines.length;i++){
+            const k=cvItemStartKind(lines[i]);
+            if(k && k!=="marker" && cvItemTitleLike(lines[i],k)){
+                bounds.push(i); catOf.set(i,cvAssetKind(lines[i])||"资产");
+            }
+        }
+    }
+    bounds.sort((a,b)=>a-b);
+    const uniq=[]; bounds.forEach(b=>{ if(!uniq.length||uniq[uniq.length-1]!==b) uniq.push(b); });
+    if(uniq.length<2) return null;
+    const items=[];
+    uniq.forEach((from,bi)=>{
+        const to=bi+1<uniq.length?uniq[bi+1]:lines.length;
+        const arr=lines.slice(from,to);
+        while(arr.length && !String(arr[arr.length-1]).trim()) arr.pop();
+        /* 下一组的标题只用来分类，不混进上一条提示词 */
+        while(arr.length && cvIsGroupHeader(arr[arr.length-1])) arr.pop();
+        const body=arr.join("\n").trim();
+        if(!body) return;
+        const first=lines[from]||"";
+        items.push({cat:catOf.get(from)||cvAssetKind(first)||"资产",label:"",text:body,first:first});
+    });
+    if(items.length<2) return null;
+    /* 开头的全剧声明 / 总说明保留在第一个节点，避免丢字 */
+    const pre=lines.slice(0,uniq[0]).join("\n").trim();
+    if(pre) items[0].text=pre+"\n\n"+items[0].text;
+    items.forEach((it,i)=>{ it.label=cvAssetLabel(it.first,i+1); delete it.first; });
+    return items;
+}
+function cvAssetSummary(items){
+    const c={}; items.forEach(it=>{ c[it.cat]=(c[it.cat]||0)+1; });
+    const known=CV_ASSET_KINDS.filter(k=>c[k]).map(k=>k+" "+c[k]+" 条");
+    const other=Object.keys(c).filter(k=>CV_ASSET_KINDS.indexOf(k)<0).map(k=>k+" "+c[k]+" 条");
+    return known.concat(other).join(" · ")||items.length+" 条";
+}
+/* ===== 图片提示词：先本地逐条解析，识别不出结构才求助大模型 ===== */
 async function splitAction(n){
     const text=String(n.data.text||"").trim();
-    if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
-    const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
-    if(parts.length>=2){ await splitPrompt(n); return; }
+    if(!text){ setStatus("提示词是空的，先填入美术资产提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入美术资产提示词","err"); return; }
     if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候（若已卡住，点本行重置）","busy"); return; }
-    setLlmNote(n,"⏳ 等待确认是否调用本机大模型…","busy");
-    const go=await cvConfirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本机已接通的 llama / Ollama 等，任意端口；其次创作台的云端 API）","智能拆分提示词");
+    const probe=cvParseAssetItems(text);
+    if(probe && probe.length>=2){
+        setLlmNote(n,"⏳ 已识别 "+probe.length+" 条资产，等待确认拆分…","busy");
+        try{ await splitPrompt(n); }finally{ setLlmNote(n); }
+        return;
+    }
+    setLlmNote(n,"⏳ 未识别到逐条资产标记，等待确认是否调用大模型…","busy");
+    const go=await cvConfirm("文本里没有可逐条识别的美术资产标记。\n要用大语言模型按「一条资产＝一个节点」自动拆分吗？\n（优先本机已接通的 llama / Ollama 等，其次创作台的云端 API）","智能拆分美术资产");
     if(!go){ setLlmNote(n); return; }
-    setLlmNote(n,"⏳ 正在调用本机大模型拆分…","busy");
+    setLlmNote(n,"⏳ 正在调用大模型按条拆分…","busy");
     await smartSplitLLM(n);
 }
 async function smartSplitLLM(n){
@@ -1854,20 +1998,20 @@ async function smartSplitLLM(n){
             setLlmNote(n,"❌ 拆分失败："+why+"\n排查：① 模型软件保持运行；② 左侧「② API 配置」点「⚡ 自动接通」；③ HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面；④ llama.cpp 加 --cors-origins * / Ollama 设 OLLAMA_ORIGINS=*","err");
             return;
         }
-        /* 模型偶尔包代码块，先剥掉再取 ▌ 行 */
-        const lines=r.text.replace(/```[a-z]*\n?/gi,"").split("\n").map(s=>s.trim()).filter(Boolean);
-        const segs=lines.filter(s=>s.startsWith("▌"));
-        if(segs.length<2){
-            setStatus("「"+r.via+"」没有按 ▌ 分段返回，拆分已取消","err");
-            setLlmNote(n,"❌ 「"+r.via+"」返回内容里没有 ▌ 分段，已取消（可换个模型或稍后重试）","err");
+        /* 模型会连同正文一起把 ▌ 标记插入原文：整段保留，不再只取 ▌ 行丢掉正文 */
+        const cleaned=String(r.text||"").replace(/```[a-z]*\n?/gi,"").trim();
+        const parsed=cvParseAssetItems(cleaned);
+        if(!parsed || parsed.length<2){
+            setStatus("「"+r.via+"」没有按条拆出资产，拆分已取消","err");
+            setLlmNote(n,"❌ 「"+r.via+"」没有按「一条资产一段 ▌」返回，已取消（可换个模型或稍后重试）","err");
             return;
         }
-        const ok=await cvConfirm("已用「"+r.via+"」拆出 "+segs.length+" 个片段，将替换原文本并生成节点。继续？","确认拆分结果");
+        const ok=await cvConfirm("已用「"+r.via+"」按条拆出 "+parsed.length+" 条（"+cvAssetSummary(parsed)+"），将替换原文本并生成节点。继续？","确认拆分结果");
         if(!ok){ setStatus("已取消拆分","busy"); setLlmNote(n,"已取消，原文保持不变","busy"); return; }
-        n.data.text=segs.join("\n");
-        await splitPrompt(n);
+        n.data.text=cleaned;
+        await splitPrompt(n,true);
         setLlmNote(n);
-        setStatus("已用「"+r.via+"」智能拆分成 "+segs.length+" 条","ok");
+        setStatus("已用「"+r.via+"」按条拆成 "+parsed.length+" 条","ok");
     }finally{
         n.data.splitting=false;
         cvBusyAt.delete(n.id);
@@ -2023,14 +2167,16 @@ function llmChatUrl(ep){
     if(/\/v1$/i.test(s)) return s+"/chat/completions";
     return s+"/v1/chat/completions";
 }
-/* 分段规则参考 Toonflow 分镜方法：情绪转折/动作段落/说话人切换划片、15 秒上限、台词逐字保留 */
+/* 「图片提示词」的大模型兜底：只负责在原文里给每条资产补 ▌ 标记，绝不改写提示词正文。
+   以前的剧本文/15 秒分镜规则会把 7 个人物合并成 1 个「人物」大块，这里必须按条切。 */
 const SPLIT_SYSTEM_PROMPT=[
-    "你是漫剧分镜拆分助手。把用户给出的剧本文本拆成一个个可直接生成 15 秒视频的片段提示词。规则：",
-    "1. 以情绪转折、动作段落或说话人切换为界划分片段；每个片段按台词约 4 字/秒估时，加上必要停顿，整体控制在 15 秒内。",
-    "2. 台词逐字保留，一个字都不能删改；不得新增台词、情节或配乐说明。",
-    "3. 同一片段台词超过 20 字时，按语义停顿拆成相邻片段。",
-    "4. 每个片段输出一行：以「▌」开头，后接完整提示词（画面描述＋完整台词）。",
-    "5. 只输出这些 ▌ 开头的行，不要解释、不要代码块。"
+    "你是漫流画布的「美术资产提示词逐条拆分」助手。输入是全集 / 全剧的美术资产提示词（人物、人物四视图、场景、道具等）。",
+    "任务：只在每条资产的起始位置插入一行「▌」标记，把原文按条切开；其余文字逐字保留，不改写、不总结、不删减、不新增、不合并。",
+    "规则：",
+    "1. 一条资产＝一段：每条人物提示词、每条人物四视图提示词（原文有才拆）、每条场景提示词、每条道具提示词各自成为一段。",
+    "2. 每段第一行以「▌」开头，后接该条资产原本的标题行（如「人物 01/07 ｜ 林深」或「1. 林深」）；该条资产的全部正文（含 scene / subject / details / constraints、生成参数、参考图、中文对照等）原样跟在后面，直到下一段 ▌ 为止。",
+    "3. 严禁把同一类资产合成一段：7 个人物就是 7 段，6 个场景就是 6 段，5 个道具就是 5 段；四视图原文有几条就拆几段。",
+    "4. 不要在 ▌ 段之外输出任何解释、开场白、台账、统计表或代码块。"
 ].join("\n");
 /* 单个模型的一次请求：model 字段必须带上（Ollama / OpenAI 兼容接口缺了会直接 400），
    本地长剧本拆分较慢，超时放宽到 90 秒；云端 120 秒。 */
@@ -2538,23 +2684,33 @@ function spawn(type){
     renderAll(); selectNode(n.id); scheduleSave();
     return n;
 }
-async function splitPrompt(n){
-    const text=n.data.text||"";
-    const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
-    if(parts.length<2){ setStatus("没有找到 ▌ 分段，未拆分","err"); return; }
-    if(!await cvConfirm("将拆成 "+parts.length+" 个提示词节点，原节点会被替换。继续？","确认拆分")) return;
-    canvas.nodes=canvas.nodes.filter(x=>x.id!==n.id);
+/* 一条资产一个节点：人物 7 条＝7 个节点，四视图有几条就几个，场景 / 道具同理。
+   原节点被替换，上下游连线原样复制到每个新节点，提示词正文逐字保留。 */
+async function splitPrompt(n,skipConfirm){
+    const items=cvParseAssetItems(n.data.text||"");
+    if(!items || items.length<2){ setStatus("没有识别到可逐条拆分的美术资产","err"); return false; }
+    const sum=cvAssetSummary(items);
+    if(!skipConfirm){
+        const go=await cvConfirm("已按「一条资产＝一个节点」拆出 "+items.length+" 条（"+sum+"）。\n每条资产一个提示词节点，原节点会被替换，原文逐字保留。继续？","确认拆分");
+        if(!go) return false;
+    }
+    const counts={}, running={};
+    items.forEach(it=>{ counts[it.cat]=(counts[it.cat]||0)+1; });
     const inbound=canvas.edges.filter(e=>e.to===n.id).map(e=>e.from);
     const outbound=canvas.edges.filter(e=>e.from===n.id).map(e=>e.to);
+    canvas.nodes=canvas.nodes.filter(x=>x.id!==n.id);
     canvas.edges=canvas.edges.filter(e=>e.from!==n.id&&e.to!==n.id);
-    parts.forEach((part,i)=>{
-        const title=(part.split("\n")[0]||("分段 "+(i+1))).replace(/^▌\s*/,"").slice(0,28);
-        const q=newNode("prompt",n.x+(i%2)*310,n.y+Math.floor(i/2)*250,{text:part,sourceId:n.data.sourceId||""});
-        q.title=title;
+    items.forEach((it,i)=>{
+        running[it.cat]=(running[it.cat]||0)+1;
+        const no=String(running[it.cat]).padStart(2,"0")+"/"+String(counts[it.cat]).padStart(2,"0");
+        const q=newNode("prompt",n.x+(i%2)*310,n.y+Math.floor(i/2)*250,
+            {text:it.text,sourceId:n.data.sourceId||"",assetKind:it.cat});
+        q.title=(it.cat+" "+no+" · "+it.label).slice(0,36);
         inbound.forEach(f=>canvas.edges.push({id:uid(),from:f,to:q.id}));
         outbound.forEach(t=>canvas.edges.push({id:uid(),from:q.id,to:t}));
     });
-    renderAll(); scheduleSave(); setStatus("已拆成 "+parts.length+" 条","ok");
+    renderAll(); scheduleSave(); setStatus("已拆成 "+items.length+" 条（"+sum+"）","ok");
+    return true;
 }
 function reuseAsImage(url){
     const n=spawn("image");
