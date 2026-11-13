@@ -59,6 +59,29 @@
         .api-manage-row { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
         .token-quick-btn { padding: 4px 6px; border: 1px solid var(--border2); border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer; font-size: 11px; }
         .token-quick-btn:hover, .preview-btn:hover { background: var(--hover); }
+        /* 上下文窗口快捷值：整行独立排布，避免长说明文字把中间几个按钮挤出可点区域 */
+        .param-token-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+        .param-token-row > label { width: 100%; }
+        .token-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .token-row input[type="number"] { flex: 0 0 auto; }
+        .token-quick-group { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .token-quick-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+        .token-quick-btn.active:hover { background: #1d4ed8; }
+        /* 本机大模型服务自动接通：与创作台其它面板同款中性配色、细边框、无阴影 */
+        .local-conn { margin: 8px 0 4px; padding: 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; }
+        .local-conn-row { display: flex; align-items: center; gap: 6px; }
+        .local-conn-row input { flex: 1 1 auto; min-width: 0; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border2);
+                                border-radius: 6px; color: var(--text); font-size: 11.5px; outline: none; }
+        .local-conn-row input:focus { border-color: var(--blue); }
+        .local-conn-btn { padding: 6px 9px; min-height: 30px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px;
+                          background: var(--blue); color: #fff; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+        .local-conn-btn:hover:not(:disabled) { filter: brightness(1.15); }
+        .local-conn-btn:disabled { opacity: .55; cursor: not-allowed; }
+        .local-conn-state { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.6; word-break: break-word; }
+        .local-conn-state.ok { color: #a7f3d0; }
+        .local-conn-state.err { color: #fca5a5; }
+        .local-conn-select { display: none; width: 100%; margin-top: 6px; padding: 5px 6px; background: var(--bg);
+                             border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 11.5px; }
         /* 本地算力：只留一行提示，具体部署与启动方式见「使用帮助」 */
         .local-hint { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0; padding: 7px 9px;
                       background: var(--panel); border: 1px solid var(--border2); border-radius: 8px;
@@ -275,7 +298,15 @@
                     <input type="text" id="localModel" placeholder="留空 = local；部分服务需填真实模型名">
                 </div>
                 <div class="local-hint" id="localComputeHint">
-                    <span>ℹ️ <b>需先启动 llama / Ollama</b>，才能调用本地大语言模型和算力。启动程序、脚本写法与连接方式见左栏【📖 使用帮助】→「一、本地算力模式」。</span>
+                    <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「一、本地算力模式」。</span>
+                </div>
+                <div class="local-conn" id="localConnBox">
+                    <div class="local-conn-row">
+                        <input type="text" id="localBaseInput" spellcheck="false" placeholder="本机地址，留空自动检测">
+                        <button type="button" class="local-conn-btn" id="autoDetectBtn" title="扫描常见端口，自动接通本机正在运行的大模型服务">⚡ 自动接通</button>
+                    </div>
+                    <div class="local-conn-state" id="localConnState">○ 尚未检测本机大模型服务</div>
+                    <select class="local-conn-select" id="localServiceSelect" title="检测到多个服务时可在这里切换"></select>
                 </div>
                 <div class="api-config-block" id="apiConfigBlock">
                     <div class="api-row">
@@ -314,14 +345,18 @@
                     <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9">
                     <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
                 </div>
-                <div class="param-item">
+                <div class="param-item param-token-row">
                     <label>上下文窗口 token（本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡或切换云API)：</label>
-                    <input type="number" id="maxTokenInput" min="64" max="1048576" value="16384">
-                    <button class="token-quick-btn" onclick="setToken(32768)">32K</button>
-                    <button class="token-quick-btn" onclick="setToken(65536)">64K</button>
-                    <button class="token-quick-btn" onclick="setToken(131072)">128K</button>
-                    <button class="token-quick-btn" onclick="setToken(262144)">256K</button>
-                    <button class="token-quick-btn" onclick="setToken(1048576)">1M</button>
+                    <div class="token-row">
+                        <input type="number" id="maxTokenInput" min="64" max="1048576" step="1" value="16384">
+                        <div class="token-quick-group" id="tokenQuickGroup">
+                            <button type="button" class="token-quick-btn" data-token="32768">32K</button>
+                            <button type="button" class="token-quick-btn" data-token="65536">64K</button>
+                            <button type="button" class="token-quick-btn" data-token="131072">128K</button>
+                            <button type="button" class="token-quick-btn" data-token="262144">256K</button>
+                            <button type="button" class="token-quick-btn" data-token="1048576">1M</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="param-note">
                     提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
@@ -425,7 +460,10 @@ const safeStorage = {
 
 const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
 const SKILL_TOKEN = "CU001-ABC123";
-const LOCAL_LLAMA_URL = "http://127.0.0.1:8080/v1/chat/completions";
+/* 本地算力不再写死 8080：这里只留兜底默认地址，实际地址由「⚡ 自动接通」探测或用户手填决定 */
+const LOCAL_DEFAULT_BASE = "http://127.0.0.1:8080";
+const LOCAL_LLAMA_URL = LOCAL_DEFAULT_BASE + "/v1/chat/completions";
+const STORAGE_KEY_LOCAL_BASE = "manflows_local_base";
 const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
@@ -512,87 +550,70 @@ const HELP_HTML = `
 </div>
 <p>说明：技能模板由后端服务提供；算力分为【本地算力模式】和【API云算力模式】两种。所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
 
-<h2>一、本地算力模式：部署本地 llama-server / Ollama</h2>
-<h3>适用场景</h3>
+<h2>一、本地算力模式：本机大模型自动接通，端口任意</h2>
+<h3>最简用法（Windows / macOS 通用）</h3>
+<ol>
+<li>在你自己的电脑上启动任意一个本地大模型软件（llama-server / llama.cpp / llama_server / Ollama / LM Studio / Jan / GPT4All / vLLM / text-generation-webui / KoboldCpp …），保持窗口或后台服务开着；</li>
+<li>网页左栏【推理参数】选【本地算力】；页面打开时会自动扫描一次，也可随时点「⚡ 自动接通」重扫；</li>
+<li>状态出现绿色的「✓ 已接通 …」后，点选技能 → 输入指令 →【开始】。<b>不需要把软件端口改成 8080</b>，用哪个端口都行。</li>
+</ol>
+<p>扫描范围：<code>127.0.0.1</code> 与 <code>localhost</code> 上的 9931、8080、11434、1234、8000、5000、1337、4891、5001、8081、3000，依次探测 <code>/v1/models</code>、<code>/api/tags</code>、<code>/health</code>。检测到多个服务时，状态下方会出现下拉框供切换。软件用了别的端口，直接在【本机地址】里填 <code>http://127.0.0.1:你的端口</code> 并回车即可；地址只存在你本机浏览器。</p>
+<p>上述软件都提供 OpenAI 兼容的 <code>/v1/chat/completions</code> 接口，网页统一用这个格式请求；探测到 Ollama 的 <code>/api/tags</code> 时，会自动把第一个模型名填进【本地模型名称】，不用手填。剧本与产物始终只在你本机流转，不上传服务器。</p>
+
+<h3>常见软件与默认端口</h3>
 <ul>
-<li>电脑有独立显卡，显存建议 12G 及以上；</li>
-<li>模型在本机运行，不需要花钱调用网上API；</li>
-<li>网页会访问本机地址：http://127.0.0.1:8080/v1/chat/completions</li>
+<li><b>llama.cpp / llama-server / llama_server</b>：默认 8080，自定义口常见 9931；启动加 <code>--port 你的端口 --cors-origins *</code>；</li>
+<li><b>Ollama</b>：默认 11434，<code>ollama serve</code> 即可，无需改端口；跨域放行可用 <code>OLLAMA_ORIGINS=*</code>；</li>
+<li><b>LM Studio</b> 1234（打开软件里的 Local Server）、<b>Jan</b> 1337、<b>GPT4All</b> 4891、<b>vLLM / FastChat</b> 8000、<b>text-generation-webui</b> 5000、<b>KoboldCpp</b> 5001；</li>
+<li>其它任意本地推理软件：只要提供 OpenAI 兼容接口，把地址填进【本机地址】就能用。</li>
 </ul>
 
-<h3>步骤1：下载安装 Ollama</h3>
-<p>官网下载：https://ollama.com/ ，安装Windows版本。</p>
-
-<h3>步骤2：拉取大模型</h3>
-<p>打开CMD，执行（模型可自行替换）：</p>
-<pre>ollama pull qwen2.5:14b</pre>
-
-<h3>步骤3：开启OpenAI兼容接口，端口8080</h3>
-<p>设置系统环境变量：</p>
-<pre>OLLAMA_HOST=127.0.0.1 OLLAMA_PORT=8080</pre>
-<p>重启 Ollama 服务，浏览器访问验证：</p>
-<pre>http://127.0.0.1:8080/v1/models</pre>
-<p>能返回模型JSON，代表服务启动成功。</p>
-
-<h3>步骤4：网页选择【本地算力】模式</h3>
-<ul>
-<li>网页算力模式选择“本地算力”；</li>
-<li>加载技能模板，输入指令直接发送；</li>
-<li>【本地模型名称（可选）】留空时请求里发送 "local"；若你的 llama-server / Ollama 兼容接口要求真实模型名，在这里填写即可；</li>
-<li>注意：本地模式只对当前这台电脑生效，外网网页访问不到别人电脑上的本地服务。</li>
-</ul>
-
-<h3>步骤5：先在本机启动模型服务，网页才能调用</h3>
-<p><b>网页本身不会启动电脑程序</b>。必须先在电脑上启动 llama-server / Ollama 并保持运行，再回到网页选【本地算力】。下面是一套已经在用的启动案例。</p>
-
-<h4>方式 A：用 .bat 启动 llama-server（推荐案例）</h4>
-<p>把启动脚本放在 <code>llama-server.exe</code> 所在目录，例如 <code>C:/Llama_server/start_server.bat</code>，内容示例（模型文件名与参数按你的实际情况改）：</p>
+<h3>启动示例（照抄改路径即可）</h3>
+<h4>Windows · llama-server（.bat）</h4>
+<p>把脚本放在 <code>llama-server.exe</code> 与模型文件所在目录，双击启动，<b>黑窗口要一直开着</b>；关掉窗口就等于停止服务：</p>
 <pre>@echo off
 chcp 65001
 llama-server.exe ^
--m "models/Manflows-Qwen3.5-9B-abliterated.Q8_0.gguf" ^
+-m "Manflows-screenwriter-director-abliterated.Q8_0.gguf" ^
 -ngl 99 ^
 -c 32768 ^
---keep 1024 ^
---temp 0.7 ^
---top-p 0.85 ^
---min-p 0.05 ^
---repeat-penalty 1.08 ^
 --host 0.0.0.0 ^
---port 8080 ^
+--port 9931 ^
 --cors-origins *
 pause</pre>
 <ul>
-<li>双击这个 .bat 即可启动，<b>黑窗口要一直开着</b>；关掉窗口就等于停止服务。末尾的 <code>pause</code> 让报错时窗口不会一闪而过，方便排查；</li>
-<li>脚本里 <code>-m</code> 用的是相对路径 <code>models/xxx.gguf</code>，所以 .bat 必须放在 llama-server.exe 所在目录（双击时工作目录就是它所在目录）；改写成绝对路径也可以；</li>
-<li><code>--port 8080</code> 对应网页默认接口 <code>http://127.0.0.1:8080/v1/chat/completions</code>；<code>--cors-origins *</code> 允许网页跨域访问本机服务；</li>
-<li><code>-ngl 99</code> 表示尽量把模型放进显卡，显存不够就调小；<code>-c 32768</code> 是上下文长度，按显存调整。</li>
+<li><code>--port</code> 填任意未被占用的端口都行（这里是 9931），网页会自动发现，不必固定 8080；</li>
+<li><code>--cors-origins *</code> 让网页能跨域访问本机服务；<code>-ngl 99</code> 尽量把模型放进显卡，显存不够调小；<code>-c</code> 是上下文长度；</li>
+<li><code>-m</code> 用的是相对路径（模型文件与 .bat 同目录），模型在别的目录时改成完整绝对路径即可；末尾 <code>pause</code> 让报错窗口不会一闪而过。</li>
 </ul>
 
-<h4>方式 B：用 Ollama</h4>
-<pre>ollama pull qwen2.5:14b
-set OLLAMA_HOST=127.0.0.1
-set OLLAMA_PORT=8080
+<h4>macOS · llama.cpp / llama-server</h4>
+<pre>cd /你的/llama.cpp目录
+./llama-server -m Manflows-screenwriter-director-abliterated.Q8_0.gguf \
+  -ngl 99 -c 32768 --host 127.0.0.1 --port 9931 --cors-origins *</pre>
+<p>保持终端窗口开启。macOS 用 <code>127.0.0.1</code> 或 <code>localhost</code> 都能被自动扫描到。</p>
+
+<h4>Windows / macOS · Ollama（保持默认 11434）</h4>
+<pre># macOS / Linux
+OLLAMA_ORIGINS=* ollama serve
+
+# Windows（CMD）
+set OLLAMA_ORIGINS=*
 ollama serve</pre>
-<p>保持命令行窗口开启即可。也可以把 <code>OLLAMA_HOST</code> / <code>OLLAMA_PORT</code> 设成系统环境变量，重启 Ollama 后生效。</p>
+<p>模型用 <code>ollama pull qwen2.5:14b</code> 之类提前拉好；<b>不用再改 <code>OLLAMA_PORT</code></b>，默认 11434 网页就能自动找到，探测到后会自动填好真实模型名。Ollama 桌面版直接点开应用、保持运行即可。</p>
 
-<h4>怎么确认启动成功 / 网页怎么连</h4>
-<ol>
-<li>浏览器打开 <code>http://127.0.0.1:8080/health</code> 或 <code>http://127.0.0.1:8080/v1/models</code>，有返回就代表服务已就绪；</li>
-<li>网页左栏【推理参数】选【本地算力】，需要时在【本地模型名称】填真实模型名，留空则按 <code>local</code> 发送；</li>
-<li>点选技能 → 输入指令 →【开始】。网页只访问本机的 127.0.0.1，剧本与产物不会上传到服务器；</li>
-<li>本地模式只对这台电脑生效：别人通过网址打开页面时，连的是他自己电脑上的 127.0.0.1，不是你的。</li>
-</ol>
-<p>注意：页面如果部署在 HTTPS 主站，浏览器会拦截网页直连本机 http 地址；内测期请用本机 http 地址打开页面，正式部署阶段再做同源反代 / TLS。常见故障：黑窗口关了、端口被占用、模型路径写错、显存不足，都会表现为「本地模式无响应」。</p>
-
-<h4>这些步骤可以让 WorkBuddy 帮你做</h4>
-<p>不想自己写 .bat、改端口、查报错？把本页面文件（<code>index.html</code>）发给 <b>WorkBuddy</b> 并说一句「帮我建立本地大语言模型和漫流创作台的互通」，它可以直接：</p>
+<h3>怎么确认已接通 / 排障</h3>
 <ul>
-<li>帮你写好 <code>start_server.bat</code>（含模型路径、显存参数、<code>--cors-origins *</code> 跨域放行），并核对 llama-server.exe 与模型文件位置；</li>
-<li>测试 <code>http://127.0.0.1:8080/v1/chat/completions</code> 连通性，排查端口占用、显存不足、模型路径写错等问题；</li>
-<li>指导你在本页【推理参数】里选【本地算力】并填写本地模型名称，完成最后一步连接。</li>
+<li>看左栏【本机地址】下方的状态：绿色「✓ 已接通 …」即可开始创作；检测到多个服务时用下拉框选你要的那个；</li>
+<li>一直「✗ 没发现」：确认软件正在运行、端口没写错、启动参数带了跨域放行、防火墙没拦本机回环；也可手动填完整地址；</li>
+<li>请求里模型名不对：Ollama / LM Studio 需要真实模型名，自动探测会填好，也可在【本地模型名称】手动改；llama-server 留空按 <code>local</code> 发送即可；</li>
+<li>常见故障还有：黑窗口关了、端口被占用、模型路径写错、显存不足，都会表现为「本地模式无响应」。</li>
 </ul>
-<p>画布页（canvas.html）的「拆分」智能分段也会自动优先使用这里接通的本地模型。</p>
+<p>HTTPS 主站访问本机 http 地址时，个别浏览器会做私有网络拦截；给软件加跨域放行（<code>--cors-origins *</code> / <code>OLLAMA_ORIGINS=*</code>）后，Windows（llama_server）与 macOS（llama）均已实测可直接接通。若你的浏览器仍拦截，用本机 http 地址打开页面即可。本地模式只对当前这台电脑生效：别人通过网址打开页面时，连的是他自己电脑上的 127.0.0.1。</p>
+
+<h3>这些步骤可以让 WorkBuddy 帮你做</h3>
+<p>把本页面文件（<code>index.html</code>）发给 <b>WorkBuddy</b> 并说一句「帮我建立本地大语言模型和漫流创作台的互通」，它可以直接帮你写启动脚本（含模型路径、任意端口、跨域放行）、核对可执行文件与模型文件位置、测试 <code>/v1/chat/completions</code> 连通性并排查报错。</p>
+<p>注意：画布页（<code>canvas.html</code>）的智能拆分有自己独立的本地模型候选（默认 127.0.0.1:8080），本节的「自动接通」只作用于创作台；画布页如需使用其它端口，可在画布页的 API 配置里填本机地址。</p>
 
 <h2>二、API云算力模式：接入商用大模型平台</h2>
 <p>切换到API云算力模式后，点【新增API配置】，填写平台信息：接口地址 / API-Key / 模型名称。</p>
@@ -669,7 +690,7 @@ ollama serve</pre>
 <ul>
 <li>技能加载失败：网络无法访问后端技能服务，可以尝试导入本地md技能应急；</li>
 <li>API请求报错：核对接口地址、key、模型名称，检查余额与跨域插件；</li>
-<li>本地模式无响应：确认 ollama / llama-server 正常运行，端口8080。</li>
+<li>本地模式无响应：确认本机大模型软件正在运行，左栏点【⚡ 自动接通】重新扫描端口，或手动填含端口的完整地址；必要时给软件加跨域放行。</li>
 <li>带图请求报错：多半是模型或接口不支持图片输入，删除参考图或换视觉模型即可。</li>
 <li>本地单文件预览时左上角显示文字标：说明同目录没有 logo.png；把本页与 logo.png 一起放到 GitHub 仓库根目录即会自动显示原图。</li>
 <li>预览环境（沙箱 / 隐私模式）按钮点击或历史保存异常：多为浏览器禁用了站点数据，本页已做兜底，此时 API 配置与历史刷新后不保留，其余功能照常可用；正式部署到 GitHub Pages 后恢复正常。</li>
@@ -689,7 +710,25 @@ tempInput.onchange = () => tempSlider.value = tempInput.value;
 topPSlider.oninput = () => topPInput.value = topPSlider.value;
 topPInput.onchange = () => topPSlider.value = topPInput.value;
 
-function setToken(v) { maxTokenInput.value = v; }
+/* 上下文窗口快捷按钮：不再依赖内联 onclick（线上 CSP / 预览 iframe 下容易被剥离），
+   统一由 initUI 里的 addEventListener 绑定；写入后派发 input/change、高亮当前档位并存本机。 */
+const STORAGE_KEY_MAX_TOKENS = "manflows_max_tokens";
+function highlightTokenBtn(v){
+    document.querySelectorAll(".token-quick-btn[data-token]").forEach(b => {
+        b.classList.toggle("active", Number(b.getAttribute("data-token")) === Number(v));
+    });
+}
+function setToken(v) {
+    const n = Number(v);
+    if(!Number.isFinite(n) || n < 64 || n > 1048576) return;
+    maxTokenInput.value = String(n);
+    try { safeStorage.set(STORAGE_KEY_MAX_TOKENS, String(n)); } catch(e){}
+    try {
+        maxTokenInput.dispatchEvent(new Event("input", { bubbles:true }));
+        maxTokenInput.dispatchEvent(new Event("change", { bubbles:true }));
+    } catch(e){}
+    highlightTokenBtn(n);
+}
 
 const nameMap = {
     a: "漫剧创作助手 V5",
@@ -758,6 +797,8 @@ function initComputeModeUI(){
     if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
     const hint = document.getElementById("localComputeHint");
     if(hint) hint.style.display = (computeMode === "api") ? "none" : "flex";
+    const connBox = document.getElementById("localConnBox");
+    if(connBox) connBox.style.display = (computeMode === "api") ? "none" : "block";
 }
 function saveComputeMode(){
     computeMode = document.querySelector('input[name="computeMode"]:checked').value;
@@ -765,6 +806,8 @@ function saveComputeMode(){
     if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
     const hint = document.getElementById("localComputeHint");
     if(hint) hint.style.display = (computeMode === "api") ? "none" : "flex";
+    const connBox = document.getElementById("localConnBox");
+    if(connBox) connBox.style.display = (computeMode === "api") ? "none" : "block";
     if(computeMode === "api"){
         apiConfigBlock.style.display = "block";
         if(apiProfiles.length === 0){
@@ -1412,6 +1455,145 @@ function downloadHistoryRecord(){
     URL.revokeObjectURL(url);
 }
 
+/* ==================================================================
+   本机大模型服务「自动接通」（Windows / macOS 通用，端口任意）
+   · 不改现有直连方式：网页依旧直接请求本机的 OpenAI 兼容 /v1/chat/completions；
+   · 只是把写死的 8080 换成「自动扫描常见端口 + 允许手填任意地址」；
+   · llama.cpp / llama-server / llama_server（9931 等自定义口）、Ollama(11434)、
+     LM Studio(1234)、Jan、GPT4All、vLLM、text-generation-webui、KoboldCpp 都走同一套接口；
+   · 探测到的地址与模型名只存本机浏览器 localStorage，不上传、不进源码。
+   ================================================================== */
+const MF_LOCAL_PORT_PRESETS = [
+    { port: 9931,  name: "llama_server / 自定义端口" },
+    { port: 8080,  name: "llama.cpp llama-server" },
+    { port: 11434, name: "Ollama" },
+    { port: 1234,  name: "LM Studio" },
+    { port: 8000,  name: "vLLM / FastChat" },
+    { port: 5000,  name: "text-generation-webui" },
+    { port: 1337,  name: "Jan" },
+    { port: 4891,  name: "GPT4All" },
+    { port: 5001,  name: "KoboldCpp / 备用" },
+    { port: 8081,  name: "备用 8081" },
+    { port: 3000,  name: "备用 3000" }
+];
+const MF_LOCAL_HOSTS = ["127.0.0.1", "localhost"];
+let localConnReady = false;
+let localDetectRunning = false;
+
+function mfNormalizeBase(v){
+    let s = String(v || "").trim().replace(/\/+$/, "");
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) s = "http://" + s;
+    return s;
+}
+function mfEl(id){ return document.getElementById(id); }
+function mfSetLocalState(msg, cls){
+    const el = mfEl("localConnState");
+    if(!el) return;
+    el.textContent = msg;
+    el.className = "local-conn-state" + (cls ? " " + cls : "");
+}
+function mfCurrentBase(){
+    const typed = mfNormalizeBase(mfEl("localBaseInput") ? mfEl("localBaseInput").value : "");
+    return typed || mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE)) || LOCAL_DEFAULT_BASE;
+}
+function mfChatUrl(base){
+    const s = mfNormalizeBase(base) || LOCAL_DEFAULT_BASE;
+    if(/\/v1\/chat\/completions$/i.test(s)) return s;
+    if(/\/api\/chat$/i.test(s)) return s.replace(/\/api\/chat$/i, "/v1/chat/completions");
+    return s + "/v1/chat/completions";
+}
+async function mfProbeOne(base){
+    // 依次试 OpenAI 兼容模型列表、Ollama 原生模型列表、llama.cpp 健康检查
+    for(const p of ["/v1/models", "/api/tags", "/health"]){
+        const ctrl = new AbortController();
+        const timer = setTimeout(()=>ctrl.abort(), 1400);
+        try{
+            const res = await fetch(base + p, { method:"GET", signal:ctrl.signal, cache:"no-store" });
+            if(!res.ok) continue;
+            let data = null;
+            try { data = await res.json(); } catch(e){}
+            let model = "";
+            if(data && Array.isArray(data.data) && data.data.length) model = String(data.data[0].id || "");
+            else if(data && Array.isArray(data.models) && data.models.length) model = String(data.models[0].name || data.models[0].model || "");
+            const kind = (p === "/api/tags") ? "Ollama" : (p === "/health" ? "llama.cpp / 兼容服务" : "OpenAI 兼容服务");
+            return { base:base, kind:kind, model:model };
+        }catch(e){ /* 端口没开或跨域被拦，试下一个端点 */ }
+        finally { clearTimeout(timer); }
+    }
+    return null;
+}
+function mfApplyLocalChoice(choice){
+    if(!choice) return;
+    const input = mfEl("localBaseInput");
+    if(input) input.value = choice.base;
+    safeStorage.set(STORAGE_KEY_LOCAL_BASE, choice.base);
+    localConnReady = true;
+    mfSetLocalState("✓ 已接通 " + choice.label + (choice.model ? " · 模型 " + choice.model : ""), "ok");
+    // Ollama / LM Studio 要求真实模型名：探测到就自动填，用户已填的不覆盖
+    if(choice.model && inpLocalModel && !inpLocalModel.value.trim()){
+        inpLocalModel.value = choice.model;
+        localModelName = choice.model;
+        safeStorage.set("manflows_local_model", choice.model);
+    }
+}
+async function mfDetectLocal({ quiet=false } = {}){
+    if(localDetectRunning) return null;
+    localDetectRunning = true;
+    const btn = mfEl("autoDetectBtn");
+    if(btn && !quiet) btn.disabled = true;
+    if(!quiet) mfSetLocalState("⏳ 正在扫描本机常用端口…");
+    const bases = [];
+    const custom = mfNormalizeBase(mfEl("localBaseInput") ? mfEl("localBaseInput").value : "")
+                   || mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
+    if(custom) bases.push(custom);
+    MF_LOCAL_PORT_PRESETS.forEach(p => MF_LOCAL_HOSTS.forEach(h => {
+        const b = "http://" + h + ":" + p.port;
+        if(!bases.includes(b)) bases.push(b);
+    }));
+    let found = [];
+    try {
+        const settled = await Promise.allSettled(bases.map(b => mfProbeOne(b)));
+        found = settled.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+        // 同一端口的 127.0.0.1 与 localhost 是同一个服务，只保留一条（优先 127.0.0.1）
+        const seen = new Set();
+        found = found.filter(f => {
+            const port = (f.base.match(/:(\d+)$/) || [])[1] || f.base;
+            if(seen.has(port)) return false;
+            seen.add(port);
+            return true;
+        });
+    } catch(e) { /* 整体探测失败也不阻断生成 */ }
+    localDetectRunning = false;
+    if(btn && !quiet) btn.disabled = false;
+    if(!found.length){
+        localConnReady = false;
+        if(!quiet) mfSetLocalState("✗ 没发现本机大模型服务。请先启动 llama / Ollama 等软件，或手动填写含端口的地址。", "err");
+        const sel0 = mfEl("localServiceSelect");
+        if(sel0) sel0.style.display = "none";
+        return null;
+    }
+    found.forEach(f => {
+        const port = (f.base.match(/:(\d+)$/) || [])[1];
+        const preset = MF_LOCAL_PORT_PRESETS.find(p => String(p.port) === String(port));
+        f.label = (preset ? preset.name : f.kind) + " · " + f.base.replace(/^https?:\/\//i, "");
+    });
+    const sel = mfEl("localServiceSelect");
+    if(sel){
+        sel.innerHTML = "";
+        found.forEach(f => {
+            const o = document.createElement("option");
+            o.value = f.base; o.textContent = f.label;
+            sel.appendChild(o);
+        });
+        sel.style.display = found.length > 1 ? "block" : "none";
+        sel.value = found[0].base;
+        sel.onchange = () => mfApplyLocalChoice(found.find(x => x.base === sel.value));
+    }
+    mfApplyLocalChoice(found[0]);
+    return found[0];
+}
+
 async function sendMessage() {
     stopGenerate();
     pendingText = "";
@@ -1477,7 +1659,9 @@ async function sendMessage() {
         { role: "user", content: userContent }
     ];
     if(computeMode === "local"){
-        fetchUrl = LOCAL_LLAMA_URL;
+        // 还没自动接通就先静默扫一次端口，保证「本机大模型软件开着就能用」
+        if(!localConnReady) await mfDetectLocal({ quiet:true });
+        fetchUrl = mfChatUrl(mfCurrentBase());
         fetchHeaders = { "Content-Type":"application/json" };
         // 留空时保持原来的 "local"，兼容 llama-server / Ollama 默认行为
         bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true };
@@ -1556,6 +1740,43 @@ function initUI(){
         const key = btn.getAttribute("data-skill-key");
         btn.addEventListener("click", ()=>{ loadSkill(key); });
     });
+
+    // 本机大模型服务：自动扫描常见端口 / 手填任意地址，地址只存本机浏览器
+    const localBaseInput = document.getElementById("localBaseInput");
+    const autoDetectBtn = document.getElementById("autoDetectBtn");
+    const savedBase = mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
+    if(localBaseInput){
+        if(savedBase) localBaseInput.value = savedBase;
+        localBaseInput.addEventListener("change", ()=>{
+            const v = mfNormalizeBase(localBaseInput.value);
+            if(!v) return;
+            localBaseInput.value = v;
+            safeStorage.set(STORAGE_KEY_LOCAL_BASE, v);
+            localConnReady = true;
+            mfSetLocalState("✓ 已手动指定 " + v + "（生成时直接请求该地址）", "ok");
+        });
+        localBaseInput.addEventListener("keydown", (e)=>{
+            if(e.key === "Enter"){ e.preventDefault(); localBaseInput.blur(); }
+        });
+    }
+    if(autoDetectBtn) autoDetectBtn.addEventListener("click", ()=> mfDetectLocal());
+    if(computeMode === "local") setTimeout(()=> mfDetectLocal({ quiet:true }), 350);
+
+    // 上下文窗口快捷值：统一事件绑定、恢复上次档位、当前档位高亮
+    document.querySelectorAll(".token-quick-btn[data-token]").forEach(btn=>{
+        btn.addEventListener("click", (ev)=>{
+            ev.preventDefault();
+            ev.stopPropagation();
+            setToken(btn.getAttribute("data-token"));
+        });
+    });
+    const savedMaxTokens = Number(safeStorage.get(STORAGE_KEY_MAX_TOKENS));
+    if(Number.isFinite(savedMaxTokens) && savedMaxTokens >= 64 && savedMaxTokens <= 1048576){
+        maxTokenInput.value = String(savedMaxTokens);
+    }
+    highlightTokenBtn(maxTokenInput.value);
+    maxTokenInput.addEventListener("input", ()=> highlightTokenBtn(maxTokenInput.value));
+    maxTokenInput.addEventListener("change", ()=> highlightTokenBtn(maxTokenInput.value));
 
     // 推理参数展开收起（原有功能，保留）
     const toggleParamBtn = document.querySelector('.toggle-param-btn');
