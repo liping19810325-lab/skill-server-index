@@ -719,9 +719,16 @@ function applyDoc(doc){
     }
 }
 async function persist(){
+    /* 任务进行中的标记只是运行时状态，绝不写进存档；否则中途关页面 / 任务被打断后，
+       下次打开节点会永久显示「上一个任务还在处理中」。其余节点数据原样保留。 */
+    const nodes=canvas.nodes.map(n=>{
+        if(!n.data || !("splitting" in n.data)) return n;
+        const d=Object.assign({},n.data); delete d.splitting;
+        return Object.assign({},n,{data:d});
+    });
     await idbPut("canvas",docKey(docId),{
         id:docId, name:docName(docId),
-        nodes:canvas.nodes, edges:canvas.edges, viewport:canvas.viewport, seeded:true
+        nodes:nodes, edges:canvas.edges, viewport:canvas.viewport, seeded:true
     });
     await idbPut("canvas",GLOBAL_KEY,{settings:canvas.settings,docList:docList,activeDocId:docId,history:resultHistory});
 }
@@ -742,6 +749,9 @@ function cvConfirm(msg,title){
     return new Promise(resolve=>{
         const ov=el("cvConfirmModal");
         if(!ov||!el("cvConfirmYes")){ resolve(false); return; }
+        /* 上一个确认弹窗还没关闭时又来了新请求：先放行旧任务。
+           否则旧 Promise 永远不 resolve，那个节点会一直卡在「任务处理中」。 */
+        if(cvConfirmResolve){ const prev=cvConfirmResolve; cvConfirmResolve=null; prev(false); }
         el("cvConfirmTitle").textContent=title||"请确认";
         el("cvConfirmText").textContent=String(msg||"");
         cvConfirmResolve=resolve;
@@ -756,16 +766,25 @@ function cvConfirmClose(v){
 }
 /* 节点内可见的运行状态：只存内存，不写进画布 JSON，不进本地持久化 */
 const cvNotes=new Map();
+/* 直接设置和节点重绘走同一段绘制逻辑，避免 renderAll() 之后提示行丢事件 */
+function cvPaintNote(box,n,nt){
+    if(!box) return;
+    if(!nt){ box.style.display="none"; box.textContent=""; box.onclick=null; box.title=""; box.style.cursor=""; return; }
+    box.style.display="block"; box.textContent=nt.text;
+    box.style.color = nt.kind==="err" ? "#fca5a5" : (nt.kind==="ok" ? "#86efac" : "#93c5fd");
+    /* 「上一个任务还在处理中」若真的卡住，给用户一个就地重置入口，不必刷新或干等超时 */
+    if(nt.kind==="busy" && nt.text.indexOf("上一个任务")>=0){
+        box.title="点此重置卡住的任务状态"; box.style.cursor="pointer";
+        box.onclick=(e)=>{ e.stopPropagation(); cvResetBusy(n); };
+    }else{
+        box.onclick=null; box.title=""; box.style.cursor="";
+    }
+}
 function setLlmNote(n,text,kind){
     if(!n) return;
     if(text) cvNotes.set(n.id,{text:String(text),kind:kind||"busy"});
     else cvNotes.delete(n.id);
-    const box=document.querySelector('.node[data-id="'+n.id+'"] .llm-note');
-    if(!box) return;
-    const nt=cvNotes.get(n.id);
-    if(!nt){ box.style.display="none"; box.textContent=""; return; }
-    box.style.display="block"; box.textContent=nt.text;
-    box.style.color = nt.kind==="err" ? "#fca5a5" : (nt.kind==="ok" ? "#86efac" : "#93c5fd");
+    cvPaintNote(document.querySelector('.node[data-id="'+n.id+'"] .llm-note'),n,cvNotes.get(n.id));
 }
 function updateStat(){
     el("statInfo").textContent = "节点 "+canvas.nodes.length+" · 连线 "+canvas.edges.length;
@@ -781,7 +800,7 @@ function historySnapshot(){
         nodes:canvas.nodes.map(n=>{
             const d={};
             Object.keys(n.data||{}).forEach(k=>{
-                if(k==="busy"||k==="status") return;
+                if(k==="busy"||k==="status"||k==="splitting") return;
                 const v=n.data[k];
                 d[k]=Array.isArray(v)?v.slice():v;
             });
@@ -833,7 +852,7 @@ function restoreSnapshot(s){
     canvas.nodes=s.nodes.map(n=>{
         const d={};
         Object.keys(n.data).forEach(k=>{ const v=n.data[k]; d[k]=Array.isArray(v)?v.slice():v; });
-        d.busy=false;
+        d.busy=false; delete d.splitting;
         return {id:n.id,type:n.type,x:n.x,y:n.y,title:n.title,data:d};
     });
     canvas.edges=s.edges.map(e=>({id:e.id,from:e.from,to:e.to}));
@@ -939,10 +958,14 @@ async function loadCanvas(){
 }
 function resetRuntimeFlags(){
     seenSourceIds=new Set(); selectedId=null; selectedIds=new Set();
+    cvNotes.clear();                       /* 节点内提示只属于当前会话，换/开画布不继承 */
     canvas.nodes.forEach(n=>{
         if(n.data && n.data.sourceId) seenSourceIds.add(n.data.sourceId);
         /* 上次生成被中途关闭时 busy 可能残留 true，恢复为可运行状态 */
         if(n.type==="generate" && n.data) n.data.busy=false;
+        /* 旧存档 / 被中断的任务留下的 splitting=true 会让提示词节点永远提示
+           「上一个任务还在处理中」：这是纯运行时状态，加载时一律清掉。 */
+        if(n.data && "splitting" in n.data) n.data.splitting=false;
     });
 }
 function renderDocTabs(){
@@ -1106,10 +1129,8 @@ function buildPromptBody(body,n){
     /* 三按钮的运行状态 / 失败原因，直接显示在节点里 */
     const note=document.createElement("div"); note.className="llm-note";
     const nt=cvNotes.get(n.id);
-    if(nt){
-        note.style.display="block"; note.textContent=nt.text;
-        note.style.color = nt.kind==="err" ? "#fca5a5" : (nt.kind==="ok" ? "#86efac" : "#93c5fd");
-    }
+    /* 没有本页活动任务时，不把上一条「正在处理中 / 上一个任务还在处理中」重画出来 */
+    cvPaintNote(note,n,(nt && !(nt.kind==="busy" && !cvHasActiveTask(n))) ? nt : null);
     body.appendChild(note);
     const pv=document.createElement("button"); pv.className="mini-btn gray"; pv.textContent="🔍 浮窗预览";
     pv.title="放大查看提示词全文，方便对照参考";
@@ -1809,7 +1830,7 @@ async function splitAction(n){
     if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
     const parts=text.split(/(?=^▌)/m).map(s=>s.trim()).filter(Boolean);
     if(parts.length>=2){ await splitPrompt(n); return; }
-    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
+    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候（若已卡住，点本行重置）","busy"); return; }
     setLlmNote(n,"⏳ 等待确认是否调用本机大模型…","busy");
     const go=await cvConfirm("文本里没有 ▌ 分段标记。\n要用大语言模型自动拆成镜头片段吗？\n（优先本机已接通的 llama / Ollama 等，任意端口；其次创作台的云端 API）","智能拆分提示词");
     if(!go){ setLlmNote(n); return; }
@@ -2017,13 +2038,32 @@ function cvStripThink(s){
     return String(s||"").replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/<\/?think>/gi,"").trim();
 }
 /* 任务被浏览器挂起 / 系统取消请求时 splitting 可能残留，超过 2.5 分钟自动解锁，
-   避免节点永远卡在「上一个任务还在处理中」。用 Map 存时间戳，不写进画布 JSON。 */
+   避免节点永远卡在「上一个任务还在处理中」。用 Map 存时间戳，不写进画布存档。 */
 const cvBusyAt=new Map();
+function cvHasActiveTask(n){
+    try{ return !!(n && cvBusyAt && cvBusyAt.has(n.id)); }catch(e){ return false; }
+}
+/* 一键解除卡住状态：清运行时标记、清节点内提示、把三个按钮恢复成可点 */
+function cvResetBusy(n,silent){
+    if(!n) return;
+    if(n.data) n.data.splitting=false;
+    try{ cvBusyAt.delete(n.id); }catch(e){}
+    setLlmNote(n);
+    const node=document.querySelector('.node[data-id="'+n.id+'"]');
+    if(node) node.querySelectorAll('.act-row button[data-act]').forEach(b=>{
+        b.disabled=false;
+        const labels={split:"图片提示词",sd:"SD提示词",h3:"H3提示词"};
+        if(labels[b.dataset.act]) b.textContent=labels[b.dataset.act];
+    });
+    if(!silent){ try{ setStatus("已重置提示词节点的任务状态，可重新点击按钮","ok"); }catch(e){} }
+}
 function cvBusy(n){
     if(!n.data.splitting) return false;
     const t=cvBusyAt.get(n.id)||0;
-    if(t && Date.now()-t>150000){ cvBusyAt.delete(n.id); n.data.splitting=false; return false; }
-    if(!t) cvBusyAt.set(n.id,Date.now());
+    /* 本页没有正在跑的任务，却带着 splitting=true：是旧存档 / 刷新 / 被中断留下的僵尸标记，
+       直接清掉并让本次点击正常执行，不再弹「上一个任务还在处理中」，也不用等 2.5 分钟。 */
+    if(!t){ cvResetBusy(n,true); return false; }
+    if(Date.now()-t>150000){ cvBusyAt.delete(n.id); n.data.splitting=false; setLlmNote(n); return false; }
     return true;
 }
 async function cvCallOnce(c,sys,text){
@@ -2112,7 +2152,7 @@ async function fetchSkillText(type){
 async function skillRefineLLM(n,skillType,label){
     const text=String(n.data.text||"").trim();
     if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
-    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候","busy"); return; }
+    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候（若已卡住，点本行重置）","busy"); return; }
     n.data.splitting=true;
     cvBusyAt.set(n.id,Date.now());
     const act=skillType==="b"?"sd":"h3";
