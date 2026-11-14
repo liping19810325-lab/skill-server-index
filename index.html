@@ -171,6 +171,19 @@
         .history-preview-actions { display: none; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
         .history-preview-actions .ctrl-btn { padding: 6px 10px; font-size: 11.5px; min-height: 30px; }
         .history-preview-hint { margin-right: auto; font-size: 10.5px; color: var(--muted); }
+        /* 吐字窗口双击预览：只读 → 编辑 → 保存 */
+        .chat-preview-actions { display: none; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .chat-preview-actions .ctrl-btn { padding: 6px 10px; font-size: 11.5px; min-height: 30px; }
+        .chat-preview-hint { margin-right: auto; font-size: 10.5px; color: var(--muted); }
+        .chat-preview-editor { display: none; resize: none; width: 100%; box-sizing: border-box; outline: none; font-family: inherit; }
+        .chat-preview-editor:focus { border-color: var(--blue); }
+        .ctrl-btn:disabled { opacity: .5; cursor: not-allowed; }
+        /* 已有产物时点技能：选一个技能来处理窗口里的文字 */
+        .skill-action-box { height: auto; max-height: 85vh; max-width: 560px; }
+        .skill-action-head { font-size: 13px; line-height: 1.75; color: var(--text); background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+        .skill-action-head b { color: #93c5fd; }
+        .skill-action-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
+        .skill-action-list .skill-btn { text-align: left; white-space: normal; }
 
         /* ===== 右侧主区：单行工具条 + 大聊天框 + 输入行（配色/圆角/控件高度对齐画布页） ===== */
         .main-toolbar { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; flex-shrink: 0; }
@@ -405,7 +418,6 @@
             <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
             <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（新开标签页，不打断生成）">⇢ 送到画布</button>
-            <button class="ctrl-btn load-history-btn" id="loadHistoryBtn">加载最近对话</button>
             <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
@@ -422,12 +434,25 @@
 <div class="modal-overlay" id="previewModal">
     <div class="modal-box">
         <div class="modal-content" id="modalText"></div>
+        <textarea class="modal-content chat-preview-editor" id="chatPreviewEditor" spellcheck="false"></textarea>
+        <div class="chat-preview-actions" id="chatPreviewActions">
+            <span class="chat-preview-hint">双击吐字窗口可预览产物；点「编辑」在线修改，点「保存」写回窗口</span>
+            <button type="button" class="ctrl-btn" id="editPreviewBtn">✎ 编辑</button>
+            <button type="button" class="ctrl-btn" id="savePreviewBtn" disabled>💾 保存</button>
+        </div>
         <div class="history-preview-actions" id="historyPreviewActions">
             <span class="history-preview-hint">该产物缓存在本机浏览器，可载入当前对话或下载 TXT</span>
             <button type="button" class="ctrl-btn load-history-btn" id="loadHistoryRecordBtn">载入当前对话</button>
             <button type="button" class="ctrl-btn download-btn" id="downloadHistoryRecordBtn">下载 TXT</button>
         </div>
         <button class="ctrl-btn modal-close" id="closePreviewBtn">关闭预览</button>
+    </div>
+</div>
+<div class="modal-overlay" id="skillActionModal">
+    <div class="modal-box skill-action-box">
+        <div class="skill-action-head" id="skillActionHead"></div>
+        <div class="skill-action-list" id="skillActionList"></div>
+        <button class="ctrl-btn modal-close" id="closeSkillActionBtn">取消 / 关闭</button>
     </div>
 </div>
 <div class="modal-overlay" id="helpModal">
@@ -523,9 +548,16 @@ const importSkillMdBtn = document.getElementById("importSkillMdBtn");
 const openHelpBtn = document.getElementById("openHelpBtn");
 const closeHelpBtn = document.getElementById("closeHelpBtn");
 const closePreviewBtn = document.getElementById("closePreviewBtn");
+const chatPreviewActions = document.getElementById("chatPreviewActions");
+const chatPreviewEditor = document.getElementById("chatPreviewEditor");
+const editPreviewBtn = document.getElementById("editPreviewBtn");
+const savePreviewBtn = document.getElementById("savePreviewBtn");
+const skillActionModal = document.getElementById("skillActionModal");
+const skillActionHead = document.getElementById("skillActionHead");
+const skillActionList = document.getElementById("skillActionList");
+const closeSkillActionBtn = document.getElementById("closeSkillActionBtn");
 const sendMsgBtn = document.getElementById("sendMsgBtn");
 const downloadAiBtn = document.getElementById("downloadAiBtn");
-const loadHistoryBtn = document.getElementById("loadHistoryBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const newSessionBtn = document.getElementById("newSessionBtn");
 const stopBtn = document.getElementById("stopBtn");
@@ -671,16 +703,16 @@ ollama serve</pre>
 
 <h2>三、通用使用流程</h2>
 <ol>
-<li>点击上方按钮加载对应的创作技能模板；</li>
+<li>点击上方按钮加载对应的创作技能模板；<b>吐字窗口里已经有生成的文字时，点任一技能（含导入的本地技能）会先弹出选择框，让你选「用哪个技能处理这段文字」，选定后自动加载该技能并直接开始生成；不想处理点「取消 / 关闭」即可，不会改动窗口内容</b>；</li>
 <li>选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
-<li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史。</li>
-<li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。</li>
+<li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
+<li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b></li>
 </ol>
 
 <h2>四、导入本地md自定义技能</h2>
-<p>点【导入本地.md技能】，选择本地md文件；导入后生成独立技能按钮，和内置5个技能互斥切换，可随时删除自定义技能。自定义技能全程不发送网络请求，仅保存在浏览器内存，刷新页面丢失。</p>
+<p>点【导入本地.md技能】，选择本地md文件；导入后生成独立技能按钮，和内置5个技能互斥切换，可随时删除自定义技能。自定义技能全程不发送网络请求，仅保存在浏览器内存，刷新页面丢失。<b>吐字窗口已有文字时，已导入的本地技能会按文件名一起出现在技能选择弹窗里。</b></p>
 
 <h2>五、上传画风参考图（仅美术技能可用）</h2>
 <ul>
@@ -695,7 +727,7 @@ ollama serve</pre>
 <h2>六、界面布局</h2>
 <ul>
 <li>左侧为配置栏，可独立滚动；右侧为 AI 输出窗口，占满整屏高度，配置再多也不会挤小它。</li>
-<li>顶部工具条只有一行：【历史产物1 / 2 / 3 / 更多】与【下载产物 TXT】【送到画布】【新建对话】【漫流主站】同排，尽量把高度留给输出窗口。</li>
+<li>顶部工具条只有一行：【历史产物1 / 2 / 3 / 更多】与【下载产物 TXT】【送到画布】【新建对话】【漫流主站】同排，尽量把高度留给输出窗口；右侧 AI 输出窗口支持双击预览与在线编辑。</li>
 <li>【推理参数】的 收起 / 展开 保持原有用法；顶部【▤ 专注模式】可一键收起整个左侧配置栏，让输出窗口占满宽度，再点一次恢复，所有功能按钮不会丢失。</li>
 <li>窄屏（手机）自动切回上下单列布局，专注模式同样可用。</li>
 </ul>
@@ -889,9 +921,11 @@ function renderFileList() {
     });
 }
 function openPreview(idx) {
+    resetPreviewEditor();
     modalTextEl.textContent = fileStore[idx].content;
     const actions = document.getElementById("historyPreviewActions");
     if(actions) actions.style.display = "none";
+    previewModal.dataset.previewSource = "file";
     delete previewModal.dataset.historyIndex;
     previewModal.style.display = "flex";
 }
@@ -900,8 +934,100 @@ function closePreview() {
     const actions = document.getElementById("historyPreviewActions");
     if(actions) actions.style.display = "none";
     delete previewModal.dataset.historyIndex;
+    delete previewModal.dataset.previewSource;
+    resetPreviewEditor();
 }
 function removeFile(idx) { fileStore.splice(idx, 1); renderFileList(); }
+
+/* ==================================================================
+   吐字窗口双击预览：在线编辑 → 保存
+   · 预览的是最近一次 AI 产物正文（fullAiText，与「下载产物 TXT」一致）；
+   · 保存写回窗口里的 AI 消息 + fullAiText，并同步最近一条历史产物，
+     保证下载 / 送到画布 / 载入历史拿到的都是编辑后的文字；
+   · 上传的 TXT 剧本预览、历史产物预览保持原样，不出现「编辑 / 保存」。
+   ================================================================== */
+function resetPreviewEditor(){
+    if(chatPreviewEditor){
+        chatPreviewEditor.style.display = "none";
+        chatPreviewEditor.value = "";
+    }
+    if(modalTextEl) modalTextEl.style.display = "";
+    if(editPreviewBtn){ editPreviewBtn.disabled = false; editPreviewBtn.textContent = "✎ 编辑"; }
+    if(savePreviewBtn) savePreviewBtn.disabled = true;
+    if(chatPreviewActions) chatPreviewActions.style.display = "none";
+}
+function openChatPreview(){
+    const text = (typeof fullAiText === "string") ? fullAiText : "";
+    if(!text.trim()){ append("💡 吐字窗口里还没有 AI 生成的内容，先生成一次剧本或提示词再双击预览。", "tip"); return; }
+    resetPreviewEditor();
+    const actions = document.getElementById("historyPreviewActions");
+    if(actions) actions.style.display = "none";
+    delete previewModal.dataset.historyIndex;
+    previewModal.dataset.previewSource = "chat";
+    modalTextEl.textContent = text;
+    if(chatPreviewActions) chatPreviewActions.style.display = "flex";
+    previewModal.style.display = "flex";
+}
+function enterPreviewEdit(){
+    if(previewModal.dataset.previewSource !== "chat") return;
+    if(abortController){
+        append("⚠️ 正在生成中，请先停止生成或等本次输出完毕，再编辑产物。", "err");
+        return;
+    }
+    chatPreviewEditor.value = modalTextEl.textContent || "";
+    modalTextEl.style.display = "none";
+    chatPreviewEditor.style.display = "block";
+    editPreviewBtn.disabled = true;
+    savePreviewBtn.disabled = false;
+    chatPreviewEditor.focus();
+    try { chatPreviewEditor.setSelectionRange(0, 0); } catch(e){}
+}
+function syncEditedHistory(before, after){
+    /* 找到对应这条产物的历史记录（正常就是最新一条），同步正文与聊天框快照 */
+    const records = readHistoryRecords();
+    if(!records.length) return;
+    let idx = records.findIndex(r => typeof r.aiResult === "string" && r.aiResult === before);
+    if(idx < 0) idx = 0;
+    const rec = records[idx];
+    rec.aiResult = after;
+    try{
+        const tmp = document.createElement("div");
+        tmp.innerHTML = rec.chatHtml || "";
+        const aiMsgs = tmp.querySelectorAll(".msg.ai");
+        const target = aiMsgs.length ? aiMsgs[aiMsgs.length - 1] : null;
+        if(target) target.textContent = "【AI】：" + after;
+        rec.chatHtml = tmp.innerHTML;
+    }catch(e){ /* 旧存档结构不同时只影响载入后的显示，正文已正确 */ }
+    safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records));
+    renderHistoryBar();
+}
+function saveChatPreview(){
+    if(previewModal.dataset.previewSource !== "chat") return;
+    if(abortController){
+        append("⚠️ 正在生成中，本次编辑未保存；请等输出完毕或点【停止生成】后再保存。", "err");
+        return;
+    }
+    const after = String(chatPreviewEditor.value || "");
+    const before = (typeof fullAiText === "string") ? fullAiText : "";
+    if(after === before){
+        resetPreviewEditor();
+        modalTextEl.textContent = after;
+        if(chatPreviewActions) chatPreviewActions.style.display = "flex";
+        return;
+    }
+    fullAiText = after;
+    const aiMsgs = chatBox.querySelectorAll(".msg.ai");
+    const target = (aiMsgDom && aiMsgDom.isConnected && aiMsgDom.classList.contains("ai"))
+        ? aiMsgDom : (aiMsgs.length ? aiMsgs[aiMsgs.length - 1] : null);
+    if(target) target.innerText = "【AI】：" + after;
+    else append("【AI】：" + after, "ai");
+    syncEditedHistory(before, after);
+    resetPreviewEditor();
+    modalTextEl.textContent = after;
+    if(chatPreviewActions) chatPreviewActions.style.display = "flex";
+    append("✎ 产物已保存：窗口、下载、送到画布与最近一条历史产物已同步。", "tip");
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
 /* ================= 画风参考图：上传 / 压缩 / 预览 / 删除 ================= */
 function updateRefBadge(){
@@ -1168,6 +1294,79 @@ function guardCanvasNav(ev){
     }
 }
 
+/* ==================================================================
+   已有产物时点技能：先让用户选「用哪个技能处理这段字」
+   · 窗口里没有 AI 产物正文 → 完全保持原来的加载行为（loadSkill / loadCustomSkill）；
+   · 有产物 → 弹窗列出 5 个内置技能（按按钮原文）+ 已导入的本地技能（按文件名），
+     可关闭取消；选定后加载该技能并把现有文字作为素材自动开始生成；
+   · 「导入本地 .md 技能」「使用帮助」两个按钮不进弹窗、行为保持原样。
+   ================================================================== */
+function onSkillButtonClick(sel){
+    if(String(fullAiText || "").trim()){
+        openSkillActionModal();
+        return;
+    }
+    if(sel && sel.type === "custom") loadCustomSkill(sel.item);
+    else loadSkill(sel.key);
+}
+function openSkillActionModal(){
+    if(!skillActionModal) return;
+    try { closePreview(); } catch(e){}      /* 两个弹窗不叠加 */
+    renderSkillActionList();
+    const n = customSkillList.length;
+    const manflowTip = (computeMode === "manflow")
+        ? "<br>⚠️ 当前是「漫流算力」占位模式，不会真正发起请求；请先切到「本机算力」或「第三方API」。"
+        : "";
+    skillActionHead.innerHTML = "吐字窗口里<b>已有生成的文字</b>。请选择一个技能，将<b>用该技能对这段文字进行处理</b>并直接开始生成；"
+        + "你原先写在页面底部指令输入框里的额外要求（如「改成悲剧结尾」）会和这段文字一起提交。"
+        + (n ? ` 已导入的 <b>${n}</b> 个本地技能按文件名列在后面。` : "")
+        + "<br>不确定就点「取消 / 关闭」，不会加载技能、也不会改动窗口内容。"
+        + manflowTip;
+    skillActionModal.style.display = "flex";
+}
+function closeSkillActionModal(){
+    if(skillActionModal) skillActionModal.style.display = "none";
+}
+function renderSkillActionList(){
+    if(!skillActionList) return;
+    skillActionList.innerHTML = "";
+    document.querySelectorAll("[data-skill-key]").forEach(btn=>{
+        const key = btn.getAttribute("data-skill-key");
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "skill-btn";
+        b.textContent = (btn.textContent || "").trim();
+        b.addEventListener("click", ()=> chooseSkillAction({type:"builtin", key:key}));
+        skillActionList.appendChild(b);
+    });
+    customSkillList.forEach(sk=>{
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "skill-btn custom-skill-btn";
+        b.textContent = sk.name;
+        b.title = "本地导入技能：" + sk.name;
+        b.addEventListener("click", ()=> chooseSkillAction({type:"custom", item:sk}));
+        skillActionList.appendChild(b);
+    });
+}
+function chooseSkillAction(sel){
+    closeSkillActionModal();
+    Promise.resolve(startSkillOnExistingText(sel)).catch(e => {
+        console.error("技能处理启动失败：", e);
+        append("⚠️ 技能处理启动失败：" + (e && e.message ? e.message : e), "err");
+    });
+}
+async function startSkillOnExistingText(sel){
+    const sourceText = String(fullAiText || "");
+    if(!sourceText.trim()) return;
+    if(sel && sel.type === "custom") loadCustomSkill(sel.item);
+    else await loadSkill(sel.key);
+    /* 技能加载失败（模板为空）时不发请求，避免拿旧技能或空模板白跑一次 */
+    if(!String(currentSystemPrompt || "").trim()){
+        append("⚠️ 技能未加载成功，本次没有开始生成；窗口里的文字保持不变。", "err");
+        return;
+    }
+    await sendMessage(sourceText);
+}
+
 function renderCustomSkillButtons(){
     document.querySelectorAll(".custom-skill-btn").forEach(el=>el.remove());
     customSkillList.forEach((sk, idx)=>{
@@ -1186,7 +1385,7 @@ function renderCustomSkillButtons(){
             renderCustomSkillButtons();
         };
         btnWrap.onclick = ()=>{
-            loadCustomSkill(sk);
+            onSkillButtonClick({type:"custom", item:sk});
         };
         btnWrap.appendChild(nameSpan);
         btnWrap.appendChild(delBtn);
@@ -1306,30 +1505,8 @@ function saveHistoryToLocal() {
         console.warn("保存历史失败（不影响生成）：", e);
     }
 }
-function loadLatestHistory() {
-    const raw = safeStorage.get(STORAGE_KEY_HISTORY);
-    if(!raw) return alert("本地无历史对话");
-    let all;
-    try { all = JSON.parse(raw); } catch(e){ return alert("本地历史数据已损坏，无法读取"); }
-    if(!Array.isArray(all) || !all.length) return alert("本地无历史对话");
-    const rec = all[0];
-    if(!rec || typeof rec !== "object") return alert("本地历史数据已损坏，无法读取");
-    if(!confirm("加载最近一条对话，会清空当前聊天框，确认？")) return;
-    chatBox.innerHTML = rec.chatHtml || "";
-    fullAiText = rec.aiResult || "";
-    currentSkillName = rec.skillName || "";
-    currentSkillKey = rec.skillKey || "";   // 兼容旧历史：无 key 时按不带图处理
-    updateRefBadge();
-    currentSystemPrompt = rec.systemPrompt || "";
-    fileStore = Array.isArray(rec.fileStore) ? rec.fileStore : [];
-    renderFileList();
-    updateDownloadLabel();
-    if(currentSkillName) skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
-    else skillStatusEl.innerText = "📌 当前：尚未加载任何技能模板，请点击上方按钮";
-    activeHistoryIndex = 0;
-    renderHistoryBar();
-    alert("✅ 最近对话已加载");
-}
+/* 「加载最近对话」按钮已移除：历史产物1（最新一条）→ 预览 →「载入当前对话」
+   能恢复整段会话，功能完全覆盖，顶部工具条不再单独放这个按钮。 */
 function clearAllHistory(){
     if(!confirm("确认清空浏览器本地全部历史对话（最多30条）？不可恢复！")) return;
     safeStorage.remove(STORAGE_KEY_HISTORY);
@@ -1428,9 +1605,11 @@ function openHistoryRecord(idx){
     if(!text){ alert("这条历史记录没有保存产物正文"); return; }
     activeHistoryIndex = idx;
     renderHistoryBar();
+    resetPreviewEditor();
     modalTextEl.textContent = text;
     const actions = document.getElementById("historyPreviewActions");
     if(actions) actions.style.display = "flex";
+    previewModal.dataset.previewSource = "history";
     previewModal.dataset.historyIndex = String(idx);
     previewModal.style.display = "flex";
 }
@@ -1629,7 +1808,7 @@ async function mfDetectLocal({ quiet=false } = {}){
     return found[0];
 }
 
-async function sendMessage() {
+async function sendMessage(autoSourceText) {
     stopGenerate();
     /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位。
        不发起任何请求、不计费，直接给出提示；原有本机算力 / 第三方API 链路完全不受影响。 */
@@ -1650,6 +1829,11 @@ async function sendMessage() {
         }
     }
     if (userCmd) combinedContent += "【用户指令】\n" + userCmd;
+    /* 技能选择弹窗触发的自动开始：把窗口里已有文字作为待处理素材送进模型，
+       窗口里不重复刷一大段原文；普通点「开始」时 autoSourceText 为空，行为完全不变 */
+    if(autoSourceText){
+        combinedContent += (combinedContent ? "\n\n" : "") + "【待处理的已有文字】\n请依据当前技能，对以下已有文字进行相应处理：\n" + autoSourceText;
+    }
 
     /* 带图判定：只有 c / e 两个美术技能且有图时才带；a / b / d、自定义技能、未加载技能一律忽略 */
     const useImages = IMAGE_SKILL_KEYS.includes(currentSkillKey) && refImages.length > 0;
@@ -1680,7 +1864,7 @@ async function sendMessage() {
     const imgNote = useImages
         ? `、${refImages.length}张参考图`
         : (refImages.length > 0 ? "、参考图已按当前技能自动忽略" : "");
-    append(`【用户】：${userCmd}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
+    append(`【用户】：${userCmd}${autoSourceText ? "（已附带窗口内已有文字，按当前技能处理）" : ""}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
     userInput.value = "";
     aiMsgDom = append("【AI】：", "ai");
     abortController = new AbortController();
@@ -1828,7 +2012,7 @@ function initUI(){
     // 内置技能按钮
     document.querySelectorAll('[data-skill-key]').forEach(btn=>{
         const key = btn.getAttribute("data-skill-key");
-        btn.addEventListener("click", ()=>{ loadSkill(key); });
+        btn.addEventListener("click", ()=>{ onSkillButtonClick({type:"builtin", key:key}); });
     });
 
     // 本机大模型服务：自动扫描常见端口 / 手填任意地址，地址只存本机浏览器
@@ -1887,6 +2071,13 @@ function initUI(){
     openHelpBtn.addEventListener("click", openHelpModal);
     closeHelpBtn.addEventListener("click", closeHelpModal);
     closePreviewBtn.addEventListener("click", closePreview);
+    // 吐字窗口双击预览 / 在线编辑 / 保存
+    chatBox.addEventListener("dblclick", ()=> openChatPreview());
+    if(editPreviewBtn) editPreviewBtn.addEventListener("click", enterPreviewEdit);
+    if(savePreviewBtn) savePreviewBtn.addEventListener("click", saveChatPreview);
+    // 已有产物时点技能：选择处理技能弹窗（可点按钮或点遮罩关闭）
+    if(closeSkillActionBtn) closeSkillActionBtn.addEventListener("click", closeSkillActionModal);
+    if(skillActionModal) skillActionModal.addEventListener("click", (ev)=>{ if(ev.target === skillActionModal) closeSkillActionModal(); });
     stopBtn.addEventListener("click", stopGenerate);
     sendMsgBtn.addEventListener("click", sendMessage);
     downloadAiBtn.addEventListener("click", downloadAiText);
@@ -1894,7 +2085,6 @@ function initUI(){
     if(sendToCanvasBtn) sendToCanvasBtn.addEventListener("click", sendToCanvas);
     // 「打开画布」主入口在左上角标题旁；专注模式时工具条的备用入口一并绑定生成中拦截
     document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
-    loadHistoryBtn.addEventListener("click", loadLatestHistory);
     clearHistoryBtn.addEventListener("click", clearAllHistory);
     newSessionBtn.addEventListener("click", openNewSession);
 
