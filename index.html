@@ -67,6 +67,21 @@
         .token-quick-group { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
         .token-quick-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
         .token-quick-btn.active:hover { background: #1d4ed8; }
+        /* 上下文长度自适应：非本机算力时整行换成提示，不再出现本地显卡的档位 */
+        .param-token-auto { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+        .token-auto-hint { font-size: 11px; line-height: 1.75; color: #a7f3d0; background: var(--panel);
+                           border: 1px solid var(--border2); border-radius: 8px; padding: 8px 10px; }
+        /* 历史产物「更多」：改名 / 删除按钮，与画布「更多画布」同款 */
+        .hist-btn { max-width: 148px; overflow: hidden; text-overflow: ellipsis; }
+        .hist-menu-row { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
+        .hist-menu-row:hover { background: var(--panel); }
+        .hist-menu-row .hist-menu-item { flex: 1 1 auto; min-width: 0; }
+        .hist-mini { flex: 0 0 auto; width: 22px; height: 22px; padding: 0; border: 1px solid var(--border2);
+                     border-radius: 6px; background: var(--panel); color: var(--text);
+                     font-size: 12px; line-height: 1; cursor: pointer; }
+        .hist-mini:hover { background: var(--hover); }
+        .hist-mini.del { background: var(--red); color: #fff; border-color: transparent; }
+        .hist-mini.del:hover { background: #b91c1c; }
         /* 本机大模型服务自动接通：与创作台其它面板同款中性配色、细边框、无阴影 */
         .local-conn { margin: 8px 0 4px; padding: 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; }
         .local-conn-row { display: flex; align-items: center; gap: 6px; }
@@ -383,8 +398,8 @@
                     <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9">
                     <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
                 </div>
-                <div class="param-item param-token-row">
-                    <label>上下文窗口 token（本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡或切换云API)：</label>
+                <div class="param-item param-token-row" id="tokenRow">
+                    <label>上下文窗口 token（仅「本机算力」生效：本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡）：</label>
                     <div class="token-row">
                         <input type="number" id="maxTokenInput" min="64" max="1048576" step="1" value="16384">
                         <div class="token-quick-group" id="tokenQuickGroup">
@@ -395,6 +410,10 @@
                             <button type="button" class="token-quick-btn" data-token="1048576">1M</button>
                         </div>
                     </div>
+                </div>
+                <div class="param-item param-token-auto" id="tokenAutoRow" style="display:none">
+                    <label>上下文长度：跟随所选模型（自适应）</label>
+                    <div class="token-auto-hint">已选「漫流算力 / 第三方API」：这类模型的上下文普遍 256K 以上、甚至 1M（如 deepseek v4pro、gml5.3 等）。本站不再用本地显卡的 32K / 64K / 128K / 256K / 1M 档位去限制它，也<b>不向接口发送 max_tokens</b>，由所选模型与服务商按自身上限自适应；切回「本机算力」会恢复并保留你上次设定的数字。</div>
                 </div>
                 <div class="param-note">
                     提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
@@ -663,11 +682,11 @@ const HELP_HTML = `
 <h2>三、通用使用流程</h2>
 <ol>
 <li>点击上方按钮加载对应的创作技能模板；<b>吐字窗口里已经有生成的文字时，点任一技能（含导入的本地技能）会先弹出选择框，让你选「用哪个技能处理这段文字」；选定后会新开一个干净的创作台网页，自动带上这段文字、所选技能和你在底部输入框里写的额外要求，在新网页里自动加载技能并直接开始生成，避免剧本、生图提示词、生视频提示词混在同一个窗口。当前页面的吐字窗口完全不变</b>；不想处理点「取消 / 关闭」即可，不会打开新网页、也不会改动窗口内容；</li>
-<li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；</li>
+<li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；<b>创作台【算力总控】、导演画布左侧【算力总控】、画布生成节点里的「生成引擎」三处实时同步</b>：任意一处切换，另外两处（含另一页已打开的标签页）立即跟随。画布总控或创作台切档时，会把当前画布已有生成节点一起切（生成中的节点不打断，跑完后再由用户切换）；在生成节点里单独改引擎只改那一个节点、其它节点仍可各自保留，新建生成节点默认跟随总控。<b>上下文窗口 token（32K / 64K / 128K / 256K / 1M）只对「本机算力」生效</b>；选「漫流算力」或「第三方API」时该栏自动改为「上下文长度：跟随所选模型（自适应）」，不再发送 max_tokens，由模型与服务商按自身上限决定（这类模型上下文普遍 256K 以上甚至 1M），切回本机算力会恢复并保留你上次设定的数字；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
-<li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b></li>
+<li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b><b>【更多】下拉里每条右侧有 ✎ 改名与红色 × 删除</b>：改名后可自定义好记的名字（顶部快捷按钮、列表与预览标题同步显示），删除前会确认、只删这一条；用法与导演画布「更多画布」一致。</li>
 <li>点【⇢ 送到画布】会先弹出「现有画布 / 新建画布」两个选项，选好后再送到对应画布，点「取消 / 关闭」则不送达。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送出半段内容</b>。选「现有画布」＝送到画布页当前打开（或上次使用）的那份画布；选「新建画布」＝新开画布页并自动新建一份画布，把产物作为提示词节点放进去。</li>
 </ol>
 
@@ -809,6 +828,17 @@ function applyComputeModePanels(){
     if(connBox) connBox.style.display = isLocal ? "block" : "none";
     if(manflowHint) manflowHint.style.display = isManflow ? "flex" : "none";
     apiConfigBlock.style.display = isApi ? "block" : "none";
+    applyTokenModeUI();
+}
+/* 上下文窗口 token：只对「本机算力」生效。
+   漫流算力 / 第三方API 改为「跟随所选模型（自适应）」：隐藏数字档位、不发 max_tokens；
+   本机档位与上次设的数字都原样保留，切回来即可继续用。 */
+function applyTokenModeUI(){
+    const isLocal = computeMode === "local";
+    const row = document.getElementById("tokenRow");
+    const auto = document.getElementById("tokenAutoRow");
+    if(row) row.style.display = isLocal ? "flex" : "none";
+    if(auto) auto.style.display = isLocal ? "none" : "flex";
 }
 function initComputeModeUI(){
     if(computeMode === "api") radioApi.checked = true;
@@ -817,9 +847,45 @@ function initComputeModeUI(){
     if(inpLocalModel) inpLocalModel.value = localModelName;
     applyComputeModePanels();
 }
+/* ===== 三处算力档位实时同步 =====
+   共用 localStorage 键 computeMode：创作台【算力总控】/ 画布左侧【算力总控】/
+   画布生成节点「生成引擎」任意一处切换，另两处立即跟随（跨标签页实时生效）。
+   storage 事件负责常规同步，BroadcastChannel 用于本机存储被禁用时的兜底；
+   外部来的档位只改本页变量与界面，绝不回写 storage，避免两页来回触发。 */
+const MF_COMPUTE_SYNC_CHANNEL = "manflows_compute_sync";
+const MF_COMPUTE_MODES = ["manflow","local","api"];
+let mfComputeSyncChannel = null;
+function mfBroadcastComputeMode(mode){
+    try{
+        if(!mfComputeSyncChannel && "BroadcastChannel" in window)
+            mfComputeSyncChannel = new BroadcastChannel(MF_COMPUTE_SYNC_CHANNEL);
+        if(mfComputeSyncChannel) mfComputeSyncChannel.postMessage({mode:mode, from:"index"});
+    }catch(e){}
+}
+function mfApplyExternalComputeMode(mode){
+    if(!MF_COMPUTE_MODES.includes(mode)) return;
+    if(computeMode === mode) return;      /* storage 与 BroadcastChannel 会各来一次，幂等去重 */
+    computeMode = mode;
+    initComputeModeUI();
+}
+function mfInitComputeSync(){
+    window.addEventListener("storage", ev=>{
+        if(ev.key === "computeMode" && ev.newValue) mfApplyExternalComputeMode(ev.newValue);
+    });
+    try{
+        if("BroadcastChannel" in window){
+            if(!mfComputeSyncChannel) mfComputeSyncChannel = new BroadcastChannel(MF_COMPUTE_SYNC_CHANNEL);
+            mfComputeSyncChannel.onmessage = ev=>{
+                const m = ev && ev.data && ev.data.mode;
+                if(m) mfApplyExternalComputeMode(m);
+            };
+        }
+    }catch(e){ console.warn("算力档位同步通道不可用：", e); }
+}
 function saveComputeMode(){
     computeMode = document.querySelector('input[name="computeMode"]:checked').value;
     safeStorage.set("computeMode", computeMode);
+    mfBroadcastComputeMode(computeMode);
     applyComputeModePanels();
     if(computeMode === "api" && apiProfiles.length === 0){
         alert("⚠️ 尚未配置任何API！请点击【新增API配置】填写你自己的API信息。\n所有API密钥仅保存在你本机浏览器，不会上传到服务器。");
@@ -1764,7 +1830,9 @@ function historyMeta(rec){
         if(!isNaN(d.getTime())) time = d.toLocaleString("zh-CN", { hour12:false });
     }
     return {
-        skill: (rec && rec.skillName) ? String(rec.skillName) : "未命名产物",
+        skill: (rec && rec.customName) ? String(rec.customName)
+              : (rec && rec.skillName) ? String(rec.skillName) : "未命名产物",
+        customName: (rec && rec.customName) ? String(rec.customName) : "",
         time: time,
         summary: firstLine.slice(0, 60),
         length: text.length
@@ -1778,6 +1846,7 @@ function renderHistoryBar(){
         btn.textContent = `历史产物${i + 1}`;
         if(rec){
             const m = historyMeta(rec);
+            btn.textContent = m.customName || `历史产物${i + 1}`;
             btn.disabled = false;
             btn.title = `${m.skill} · ${m.time}\n${m.summary}`;
             btn.classList.toggle("active", i === activeHistoryIndex);
@@ -1792,7 +1861,7 @@ function renderHistoryBar(){
     menu.innerHTML = "";
     const head = document.createElement("div");
     head.className = "hist-menu-head";
-    head.textContent = `全部历史产物（${records.length} 条，仅存本机浏览器）`;
+    head.textContent = `全部历史产物（${records.length} 条，仅存本机浏览器）· ✎ 改名 / × 删除`;
     menu.appendChild(head);
     if(!records.length){
         const empty = document.createElement("div");
@@ -1803,6 +1872,8 @@ function renderHistoryBar(){
     }
     records.forEach((rec, i) => {
         const m = historyMeta(rec);
+        const row = document.createElement("div");
+        row.className = "hist-menu-row";
         const item = document.createElement("button");
         item.type = "button";
         item.className = "hist-menu-item";
@@ -1815,8 +1886,54 @@ function renderHistoryBar(){
         item.appendChild(title);
         item.appendChild(meta);
         item.addEventListener("click", () => { closeHistoryMenu(); openHistoryRecord(i); });
-        menu.appendChild(item);
+        row.appendChild(item);
+        const ren = document.createElement("button");
+        ren.type = "button"; ren.className = "hist-mini"; ren.textContent = "✎";
+        ren.title = "给这条历史产物改名（只存本机浏览器）";
+        ren.addEventListener("click", ev => { ev.stopPropagation(); renameHistoryRecord(i); });
+        const del = document.createElement("button");
+        del.type = "button"; del.className = "hist-mini del"; del.textContent = "×";
+        del.title = "删除这条历史产物";
+        del.addEventListener("click", ev => { ev.stopPropagation(); deleteHistoryRecord(i); });
+        row.appendChild(ren); row.appendChild(del);
+        menu.appendChild(row);
     });
+}
+function writeHistoryRecords(records){
+    return safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records));
+}
+function renameHistoryRecord(idx){
+    const records = readHistoryRecords();
+    const rec = records[idx];
+    if(!rec){ renderHistoryBar(); return; }
+    const cur = String(rec.customName || rec.skillName || `历史产物${idx + 1}`);
+    const v = prompt("给这条历史产物起个名字（只存本机浏览器，方便记忆）：", cur);
+    if(v === null) return;
+    const name = v.trim();
+    if(name) rec.customName = name; else delete rec.customName;
+    if(!writeHistoryRecords(records)){ alert("⚠️ 本地存储不可用或空间不足，改名未保存。"); return; }
+    renderHistoryBar();
+    if(previewModal && previewModal.dataset.previewSource === "history"
+       && Number(previewModal.dataset.historyIndex) === idx && previewTitle){
+        previewTitle.textContent = "历史产物预览 · " + (name || cur);
+    }
+}
+function deleteHistoryRecord(idx){
+    const records = readHistoryRecords();
+    const rec = records[idx];
+    if(!rec){ renderHistoryBar(); return; }
+    const name = String(rec.customName || rec.skillName || `历史产物${idx + 1}`);
+    if(!confirm("确认删除历史产物「" + name + "」？此操作不可恢复。")) return;
+    records.splice(idx, 1);
+    if(!writeHistoryRecords(records)){ alert("⚠️ 本地存储不可用或空间不足，删除未保存。"); return; }
+    const isHistoryPreview = previewModal && previewModal.dataset.previewSource === "history";
+    const openIdx = Number(previewModal && previewModal.dataset.historyIndex);
+    if(isHistoryPreview && openIdx === idx) closePreview();
+    else if(isHistoryPreview && Number.isFinite(openIdx) && openIdx > idx)
+        previewModal.dataset.historyIndex = String(openIdx - 1);
+    if(activeHistoryIndex === idx) activeHistoryIndex = -1;
+    else if(activeHistoryIndex > idx) activeHistoryIndex -= 1;
+    renderHistoryBar();
 }
 function closeHistoryMenu(){
     const menu = document.getElementById("historyMenu");
@@ -1835,7 +1952,7 @@ function openHistoryRecord(idx){
     if(actions) actions.style.display = "flex";
     previewModal.dataset.previewSource = "history";
     previewModal.dataset.historyIndex = String(idx);
-    showPreviewModal("历史产物预览");
+    showPreviewModal("历史产物预览 · " + (rec.customName || historyMeta(rec).skill));
 }
 function currentPreviewHistoryRecord(){
     const idx = Number(previewModal.dataset.historyIndex);
@@ -2113,7 +2230,8 @@ async function sendMessage(autoSourceText) {
     } else {
         fetchUrl = inpEndpoint.value.trim();
         fetchHeaders = { "Content-Type":"application/json", "Authorization":`Bearer ${inpKey.value.trim()}` };
-        bodyObj = { model:inpModel.value.trim(), messages:messagesArr, temperature, top_p, max_tokens, stream:true };
+        /* 第三方API / 漫流算力：上下文长度跟随所选模型（自适应），不再发送 max_tokens */
+        bodyObj = { model:inpModel.value.trim(), messages:messagesArr, temperature, top_p, stream:true };
     }
     try {
         const mfPost = (url, body) => fetch(url, {
@@ -2222,6 +2340,7 @@ function initUI(){
     try {
     loadApiProfiles();
     initComputeModeUI();
+    mfInitComputeSync();
     renderCustomSkillButtons();
     renderRefPreview();
     updateRefBadge();

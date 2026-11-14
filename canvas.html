@@ -273,7 +273,6 @@
         <button class="tb-btn" id="arrangeBtn">自动排版</button>
         <button class="tb-btn" id="exportBtn">导出画布</button>
         <button class="tb-btn" id="importBtn">导入画布</button>
-        <button class="tb-btn" id="clearBtn">清空画布</button>
         <button class="tb-btn" id="historyBtn" title="查看本机生成的历史图片 / 视频（可预览、下载）">🖼 历史结果</button>
         <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
@@ -288,7 +287,7 @@
                     <label><input type="radio" name="cvComputeMode" value="comfyui"> 本机算力</label>
                     <label><input type="radio" name="cvComputeMode" value="third_party"> 第三方API</label>
                 </div>
-                <div class="hint" id="cvComputeHint">切换后本画布所有「生成」节点的生成引擎一起变，之后新建的生成节点也默认跟随；单个生成节点里仍可单独改引擎。</div>
+                <div class="hint" id="cvComputeHint">三处实时同步：本栏、生成节点里的「生成引擎」、创作台【算力总控】任意一处切换，另外两处立即跟随。切本栏会把当前画布所有生成节点一起改（生成中的不打断）；在生成节点里单独改引擎只改那一个节点，其它节点仍可各自保留，新建生成节点默认跟随本栏。</div>
                 <div class="kv" id="cvComputeState">当前全局：第三方API</div>
                 <details class="cv-tools" id="cvTools">
                     <summary>⚙ 接入工具：本机大模型 / 补充模型清单 / API 配置</summary>
@@ -349,7 +348,7 @@
                 <svg class="edges" id="edgeSvg" width="8000" height="6000" xmlns="http://www.w3.org/2000/svg"></svg>
                 <div id="nodeLayer"></div>
             </div>
-            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词 / ＋ 参考图 / ＋ 声音 / ＋ 视频」新建节点，或在创作台点「⇢ 送到画布」<br><button class="mini-btn purple" id="seedBtn" style="margin-top:10px">↺ 放入基础工作流示例</button></div>
+            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词 / ＋ 参考图 / ＋ 声音 / ＋ 视频 / ＋ 生成 / ＋ 结果」按需加节点，或在创作台点「⇢ 送到画布」；想删节点请框选后按 Delete / Backspace<br><button class="mini-btn purple" id="seedBtn" style="margin-top:10px">↺ 放入默认两节点（提示词 → 生成）</button></div>
             <div class="canvas-tip">空白处拖框多选 · 空格/中键拖动平移 · 拖标题栏移动 · 右侧圆点单击加节点 / 拖出连线 · 点连线删除 · 滚轮缩放 · Ctrl+Z 撤销 · Delete 删除选中</div>
             <div class="zoom-bar">
                 <button id="zoomOut" title="缩小">−</button><span id="zoomLabel">100%</span><button id="zoomIn" title="放大">＋</button><button id="zoomFit" title="回到原点 100%">⌖</button>
@@ -396,17 +395,17 @@
         <p>请使用workbuddy来完成本站与电脑本地的AI软件（ollama/llama/comfyui等），本站与第三方API网站的互通，告知其软件名和网址，以及你要打通他们这个诉求即可。</p>
         </div>
         <h2 class="help-part-title">三、漫流导演画布 使用说明书</h2>
-        <h2>新画布自带一套基础工作流</h2>
-        <p>每份画布首次打开时，会自动放好 <b>① 提示词 / ① 参考图 / ① 声音参考 / ① 视频参考（可选） → ② 生成 → ③ 结果</b> 六个节点并连好线：照着填内容、在生成节点选好引擎就能跑，不用从零搭。节点可随意改、删、拖动，也能从顶栏继续「＋」加节点。已有内容的画布不会被覆盖；若点了「清空画布」，空画布提示里可一键「↺ 放入基础工作流示例」找回这套结构。</p>
+        <h2>新建画布只放两个相连节点</h2>
+        <p>每份新画布首次打开时，只自动放好 <b>① 提示词 → ② 生成</b> 两个节点并连好线：在提示词节点填内容、在生成节点选好引擎就能跑；参考图 / 声音参考 / 视频参考 / 结果等其它节点全部由你按需添加（顶栏「＋」、空白处双击、或点节点右侧圆点）。<b>点「运行生成」时若右侧没有结果节点，仍会自动补一个连好线的结果节点</b>。已有内容的画布不会被覆盖；若手动删空了，空画布提示里可一键「↺ 放入默认两节点（提示词 → 生成）」找回这套结构。创作台点「⇢ 送到画布」选「新建画布」时，产物会<b>直接写进默认那个空提示词节点</b>，不会再多建一个提示词节点。顶栏已取消「清空画布」按钮，想删节点请框选后按 <code>Delete / Backspace</code>（或右键菜单），<code>Ctrl+Z</code> 可撤销。</p>
         <h2>左侧「算力总控」</h2>
-        <p>左侧最上方【算力总控】是全局三档开关：<b>漫流算力</b>（占位，暂不可运行）/ <b>本机算力</b>（本机 ComfyUI 工作流）/ <b>第三方API</b>。切换后<b>当前画布上所有「生成」节点的生成引擎一起变</b>，之后新建的生成节点也默认跟随；单个生成节点里仍可单独改引擎（不会回写总控）。它与创作台【算力总控】共用同一份选择，一边切换、另一边刷新后也会显示相同档位，但画布加载旧画布时不会擅自改动已存好的节点。下方折叠的「⚙ 接入工具」保留原来的实用功能：<b>⚡ 自动接通本机大模型</b>（提示词节点智能拆分 / SD / H3 用）、<b>补充模型清单</b>的手填 / 从服务商拉取 / 删除，以及创作台 API 配置的只读展示。原「② API 配置 / 模型清单」与「③ 三类接入方式」两栏已精简：长篇纯文字说明移除，功能全部并入这里，<b>功能一个不少</b>。</p>
+        <p>左侧最上方【算力总控】是全局三档开关：<b>漫流算力</b>（占位，暂不可运行）/ <b>本机算力</b>（本机 ComfyUI 工作流）/ <b>第三方API</b>。切换后<b>当前画布上所有「生成」节点的生成引擎一起变</b>，之后新建的生成节点也默认跟随；单个生成节点里仍可单独改引擎（不会回写总控）。现在<b>三处实时同步</b>：本栏、生成节点里的「生成引擎」、创作台【算力总控】任意一处切换，另外两处（含另一页已打开的标签页）立即跟随；从创作台或本栏切换时，当前画布已有生成节点会一起切（正在生成中的节点不打断，跑完后再由用户切换）；在生成节点里单独改引擎只改那一个节点、其它节点仍可各自保留，新建生成节点默认跟随本栏。<b>创作台的「上下文窗口 token」只对「本机算力」生效</b>，漫流算力 / 第三方API 会自动改为「上下文长度：跟随所选模型（自适应）」且不再发送 max_tokens。画布加载旧画布时不会擅自改动已存好的节点。下方折叠的「⚙ 接入工具」保留原来的实用功能：<b>⚡ 自动接通本机大模型</b>（提示词节点智能拆分 / SD / H3 用）、<b>补充模型清单</b>的手填 / 从服务商拉取 / 删除，以及创作台 API 配置的只读展示。原「② API 配置 / 模型清单」与「③ 三类接入方式」两栏已精简：长篇纯文字说明移除，功能全部并入这里，<b>功能一个不少</b>。</p>
         <h2>画布怎么用</h2>
         <ul>
             <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词，底部三个处理按钮：<br>· <b>「图片提示词」</b>＝把全集 / 全剧美术资产提示词<b>按条拆开：一条资产 = 一个节点</b>。人物 7 条就是 7 个节点，人物四视图有几条就几个节点，场景 6 条、道具 5 条同样逐条独立；<b>绝不把同一类资产合并成一个大节点</b>。优先在本机直接解析（不调模型、不改原文），识别不出逐条结构时才自动调用大语言模型补标记（本地 llama / Ollama 优先，其次创作台 API）。拆前会显示各类条数供确认，原文逐字保留，原节点被替换。<b>拆出来的多个新节点一律不与画布上现有工作流自动连线，也不彼此串线，请自己从右侧圆点拉线</b>。<br>· <b>「SD提示词」</b>＝调「导演分镜助手 V5（生视频提示词）」技能，按 Seedance 生视频标准调整并拆分成镜头节点；<b>「H3提示词」</b>＝调「导演分镜助手 V5 MiniMaxH3」技能，按 MiniMax H3 标准调整并拆分。两者都<b>不改剧本与台词本意</b>，新节点生成在原节点右侧、原文保留，<b>新节点同样不自动连线，请自己拉线</b>，大语言模型同样本地优先。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。本地 ComfyUI：<b>MiniMax H3 工作流不用预先接声音节点</b>——画布会自动注入 LoadAudio 并接到 H3 的 <code>ref_audios</code>（上限 3 段）；含 LoadAudio 的其它工作流则直接写入载入节点。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
-            <li><b>生成节点</b>：选「1. 漫流算力」「2. 本机算力」或「3. 第三方API」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 0.4（864×480）/0.9（1280×736）/2.0（1920×1088）三档百万像素），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 对 MiniMax H3 官方模板直接写 ResolutionSelector（宽高比 + 百万像素 + 32 步进）与 duration 秒数（自动换算合法帧位），其它工作流写 Latent 宽高与帧数，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。点「运行生成」时，若本节点右侧没有连着「结果」节点，会<b>立即在右侧自动新建一个连好线的结果节点</b>（生成中就能看到）；已有结果节点则直接沿用、不重复创建，生成失败时错误信息也会写进这个结果节点。<b>引擎不用一个个改：左侧【算力总控】可一键把本画布所有生成节点切到同一档</b>，单个节点里仍可单独选。</li>
+            <li><b>生成节点</b>：选「1. 漫流算力」「2. 本机算力」或「3. 第三方API」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 0.4（864×480）/0.9（1280×736）/2.0（1920×1088）三档百万像素），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 对 MiniMax H3 官方模板直接写 ResolutionSelector（宽高比 + 百万像素 + 32 步进）与 duration 秒数（自动换算合法帧位），其它工作流写 Latent 宽高与帧数，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。点「运行生成」时，若本节点右侧没有连着「结果」节点，会<b>立即在右侧自动新建一个连好线的结果节点</b>（生成中就能看到）；已有结果节点则直接沿用、不重复创建，生成失败时错误信息也会写进这个结果节点。<b>引擎不用一个个改：左侧【算力总控】可一键把本画布所有生成节点切到同一档；在节点里改「生成引擎」也会同步写回总控与创作台，但只改当前这一个节点</b>，其它节点仍可各自保留。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。视频若因跨域 / 直链格式受限无法直接播放，点一下视频窗口会<b>自动缓存到本地播放</b>，连缓存也被挡时自动转下载。</li>
             <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
@@ -425,11 +424,11 @@
         <h2>连线规则</h2>
         <p><b>单击节点右侧圆点</b>会弹出「选择节点」菜单，列出六类节点（提示词 / 参考图 / 声音参考 / 视频参考 / 生成 / 结果，与左侧工具栏一致），点选后新节点出现在该节点右侧并<b>自动连好线</b>；Esc 或点空白处可关闭菜单。<b>手动连线</b>：从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线（两种方式都保留）。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。<b>快捷加节点</b>：在画布空白处<b>双击鼠标</b>，弹出「添加节点」菜单，点一下就在双击位置创建对应节点（六类节点与左侧工具栏完全一致）；Esc 或点空白关闭菜单。</p>
         <h2>与创作台的关系</h2>
-        <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置、一份本机大模型接通结果与【算力总控】的档位选择。创作台点「⇢ 送到画布」会先弹出「现有画布 / 新建画布」两个选项，选好后再送达：<b>现有画布</b>＝送到画布页当前打开（或上次使用）的那份画布；<b>新建画布</b>＝新开画布页并自动新建一份画布（与顶部「＋ 新建画布」同款，自带一套基础工作流），把产物作为一个提示词节点放进去并自动连到生成节点。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送来半段内容</b>；点「取消 / 关闭」则不送达。</p>
+        <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置、一份本机大模型接通结果与【算力总控】的档位选择。创作台点「⇢ 送到画布」会先弹出「现有画布 / 新建画布」两个选项，选好后再送达：<b>现有画布</b>＝送到画布页当前打开（或上次使用）的那份画布；<b>新建画布</b>＝新开画布页并自动新建一份画布（与顶部「＋ 新建画布」同款，默认只有提示词 → 生成两个相连节点），把产物直接写进默认那个空提示词节点，不会再多建一个节点。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送来半段内容</b>；点「取消 / 关闭」则不送达。</p>
         <h2>多画布切换</h2>
-        <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
+        <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布」都只作用于当前这一份；想删除节点请框选后按 <code>Delete / Backspace</code>（或右键菜单），<code>Ctrl+Z</code> 可撤销，顶栏不再放「清空画布」按钮。</p>
         <h2>数据与隐私</h2>
-        <p>API Key、画布、参考图全部只在你本机浏览器；源码里没有任何密钥。清空画布只清画布数据，不会动创作台的历史记录。</p>
+        <p>API Key、画布、参考图全部只在你本机浏览器；源码里没有任何密钥。删除节点只改当前画布，不会动创作台的历史记录。</p>
         <button class="modal-close" id="closeHelpBtn">关闭</button>
     </div>
 </div>
@@ -593,15 +592,20 @@ function recommendedModel(n){
     return (video?(ref?m.videoRef:m.video):(ref?m.imageRef:m.image))||"";
 }
 /* ============ 算力总控：左侧全局三档，与创作台共用 computeMode 存储键 ============
-   · 只在用户主动切换时批量改本画布已有生成节点的引擎；加载旧画布绝不自动改，避免破坏存档；
-   · 新建生成节点默认跟随总控；节点内单独改引擎不回写总控；
+   · 三处实时同步：画布总控 / 生成节点「生成引擎」/ 创作台【算力总控】；
+   · 用户主动切总控（或创作台切档）时批量改本画布已有生成节点的引擎，生成中的节点不打断；
+   · 在生成节点里单独改引擎：只改这一个节点，但同步写回全局档位（两处总控与新建节点跟随）；
+   · 新建生成节点默认跟随总控；加载旧画布绝不自动改，避免破坏存档；
    · 映射：漫流算力 manflow / 本机算力 comfyui（ComfyUI 工作流）/ 第三方API third_party。 */
 const CV_COMPUTE_KEY = "computeMode";
 const CV_MODE_TO_ENGINE = { manflow:"manflow", local:"comfyui", api:"third_party" };
 const CV_ENGINE_TO_MODE = { manflow:"manflow", comfyui:"local", third_party:"api" };
 const CV_ENGINE_LABEL = { manflow:"漫流算力（占位，暂不可运行）", comfyui:"本机算力（ComfyUI 工作流）", third_party:"第三方API" };
+const CV_SYNC_CHANNEL = "manflows_compute_sync";
+let cvSyncChannel = null;
+let cvModeOverride = "";   /* 本地存储被禁用时，仍让本次会话的档位同步生效 */
 function cvGlobalEngine(){
-    const m = String(safeStorage.get(CV_COMPUTE_KEY) || "");
+    const m = String(safeStorage.get(CV_COMPUTE_KEY) || cvModeOverride || "");
     return CV_MODE_TO_ENGINE[m] || "third_party";
 }
 function cvSyncComputeUI(){
@@ -611,25 +615,62 @@ function cvSyncComputeUI(){
     const st = el("cvComputeState");
     if(st) st.textContent = "当前全局：" + (CV_ENGINE_LABEL[e] || e);
 }
-function cvApplyGlobalEngine(engine, silent){
+function cvBroadcastMode(mode){
+    try{
+        if(!cvSyncChannel && "BroadcastChannel" in window) cvSyncChannel = new BroadcastChannel(CV_SYNC_CHANNEL);
+        if(cvSyncChannel) cvSyncChannel.postMessage({mode:mode, from:"canvas"});
+    }catch(e){}
+}
+function cvWriteGlobalMode(engine){
+    const mode = CV_ENGINE_TO_MODE[engine];
+    if(!mode) return;
+    cvModeOverride = mode;
+    safeStorage.set(CV_COMPUTE_KEY, mode);
+    cvBroadcastMode(mode);
+    cvSyncComputeUI();
+}
+function cvApplyGlobalEngine(engine, silent, skipBusy){
     if(!CV_ENGINE_TO_MODE[engine]) return;
-    let n = 0;
-    canvas.nodes.forEach(x=>{ if(x && x.type==="generate" && x.data){ x.data.engine = engine; n++; } });
+    let n = 0, skipped = 0;
+    canvas.nodes.forEach(x=>{
+        if(!x || x.type!=="generate" || !x.data) return;
+        if(skipBusy && x.data.busy){ skipped++; return; }   /* 生成中不打断正在跑的任务 */
+        x.data.engine = engine; n++;
+    });
     cvSyncComputeUI();
     renderAll(); scheduleSave();
-    if(!silent) setStatus("算力总控：本画布 "+n+" 个生成节点已切换为「"+CV_ENGINE_LABEL[engine]+"」","ok");
+    if(!silent) setStatus("算力总控：本画布 "+n+" 个生成节点已切换为「"+CV_ENGINE_LABEL[engine]+"」"+(skipped?"（"+skipped+" 个生成中未打断）":""),"ok");
+}
+/* 生成节点里单独改引擎：只改这一个节点，同步写回全局档位，其它节点保持各自引擎 */
+function cvSyncFromNodeEngine(engine){ cvWriteGlobalMode(engine); }
+/* 外部（创作台 / 另一个画布标签页）切档：同步显示 + 批量切已有节点，绝不回写以免来回触发 */
+function cvApplyExternalMode(mode){
+    const e = CV_MODE_TO_ENGINE[mode];
+    if(!e) return;
+    cvModeOverride = mode;
+    cvApplyGlobalEngine(e, true, true);
 }
 function cvInitCompute(){
     cvSyncComputeUI();
     document.querySelectorAll('input[name="cvComputeMode"]').forEach(r=>{
         r.addEventListener("change", ()=>{
             if(!r.checked || !CV_ENGINE_TO_MODE[r.value]) return;
-            safeStorage.set(CV_COMPUTE_KEY, CV_ENGINE_TO_MODE[r.value]);
-            cvApplyGlobalEngine(r.value);
+            cvWriteGlobalMode(r.value);
+            cvApplyGlobalEngine(r.value, false, true);
         });
     });
-    /* 创作台切换算力时只同步总控显示，不自动改本画布节点（避免误改正在跑的工作流） */
-    window.addEventListener("storage", ev=>{ if(ev.key===CV_COMPUTE_KEY) cvSyncComputeUI(); });
+    window.addEventListener("storage", ev=>{
+        if(ev.key===CV_COMPUTE_KEY && ev.newValue) cvApplyExternalMode(ev.newValue);
+    });
+    try{
+        if("BroadcastChannel" in window){
+            if(!cvSyncChannel) cvSyncChannel = new BroadcastChannel(CV_SYNC_CHANNEL);
+            cvSyncChannel.onmessage = ev=>{
+                const m = ev && ev.data && ev.data.mode;
+                if(m) cvApplyExternalMode(m);
+            };
+        }
+    }catch(e){ console.warn("算力档位同步通道不可用：", e); }
 }
 function defaultGenData(){
     return {
@@ -684,37 +725,22 @@ const GLOBAL_KEY = "__global__";
 const el = id => document.getElementById(id);
 const docKey = id => "doc_"+id;
 function docName(id){ const d=docList.find(x=>x.id===id); return d?d.name:"画布"; }
-/* ===== 每份新画布的默认基础工作流：① 提示词 / 参考图 / 声音参考 / 视频参考 → ② 生成 → ③ 结果 =====
-   目的：新用户一进来就能看懂数据流与连线方式，不用自己从空白画布搭。
-   多参考生视频支持图片、声音、视频三类素材，左侧各给一个示例节点。
+/* ===== 每份新画布的默认结构：① 提示词 → ② 生成（只这两个，且已连好线） =====
+   目的：新用户一进来就能看懂最基础的数据流，其它节点全部由用户按需添加。
    只在「从未打开过的画布 / 旧版空画布」时生成；已存过内容的画布一律保持原样。 */
 function seedStarterWorkflow(){
     canvas.nodes=[]; canvas.edges=[];
-    const ref = newNode("image", 30, 60, {images:[]});
-    ref.title = "① 参考图（可选）";
-    const pmt = newNode("prompt", 30, 300, {text:"", sourceId:""});
+    const pmt = newNode("prompt", 30, 160, {text:"", sourceId:""});
     pmt.title = "① 提示词";
-    const aud = newNode("audio", 30, 560, {audios:[]});
-    aud.title = "① 声音参考（可选）";
-    const vid = newNode("video", 30, 820, {videos:[]});
-    vid.title = "① 视频参考（可选）";
-    const gen = newNode("generate", 370, 340, defaultGenData());
+    const gen = newNode("generate", 370, 160, defaultGenData());
     gen.title = "② 生成";
-    const out = newNode("result", 700, 340, {kind:"", url:"", text:""});
-    out.title = "③ 结果";
-    canvas.edges = [
-        {id:uid(), from:ref.id, to:gen.id},
-        {id:uid(), from:pmt.id, to:gen.id},
-        {id:uid(), from:aud.id, to:gen.id},
-        {id:uid(), from:vid.id, to:gen.id},
-        {id:uid(), from:gen.id, to:out.id}
-    ];
-    /* 按窗口大小自动缩放到能一眼看全六个节点 */
+    canvas.edges = [{id:uid(), from:pmt.id, to:gen.id}];
+    /* 按窗口大小自动缩放到能一眼看全这两个节点 */
     const st=el("stage"), r=st?st.getBoundingClientRect():{width:1100,height:700};
-    const z=clamp(Math.min((r.width-40)/1030,(r.height-40)/1080,1),.5,1);
+    const z=clamp(Math.min((r.width-40)/700,(r.height-40)/420,1),.6,1);
     canvas.viewport={x:20,y:16,zoom:z};
 }
-/* 读取某份画布：有内容或已被用户动过（seeded）就原样恢复，否则放入默认基础工作流 */
+/* 读取某份画布：有内容或已被用户动过（seeded）就原样恢复，否则放入默认两节点 */
 function applyDoc(doc){
     const saved = doc && (doc.seeded===true || (Array.isArray(doc.nodes) && doc.nodes.length>0));
     if(saved){
@@ -1615,7 +1641,7 @@ function buildGenerateBody(body,n){
     function bindVal(elm,key,num){
         elm.addEventListener("input",()=>{ d[key]= num? Math.max(1,Number(elm.value)||1) : elm.value; scheduleSave(true); });
     }
-    sel.addEventListener("change",()=>{ d.engine=sel.value; syncFields(); scheduleSave(); });
+    sel.addEventListener("change",()=>{ d.engine=sel.value; cvSyncFromNodeEngine(d.engine); syncFields(); scheduleSave(); });
     wfSel.addEventListener("change",()=>{ d.workflowId=wfSel.value; syncFields(); scheduleSave(); });
     preSel.addEventListener("change",()=>{ d.preset=API_PRESETS[preSel.value]?preSel.value:"seedance"; preSel.value=d.preset; d.model=""; d.modelTouched=false; applyRecommended(true); syncFields(); scheduleSave(); });
     kindSel.addEventListener("change",()=>{
@@ -2899,14 +2925,27 @@ async function addImages(n,files){
 }
 
 /* ============ 创作台产物交接 ============ */
-function addFromPayload(payload){
+function addFromPayload(payload, reuseSeedPrompt){
     if(!payload||!payload.text) return false;
     if(payload.id && seenSourceIds.has(payload.id)) return false;
     if(payload.id) seenSourceIds.add(payload.id);
-    const n=newNode("prompt",0,0,{text:payload.text,sourceId:payload.id||"",skillKey:payload.skillKey||""});
-    n.title=payload.title||"来自创作台的产物";
-    placeNewNode(n);
-    autoConnect(n);
+    /* 「送到画布 → 新建画布」：默认两节点里已有一个空的、连到生成节点的提示词节点，
+       把产物直接写进去，不再额外建第三个节点；其它情况仍按原逻辑新建并自动连线。 */
+    let n=null;
+    if(reuseSeedPrompt){
+        n = canvas.nodes.find(x => x && x.type==="prompt" && x.title==="① 提示词"
+            && !String((x.data&&x.data.text)||"").trim()
+            && canvas.edges.some(e=>e.from===x.id && canvas.nodes.some(g=>g.id===e.to && g.type==="generate"))) || null;
+    }
+    if(n){
+        n.data=Object.assign({},n.data,{text:payload.text,sourceId:payload.id||"",skillKey:payload.skillKey||""});
+        n.title=payload.title||"来自创作台的产物";
+    }else{
+        n=newNode("prompt",0,0,{text:payload.text,sourceId:payload.id||"",skillKey:payload.skillKey||""});
+        n.title=payload.title||"来自创作台的产物";
+        placeNewNode(n);
+        autoConnect(n);
+    }
     renderAll(); selectNode(n.id); scheduleSave();
     el("inboxState").textContent="已接收："+(n.title||"产物");
     return true;
@@ -2936,11 +2975,13 @@ async function drainInbox(){
         try{
             /* 创作台选「新建画布」：只在新开的、带 mfNewDoc 参数的标签页里新建一份画布，
                再把产物作为提示词节点放进去；同页只新建一次，避免刷新 / 重试时重复建画布。 */
+            let reuseSeedPrompt = false;
             if(p && p.target === "new" && !window.__mfNewDocApplied){
                 window.__mfNewDocApplied = true;
                 await newDoc();
+                reuseSeedPrompt = true;
             }
-            if(addFromPayload(p)) got++;
+            if(addFromPayload(p, reuseSeedPrompt)) got++;
         }catch(e){ console.warn("收件条目处理失败：",e); }
         try{ if(p.id) await idbDelete("inbox",p.id); }catch(e){}
     }
@@ -4435,20 +4476,14 @@ function bindToolbar(){
     el("arrangeBtn").addEventListener("click",autoArrange);
     el("exportBtn").addEventListener("click",exportCanvas);
     el("importBtn").addEventListener("click",()=>el("jsonImport").click());
-    el("clearBtn").addEventListener("click",async ()=>{
-        if(!confirm("清空整个画布（含参考图、声音与结果）？可用 Ctrl+Z 撤销。")) return;
-        canvas.nodes=[]; canvas.edges=[]; resetRuntimeFlags();
-        commitHistory(false);
-        renderAll(); await persist(); setStatus("画布已清空 · Ctrl+Z 可撤销","ok");
-    });
     el("seedBtn").addEventListener("click",async e=>{
         e.preventDefault(); e.stopPropagation();
-        if(canvas.nodes.length && !confirm("当前画布还有节点，放入基础工作流会替换掉它们。继续？")) return;
+        if(canvas.nodes.length && !confirm("当前画布还有节点，放入默认两节点会替换掉它们。继续？")) return;
         seedStarterWorkflow(); resetRuntimeFlags();
         commitHistory(false);
         applyViewport(); renderAll();
         try{ await persist(); }catch(err){ console.warn("保存画布失败：",err); }
-        setStatus("已放入基础工作流示例","ok");
+        setStatus("已放入默认两节点（提示词 → 生成）","ok");
     });
     el("undoBtn").addEventListener("click",undo);
     el("redoBtn").addEventListener("click",redo);
