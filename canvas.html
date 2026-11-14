@@ -206,6 +206,10 @@
     .modal-box .help-contact:first-child{color:#fbbf24;font-weight:600;font-size:14px;}
     .modal-box .help-model-file{color:#a7f3d0;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.9;margin:6px 0 8px;}
     .modal-box .help-contact-box + h2{margin-top:0;}
+    /* 使用帮助：三部分小标题与 WorkBuddy 高亮栏 */
+    .modal-box h2.help-part-title{color:#fff;background:linear-gradient(90deg,#1d4ed8,#6d28d9);border-radius:8px;padding:8px 12px;font-size:15px;margin:18px 0 10px;}
+    .modal-box .help-workbuddy-box{background:var(--panel);border:1px solid #2563eb;border-radius:10px;padding:12px 14px;margin:0 0 16px;}
+    .modal-box .help-workbuddy-box p{color:#bfdbfe;font-size:13px;line-height:1.9;margin:0;}
     .modal-close{margin-top:16px;padding:8px 16px;border:none;border-radius:8px;background:var(--blue);color:#fff;cursor:pointer;font-size:12px;}
     .doc-tabs{display:flex;gap:4px;align-items:center;}
     .doc-tab{padding:6px 9px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);color:var(--text);font-size:11.5px;cursor:pointer;min-height:30px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -369,6 +373,7 @@
 
 <div class="modal-overlay" id="helpModal">
     <div class="modal-box">
+        <h2 class="help-part-title">一、联系方式与模型 / 技能说明</h2>
         <div class="help-contact-box">
             <p class="help-contact">抖音微信同号：onetone001</p>
             <p class="help-contact help-model-file">Manflows-screenwriter-director-abliterated.Q6_K.gguf<br>Manflows-screenwriter-director-abliterated.Q8_0.gguf</p>
@@ -376,6 +381,11 @@
             <p class="help-contact">本人开发的剧本创作助手、导演分镜助手和美术画风助手3个skill在扣子平台技能商店，累计用户付费订阅3万➕。是经过大量创作者使用和验证的专业技能包。</p>
             <p class="help-contact">如需购买这两个特调大语言模型或定制Skill技能包请联系</p>
         </div>
+        <h2 class="help-part-title">二、打通本机软件与第三方API</h2>
+        <div class="help-workbuddy-box">
+        <p>请使用workbuddy来完成本站与电脑本地的AI软件（ollama/llama/comfyui等），本站与第三方API网站的互通，告知其软件名和网址，以及你要打通他们这个诉求即可。</p>
+        </div>
+        <h2 class="help-part-title">三、漫流导演画布 使用说明书</h2>
         <h2>新画布自带一套基础工作流</h2>
         <p>每份画布首次打开时，会自动放好 <b>① 提示词 / ① 参考图 / ① 声音参考 / ① 视频参考（可选） → ② 生成 → ③ 结果</b> 六个节点并连好线：照着填内容、在生成节点选好引擎就能跑，不用从零搭。节点可随意改、删、拖动，也能从顶栏继续「＋」加节点。已有内容的画布不会被覆盖；若点了「清空画布」，空画布提示里可一键「↺ 放入基础工作流示例」找回这套结构。</p>
         <h2>画布怎么用</h2>
@@ -404,72 +414,8 @@
         <p>从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。<b>快捷加节点</b>：在画布空白处<b>双击鼠标</b>，弹出「添加节点」菜单，点一下就在双击位置创建对应节点（六类节点与左侧工具栏完全一致）；Esc 或点空白关闭菜单。</p>
         <h2>与创作台的关系</h2>
         <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置与一份本机大模型接通结果；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
-        <h2>提示词节点调用本地大模型（任意端口 · Windows / macOS 通用）</h2>
-        <p>提示词节点上的 <b>「图片提示词」「SD提示词」「H3提示词」</b>：<b>「图片提示词」优先在本机直接按条解析，不调用大模型</b>（人物 / 四视图 / 场景 / 道具逐条独立成节点）；只有文本里识别不出逐条结构时才会请大语言模型补标记。SD / H3 会先拉「导演分镜助手」技能全文再按镜头调整。<b>只要本机开着大模型软件，这些按钮就用本机算力，不花钱、剧本不上传。</b></p>
-        <ul>
-            <li><b>和创作台共用一份接通结果</b>：创作台「推理参数 → 本机地址 → ⚡ 自动接通」扫到的地址与模型名存在本机浏览器（<code>manflows_local_base</code> / <code>manflows_local_model</code>），两页同源，画布页直接复用。所以创作台能通，画布页的提示词节点就能通 —— 包括 <code>9931</code> 这类自定义端口，不再只认默认的 <code>8080</code>。</li>
-            <li><b>画布页也能独立接通</b>：左侧「② API 配置」里点 <b>「⚡ 自动接通」</b>，会独立扫描 <code>127.0.0.1</code> / <code>localhost</code> 上的 9931（llama_server）、8080（llama.cpp llama-server）、11434（Ollama）、1234（LM Studio）、8000（vLLM）、5000、1337（Jan）、4891（GPT4All）、5001、8081、3000，依次探测 <code>/v1/models</code>、<code>/api/tags</code>、<code>/health</code>；接通后写回共用键，创作台下次打开也直接可用。也可以在创作台手填任意 <code>http://IP:端口</code>。</li>
-            <li><b>支持范围</b>：llama_server / llama.cpp llama-server / Ollama / LM Studio / Jan / GPT4All / vLLM / KoboldCpp / text-generation-webui 等提供 OpenAI 兼容 <code>/v1/chat/completions</code> 的软件都行；Windows 与 macOS 一样，无需额外桥接程序。请求里始终带 <code>model</code> 字段（探测到真实模型名就用真名，没探测到按 <code>local</code>）。</li>
-            <li><b>兜底顺序</b>：本机已接通地址 → 创作台 API 配置里你填的本机地址 → 自动扫描结果 → 默认 8080 → 创作台的云端 API。全都连不上才明确报错，每个候选的具体原因会打到浏览器控制台。</li>
-            <li><b>连不上时按顺序查</b>：① 模型软件的黑窗口 / 服务要一直开着；② 端口对不对（浏览器能打开 <code>http://127.0.0.1:端口/v1/models</code> 就说明服务在）；③ 跨域放行：llama.cpp 加 <code>--cors-origins *</code>，Ollama 设 <code>OLLAMA_ORIGINS=*</code>；④ 页面若部署在 HTTPS 主站，部分新版浏览器会拦截直连本机 http 地址，可改用本机 http 地址打开页面或做同源反代；⑤ 在左侧点一次「⚡ 自动接通」重新扫描。</li>
-            <li><b>确认框与运行反馈</b>：这三个按钮的确认框已改成<b>页面内弹窗</b>（不再是浏览器原生对话框），在预览面板 / 嵌入式窗口里也能正常弹出，不会出现「点了没反应」；点完按钮，节点里会直接显示「⏳ 正在调用本机大模型」以及失败原因（红字），不再只靠底部状态栏。技能服务器临时不可用时，SD / H3 会自动改用内置精简规则继续，不会直接失效；取消确认后按钮会立即恢复，可随时重试。</li>
-            <li><b>只吐思考过程、正文空白</b>：Qwen3 / Qwen3.5 一类推理模型会把生成内容放进 <code>reasoning_content</code>、把 <code>content</code> 留空。画布页已在本地请求里自动关闭 thinking（<code>enable_thinking:false</code>），普通模型不受影响；若仍只返回思维链，请在模型软件里关闭 thinking / reasoning 模式。</li>
-        </ul>
         <h2>多画布切换</h2>
         <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布 / 清空画布」都只作用于当前这一份。</p>
-        <h2>三类接入方式（生成节点三选一）</h2>
-        <h2>3. 第三方API · 每个用户自己配置</h2>
-        <ul>
-            <li><b>页面不预置任何接口、Key、模型名</b>：默认全部为空。先在创作台的「第三方API」里新增 API 配置，填接口地址、API Key 与模型名称（只存你本机浏览器）；<b>这些模型会自动出现在画布生成节点的「选择模型」下拉里，直接选即可，不用再手填模型名</b>。画布与创作台同源共用同一份配置，并把 <code>…/v1/chat/completions</code> 归一到域名层；选中某个模型后，请求会自动使用该模型所属配置的接口地址与 Key，不同服务商分别配也能正确调用。没有填接口 / Key / 模型时会明确报错提示，不会悄悄用别人的配置。</li>
-            <li><b>大语言（文字）/ 生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，下面「选择模型」会按类过滤，只列该类专属模型 + 通用 / 服务商模型；每一类选过的模型会被记住，来回切换不会丢。选「大语言（文字）」走文字→文字，画幅 / 分辨率 / 时长隐藏，结果是文本节点。模型名按你要用的版本自己改（文生 / 图生 <code>-i2i</code> / <code>-i2v</code>、多模态 <code>-multi</code>，以你的服务商文档为准）。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 0.4（864×480）/ 0.9（1280×736）/ 2.0（1920×1088））和<b>视频时长 1–15 秒</b>。这些选项<b>两种引擎都生效</b>：第三方 API 按各厂商参数写法提交（生视频 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；生图换算 <code>metadata.width / height</code> 或传 <code>resolution</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符）；本地 ComfyUI 对 H3 官方模板写 ResolutionSelector（宽高比+百万像素+32 步进）与 duration 秒数，其它工作流写 Latent 宽高与帧数，留空「跟随工作流」就不修改原工作流。</li>
-            <li><b>异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，这类网关会返回 400 <code>invalid_request</code>。</li>
-            <li>模型名以你的服务商文档为准（同一个网关里生图、生视频、多模态模型通常各不相同）。下拉里的候选来自<b>创作台「第三方API」所有 API 配置</b>，按配置名 / 模型名自动分到生图、生视频、通用与写作模型四组；判断不出类型的一律归「通用」，生图 / 生视频都能选，绝不会因为识别不出就找不到。左侧「② API 配置 / 模型清单」还可补充拉取或手填模型。填错模型会收到接口原始报错，可在结果节点里看到。</li>
-            <li>其它服务商：预设里可切「OpenAI 兼容同步生图」「阿里百炼 Qwen Image 2.1 异步生图」「自定义 JSON 接口」。切到非 seedance 预设时，请在「▸ 高级」里填该服务商的独立 API Key。</li>
-            <li>「▸ 高级」可改接口地址、独立 Key、请求头；自定义预设还能填请求体模板与轮询路径，占位符支持 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{images}}</code> <code>{{content_array}}</code> <code>{{audios}}</code> <code>{{audio_objects}}</code> <code>{{videos}}</code> <code>{{video_objects}}</code> 等。比例 / 分辨率 / 时长已做成生成节点上的下拉，不用进高级。</li>
-            <li>结果直链是带签名的临时地址（约 24 小时），拿到后请及时下载转存。</li>
-        </ul>
-        <h2>2. 本机算力 · 完整建立步骤</h2>
-        <div class="hint" style="margin:0 0 10px"><b>最简原则：不用桥接、不用额外服务。</b>用画布前先启动 ComfyUI，然后在左侧点一下「⚡ 自动接通」，就能直接调用本机工作流 API 生图、生视频。选「3. 第三方API」走云端时，<b>完全不用启动 ComfyUI</b>。</div>
-        <ol>
-            <li><b>启动 ComfyUI</b>：像平时一样打开 ComfyUI（本机是 Comfy Desktop，默认 <code>http://127.0.0.1:8188</code>）。确认浏览器能打开 <code>http://127.0.0.1:8188</code> 看到界面即可。</li>
-            <li><b>一次性允许跨域（只做一次，之后永久生效）</b>：网页在浏览器里直连本机 8188 需要 ComfyUI 放行 CORS。给启动参数加上 <code>--enable-cors-header *</code>：
-                <ul>
-                    <li>Comfy Desktop：设置 → 安装实例 → 额外启动参数 / launchArgs，写成 <code>--enable-manager --cuda-device 0 --enable-cors-header *</code>，<b>保存后重启一次 ComfyUI</b>。</li>
-                    <li>便携版 / .bat：在 <code>python main.py ...</code> 那一行末尾加 <code>--enable-cors-header *</code>。</li>
-                    <li>命令行：直接 <code>python main.py --enable-cors-header *</code>。</li>
-                </ul>
-                <b>坑</b>：这个值必须是 <code>*</code> 或纯域名（如 <code>https://www.manflows.com</code>），<b>不能带路径</b>（写成 <code>https://www.manflows.com/canvas</code> 浏览器永远匹配不上，跨域会一直失败）。改完必须重启 ComfyUI，参数只在启动时读取。
-            </li>
-            <li><b>在画布上接通</b>：左侧「④ 本机算力 · ComfyUI 工作流」保持默认地址 <code>http://127.0.0.1:8188</code>，点「⚡ 自动接通」。出现绿色的「✓ 已接通 … v0.44.2」就是通了；「测试连接」可随时复查。若你的 ComfyUI 换了端口，把地址改成实际端口再点一次即可。</li>
-            <li><b>导出工作流 API 文件</b>：在 ComfyUI 里把要复用的工作流跑通一次，然后菜单「<b>文件 → 导出工作流 (API)</b>」存成 .json。<b>不要</b>用普通「保存 / 导出工作流」：那种顶层是 <code>nodes/links</code> 数组，提交给 <code>/prompt</code> 会 400；API 格式顶层是「节点 id → class_type」的对象。生图、生视频各导一份（例如本机已有的 <code>image_qwen_image_2_1_t2i.json</code>）。</li>
-            <li><b>导入画布并核对映射</b>：左侧「导入为」选「生图工作流」或「生视频工作流」→「＋ 导入工作流 API JSON」→ 选中刚才的 .json。导入后看「当前模板节点映射」：
-                <ul>
-                    <li><code>promptNodes</code>：提示词要写到哪些节点 / 字段。有些工作流把提示词藏在 <code>ComfySwitchNode.on_false</code>、<code>PrimitiveStringMultiline.value</code> 或 <code>TextGenerate.prompt</code>，画布会自动把链路上找到的位置<b>全部写一遍</b>，避免「改了提示词却仍出默认那张图」；不对可手工增删这个数组。</li>
-                    <li><code>imageNodes</code>：所有 LoadImage 参考图，按顺序逐张上传；<code>seedNodes</code>：每次运行自动换随机种子，避免命中缓存；<code>outputNodes</code>：结果输出节点。</li>
-                    <li>改完点「保存映射」；「重新推断」可恢复自动识别。可反复导入多个模板，生成节点里下拉选要用哪一个。</li>
-                </ul>
-            </li>
-            <li><b>运行生成</b>：画布上把「提示词」「参考图」节点连到「生成」节点，生成节点引擎选「2. 本机算力」、在「模型 / 工作流」下拉选对应模板，点「▶ 运行生成」。画布会自动完成：写入提示词 → <code>POST /upload/image</code> 上传参考图 → 随机 seed → <code>POST /prompt</code> 提交 → 每 2 秒轮询 <code>GET /history/{prompt_id}</code> → 从 <code>/view</code> 取回结果。结果节点可直接看 / 下载，也能当下一轮的参考图。生视频工作流输出的 <code>gifs / videos</code> 会自动按视频展示。</li>
-        </ol>
-        <h2>本机算力（ComfyUI）常见报错</h2>
-        <ul>
-            <li><b>「连不上 ComfyUI」/ Failed to fetch</b>：ComfyUI 没启动，或跨域没放行（第 2 步），或画布是 <code>https://</code> 而 ComfyUI 是 <code>http://</code>（混合内容被拦，内测期请用 <code>http://</code> 本机打开）。</li>
-            <li><b>HTTP 400 / 提示 node type 不存在</b>：导入的不是「导出工作流 (API)」格式，或工作流用到的自定义节点 / 模型在本机没装。先在 ComfyUI 里跑通再导出。</li>
-            <li><b>提交成功但一直排队</b>：ComfyUI 队列串行、显存不足或模型首次加载较慢；画布最多等 10 分钟。</li>
-            <li><b>出图永远是导出的那句默认提示词</b>：提示词没写进真正生效的节点，检查映射里的 <code>promptNodes</code>（第 5 步）。</li>
-            <li><b>参考图没生效</b>：工作流里要有 <code>LoadImage</code> 节点，且 <code>imageNodes</code> 映射到了它；图生图 / 图生视频工作流才吃参考图。</li>
-        </ul>
-        <div class="hint warn" style="margin:8px 0"><b>安全与边界</b>：8188 端口无鉴权、只监听本机，不要暴露公网；正式 HTTPS 主站直连本机 HTTP 会被浏览器拦截，按正式部署阶段做同源反代 + TLS；内测期用 <code>http://</code> 本机打开即可。「声音/视频参考」节点目前只作为素材留在画布上，需要工作流本身带对应输入节点才能用到本地 ComfyUI。</div>
-        <h2>这些步骤可以让 WorkBuddy 代做</h2>
-        <div class="hint" style="margin:0 0 8px">上面第 2～5 步都不用自己折腾，直接在 WorkBuddy 里说一句话就行。它能读你本机的文件、改启动配置、验证接口、转换工作流格式、核对映射并排错。可以直接复制下面的说法：</div>
-        <ul>
-            <li>「帮我检查本机 ComfyUI 的跨域启动参数，改成允许画布直连，并验证 8188 能通」</li>
-            <li>「把 <code>E:\comfyui 工作流api\</code> 里的工作流检查一遍，确认是 API 格式、提示词映射对不对」</li>
-            <li>「把这份 ComfyUI 工作流转成『导出(API)』格式，并告诉我提示词该写进哪个节点」</li>
-            <li>「画布连不上 ComfyUI，帮我查是没启动、跨域、端口还是混合内容问题」</li>
-            <li>「帮我做一份生视频工作流的 API JSON，放到本机目录里，我直接导进画布」</li>
-        </ul>
-        <div class="hint">WorkBuddy 只改你本机的配置和文件，画布源码里不会写任何本机路径、模型名或 API Key。</div>
         <h2>数据与隐私</h2>
         <p>API Key、画布、参考图全部只在你本机浏览器；源码里没有任何密钥。清空画布只清画布数据，不会动创作台的历史记录。</p>
         <button class="modal-close" id="closeHelpBtn">关闭</button>

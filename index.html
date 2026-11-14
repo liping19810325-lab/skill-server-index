@@ -184,6 +184,26 @@
         .skill-action-head b { color: #93c5fd; }
         .skill-action-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
         .skill-action-list .skill-btn { text-align: left; white-space: normal; }
+        /* 预览弹窗顶部条：右上角一个「全屏 / 退出全屏」切换按钮 */
+        .preview-topbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+        .preview-title { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .preview-fs-btn { padding: 5px 11px; font-size: 11.5px; min-height: 28px; flex: 0 0 auto; }
+        .modal-box.preview-fullscreen { width: 100%; max-width: none; height: 100vh; height: 100dvh; border-radius: 0; border: none; padding: 18px; }
+        .modal-content { min-height: 0; }
+        /* 下载产物 TXT：文件名修改 / 保存位置说明弹窗 */
+        .download-box { height: auto; max-height: 85vh; max-width: 540px; }
+        .download-title { font-size: 14px; color: #93c5fd; margin-bottom: 12px; }
+        .download-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .download-row label { font-size: 12px; color: var(--muted); flex: 0 0 auto; }
+        .download-row input { flex: 1 1 auto; min-width: 0; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border2); background: var(--panel); color: var(--text); font-size: 12.5px; outline: none; }
+        .download-row input:focus { border-color: var(--blue); }
+        .download-note { font-size: 11.5px; line-height: 1.75; color: #fbbf24; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; padding: 9px 11px; margin-bottom: 12px; }
+        .download-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .download-actions .ctrl-btn { padding: 7px 14px; font-size: 12px; }
+        /* 使用帮助：三部分小标题与 WorkBuddy 高亮栏 */
+        h2.help-part-title { color: #fff; background: linear-gradient(90deg, #1d4ed8, #6d28d9); border-radius: 8px; padding: 8px 12px; font-size: 15px; margin: 18px 0 10px; }
+        .help-workbuddy-box { background: var(--panel); border: 1px solid #2563eb; border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; }
+        .help-workbuddy-box p { color: #bfdbfe; font-size: 14px; line-height: 1.9; margin: 0; }
 
         /* ===== 右侧主区：单行工具条 + 大聊天框 + 输入行（配色/圆角/控件高度对齐画布页） ===== */
         .main-toolbar { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; flex-shrink: 0; }
@@ -316,7 +336,7 @@
                     <input type="text" id="localModel" placeholder="留空 = local；部分服务需填真实模型名">
                 </div>
                 <div class="local-hint" id="localComputeHint">
-                    <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「一、本机算力」。</span>
+                    <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「二、打通本机软件与第三方API」。</span>
                 </div>
                 <div class="local-conn" id="localConnBox">
                     <div class="local-conn-row">
@@ -354,7 +374,7 @@
                     </div>
                 </div>
                 <div class="param-item">
-                    <label>脑洞大小（随机创意）：</label>
+                    <label>脑洞大小（创意）：</label>
                     <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7">
                     <input type="number" id="tempInput" min="0" max="2" step="0.05" value="0.7">
                 </div>
@@ -433,6 +453,10 @@
 
 <div class="modal-overlay" id="previewModal">
     <div class="modal-box">
+        <div class="preview-topbar">
+            <span class="preview-title" id="previewTitle">产物预览</span>
+            <button type="button" class="ctrl-btn preview-fs-btn" id="previewFsBtn" title="全屏预览，充分利用屏幕看更多文字">⛶ 全屏</button>
+        </div>
         <div class="modal-content" id="modalText"></div>
         <textarea class="modal-content chat-preview-editor" id="chatPreviewEditor" spellcheck="false"></textarea>
         <div class="chat-preview-actions" id="chatPreviewActions">
@@ -442,10 +466,22 @@
         </div>
         <div class="history-preview-actions" id="historyPreviewActions">
             <span class="history-preview-hint">该产物缓存在本机浏览器，可载入当前对话或下载 TXT</span>
+            <button type="button" class="ctrl-btn newtab-btn" id="newSessionFromHistoryBtn" title="新开一个干净的创作台网页，并把这条产物正文载入吐字窗口">＋ 加入新建对话</button>
             <button type="button" class="ctrl-btn load-history-btn" id="loadHistoryRecordBtn">载入当前对话</button>
             <button type="button" class="ctrl-btn download-btn" id="downloadHistoryRecordBtn">下载 TXT</button>
         </div>
         <button class="ctrl-btn modal-close" id="closePreviewBtn">关闭预览</button>
+    </div>
+</div>
+<div class="modal-overlay" id="downloadModal">
+    <div class="modal-box download-box">
+        <div class="download-title">💾 保存产物 TXT</div>
+        <div class="download-row"><label for="downloadNameInput">文件名</label><input type="text" id="downloadNameInput" spellcheck="false"></div>
+        <div class="download-note" id="downloadNote"></div>
+        <div class="download-actions">
+            <button type="button" class="ctrl-btn" id="downloadCancelBtn">取消</button>
+            <button type="button" class="ctrl-btn" id="downloadConfirmBtn">💾 保存 TXT</button>
+        </div>
     </div>
 </div>
 <div class="modal-overlay" id="skillActionModal">
@@ -556,6 +592,14 @@ const skillActionModal = document.getElementById("skillActionModal");
 const skillActionHead = document.getElementById("skillActionHead");
 const skillActionList = document.getElementById("skillActionList");
 const closeSkillActionBtn = document.getElementById("closeSkillActionBtn");
+const previewFsBtn = document.getElementById("previewFsBtn");
+const previewTitle = document.getElementById("previewTitle");
+const downloadModal = document.getElementById("downloadModal");
+const downloadNameInput = document.getElementById("downloadNameInput");
+const downloadNote = document.getElementById("downloadNote");
+const downloadCancelBtn = document.getElementById("downloadCancelBtn");
+const downloadConfirmBtn = document.getElementById("downloadConfirmBtn");
+const newSessionFromHistoryBtn = document.getElementById("newSessionFromHistoryBtn");
 const sendMsgBtn = document.getElementById("sendMsgBtn");
 const downloadAiBtn = document.getElementById("downloadAiBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
@@ -586,6 +630,7 @@ let localModelName = safeStorage.get("manflows_local_model") || "";
 
 const HELP_HTML = `
 <h2>漫流AI漫剧创作台 使用帮助</h2>
+<h2 class="help-part-title">一、联系方式与模型 / 技能说明</h2>
 <div class="help-contact-box">
 <p class="help-contact">抖音微信同号：onetone001</p>
 <p class="help-contact help-model-file">Manflows-screenwriter-director-abliterated.Q6_K.gguf<br>Manflows-screenwriter-director-abliterated.Q8_0.gguf</p>
@@ -593,113 +638,12 @@ const HELP_HTML = `
 <p class="help-contact">本人开发的剧本创作助手、导演分镜助手和美术画风助手3个skill在扣子平台技能商店，累计用户付费订阅3万➕。是经过大量创作者使用和验证的专业技能包。</p>
 <p class="help-contact">如需购买这两个特调大语言模型或定制Skill技能包请联系</p>
 </div>
+<h2 class="help-part-title">二、打通本机软件与第三方API</h2>
+<div class="help-workbuddy-box">
+<p>请使用workbuddy来完成本站与电脑本地的AI软件（ollama/llama/comfyui等），本站与第三方API网站的互通，告知其软件名和网址，以及你要打通他们这个诉求即可。</p>
+</div>
+<h2 class="help-part-title">三、漫流编导创作台 使用说明书</h2>
 <p>说明：技能模板由后端服务提供；算力分为【漫流算力】【本机算力】【第三方API】三种。<b>【漫流算力】为默认模式，正在接入预置模型、扫码充值、积分与扣费系统，开放后无需任何配置、扫码充值即可直接使用</b>；当前请先用【本机算力】或【第三方API】。所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
-
-<h2>一、本机算力：本机大模型自动接通，端口任意</h2>
-<h3>最简用法（Windows / macOS 通用）</h3>
-<ol>
-<li>在你自己的电脑上启动任意一个本地大模型软件（llama-server / llama.cpp / llama_server / Ollama / LM Studio / Jan / GPT4All / vLLM / text-generation-webui / KoboldCpp …），保持窗口或后台服务开着；</li>
-<li>网页左栏【推理参数】选【本机算力】；页面打开时会自动扫描一次，也可随时点「⚡ 自动接通」重扫；</li>
-<li>状态出现绿色的「✓ 已接通 …」后，点选技能 → 输入指令 →【开始】。<b>不需要把软件端口改成 8080</b>，用哪个端口都行。</li>
-</ol>
-<p>扫描范围：<code>127.0.0.1</code> 与 <code>localhost</code> 上的 9931、8080、11434、1234、8000、5000、1337、4891、5001、8081、3000，依次探测 <code>/v1/models</code>、<code>/api/tags</code>、<code>/health</code>。检测到多个服务时，状态下方会出现下拉框供切换。软件用了别的端口，直接在【本机地址】里填 <code>http://127.0.0.1:你的端口</code> 并回车即可；地址只存在你本机浏览器。</p>
-<p>上述软件都提供 OpenAI 兼容的 <code>/v1/chat/completions</code> 接口，网页统一用这个格式请求；探测到 Ollama 的 <code>/api/tags</code> 时，会自动把第一个模型名填进【本地模型名称】，不用手填。剧本与产物始终只在你本机流转，不上传服务器。</p>
-
-<h3>常见软件与默认端口</h3>
-<ul>
-<li><b>llama.cpp / llama-server / llama_server</b>：默认 8080，自定义口常见 9931；启动加 <code>--port 你的端口 --cors-origins *</code>；</li>
-<li><b>Ollama</b>：默认 11434，<code>ollama serve</code> 即可，无需改端口；跨域放行可用 <code>OLLAMA_ORIGINS=*</code>；</li>
-<li><b>LM Studio</b> 1234（打开软件里的 Local Server）、<b>Jan</b> 1337、<b>GPT4All</b> 4891、<b>vLLM / FastChat</b> 8000、<b>text-generation-webui</b> 5000、<b>KoboldCpp</b> 5001；</li>
-<li>其它任意本地推理软件：只要提供 OpenAI 兼容接口，把地址填进【本机地址】就能用。</li>
-</ul>
-
-<h3>启动示例（照抄改路径即可）</h3>
-<h4>Windows · llama-server（.bat）</h4>
-<p>把脚本放在 <code>llama-server.exe</code> 与模型文件所在目录，双击启动，<b>黑窗口要一直开着</b>；关掉窗口就等于停止服务：</p>
-<pre>@echo off
-chcp 65001
-llama-server.exe ^
--m "Manflows-screenwriter-director-abliterated.Q8_0.gguf" ^
--ngl 99 ^
--c 32768 ^
---host 0.0.0.0 ^
---port 9931 ^
---cors-origins *
-pause</pre>
-<ul>
-<li><code>--port</code> 填任意未被占用的端口都行（这里是 9931），网页会自动发现，不必固定 8080；</li>
-<li><code>--cors-origins *</code> 让网页能跨域访问本机服务；<code>-ngl 99</code> 尽量把模型放进显卡，显存不够调小；<code>-c</code> 是上下文长度；</li>
-<li><code>-m</code> 用的是相对路径（模型文件与 .bat 同目录），模型在别的目录时改成完整绝对路径即可；末尾 <code>pause</code> 让报错窗口不会一闪而过。</li>
-</ul>
-
-<h4>macOS · llama.cpp / llama-server</h4>
-<pre>cd /你的/llama.cpp目录
-./llama-server -m Manflows-screenwriter-director-abliterated.Q8_0.gguf \
-  -ngl 99 -c 32768 --host 127.0.0.1 --port 9931 --cors-origins *</pre>
-<p>保持终端窗口开启。macOS 用 <code>127.0.0.1</code> 或 <code>localhost</code> 都能被自动扫描到。</p>
-
-<h4>Windows / macOS · Ollama（保持默认 11434）</h4>
-<pre># macOS / Linux
-OLLAMA_ORIGINS=* ollama serve
-
-# Windows（CMD）
-set OLLAMA_ORIGINS=*
-ollama serve</pre>
-<p>模型用 <code>ollama pull qwen2.5:14b</code> 之类提前拉好；<b>不用再改 <code>OLLAMA_PORT</code></b>，默认 11434 网页就能自动找到，探测到后会自动填好真实模型名。Ollama 桌面版直接点开应用、保持运行即可。</p>
-
-<h3>怎么确认已接通 / 排障</h3>
-<ul>
-<li>看左栏【本机地址】下方的状态：绿色「✓ 已接通 …」即可开始创作；检测到多个服务时用下拉框选你要的那个；</li>
-<li>一直「✗ 没发现」：确认软件正在运行、端口没写错、启动参数带了跨域放行、防火墙没拦本机回环；也可手动填完整地址；</li>
-<li>请求里模型名不对：Ollama / LM Studio 需要真实模型名，自动探测会填好，也可在【本地模型名称】手动改；llama-server 留空按 <code>local</code> 发送即可；</li>
-<li><b>只吐「思考过程」、正文空白</b>：Qwen3 / Qwen3.5 一类推理模型会把生成内容放进 <code>reasoning_content</code>、把 <code>content</code> 留空；本页已在本地请求里自动关闭 thinking（<code>enable_thinking:false</code>），普通模型完全不受影响。若仍只看到英文思维链，请在模型软件里关闭 thinking / reasoning 模式；</li>
-<li>常见故障还有：黑窗口关了、端口被占用、模型路径写错、显存不足，都会表现为「本地模式无响应」。</li>
-</ul>
-<p>HTTPS 主站访问本机 http 地址时，个别浏览器会做私有网络拦截；给软件加跨域放行（<code>--cors-origins *</code> / <code>OLLAMA_ORIGINS=*</code>）后，Windows（llama_server）与 macOS（llama）均已实测可直接接通。若你的浏览器仍拦截，可在【本机地址】填带私有网络放行头的本机桥接地址（例如 <code>http://127.0.0.1:8080</code>），或用本机 http 地址打开页面。本地模式只对当前这台电脑生效：别人通过网址打开页面时，连的是他自己电脑上的 127.0.0.1。</p>
-
-<h3>这些步骤可以让 WorkBuddy 帮你做</h3>
-<p>把本页面文件（<code>index.html</code>）发给 <b>WorkBuddy</b> 并说一句「帮我建立本地大语言模型和漫流创作台的互通」，它可以直接帮你写启动脚本（含模型路径、任意端口、跨域放行）、核对可执行文件与模型文件位置、测试 <code>/v1/chat/completions</code> 连通性并排查报错。</p>
-<p>注意：画布页（<code>canvas.html</code>）的智能拆分有自己独立的本地模型候选（默认 127.0.0.1:8080），本节的「自动接通」只作用于创作台；画布页如需使用其它端口，可在画布页的 API 配置里填本机地址。</p>
-
-<h2>二、第三方API：接入商用大模型平台</h2>
-<p>切换到【第三方API】后，点【新增API配置】，填写平台信息：接口地址 / API-Key / 模型名称。</p>
-
-<h3>1. DeepSeek</h3>
-<ul>
-<li>接口地址：https://api.deepseek.com/v1/chat/completions</li>
-<li>API-Key：平台个人中心创建 sk- 开头密钥</li>
-<li>模型名称：deepseek-chat</li>
-</ul>
-
-<h3>2. 硅基流动 SiliconFlow</h3>
-<ul>
-<li>接口地址：https://api.siliconflow.cn/v1/chat/completions</li>
-<li>API-Key：个人API密钥</li>
-<li>模型名称：如 Qwen/Qwen2.5-14B-Instruct</li>
-</ul>
-
-<h3>3. MiniMax</h3>
-<ul>
-<li>接口地址：https://api.minimax.chat/v1/chat/completions</li>
-<li>API-Key：MiniMax后台密钥</li>
-<li>模型名称：abab6.5s-chat</li>
-</ul>
-
-<h3>4. OpenAI 或兼容OpenAI格式的中转服务</h3>
-<ul>
-<li>接口地址：https://api.openai.com/v1/chat/completions</li>
-<li>API-Key：sk-xxx</li>
-<li>模型名称：gpt-4o-mini</li>
-</ul>
-
-<h3>API模式常见问题</h3>
-<ul>
-<li>部分浏览器存在跨域限制，需要CORS解除跨域插件；</li>
-<li>GitHub Pages 等静态部署后跨域限制依然存在，CORS插件只对你本机生效。给访客用的稳定方案是自建反向代理（如 Cloudflare Worker / 自己的服务端转发），把代理地址填进【接口地址】即可，本页无需改代码；</li>
-<li>密钥仅保存在本机浏览器，不要泄露给其他人；</li>
-<li>余额不足、模型名称或接口地址写错，都会请求失败；</li>
-<li>填写完成后点【测试连通性】验证。</li>
-</ul>
 
 <h2>三、通用使用流程</h2>
 <ol>
@@ -927,10 +871,11 @@ function openPreview(idx) {
     if(actions) actions.style.display = "none";
     previewModal.dataset.previewSource = "file";
     delete previewModal.dataset.historyIndex;
-    previewModal.style.display = "flex";
+    showPreviewModal("上传文件预览");
 }
 function closePreview() {
     previewModal.style.display = "none";
+    if(downloadModal && downloadModal.style.display === "flex") closeDownloadDialog();
     const actions = document.getElementById("historyPreviewActions");
     if(actions) actions.style.display = "none";
     delete previewModal.dataset.historyIndex;
@@ -946,6 +891,32 @@ function removeFile(idx) { fileStore.splice(idx, 1); renderFileList(); }
      保证下载 / 送到画布 / 载入历史拿到的都是编辑后的文字；
    · 上传的 TXT 剧本预览、历史产物预览保持原样，不出现「编辑 / 保存」。
    ================================================================== */
+/* ==================================================================
+   预览弹窗：右上角一个按钮切换「全屏 / 退出全屏」；打开与编辑都从第一行开始
+   · 全屏＝页面内铺满整个视口（不动浏览器窗口、不依赖 F11 权限），iframe 预览也能用；
+   · 三种预览来源（上传 TXT / 历史产物 / 双击吐字窗口）共用同一个弹窗与按钮；
+   · 只读框与编辑框都显式把 scrollTop 归零，避免长文一打开就停在底部。
+   ================================================================== */
+function previewBox(){ return previewModal ? previewModal.querySelector(".modal-box") : null; }
+function scrollPreviewToTop(){
+    if(modalTextEl) modalTextEl.scrollTop = 0;
+    if(chatPreviewEditor) chatPreviewEditor.scrollTop = 0;
+}
+function showPreviewModal(title){
+    if(previewTitle) previewTitle.textContent = title;
+    previewModal.style.display = "flex";
+    scrollPreviewToTop();
+    /* 弹窗从 display:none → flex 时布局才生效，下一帧再归零一次更稳 */
+    if(typeof requestAnimationFrame === "function") requestAnimationFrame(scrollPreviewToTop);
+}
+function togglePreviewFullscreen(force){
+    const box = previewBox();
+    if(!box || !previewFsBtn) return;
+    const on = (force === undefined) ? !box.classList.contains("preview-fullscreen") : !!force;
+    box.classList.toggle("preview-fullscreen", on);
+    previewFsBtn.textContent = on ? "⛶ 退出全屏" : "⛶ 全屏";
+    previewFsBtn.title = on ? "退出全屏，恢复普通预览窗口" : "全屏预览，充分利用屏幕看更多文字";
+}
 function resetPreviewEditor(){
     if(chatPreviewEditor){
         chatPreviewEditor.style.display = "none";
@@ -966,7 +937,7 @@ function openChatPreview(){
     previewModal.dataset.previewSource = "chat";
     modalTextEl.textContent = text;
     if(chatPreviewActions) chatPreviewActions.style.display = "flex";
-    previewModal.style.display = "flex";
+    showPreviewModal("产物预览 · 可编辑");
 }
 function enterPreviewEdit(){
     if(previewModal.dataset.previewSource !== "chat") return;
@@ -981,6 +952,8 @@ function enterPreviewEdit(){
     savePreviewBtn.disabled = false;
     chatPreviewEditor.focus();
     try { chatPreviewEditor.setSelectionRange(0, 0); } catch(e){}
+    scrollPreviewToTop();
+    if(typeof requestAnimationFrame === "function") requestAnimationFrame(scrollPreviewToTop);
 }
 function syncEditedHistory(before, after){
     /* 找到对应这条产物的历史记录（正常就是最新一条），同步正文与聊天框快照 */
@@ -1012,6 +985,7 @@ function saveChatPreview(){
     if(after === before){
         resetPreviewEditor();
         modalTextEl.textContent = after;
+        scrollPreviewToTop();
         if(chatPreviewActions) chatPreviewActions.style.display = "flex";
         return;
     }
@@ -1024,6 +998,7 @@ function saveChatPreview(){
     syncEditedHistory(before, after);
     resetPreviewEditor();
     modalTextEl.textContent = after;
+    scrollPreviewToTop();
     if(chatPreviewActions) chatPreviewActions.style.display = "flex";
     append("✎ 产物已保存：窗口、下载、送到画布与最近一条历史产物已同步。", "tip");
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -1195,18 +1170,76 @@ function currentOutputFile(){
 function updateDownloadLabel(){
     if(downloadAiBtn) downloadAiBtn.textContent = DOWNLOAD_BTN_LABEL;
 }
-function downloadAiText() {
-    if (!fullAiText) { alert("还没有 AI 输出内容！"); return; }
-    const blob = new Blob([fullAiText], { type: "text/plain;charset=utf-8" });
+/* ==================================================================
+   下载产物 TXT：先让用户选存储位置、改文件名，再保存
+   · 优先 Chrome / Edge 的系统「另存为」窗口（File System Access API）：
+     可自选任意文件夹、修改文件名；用户在系统窗口里点取消就直接结束、不下载；
+   · Safari / Firefox、非安全上下文、iframe 预览沙箱不支持，自动降级为页面内弹窗：
+     可改文件名，保存位置为浏览器默认下载目录（弹窗里写明）；
+   · 顶部「下载产物 TXT」与历史产物预览里的「下载 TXT」共用这一套。
+   ================================================================== */
+function safeTxtName(name){
+    let s = String(name || "").trim().replace(/[\\\/:*?"<>|]/g, "_");
+    if(!s) s = "AI生成产物";
+    if(!/\.txt$/i.test(s)) s += ".txt";
+    return s;
+}
+function downloadBlobAs(text, name){
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    a.href = url;
-    a.download = `${currentOutputFile()}_${date}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.href = url; a.download = safeTxtName(name);
+    document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
+}
+let pendingDownload = null;
+const DOWNLOAD_FALLBACK_NOTE = "当前浏览器 / 预览环境不支持弹出系统「另存为」窗口，无法在网页里选择文件夹。文件会保存到浏览器默认下载目录（可在浏览器「设置 → 下载内容」里修改位置）；文件名可在这里改。";
+function openDownloadDialog(text, defaultName){
+    pendingDownload = { text: text, defaultName: defaultName };
+    if(downloadNameInput) downloadNameInput.value = defaultName;
+    if(downloadNote) downloadNote.textContent = DOWNLOAD_FALLBACK_NOTE;
+    if(downloadModal) downloadModal.style.display = "flex";
+    if(downloadNameInput){
+        downloadNameInput.focus();
+        try { downloadNameInput.setSelectionRange(0, Math.max(0, String(defaultName).replace(/\.txt$/i, "").length)); } catch(e){}
+    }
+}
+function closeDownloadDialog(){
+    if(downloadModal) downloadModal.style.display = "none";
+    pendingDownload = null;
+}
+function confirmDownloadDialog(){
+    if(!pendingDownload) return;
+    const name = safeTxtName(downloadNameInput ? downloadNameInput.value : pendingDownload.defaultName);
+    downloadBlobAs(pendingDownload.text, name);
+    closeDownloadDialog();
+}
+async function saveTextWithDialog(text, defaultName){
+    if(!text){ alert("还没有 AI 输出内容！"); return; }
+    const canPicker = (typeof window.showSaveFilePicker === "function")
+        && window.isSecureContext && (window.top === window);
+    if(canPicker){
+        try{
+            const handle = await window.showSaveFilePicker({
+                suggestedName: safeTxtName(defaultName),
+                types: [{ description: "文本文件（TXT）", accept: { "text/plain": [".txt"] } }]
+            });
+            const w = await handle.createWritable();
+            await w.write(new Blob([text], { type: "text/plain;charset=utf-8" }));
+            await w.close();
+            return;                       /* 系统另存为里已保存，不再降级 */
+        }catch(e){
+            if(e && e.name === "AbortError") return;   /* 用户在另存为窗口点了取消 */
+            /* 沙箱 / 权限 / 其它错误：降级到页面内命名弹窗 */
+        }
+    }
+    openDownloadDialog(text, safeTxtName(defaultName));
+}
+function downloadAiText() {
+    if (!fullAiText) { alert("还没有 AI 输出内容！"); return; }
+    const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    Promise.resolve(saveTextWithDialog(fullAiText, `${currentOutputFile()}_${date}.txt`))
+        .catch(e => console.error("保存产物失败：", e));
 }
 /* 新建对话 = 新开一个「前期创作台」本页，而不是当前地址。
    预览面板 / 在线预览器常用 iframe srcdoc 渲染，此时 window.location.href === "about:srcdoc"，
@@ -1215,18 +1248,87 @@ function downloadAiText() {
      · 部署在 GitHub Pages / 主站 → 同目录 index.html
      · srcdoc 预览 → 继承父文档目录，仍指向同目录 index.html
    同时去掉 query / hash，避免把当前页状态带进新对话。 */
-function openNewSession() {
+function openNewSession(payload) {
     let url = "./index.html";
     try {
         const u = new URL(url, document.baseURI || window.location.href);
         if(u.protocol === "http:" || u.protocol === "https:") url = u.href;
     } catch(e) { /* about:srcdoc 无法作 base，保留相对路径即可 */ }
     const win = window.open(url, "_blank");
-    if(win) return;
+    if(win){
+        /* 本地存储被禁用的环境：用 postMessage 把文本补送给新页（新页会去重） */
+        if(payload && typeof payload === "object"){
+            let n = 0;
+            const send = ()=>{
+                try { if(win && !win.closed) win.postMessage({ type:"manflows_new_session", payload:payload }, "*"); } catch(e){}
+            };
+            send();
+            const timer = setInterval(()=>{
+                if(++n >= 6 || !win || win.closed){ clearInterval(timer); return; }
+                send();
+            }, 350);
+        }
+        return win;
+    }
     // 弹窗被拦截时，用同一用户手势内的 <a target="_blank"> 兜底
     const a = document.createElement("a");
     a.href = url; a.target = "_blank"; a.rel = "noopener";
     document.body.appendChild(a); a.click(); a.remove();
+    return null;
+}
+
+/* ==================================================================
+   历史产物 → 「加入新建对话」：新开一个干净创作台网页，只带这段文字
+   · 主通道：同源 localStorage 一次性中转，新页读取后立即删除；
+   · 兜底：本地存储被禁用时由 opener 用 postMessage 补送，新页去重；
+   · 新页把这段正文作为「AI 产物」放进吐字窗口，可直接双击预览 / 编辑保存、
+     下载 TXT、送到画布，或点技能继续处理；不恢复技能与上传文件；
+   · 当前页面的吐字窗口内容完全不动，只给按钮一个短暂的「已打开」反馈。
+   ================================================================== */
+const MF_NEW_SESSION_KEY = "manflows_new_session_payload";
+function applyNewSessionText(text){
+    if(window.__mfNewSessionApplied) return false;
+    const t = String(text || "");
+    if(!t.trim()) return false;
+    window.__mfNewSessionApplied = true;
+    fullAiText = t;
+    append("【AI】：" + t, "ai");
+    append("📜 已从历史产物加入新建对话：可双击预览 / 编辑保存、下载 TXT、送到画布，或点任意技能继续处理这段文字。", "tip");
+    return true;
+}
+function consumeNewSessionPayload(){
+    const raw = safeStorage.get(MF_NEW_SESSION_KEY);
+    if(!raw) return;
+    safeStorage.remove(MF_NEW_SESSION_KEY);
+    try{
+        const o = JSON.parse(raw);
+        if(!o || !o.text) return;
+        if(Date.now() - Number(o.at || 0) > 60000) return;   /* 过期的一次性数据直接忽略 */
+        applyNewSessionText(o.text);
+    }catch(e){ /* 数据损坏时忽略，不影响正常打开 */ }
+}
+window.addEventListener("message", (ev)=>{
+    const d = ev && ev.data;
+    if(!d || d.type !== "manflows_new_session") return;
+    applyNewSessionText(d.payload && d.payload.text);
+});
+function newSessionFromHistory(){
+    const rec = currentPreviewHistoryRecord();
+    if(!rec) return;
+    const text = String(rec.aiResult || "");
+    if(!text.trim()){ append("💡 这条历史产物没有正文，无法加入新建对话。", "tip"); return; }
+    const payload = { text: text, at: Date.now(), from: "history" };
+    const stored = safeStorage.set(MF_NEW_SESSION_KEY, JSON.stringify(payload));
+    const win = openNewSession(stored ? null : payload);
+    if(!stored && !win){
+        append("⚠️ 当前环境禁止本地存储且未能打开新页面；请改用【载入当前对话】。", "err");
+        return;
+    }
+    if(newSessionFromHistoryBtn){
+        const old = newSessionFromHistoryBtn.textContent;
+        newSessionFromHistoryBtn.textContent = "✓ 已在新页面打开";
+        setTimeout(()=>{ newSessionFromHistoryBtn.textContent = old; }, 1600);
+    }
 }
 
 /* ===== 画布页交接（同源两页）=====
@@ -1611,7 +1713,7 @@ function openHistoryRecord(idx){
     if(actions) actions.style.display = "flex";
     previewModal.dataset.previewSource = "history";
     previewModal.dataset.historyIndex = String(idx);
-    previewModal.style.display = "flex";
+    showPreviewModal("历史产物预览");
 }
 function currentPreviewHistoryRecord(){
     const idx = Number(previewModal.dataset.historyIndex);
@@ -1638,16 +1740,9 @@ function loadHistoryRecordToChat(){
 function downloadHistoryRecord(){
     const rec = currentPreviewHistoryRecord();
     if(!rec) return;
-    const blob = new Blob([rec.aiResult || ""], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
     const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    a.href = url;
-    a.download = `历史产物_${date}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    Promise.resolve(saveTextWithDialog(rec.aiResult || "", `历史产物_${date}.txt`))
+        .catch(e => console.error("保存历史产物失败：", e));
 }
 
 /* ==================================================================
@@ -2007,6 +2102,7 @@ function initUI(){
     renderRefPreview();
     updateRefBadge();
     updateDownloadLabel();
+    consumeNewSessionPayload();   /* 「加入新建对话」带过来的产物正文 */
     if(!safeStorage.available) console.warn("本地存储不可用（预览沙箱或隐私模式）：API配置与历史记录本次会话内有效，刷新后不保留；其余功能正常。");
 
     // 内置技能按钮
@@ -2075,6 +2171,24 @@ function initUI(){
     chatBox.addEventListener("dblclick", ()=> openChatPreview());
     if(editPreviewBtn) editPreviewBtn.addEventListener("click", enterPreviewEdit);
     if(savePreviewBtn) savePreviewBtn.addEventListener("click", saveChatPreview);
+    // 预览：右上角全屏 / 退出全屏（Esc 也能退出全屏）
+    if(previewFsBtn) previewFsBtn.addEventListener("click", ()=> togglePreviewFullscreen());
+    // 下载产物 TXT：命名弹窗（系统另存为不支持时的降级路径）
+    if(downloadCancelBtn) downloadCancelBtn.addEventListener("click", closeDownloadDialog);
+    if(downloadConfirmBtn) downloadConfirmBtn.addEventListener("click", confirmDownloadDialog);
+    if(downloadModal) downloadModal.addEventListener("click", (ev)=>{ if(ev.target === downloadModal) closeDownloadDialog(); });
+    if(downloadNameInput) downloadNameInput.addEventListener("keydown", (ev)=>{
+        if(ev.key === "Enter"){ ev.preventDefault(); confirmDownloadDialog(); }
+        else if(ev.key === "Escape"){ ev.preventDefault(); closeDownloadDialog(); }
+    });
+    document.addEventListener("keydown", (ev)=>{
+        if(ev.key !== "Escape") return;
+        if(downloadModal && downloadModal.style.display === "flex"){ closeDownloadDialog(); return; }
+        const box = previewBox();
+        if(previewModal.style.display === "flex" && box && box.classList.contains("preview-fullscreen")){
+            togglePreviewFullscreen(false);
+        }
+    });
     // 已有产物时点技能：选择处理技能弹窗（可点按钮或点遮罩关闭）
     if(closeSkillActionBtn) closeSkillActionBtn.addEventListener("click", closeSkillActionModal);
     if(skillActionModal) skillActionModal.addEventListener("click", (ev)=>{ if(ev.target === skillActionModal) closeSkillActionModal(); });
@@ -2086,7 +2200,7 @@ function initUI(){
     // 「打开画布」主入口在左上角标题旁；专注模式时工具条的备用入口一并绑定生成中拦截
     document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
     clearHistoryBtn.addEventListener("click", clearAllHistory);
-    newSessionBtn.addEventListener("click", openNewSession);
+    newSessionBtn.addEventListener("click", ()=> openNewSession());
 
     // 顶部历史产物：前 3 条快捷按钮、更多下拉、预览弹窗里的本机操作
     document.querySelectorAll("[data-hist-slot]").forEach(btn => {
@@ -2103,6 +2217,8 @@ function initUI(){
     const downloadHistoryRecordBtn = document.getElementById("downloadHistoryRecordBtn");
     if(loadHistoryRecordBtn) loadHistoryRecordBtn.addEventListener("click", loadHistoryRecordToChat);
     if(downloadHistoryRecordBtn) downloadHistoryRecordBtn.addEventListener("click", downloadHistoryRecord);
+    const newSessionFromHistoryBtnEl = document.getElementById("newSessionFromHistoryBtn");
+    if(newSessionFromHistoryBtnEl) newSessionFromHistoryBtnEl.addEventListener("click", newSessionFromHistory);
     renderHistoryBar();
 
     plusUploadBtn.addEventListener("click", ()=> fileInput.click());
