@@ -82,7 +82,7 @@
         .local-conn-state.err { color: #fca5a5; }
         .local-conn-select { display: none; width: 100%; margin-top: 6px; padding: 5px 6px; background: var(--bg);
                              border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 11.5px; }
-        /* 本地算力：只留一行提示，具体部署与启动方式见「使用帮助」 */
+        /* 本机算力：只留一行提示，具体部署与启动方式见「使用帮助」 */
         .local-hint { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0; padding: 7px 9px;
                       background: var(--panel); border: 1px solid var(--border2); border-radius: 8px;
                       font-size: 11px; line-height: 1.6; color: #fcd34d; }
@@ -291,15 +291,19 @@
             <div class="param-content">
                 <div class="param-item">
                     <label>算力模式：</label>
-                    <label><input type="radio" name="computeMode" value="local"> 本地算力</label>
-                    <label><input type="radio" name="computeMode" value="api"> API云算力</label>
+                    <label><input type="radio" name="computeMode" value="manflow"> 漫流算力</label>
+                    <label><input type="radio" name="computeMode" value="local"> 本机算力</label>
+                    <label><input type="radio" name="computeMode" value="api"> 第三方API</label>
+                </div>
+                <div class="local-hint" id="manflowHint" style="display:none">
+                    <span>ℹ️ <b>漫流算力（默认）正在接入中</b>：预置模型、扫码充值、积分与扣费系统即将开放，开放后不用配置、扫码充值即可直接使用。当前请切换到「本机算力」或「第三方API」。</span>
                 </div>
                 <div class="param-item" id="localModelRow">
                     <label>本地模型名称（可选）：</label>
                     <input type="text" id="localModel" placeholder="留空 = local；部分服务需填真实模型名">
                 </div>
                 <div class="local-hint" id="localComputeHint">
-                    <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「一、本地算力模式」。</span>
+                    <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「一、本机算力」。</span>
                 </div>
                 <div class="local-conn" id="localConnBox">
                     <div class="local-conn-row">
@@ -461,7 +465,7 @@ const safeStorage = {
 
 const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
 const SKILL_TOKEN = "CU001-ABC123";
-/* 本地算力不再写死 8080：这里只留兜底默认地址，实际地址由「⚡ 自动接通」探测或用户手填决定 */
+/* 本机算力不再写死 8080：这里只留兜底默认地址，实际地址由「⚡ 自动接通」探测或用户手填决定 */
 const LOCAL_DEFAULT_BASE = "http://127.0.0.1:8080";
 const LOCAL_LLAMA_URL = LOCAL_DEFAULT_BASE + "/v1/chat/completions";
 const STORAGE_KEY_LOCAL_BASE = "manflows_local_base";
@@ -481,7 +485,10 @@ const IMAGE_SKILL_KEYS = ["c", "e"];
 let refImages = [];            // [{id, name, dataUrl, bytes, width, height}] 会话结束即丢弃
 let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
 
-let computeMode = safeStorage.get("computeMode") || "local";
+/* 三种算力：manflow=漫流算力（默认占位）、local=本机算力、api=第三方API。
+   已保存过 local / api 的老用户保持原选择，只有从未保存过（或值无效）才默认漫流算力。 */
+let computeMode = safeStorage.get("computeMode");
+if(computeMode !== "local" && computeMode !== "api") computeMode = "manflow";
 let apiProfiles = [];
 let currentProfileId = null;
 
@@ -530,8 +537,10 @@ const refPreviewList = document.getElementById("refPreviewList");
 const refBadge = document.getElementById("refBadge");
 
 const apiConfigBlock = document.getElementById("apiConfigBlock");
+const radioManflow = document.querySelector('input[name="computeMode"][value="manflow"]');
 const radioLocal = document.querySelector('input[name="computeMode"][value="local"]');
 const radioApi = document.querySelector('input[name="computeMode"][value="api"]');
+const manflowHint = document.getElementById("manflowHint");
 const apiProfileSelect = document.getElementById("apiProfileSelect");
 const inpEndpoint = document.getElementById("apiEndpoint");
 const inpKey = document.getElementById("apiKey");
@@ -552,13 +561,13 @@ const HELP_HTML = `
 <p class="help-contact">本人开发的剧本创作助手、导演分镜助手和美术画风助手3个skill在扣子平台技能商店，累计用户付费订阅3万➕。是经过大量创作者使用和验证的专业技能包。</p>
 <p class="help-contact">如需购买这两个特调大语言模型或定制Skill技能包请联系</p>
 </div>
-<p>说明：技能模板由后端服务提供；算力分为【本地算力模式】和【API云算力模式】两种。所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
+<p>说明：技能模板由后端服务提供；算力分为【漫流算力】【本机算力】【第三方API】三种。<b>【漫流算力】为默认模式，正在接入预置模型、扫码充值、积分与扣费系统，开放后无需任何配置、扫码充值即可直接使用</b>；当前请先用【本机算力】或【第三方API】。所有API密钥、对话历史全部保存在你本机浏览器，不会上传到服务器。</p>
 
-<h2>一、本地算力模式：本机大模型自动接通，端口任意</h2>
+<h2>一、本机算力：本机大模型自动接通，端口任意</h2>
 <h3>最简用法（Windows / macOS 通用）</h3>
 <ol>
 <li>在你自己的电脑上启动任意一个本地大模型软件（llama-server / llama.cpp / llama_server / Ollama / LM Studio / Jan / GPT4All / vLLM / text-generation-webui / KoboldCpp …），保持窗口或后台服务开着；</li>
-<li>网页左栏【推理参数】选【本地算力】；页面打开时会自动扫描一次，也可随时点「⚡ 自动接通」重扫；</li>
+<li>网页左栏【推理参数】选【本机算力】；页面打开时会自动扫描一次，也可随时点「⚡ 自动接通」重扫；</li>
 <li>状态出现绿色的「✓ 已接通 …」后，点选技能 → 输入指令 →【开始】。<b>不需要把软件端口改成 8080</b>，用哪个端口都行。</li>
 </ol>
 <p>扫描范围：<code>127.0.0.1</code> 与 <code>localhost</code> 上的 9931、8080、11434、1234、8000、5000、1337、4891、5001、8081、3000，依次探测 <code>/v1/models</code>、<code>/api/tags</code>、<code>/health</code>。检测到多个服务时，状态下方会出现下拉框供切换。软件用了别的端口，直接在【本机地址】里填 <code>http://127.0.0.1:你的端口</code> 并回车即可；地址只存在你本机浏览器。</p>
@@ -620,8 +629,8 @@ ollama serve</pre>
 <p>把本页面文件（<code>index.html</code>）发给 <b>WorkBuddy</b> 并说一句「帮我建立本地大语言模型和漫流创作台的互通」，它可以直接帮你写启动脚本（含模型路径、任意端口、跨域放行）、核对可执行文件与模型文件位置、测试 <code>/v1/chat/completions</code> 连通性并排查报错。</p>
 <p>注意：画布页（<code>canvas.html</code>）的智能拆分有自己独立的本地模型候选（默认 127.0.0.1:8080），本节的「自动接通」只作用于创作台；画布页如需使用其它端口，可在画布页的 API 配置里填本机地址。</p>
 
-<h2>二、API云算力模式：接入商用大模型平台</h2>
-<p>切换到API云算力模式后，点【新增API配置】，填写平台信息：接口地址 / API-Key / 模型名称。</p>
+<h2>二、第三方API：接入商用大模型平台</h2>
+<p>切换到【第三方API】后，点【新增API配置】，填写平台信息：接口地址 / API-Key / 模型名称。</p>
 
 <h3>1. DeepSeek</h3>
 <ul>
@@ -663,7 +672,7 @@ ollama serve</pre>
 <h2>三、通用使用流程</h2>
 <ol>
 <li>点击上方按钮加载对应的创作技能模板；</li>
-<li>选择算力模式（本地 / API云算力）；</li>
+<li>选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史。</li>
@@ -795,31 +804,33 @@ function syncProfileToCurrent(){
     saveApiProfiles();
 }
 
-function initComputeModeUI(){
-    if(computeMode === "api"){ radioApi.checked = true; apiConfigBlock.style.display = "block"; }
-    else { radioLocal.checked = true; apiConfigBlock.style.display = "none"; }
-    if(inpLocalModel) inpLocalModel.value = localModelName;
-    if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
+/* 三种算力共用一套面板显隐：本机算力显示本机相关行，第三方API 显示 API 配置块，
+   漫流算力（占位）只显示一行说明。local / api 两条原有链路的判断结果完全不变。 */
+function applyComputeModePanels(){
+    const isLocal   = computeMode === "local";
+    const isApi     = computeMode === "api";
+    const isManflow = computeMode === "manflow";
+    if(localModelRow) localModelRow.style.display = isLocal ? "flex" : "none";
     const hint = document.getElementById("localComputeHint");
-    if(hint) hint.style.display = (computeMode === "api") ? "none" : "flex";
+    if(hint) hint.style.display = isLocal ? "flex" : "none";
     const connBox = document.getElementById("localConnBox");
-    if(connBox) connBox.style.display = (computeMode === "api") ? "none" : "block";
+    if(connBox) connBox.style.display = isLocal ? "block" : "none";
+    if(manflowHint) manflowHint.style.display = isManflow ? "flex" : "none";
+    apiConfigBlock.style.display = isApi ? "block" : "none";
+}
+function initComputeModeUI(){
+    if(computeMode === "api") radioApi.checked = true;
+    else if(computeMode === "local") radioLocal.checked = true;
+    else radioManflow.checked = true;
+    if(inpLocalModel) inpLocalModel.value = localModelName;
+    applyComputeModePanels();
 }
 function saveComputeMode(){
     computeMode = document.querySelector('input[name="computeMode"]:checked').value;
     safeStorage.set("computeMode", computeMode);
-    if(localModelRow) localModelRow.style.display = (computeMode === "api") ? "none" : "flex";
-    const hint = document.getElementById("localComputeHint");
-    if(hint) hint.style.display = (computeMode === "api") ? "none" : "flex";
-    const connBox = document.getElementById("localConnBox");
-    if(connBox) connBox.style.display = (computeMode === "api") ? "none" : "block";
-    if(computeMode === "api"){
-        apiConfigBlock.style.display = "block";
-        if(apiProfiles.length === 0){
-            alert("⚠️ 尚未配置任何API！请点击【新增API配置】填写你自己的API信息。\n所有API密钥仅保存在你本机浏览器，不会上传到服务器。");
-        }
-    } else {
-        apiConfigBlock.style.display = "none";
+    applyComputeModePanels();
+    if(computeMode === "api" && apiProfiles.length === 0){
+        alert("⚠️ 尚未配置任何API！请点击【新增API配置】填写你自己的API信息。\n所有API密钥仅保存在你本机浏览器，不会上传到服务器。");
     }
 }
 
@@ -1620,6 +1631,13 @@ async function mfDetectLocal({ quiet=false } = {}){
 
 async function sendMessage() {
     stopGenerate();
+    /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位。
+       不发起任何请求、不计费，直接给出提示；原有本机算力 / 第三方API 链路完全不受影响。 */
+    if(computeMode === "manflow"){
+        append("⚠️ 【漫流算力】即将开放：预置模型、扫码充值、积分与扣费系统正在接入中。当前请先在左栏【推理参数 → 算力模式】切换到「本机算力」或「第三方API」再开始。", "err");
+        alert("漫流算力即将开放（扫码充值即可使用，正在接入中）。\n当前请先在左栏【推理参数 → 算力模式】切换到「本机算力」或「第三方API」。");
+        return;
+    }
     pendingText = "";
     fullAiText = "";
     const userCmd = userInput.value.trim();
@@ -1972,6 +1990,7 @@ function initUI(){
         localModelName = inpLocalModel.value.trim();
         safeStorage.set("manflows_local_model", localModelName);
     };
+    radioManflow.addEventListener("change", saveComputeMode);
     radioLocal.addEventListener("change", saveComputeMode);
     radioApi.addEventListener("change", saveComputeMode);
     } catch(e) {

@@ -398,7 +398,7 @@
         <h2>与创作台的关系</h2>
         <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置与一份本机大模型接通结果；创作台「⇢ 送到画布」会新开标签页，不打断正在进行的生成。</p>
         <h2>提示词节点调用本地大模型（任意端口 · Windows / macOS 通用）</h2>
-        <p>提示词节点上的 <b>「图片提示词」「SD提示词」「H3提示词」</b>：<b>「图片提示词」优先在本机直接按条解析，不调用大模型</b>（人物 / 四视图 / 场景 / 道具逐条独立成节点）；只有文本里识别不出逐条结构时才会请大语言模型补标记。SD / H3 会先拉「导演分镜助手」技能全文再按镜头调整。<b>只要本机开着大模型软件，这些按钮就用本地算力，不花钱、剧本不上传。</b></p>
+        <p>提示词节点上的 <b>「图片提示词」「SD提示词」「H3提示词」</b>：<b>「图片提示词」优先在本机直接按条解析，不调用大模型</b>（人物 / 四视图 / 场景 / 道具逐条独立成节点）；只有文本里识别不出逐条结构时才会请大语言模型补标记。SD / H3 会先拉「导演分镜助手」技能全文再按镜头调整。<b>只要本机开着大模型软件，这些按钮就用本机算力，不花钱、剧本不上传。</b></p>
         <ul>
             <li><b>和创作台共用一份接通结果</b>：创作台「推理参数 → 本机地址 → ⚡ 自动接通」扫到的地址与模型名存在本机浏览器（<code>manflows_local_base</code> / <code>manflows_local_model</code>），两页同源，画布页直接复用。所以创作台能通，画布页的提示词节点就能通 —— 包括 <code>9931</code> 这类自定义端口，不再只认默认的 <code>8080</code>。</li>
             <li><b>画布页也能独立接通</b>：左侧「② API 配置」里点 <b>「⚡ 自动接通」</b>，会独立扫描 <code>127.0.0.1</code> / <code>localhost</code> 上的 9931（llama_server）、8080（llama.cpp llama-server）、11434（Ollama）、1234（LM Studio）、8000（vLLM）、5000、1337（Jan）、4891（GPT4All）、5001、8081、3000，依次探测 <code>/v1/models</code>、<code>/api/tags</code>、<code>/health</code>；接通后写回共用键，创作台下次打开也直接可用。也可以在创作台手填任意 <code>http://IP:端口</code>。</li>
@@ -2131,7 +2131,7 @@ async function cvAutoConnectLlm(opts){
     const host=keep.base.replace(/^https?:\/\//i,"");
     const model=(keep.model||String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim());
     cvSetLlmState("✓ 已接通 "+host+(model?" · "+model:"")+(found.length>1?"（共 "+found.length+" 个服务）":""),true);
-    if(!o.silent) setStatus("本机大模型已接通 "+host+"，提示词节点可调用本地算力","ok");
+    if(!o.silent) setStatus("本机大模型已接通 "+host+"，提示词节点可调用本机算力","ok");
     return {base:keep.base,model:model};
 }
 /* 候选模型：本机任意端口优先，云端兜底 */
@@ -2808,7 +2808,7 @@ function renderApiInfo(){
     const box=el("apiInfo");
     let html="";
     if(!p){
-        html='<span style="color:#fcd34d">尚无云端 API 配置</span><br>需要云端兜底时，到创作台「API云算力」里填接口地址 / Key / 模型。本页只读，不会保存任何密钥到源码。';
+        html='<span style="color:#fcd34d">尚无云端 API 配置</span><br>需要云端兜底时，到创作台「第三方API」里填接口地址 / Key / 模型。本页只读，不会保存任何密钥到源码。';
     }else{
         const key=(p.key||"");
         const masked=key?key.slice(0,4)+"••••"+key.slice(-4):'<span style="color:#fcd34d">（空）</span>';
