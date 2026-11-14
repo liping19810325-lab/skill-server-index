@@ -89,7 +89,7 @@
                                 border-radius: 6px; color: var(--text); font-size: 11.5px; outline: none; }
         .local-conn-row input:focus { border-color: var(--blue); }
         .local-conn-btn { padding: 6px 9px; min-height: 30px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px;
-                          background: var(--blue); color: #fff; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+                          background: var(--green); color: #fff; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
         .local-conn-btn:hover:not(:disabled) { filter: brightness(1.15); }
         .local-conn-btn:disabled { opacity: .55; cursor: not-allowed; }
         .local-conn-state { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.6; word-break: break-word; }
@@ -459,12 +459,12 @@
                 <button type="button" class="hist-btn" id="historyMoreBtn" title="查看全部历史产物（最多30条，仅存本机）">更多历史产物 ▾</button>
                 <div class="hist-menu" id="historyMenu"></div>
             </div>
-            <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
+            <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
             <div class="status" id="skillStatus" title="📌 当前：尚未加载任何技能，请点选所需技能按钮">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
             <span class="ref-badge" id="refBadge"></span>
             <div class="spacer"></div>
             <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
-            <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
+            <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
             <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（先选现有画布 / 新建画布；生成中不可用）">⇢ 送到画布</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
