@@ -294,7 +294,7 @@
                     <div class="cv-tools-body">
                         <div class="api-box" id="apiInfo">读取中…</div>
                         <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点的智能拆分 / 图片提示词 / SD / H3 用）</label></div>
-                        <div class="row"><button class="mini-btn cyan" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
+                        <div class="row"><button class="mini-btn green" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
                         <div class="hint" style="margin:4px 0 0">与创作台共用同一份本机地址：创作台【算力总控 → ⚡ 自动接通】扫到的 llama / Ollama / LM Studio 等，画布页直接复用；也可以在这里再点一次，独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
                         <div class="row" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:8px"><label>补充模型清单（可选 · 创作台模型已自动并入下拉）</label></div>
                         <div class="row"><input type="text" id="modelLibInput" placeholder="填服务商模型名，如 xxx-image / xxx-video / xxx-llm"></div>
@@ -312,7 +312,7 @@
                 <h2>① 本机算力 · ComfyUI 工作流</h2>
                 <div class="hint" style="margin:0 0 8px">用画布前先启动 ComfyUI，再点一下「⚡ 自动接通」即可，不用装别的东西。</div>
                 <div class="row"><label>服务地址</label><input type="text" id="comfyBase" placeholder="http://127.0.0.1:8188"></div>
-                <div class="row"><button class="mini-btn cyan" id="comfyAutoBtn">⚡ 自动接通</button><button class="mini-btn gray" id="comfyTestBtn">测试连接</button></div>
+                <div class="row"><button class="mini-btn green" id="comfyAutoBtn">⚡ 自动接通</button><button class="mini-btn gray" id="comfyTestBtn">测试连接</button></div>
                 <div class="kv" id="comfyLinkInfo">尚未接通 · 默认直连本机 http://127.0.0.1:8188</div>
                 <div class="row"><label>导入为（可反复导入多个模板）</label>
                     <select id="workflowKind"><option value="image">生图工作流（Qwen Image 等）</option><option value="video">生视频工作流（MiniMax H3 等）</option></select></div>

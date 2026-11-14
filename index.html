@@ -106,8 +106,10 @@
         .test-api-btn { background-color: var(--green); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
         .api-del-btn { background-color: var(--red); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
         .api-add-btn { background-color: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
-        .help-open-btn { background-color: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
-        .test-api-btn:hover, .api-del-btn:hover, .api-add-btn:hover, .help-open-btn:hover { filter: brightness(1.15); }
+        /* 「使用帮助」与「▤ 专注模式」同款中性灰黑底 + 白字：只改配色，尺寸与行为不变 */
+        .help-open-btn { background-color: var(--panel); color: var(--text); border: 1px solid var(--border2); padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; min-height: 32px; }
+        .test-api-btn:hover, .api-del-btn:hover, .api-add-btn:hover { filter: brightness(1.15); }
+        .help-open-btn:hover { background-color: var(--hover); }
         .file-head-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
         .file-head-row .card-title { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
         .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; margin: 5px 0; flex-wrap: wrap; }
@@ -123,6 +125,10 @@
         .clear-btn:hover { background-color: #b91c1c; }
         .stop-btn { background-color: var(--red); color: #fff; }
         .download-btn { background-color: var(--cyan); color: #fff; }
+        /* 顶栏「下载产物 TXT」与「▤ 专注模式」同款中性灰黑底 + 白字；
+           预览弹窗里的「下载 TXT」共用 .download-btn，仍保持原青色不变 */
+        #downloadAiBtn { background-color: var(--panel); color: var(--text); border-color: var(--border2); }
+        #downloadAiBtn:hover:not(:disabled) { background-color: var(--hover); }
         .newtab-btn { background-color: var(--green); color: #fff; }
         /* 画布页互链入口：与创作页同为静态单文件，同源共享本地配置 */
         .canvas-nav-btn { background-color: var(--purple); color: #fff; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
@@ -140,10 +146,8 @@
         .home-btn:hover { background: var(--hover); }
         .send-canvas-btn { background-color: var(--purple); color: #fff; }
         .send-canvas-btn:hover { background-color: #8b5cf6; }
-        /* 「更多历史产物」沿用原「清空本地全部历史」的琥珀色，醒目但不再一键清空；
-           id 选择器优先级高于 .hist-btn，hover / 选中态单独指定，不会被中性灰底覆盖 */
-        #historyMoreBtn { background-color: var(--amber); color: #fff; border-color: transparent; font-weight: 600; }
-        #historyMoreBtn:hover:not(:disabled) { background-color: #b45309; }
+        /* 「更多历史产物」与「▤ 专注模式」同款中性灰黑底 + 白字：
+           直接沿用 .hist-btn 的 var(--panel) / var(--text) / 细边框，不再叠琥珀色覆盖 */
         .load-history-btn { background-color: var(--blue); color: #fff; }
         .start-btn { background: var(--green); color: #fff; font-weight: 500; }
         .plus-upload-btn { width: 32px; height: 32px; font-size: 17px; line-height: 1; padding: 0; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; flex-shrink: 0; }
@@ -394,7 +398,7 @@
                     </div>
                 </div>
                 <div class="param-item">
-                    <label>脑洞大小（创意）：</label>
+                    <label>创意脑洞大小：</label>
                     <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7">
                     <input type="number" id="tempInput" min="0" max="2" step="0.05" value="0.7">
                 </div>
