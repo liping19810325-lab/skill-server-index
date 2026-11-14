@@ -71,7 +71,7 @@
         .param-token-auto { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
         .token-auto-hint { font-size: 11px; line-height: 1.75; color: #a7f3d0; background: var(--panel);
                            border: 1px solid var(--border2); border-radius: 8px; padding: 8px 10px; }
-        /* 历史产物「更多」：改名 / 删除按钮，与画布「更多画布」同款 */
+        /* 历史产物「更多历史产物」：改名 / 删除按钮，与画布「更多画布」同款 */
         .hist-btn { max-width: 148px; overflow: hidden; text-overflow: ellipsis; }
         .hist-menu-row { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
         .hist-menu-row:hover { background: var(--panel); }
@@ -129,7 +129,9 @@
         .canvas-nav-btn:hover { background-color: #8b5cf6; }
         .header-title { display: flex; flex-direction: row; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
         .header-title h1 { white-space: nowrap; }
-        .header-title .canvas-nav-btn { min-height: 26px; padding: 4px 9px; font-size: 11px; border-radius: 7px; white-space: nowrap; }
+        /* 与画布页「← 返回创作台」(.nav-btn) 完全同尺寸：4px 5px / 32px / 8px / 11px；
+           专注模式工具条里的备用入口仍用 .ctrl-btn 原尺寸，保持那一排按钮对齐 */
+        .header-title .canvas-nav-btn { min-height: 32px; padding: 4px 5px; font-size: 11px; border-radius: 8px; white-space: nowrap; }
         /* 专注模式收起左栏时，工具条补一个同款隐藏入口，避免切换入口消失 */
         .canvas-nav-btn-alt { display: none; }
         .side.collapsed ~ .main .canvas-nav-btn-alt { display: inline-flex; }
@@ -138,7 +140,10 @@
         .home-btn:hover { background: var(--hover); }
         .send-canvas-btn { background-color: var(--purple); color: #fff; }
         .send-canvas-btn:hover { background-color: #8b5cf6; }
-        .clear-history-btn { background-color: var(--amber); color: #fff; }
+        /* 「更多历史产物」沿用原「清空本地全部历史」的琥珀色，醒目但不再一键清空；
+           id 选择器优先级高于 .hist-btn，hover / 选中态单独指定，不会被中性灰底覆盖 */
+        #historyMoreBtn { background-color: var(--amber); color: #fff; border-color: transparent; font-weight: 600; }
+        #historyMoreBtn:hover:not(:disabled) { background-color: #b45309; }
         .load-history-btn { background-color: var(--blue); color: #fff; }
         .start-btn { background: var(--green); color: #fff; font-weight: 500; }
         .plus-upload-btn { width: 32px; height: 32px; font-size: 17px; line-height: 1; padding: 0; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; flex-shrink: 0; }
@@ -447,7 +452,7 @@
                 <button type="button" class="hist-btn" data-hist-slot="2" disabled>历史产物3</button>
             </div>
             <div class="hist-more-wrap">
-                <button type="button" class="hist-btn" id="historyMoreBtn" title="查看全部历史产物（最多30条，仅存本机）">更多 ▾</button>
+                <button type="button" class="hist-btn" id="historyMoreBtn" title="查看全部历史产物（最多30条，仅存本机）">更多历史产物 ▾</button>
                 <div class="hist-menu" id="historyMenu"></div>
             </div>
             <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
@@ -457,7 +462,6 @@
             <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
             <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（先选现有画布 / 新建画布；生成中不可用）">⇢ 送到画布</button>
-            <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         </div>
@@ -636,7 +640,6 @@ const downloadConfirmBtn = document.getElementById("downloadConfirmBtn");
 const newSessionFromHistoryBtn = document.getElementById("newSessionFromHistoryBtn");
 const sendMsgBtn = document.getElementById("sendMsgBtn");
 const downloadAiBtn = document.getElementById("downloadAiBtn");
-const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const newSessionBtn = document.getElementById("newSessionBtn");
 const stopBtn = document.getElementById("stopBtn");
 const focusBtn = document.getElementById("focusBtn");
@@ -686,7 +689,7 @@ const HELP_HTML = `
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
-<li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b><b>【更多】下拉里每条右侧有 ✎ 改名与红色 × 删除</b>：改名后可自定义好记的名字（顶部快捷按钮、列表与预览标题同步显示），删除前会确认、只删这一条；用法与导演画布「更多画布」一致。</li>
+<li>页面顶部的【历史产物1 / 2 / 3 / 更多历史产物】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，<b>不再提供一键清空全部历史的按钮</b>（容易误操作），要删除请到【更多历史产物】下拉里逐条点红色 ×。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b><b>【更多历史产物】下拉里每条右侧有 ✎ 改名与红色 × 删除</b>：改名后可自定义好记的名字（顶部快捷按钮、列表与预览标题同步显示），删除前会确认、只删这一条；用法与导演画布「更多画布」一致。</li>
 <li>点【⇢ 送到画布】会先弹出「现有画布 / 新建画布」两个选项，选好后再送到对应画布，点「取消 / 关闭」则不送达。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送出半段内容</b>。选「现有画布」＝送到画布页当前打开（或上次使用）的那份画布；选「新建画布」＝新开画布页并自动新建一份画布，把产物作为提示词节点放进去。</li>
 </ol>
 
@@ -706,7 +709,7 @@ const HELP_HTML = `
 <h2>六、界面布局</h2>
 <ul>
 <li>左侧为配置栏，可独立滚动；右侧为 AI 输出窗口，占满整屏高度，配置再多也不会挤小它。</li>
-<li>顶部工具条只有一行：【历史产物1 / 2 / 3 / 更多】与【下载产物 TXT】【送到画布】【新建对话】【漫流主站】同排，尽量把高度留给输出窗口；右侧 AI 输出窗口支持双击预览与在线编辑；【送到画布】生成中禁用，可用时先弹「现有画布 / 新建画布」选择框。</li>
+<li>顶部工具条只有一行：【历史产物1 / 2 / 3 / 更多历史产物】与【下载产物 TXT】【送到画布】【新建对话】【漫流主站】同排，尽量把高度留给输出窗口；右侧 AI 输出窗口支持双击预览与在线编辑；【送到画布】生成中禁用，可用时先弹「现有画布 / 新建画布」选择框。</li>
 <li>【算力总控】（原「推理参数」）的 收起 / 展开 保持原有用法；顶部【▤ 专注模式】可一键收起整个左侧配置栏，让输出窗口占满宽度，再点一次恢复，所有功能按钮不会丢失。</li>
 <li>窄屏（手机）自动切回上下单列布局，专注模式同样可用。</li>
 </ul>
@@ -1797,20 +1800,13 @@ function saveHistoryToLocal() {
 }
 /* 「加载最近对话」按钮已移除：历史产物1（最新一条）→ 预览 →「载入当前对话」
    能恢复整段会话，功能完全覆盖，顶部工具条不再单独放这个按钮。 */
-function clearAllHistory(){
-    if(!confirm("确认清空浏览器本地全部历史对话（最多30条）？不可恢复！")) return;
-    safeStorage.remove(STORAGE_KEY_HISTORY);
-    activeHistoryIndex = -1;
-    renderHistoryBar();
-    alert("✅ 本地历史已清空");
-}
 
 /* ==================================================================
-   页面顶部「历史产物 1 / 2 / 3 / 更多」
+   页面顶部「历史产物 1 / 2 / 3 / 更多历史产物」
    · 数据源就是 saveHistoryToLocal 写入浏览器 localStorage 的对话历史，
      每条 record.aiResult 即用户历史生成的剧本 / 生视频提示词 / 生图提示词；
    · 全程只在本机浏览器读写，不上传、不进源码、不经过技能服务；
-   · 最近 3 条做成快捷按钮，「更多」下拉列出全部（最多 30 条）；
+   · 最近 3 条做成快捷按钮，「更多历史产物」下拉列出全部（最多 30 条）；
    · 点击后复用已有预览弹窗，可载入当前对话或下载 TXT。
    ================================================================== */
 let activeHistoryIndex = -1;
@@ -2449,10 +2445,9 @@ function initUI(){
     if(sendToCanvasBtn) sendToCanvasBtn.addEventListener("click", sendToCanvas);
     // 「打开画布」主入口在左上角标题旁；专注模式时工具条的备用入口一并绑定生成中拦截
     document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
-    clearHistoryBtn.addEventListener("click", clearAllHistory);
     newSessionBtn.addEventListener("click", ()=> openNewSession());
 
-    // 顶部历史产物：前 3 条快捷按钮、更多下拉、预览弹窗里的本机操作
+    // 顶部历史产物：前 3 条快捷按钮、更多历史产物下拉、预览弹窗里的本机操作
     document.querySelectorAll("[data-hist-slot]").forEach(btn => {
         btn.addEventListener("click", () => openHistoryRecord(Number(btn.getAttribute("data-hist-slot"))));
     });

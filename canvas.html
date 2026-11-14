@@ -46,7 +46,7 @@
     .side::-webkit-scrollbar{width:6px;} .side::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px;}
     .card h2{font-size:13px;color:#cbd5e1;font-weight:500;margin-bottom:8px;}
-    /* 可折叠卡片：② ③ 默认收起，点标题展开 */
+    /* 可折叠卡片：默认收起，点标题展开 */
     .card.collapsible h2.card-toggle{cursor:pointer;user-select:none;}
     .card.collapsible h2.card-toggle::after{content:"▾";float:right;color:var(--muted);font-size:11px;}
     .card.collapsible.collapsed h2.card-toggle::after{content:"▸";}
@@ -309,16 +309,7 @@
             </div>
 
             <div class="card">
-                <h2>① 来自创作台的产物</h2>
-                <div class="hint">创作台点「⇢ 送到画布」并选好「现有画布 / 新建画布」后，产物会自动变成一个提示词节点。长文本走本机收件箱，不占 localStorage 配额；创作台吐字生成中不可送达。</div>
-                <div class="row"><button class="mini-btn purple" id="inboxBtn">检查新产物</button><span class="kv" id="inboxState">尚未接收</span></div>
-                <div class="row"><label>手动粘贴文本 → 提示词节点</label>
-                    <textarea id="pasteBox" placeholder="粘贴剧本、分镜或美术提示词…"></textarea></div>
-                <div class="row"><button class="mini-btn" id="pasteBtn">生成提示词节点</button></div>
-            </div>
-
-            <div class="card">
-                <h2>② 本机算力 · ComfyUI 工作流</h2>
+                <h2>① 本机算力 · ComfyUI 工作流</h2>
                 <div class="hint" style="margin:0 0 8px">用画布前先启动 ComfyUI，再点一下「⚡ 自动接通」即可，不用装别的东西。</div>
                 <div class="row"><label>服务地址</label><input type="text" id="comfyBase" placeholder="http://127.0.0.1:8188"></div>
                 <div class="row"><button class="mini-btn cyan" id="comfyAutoBtn">⚡ 自动接通</button><button class="mini-btn gray" id="comfyTestBtn">测试连接</button></div>
@@ -335,7 +326,7 @@
             </div>
 
             <div class="card">
-                <h2>③ 画布数据</h2>
+                <h2>② 画布数据</h2>
                 <div class="kv" id="statInfo">节点 0 · 连线 0</div>
                 <div class="hint">画布、参考图与声音只存在本机 IndexedDB，不上传、不进源码。顶部「画布1/2/3」可快捷切换，「＋ 新建画布」新增一份，「更多画布」里可改名删除；每份画布节点独立，ComfyUI 设置与工作流模板全局共享。导出/导入只作用于当前画布。</div>
                 <div class="hint">空白处拖框可多选节点；<code>Ctrl+Z</code> 撤销 / <code>Ctrl+Y</code> 重做，节点、连线、文字、图片、声音、位置的改动都能恢复（切换画布会重置历史）。右键有常用操作菜单，全部快捷键见「📖 使用帮助」。</div>
@@ -424,7 +415,7 @@
         <h2>连线规则</h2>
         <p><b>单击节点右侧圆点</b>会弹出「选择节点」菜单，列出六类节点（提示词 / 参考图 / 声音参考 / 视频参考 / 生成 / 结果，与左侧工具栏一致），点选后新节点出现在该节点右侧并<b>自动连好线</b>；Esc 或点空白处可关闭菜单。<b>手动连线</b>：从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线（两种方式都保留）。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。<b>快捷加节点</b>：在画布空白处<b>双击鼠标</b>，弹出「添加节点」菜单，点一下就在双击位置创建对应节点（六类节点与左侧工具栏完全一致）；Esc 或点空白关闭菜单。</p>
         <h2>与创作台的关系</h2>
-        <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置、一份本机大模型接通结果与【算力总控】的档位选择。创作台点「⇢ 送到画布」会先弹出「现有画布 / 新建画布」两个选项，选好后再送达：<b>现有画布</b>＝送到画布页当前打开（或上次使用）的那份画布；<b>新建画布</b>＝新开画布页并自动新建一份画布（与顶部「＋ 新建画布」同款，默认只有提示词 → 生成两个相连节点），把产物直接写进默认那个空提示词节点，不会再多建一个节点。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送来半段内容</b>；点「取消 / 关闭」则不送达。</p>
+        <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置、一份本机大模型接通结果与【算力总控】的档位选择。创作台点「⇢ 送到画布」会先弹出「现有画布 / 新建画布」两个选项，选好后再送达：<b>现有画布</b>＝送到画布页当前打开（或上次使用）的那份画布；<b>新建画布</b>＝新开画布页并自动新建一份画布（与顶部「＋ 新建画布」同款，默认只有提示词 → 生成两个相连节点），把产物直接写进默认那个空提示词节点，不会再多建一个节点。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送来半段内容</b>；点「取消 / 关闭」则不送达。<b>左侧不再单独放「来自创作台的产物」卡片</b>：产物仍由「⇢ 送到画布」自动送达并变成提示词节点（打开画布页时会自动检查收件箱，画布页已打开也能实时收到）；「检查新产物」与「手动粘贴文本 → 提示词节点」两个手动入口已移除，想手动加文字用顶栏「＋ 提示词」新建节点后自行编辑即可。</p>
         <h2>多画布切换</h2>
         <p>顶部「画布1 / 画布2 / 画布3」是快捷切换按钮，「＋ 新建画布」会按顺序新建「画布4…」；超过 3 份的在「更多画布」下拉里切换、改名（✎）、删除（×）。每份画布的节点、连线、视口独立保存；ComfyUI 地址和工作流模板是全局共享的，不用每份重复导入。「导出画布 / 导入画布」都只作用于当前这一份；想删除节点请框选后按 <code>Delete / Backspace</code>（或右键菜单），<code>Ctrl+Z</code> 可撤销，顶栏不再放「清空画布」按钮。</p>
         <h2>数据与隐私</h2>
@@ -2947,7 +2938,10 @@ function addFromPayload(payload, reuseSeedPrompt){
         autoConnect(n);
     }
     renderAll(); selectNode(n.id); scheduleSave();
-    el("inboxState").textContent="已接收："+(n.title||"产物");
+    /* 「来自创作台的产物」卡片已移除：inboxState 元素可能不存在，空值保护后
+       自动「送到画布」/ 收件箱 / 广播三条投递链路都不受影响。 */
+    const inboxStateEl=el("inboxState");
+    if(inboxStateEl) inboxStateEl.textContent="已接收："+(n.title||"产物");
     return true;
 }
 function placeNewNode(n){
@@ -4509,16 +4503,9 @@ function bindToolbar(){
     el("zoomIn").addEventListener("click",()=>{ canvas.viewport.zoom=clamp(canvas.viewport.zoom*1.2,.3,2); applyViewport(); scheduleSave(); });
     el("zoomOut").addEventListener("click",()=>{ canvas.viewport.zoom=clamp(canvas.viewport.zoom/1.2,.3,2); applyViewport(); scheduleSave(); });
     el("zoomFit").addEventListener("click",()=>{ canvas.viewport={x:40,y:40,zoom:1}; applyViewport(); scheduleSave(); });
-    el("inboxBtn").addEventListener("click",async ()=>{
-        const got=await drainInbox();
-        if(!got) setStatus("收件箱没有新产物","ok");
-    });
-    el("pasteBtn").addEventListener("click",()=>{
-        const t=el("pasteBox").value.trim();
-        if(!t){ setStatus("粘贴内容为空","err"); return; }
-        const p={id:"paste_"+Date.now().toString(36),ts:Date.now(),title:"粘贴文本 · "+new Date().toLocaleTimeString("zh-CN",{hour12:false}),skillKey:"",text:t};
-        addFromPayload(p); el("pasteBox").value="";
-    });
+    /* 「来自创作台的产物」卡片已移除：手动「检查新产物」与「手动粘贴文本 → 提示词节点」
+       两个入口随之去掉；创作台「⇢ 送到画布」仍由启动时的 drainInbox() 与
+       BroadcastChannel 自动接收，逻辑与原来完全一致。 */
     el("comfyBase").addEventListener("change",()=>{ canvas.settings.comfyBase=el("comfyBase").value.trim(); scheduleSave(); });
     el("comfyTestBtn").addEventListener("click",testComfy);
     el("comfyAutoBtn").addEventListener("click",()=>autoDetectComfy({}));
