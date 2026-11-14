@@ -177,7 +177,7 @@
         .chat-preview-hint { margin-right: auto; font-size: 10.5px; color: var(--muted); }
         .chat-preview-editor { display: none; resize: none; width: 100%; box-sizing: border-box; outline: none; font-family: inherit; }
         .chat-preview-editor:focus { border-color: var(--blue); }
-        .ctrl-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .ctrl-btn:disabled, .ctrl-btn.busy-disabled { opacity: .5; cursor: not-allowed; }
         /* 已有产物时点技能：选一个技能来处理窗口里的文字 */
         .skill-action-box { height: auto; max-height: 85vh; max-width: 560px; }
         .skill-action-head { font-size: 13px; line-height: 1.75; color: var(--text); background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
@@ -257,7 +257,7 @@
         .help-contact-box .help-contact { color: #e9d5ff; font-size: 14px; margin: 4px 0; line-height: 1.7; overflow-wrap: anywhere; }
         .help-contact-box .help-contact:first-child { color: #fbbf24; font-weight: 600; font-size: 15px; }
         .help-contact-box .help-model-file { color: #a7f3d0; font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.9; margin: 6px 0 8px; }
-        /* 展开收起样式（原有推理参数折叠，保留） */
+        /* 展开收起样式（算力总控折叠，保留） */
         .param-content { transition: all 0.25s ease; overflow: hidden; }
         .param-content.collapse { height: 0; opacity: 0; }
         .toggle-param-btn { padding: 3px 8px; font-size: 11px; border: 1px solid var(--border2); border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer; }
@@ -318,7 +318,7 @@
 
         <div class="card param-panel">
             <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-                推理参数
+                算力总控
                 <button class="toggle-param-btn">收起</button>
             </div>
             <div class="param-content">
@@ -437,7 +437,7 @@
             <div class="spacer"></div>
             <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
-            <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（新开标签页，不打断生成）">⇢ 送到画布</button>
+            <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（先选现有画布 / 新建画布；生成中不可用）">⇢ 送到画布</button>
             <button class="ctrl-btn clear-history-btn" id="clearHistoryBtn">清空本地全部历史</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
@@ -489,6 +489,16 @@
         <div class="skill-action-head" id="skillActionHead"></div>
         <div class="skill-action-list" id="skillActionList"></div>
         <button class="ctrl-btn modal-close" id="closeSkillActionBtn">取消 / 关闭</button>
+    </div>
+</div>
+<div class="modal-overlay" id="sendCanvasModal">
+    <div class="modal-box skill-action-box">
+        <div class="skill-action-head" id="sendCanvasHead"></div>
+        <div class="skill-action-list">
+            <button type="button" class="skill-btn" id="sendCanvasExistingBtn">现有画布</button>
+            <button type="button" class="skill-btn" id="sendCanvasNewBtn">新建画布</button>
+        </div>
+        <button class="ctrl-btn modal-close" id="closeSendCanvasBtn">取消 / 关闭</button>
     </div>
 </div>
 <div class="modal-overlay" id="helpModal">
@@ -592,6 +602,11 @@ const skillActionModal = document.getElementById("skillActionModal");
 const skillActionHead = document.getElementById("skillActionHead");
 const skillActionList = document.getElementById("skillActionList");
 const closeSkillActionBtn = document.getElementById("closeSkillActionBtn");
+const sendCanvasModal = document.getElementById("sendCanvasModal");
+const sendCanvasHead = document.getElementById("sendCanvasHead");
+const sendCanvasExistingBtn = document.getElementById("sendCanvasExistingBtn");
+const sendCanvasNewBtn = document.getElementById("sendCanvasNewBtn");
+const closeSendCanvasBtn = document.getElementById("closeSendCanvasBtn");
 const previewFsBtn = document.getElementById("previewFsBtn");
 const previewTitle = document.getElementById("previewTitle");
 const downloadModal = document.getElementById("downloadModal");
@@ -647,16 +662,17 @@ const HELP_HTML = `
 
 <h2>三、通用使用流程</h2>
 <ol>
-<li>点击上方按钮加载对应的创作技能模板；<b>吐字窗口里已经有生成的文字时，点任一技能（含导入的本地技能）会先弹出选择框，让你选「用哪个技能处理这段文字」，选定后自动加载该技能并直接开始生成；不想处理点「取消 / 关闭」即可，不会改动窗口内容</b>；</li>
-<li>选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；</li>
+<li>点击上方按钮加载对应的创作技能模板；<b>吐字窗口里已经有生成的文字时，点任一技能（含导入的本地技能）会先弹出选择框，让你选「用哪个技能处理这段文字」；选定后会新开一个干净的创作台网页，自动带上这段文字、所选技能和你在底部输入框里写的额外要求，在新网页里自动加载技能并直接开始生成，避免剧本、生图提示词、生视频提示词混在同一个窗口。当前页面的吐字窗口完全不变</b>；不想处理点「取消 / 关闭」即可，不会打开新网页、也不会改动窗口内容；</li>
+<li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
 <li>页面顶部的【历史产物1 / 2 / 3 / 更多】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，点【清空本地全部历史】可一次清除。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b></li>
+<li>点【⇢ 送到画布】会先弹出「现有画布 / 新建画布」两个选项，选好后再送到对应画布，点「取消 / 关闭」则不送达。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送出半段内容</b>。选「现有画布」＝送到画布页当前打开（或上次使用）的那份画布；选「新建画布」＝新开画布页并自动新建一份画布，把产物作为提示词节点放进去。</li>
 </ol>
 
 <h2>四、导入本地md自定义技能</h2>
-<p>点【导入本地.md技能】，选择本地md文件；导入后生成独立技能按钮，和内置5个技能互斥切换，可随时删除自定义技能。自定义技能全程不发送网络请求，仅保存在浏览器内存，刷新页面丢失。<b>吐字窗口已有文字时，已导入的本地技能会按文件名一起出现在技能选择弹窗里。</b></p>
+<p>点【导入本地.md技能】，选择本地md文件；导入后生成独立技能按钮，和内置5个技能互斥切换，可随时删除自定义技能。自定义技能全程不发送网络请求，仅保存在浏览器内存，刷新页面丢失。<b>吐字窗口已有文字时，已导入的本地技能会按文件名一起出现在技能选择弹窗里；选定后技能的 md 内容会一并带到新网页，无需重新导入。</b></p>
 
 <h2>五、上传画风参考图（仅美术技能可用）</h2>
 <ul>
@@ -671,8 +687,8 @@ const HELP_HTML = `
 <h2>六、界面布局</h2>
 <ul>
 <li>左侧为配置栏，可独立滚动；右侧为 AI 输出窗口，占满整屏高度，配置再多也不会挤小它。</li>
-<li>顶部工具条只有一行：【历史产物1 / 2 / 3 / 更多】与【下载产物 TXT】【送到画布】【新建对话】【漫流主站】同排，尽量把高度留给输出窗口；右侧 AI 输出窗口支持双击预览与在线编辑。</li>
-<li>【推理参数】的 收起 / 展开 保持原有用法；顶部【▤ 专注模式】可一键收起整个左侧配置栏，让输出窗口占满宽度，再点一次恢复，所有功能按钮不会丢失。</li>
+<li>顶部工具条只有一行：【历史产物1 / 2 / 3 / 更多】与【下载产物 TXT】【送到画布】【新建对话】【漫流主站】同排，尽量把高度留给输出窗口；右侧 AI 输出窗口支持双击预览与在线编辑；【送到画布】生成中禁用，可用时先弹「现有画布 / 新建画布」选择框。</li>
+<li>【算力总控】（原「推理参数」）的 收起 / 展开 保持原有用法；顶部【▤ 专注模式】可一键收起整个左侧配置栏，让输出窗口占满宽度，再点一次恢复，所有功能按钮不会丢失。</li>
 <li>窄屏（手机）自动切回上下单列布局，专注模式同样可用。</li>
 </ul>
 
@@ -1152,6 +1168,7 @@ function stopGenerate() {
         abortController.abort();
         abortController = null;
         append("⚠️ 已停止生成", "tip");
+        try { syncSendToCanvasBtn(); } catch(e){}
     }
 }
 /* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
@@ -1296,21 +1313,23 @@ function applyNewSessionText(text){
     append("📜 已从历史产物加入新建对话：可双击预览 / 编辑保存、下载 TXT、送到画布，或点任意技能继续处理这段文字。", "tip");
     return true;
 }
+function acceptNewSessionPayload(o){
+    if(!o || typeof o !== "object") return false;
+    if(Date.now() - Number(o.at || 0) > 60000) return false;   /* 过期的一次性数据直接忽略 */
+    if(o.from === "skill") return applySkillTask(o);
+    return applyNewSessionText(o.text);
+}
 function consumeNewSessionPayload(){
     const raw = safeStorage.get(MF_NEW_SESSION_KEY);
     if(!raw) return;
     safeStorage.remove(MF_NEW_SESSION_KEY);
-    try{
-        const o = JSON.parse(raw);
-        if(!o || !o.text) return;
-        if(Date.now() - Number(o.at || 0) > 60000) return;   /* 过期的一次性数据直接忽略 */
-        applyNewSessionText(o.text);
-    }catch(e){ /* 数据损坏时忽略，不影响正常打开 */ }
+    try{ acceptNewSessionPayload(JSON.parse(raw)); }
+    catch(e){ /* 数据损坏时忽略，不影响正常打开 */ }
 }
 window.addEventListener("message", (ev)=>{
     const d = ev && ev.data;
     if(!d || d.type !== "manflows_new_session") return;
-    applyNewSessionText(d.payload && d.payload.text);
+    acceptNewSessionPayload(d.payload);
 });
 function newSessionFromHistory(){
     const rec = currentPreviewHistoryRecord();
@@ -1371,7 +1390,43 @@ function mfChannel(){
     try { return ("BroadcastChannel" in window) ? new BroadcastChannel(MF_CANVAS_CHANNEL) : null; }
     catch(e){ return null; }
 }
+function isGenerating(){
+    return !!(abortController && !abortController.signal.aborted);
+}
+function syncSendToCanvasBtn(){
+    const b = document.getElementById("sendToCanvasBtn");
+    if(!b) return;
+    const busy = isGenerating();
+    /* 不用原生 disabled：否则生成中点击毫无反馈。改为置灰可点，点击时明确提示且绝不投递 */
+    b.classList.toggle("busy-disabled", busy);
+    b.dataset.busy = busy ? "1" : "";
+    b.title = busy
+        ? "正在吐字生成中，生成完毕后才能送到画布（避免只转移不完整内容）"
+        : "把最近一次 AI 输出送到画布（先选现有画布 / 新建画布）";
+}
+function openSendCanvasModal(){
+    if(!sendCanvasModal) return;
+    if(isGenerating()){
+        alert("正在吐字生成中，请等本次生成完毕（或点「停止生成」）后再送到画布，避免只转移不完整内容。");
+        return;
+    }
+    const text = (typeof fullAiText === "string") ? fullAiText.trim() : "";
+    if(!text){ alert("还没有 AI 输出内容，先生成剧本或提示词再送到画布。"); return; }
+    try { closePreview(); } catch(e){}      /* 两个弹窗不叠加 */
+    sendCanvasHead.innerHTML = "请选择产物要送到哪份画布：<br>· <b>现有画布</b>＝画布页当前打开（或上次使用）的那份画布，画布页已打开就实时插入。<br>· <b>新建画布</b>＝新开画布页并自动新建一份画布，把产物作为提示词节点放进去。<br>当前页面的产物正文不会改动；点「取消 / 关闭」则不送达。";
+    sendCanvasModal.style.display = "flex";
+}
+function closeSendCanvasModal(){
+    if(sendCanvasModal) sendCanvasModal.style.display = "none";
+}
 function sendToCanvas(){
+    openSendCanvasModal();   /* 先选目标，选好后再真正投递 */
+}
+function deliverToCanvas(target){
+    if(isGenerating()){
+        alert("正在吐字生成中，请等本次生成完毕后再送到画布。");
+        return;
+    }
     const text = (typeof fullAiText === "string") ? fullAiText.trim() : "";
     if(!text){ alert("还没有 AI 输出内容，先生成剧本或提示词再送到画布。"); return; }
     const payload = {
@@ -1379,16 +1434,27 @@ function sendToCanvas(){
         ts: Date.now(),
         title: (typeof currentOutputFile === "function" ? currentOutputFile() : "AI生成产物") + " · " + new Date().toLocaleTimeString("zh-CN", {hour12:false}),
         skillKey: (typeof currentSkillKey === "string") ? currentSkillKey : "",
+        target: (target === "new") ? "new" : "existing",
         text: text
     };
     // 弹窗必须在点击的同步调用栈里打开，否则会被浏览器拦截；画布页启动后自行从收件箱取件
-    const win = window.open("./canvas.html", "_blank");
-    const ch = mfChannel();
-    if(ch){ try { ch.postMessage(payload); } catch(e){} finally { try { ch.close(); } catch(_){} } }
+    const url = (payload.target === "new") ? ("./canvas.html?mfNewDoc=" + encodeURIComponent(payload.id)) : "./canvas.html";
+    const win = window.open(url, "_blank");
+    /* 「现有画布」保持原有两条通路：已打开的画布页实时插入 + 新开页从收件箱补取。
+       「新建画布」不广播，只由带 mfNewDoc 参数的新标签页从收件箱取件后新建画布，
+       避免多个已打开的画布页各自新建一份。 */
+    if(payload.target === "existing"){
+        const ch = mfChannel();
+        if(ch){ try { ch.postMessage(payload); } catch(e){} finally { try { ch.close(); } catch(_){} } }
+    }
     mfPutInbox(payload).then(ok=>{
         if(!win && !ok) alert("画布页未能打开，请检查是否拦截了弹窗；产物已尝试保存在本机。");
     });
-    try { append("⇢ 已把最近一次产物送到画布（新标签页）。", "tip"); } catch(e){}
+    try {
+        append(payload.target === "new"
+            ? "⇢ 已新建一份画布并送入产物（新标签页）。"
+            : "⇢ 已把最近一次产物送到现有画布（当前 / 上次那份）。", "tip");
+    } catch(e){}
 }
 function guardCanvasNav(ev){
     if(abortController && !abortController.signal.aborted){
@@ -1397,10 +1463,12 @@ function guardCanvasNav(ev){
 }
 
 /* ==================================================================
-   已有产物时点技能：先让用户选「用哪个技能处理这段字」
+   已有产物时点技能：先让用户选「用哪个技能处理这段字」，然后在新网页里生成
    · 窗口里没有 AI 产物正文 → 完全保持原来的加载行为（loadSkill / loadCustomSkill）；
    · 有产物 → 弹窗列出 5 个内置技能（按按钮原文）+ 已导入的本地技能（按文件名），
-     可关闭取消；选定后加载该技能并把现有文字作为素材自动开始生成；
+     可关闭取消；选定后把「已有正文 + 技能 + 底部额外要求」一次性带到新开的创作台网页，
+     新网页自动加载技能并直接开始生成，当前页面内容完全不动；
+   · 自定义 .md 技能只存内存，随 payload 把内容一起带过去，无需在新页重新导入；
    · 「导入本地 .md 技能」「使用帮助」两个按钮不进弹窗、行为保持原样。
    ================================================================== */
 function onSkillButtonClick(sel){
@@ -1419,10 +1487,10 @@ function openSkillActionModal(){
     const manflowTip = (computeMode === "manflow")
         ? "<br>⚠️ 当前是「漫流算力」占位模式，不会真正发起请求；请先切到「本机算力」或「第三方API」。"
         : "";
-    skillActionHead.innerHTML = "吐字窗口里<b>已有生成的文字</b>。请选择一个技能，将<b>用该技能对这段文字进行处理</b>并直接开始生成；"
-        + "你原先写在页面底部指令输入框里的额外要求（如「改成悲剧结尾」）会和这段文字一起提交。"
-        + (n ? ` 已导入的 <b>${n}</b> 个本地技能按文件名列在后面。` : "")
-        + "<br>不确定就点「取消 / 关闭」，不会加载技能、也不会改动窗口内容。"
+    skillActionHead.innerHTML = "吐字窗口里<b>已有生成的文字</b>。请选择一个技能：<b>会新开一个干净的创作台网页，用该技能对这段文字进行处理并直接开始生成</b>，剧本、生图提示词、生视频提示词各自留在自己的网页里，不再混进当前窗口。"
+        + "你原先写在页面底部指令输入框里的额外要求（如「改成悲剧结尾」）会和这段文字一起带到新网页。"
+        + (n ? ` 已导入的 <b>${n}</b> 个本地技能按文件名列在后面，选中后技能内容会一并带过去。` : "")
+        + "<br>当前页面内容保持不变；不确定就点「取消 / 关闭」，不会打开新网页、也不会改动窗口内容。"
         + manflowTip;
     skillActionModal.style.display = "flex";
 }
@@ -1451,22 +1519,76 @@ function renderSkillActionList(){
 }
 function chooseSkillAction(sel){
     closeSkillActionModal();
-    Promise.resolve(startSkillOnExistingText(sel)).catch(e => {
-        console.error("技能处理启动失败：", e);
-        append("⚠️ 技能处理启动失败：" + (e && e.message ? e.message : e), "err");
-    });
-}
-async function startSkillOnExistingText(sel){
-    const sourceText = String(fullAiText || "");
-    if(!sourceText.trim()) return;
-    if(sel && sel.type === "custom") loadCustomSkill(sel.item);
-    else await loadSkill(sel.key);
-    /* 技能加载失败（模板为空）时不发请求，避免拿旧技能或空模板白跑一次 */
-    if(!String(currentSystemPrompt || "").trim()){
-        append("⚠️ 技能未加载成功，本次没有开始生成；窗口里的文字保持不变。", "err");
-        return;
+    try{
+        const sourceText = String(fullAiText || "");
+        if(!sourceText.trim()){ append("⚠️ 当前窗口没有可处理的文字。", "err"); return; }
+        let skill = null;
+        if(sel && sel.type === "custom"){
+            const item = sel.item || {};
+            if(!String(item.content || "").trim()){ append("⚠️ 这个本地技能内容为空，无法在新网页使用。", "err"); return; }
+            skill = { type:"custom", item:{ name:String(item.name || "导入技能"), content:String(item.content) } };
+        }else{
+            const key = String((sel && sel.key) || "");
+            if(!key){ append("⚠️ 技能标识为空，无法在新网页加载。", "err"); return; }
+            skill = { type:"builtin", key:key };
+        }
+        const payload = {
+            from: "skill", at: Date.now(),
+            text: sourceText,
+            cmd: String(userInput.value || "").trim(),
+            skill: skill
+        };
+        const stored = safeStorage.set(MF_NEW_SESSION_KEY, JSON.stringify(payload));
+        const win = openNewSession(stored ? null : payload);
+        if(!stored && !win){
+            alert("⚠️ 当前环境禁止本地存储且未能打开新页面；文字与技能都未改动，可稍后重试。");
+            return;
+        }
+        /* 成功时当前页不追加任何消息：吐字窗口保持原样，新内容只出现在新网页 */
+    }catch(e){
+        console.error("新网页技能生成启动失败：", e);
+        alert("⚠️ 新网页技能生成启动失败：" + (e && e.message ? e.message : e));
     }
-    await sendMessage(sourceText);
+}
+/* 新网页接到「已有正文 + 技能」任务：自动加载技能，把原正文当素材直接开始生成。
+   与「加入新建对话」共用一次性中转通道但互不冲突：那边把正文放进窗口，这里不预先放正文。 */
+function applySkillTask(o){
+    if(window.__mfNewSessionApplied) return false;
+    const t = String((o && o.text) || "");
+    const sk = o && o.skill;
+    if(!t.trim() || !sk) return false;
+    window.__mfNewSessionApplied = true;
+    window.__mfPendingSkillTask = { text:t, skill:sk, cmd:String(o.cmd || ""), at:Number(o.at)||0 };
+    return true;
+}
+async function runPendingSkillTask(){
+    const task = window.__mfPendingSkillTask;
+    if(!task) return;
+    window.__mfPendingSkillTask = null;
+    try{
+        const sk = task.skill || {};
+        if(sk.type === "custom"){
+            const item = { id: uuid(), name:String((sk.item && sk.item.name) || "导入技能"), content:String((sk.item && sk.item.content) || "") };
+            if(!item.content.trim()){ append("⚠️ 带过来的本地技能内容为空，本次没有开始生成。", "err"); return; }
+            customSkillList.push(item);
+            renderCustomSkillButtons();
+            loadCustomSkill(item);
+        }else{
+            const key = String(sk.key || "");
+            if(!key){ append("⚠️ 带过来的技能标识为空，本次没有开始生成。", "err"); return; }
+            await loadSkill(key);
+        }
+        if(!String(currentSystemPrompt || "").trim()){
+            append("⚠️ 技能未加载成功，本次没有开始生成；可重试或导入本地md技能。", "err");
+            return;
+        }
+        userInput.value = String(task.cmd || "");
+        append("🆕 已在新网页载入技能，正用上一段网页的正文作为素材开始生成…", "tip");
+        await sendMessage(task.text);
+    }catch(e){
+        console.error("新网页技能生成失败：", e);
+        append("❌ 新网页技能生成失败：" + (e && e.message ? e.message : e), "err");
+    }
 }
 
 function renderCustomSkillButtons(){
@@ -1908,8 +2030,8 @@ async function sendMessage(autoSourceText) {
     /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位。
        不发起任何请求、不计费，直接给出提示；原有本机算力 / 第三方API 链路完全不受影响。 */
     if(computeMode === "manflow"){
-        append("⚠️ 【漫流算力】即将开放：预置模型、扫码充值、积分与扣费系统正在接入中。当前请先在左栏【推理参数 → 算力模式】切换到「本机算力」或「第三方API」再开始。", "err");
-        alert("漫流算力即将开放（扫码充值即可使用，正在接入中）。\n当前请先在左栏【推理参数 → 算力模式】切换到「本机算力」或「第三方API」。");
+        append("⚠️ 【漫流算力】即将开放：预置模型、扫码充值、积分与扣费系统正在接入中。当前请先在左栏【算力总控 → 算力模式】切换到「本机算力」或「第三方API」再开始。", "err");
+        alert("漫流算力即将开放（扫码充值即可使用，正在接入中）。\n当前请先在左栏【算力总控 → 算力模式】切换到「本机算力」或「第三方API」。");
         return;
     }
     pendingText = "";
@@ -1924,7 +2046,7 @@ async function sendMessage(autoSourceText) {
         }
     }
     if (userCmd) combinedContent += "【用户指令】\n" + userCmd;
-    /* 技能选择弹窗触发的自动开始：把窗口里已有文字作为待处理素材送进模型，
+    /* 跨页技能任务触发的自动开始：把上一页带过来的已有文字作为待处理素材送进模型，
        窗口里不重复刷一大段原文；普通点「开始」时 autoSourceText 为空，行为完全不变 */
     if(autoSourceText){
         combinedContent += (combinedContent ? "\n\n" : "") + "【待处理的已有文字】\n请依据当前技能，对以下已有文字进行相应处理：\n" + autoSourceText;
@@ -1963,6 +2085,7 @@ async function sendMessage(autoSourceText) {
     userInput.value = "";
     aiMsgDom = append("【AI】：", "ai");
     abortController = new AbortController();
+    syncSendToCanvasBtn();
 
     let fetchUrl, fetchHeaders, bodyObj;
     /* 带图用 OpenAI 多模态 content 数组；不带图保持纯字符串，纯文本接口才不会报图片错误 */
@@ -2086,6 +2209,7 @@ async function sendMessage(autoSourceText) {
         if(e.name !== "AbortError") append(`❌ 请求异常：${e.message}`, "err");
     } finally {
         abortController = null;
+        syncSendToCanvasBtn();
         // 正常结束、用户点停止、请求异常三种情况都把已生成的产物写入历史（只写一次）
         if (fullAiText && fullAiText.trim()) saveHistoryToLocal();
     }
@@ -2184,14 +2308,21 @@ function initUI(){
     document.addEventListener("keydown", (ev)=>{
         if(ev.key !== "Escape") return;
         if(downloadModal && downloadModal.style.display === "flex"){ closeDownloadDialog(); return; }
+        if(sendCanvasModal && sendCanvasModal.style.display === "flex"){ closeSendCanvasModal(); return; }
         const box = previewBox();
         if(previewModal.style.display === "flex" && box && box.classList.contains("preview-fullscreen")){
             togglePreviewFullscreen(false);
         }
     });
-    // 已有产物时点技能：选择处理技能弹窗（可点按钮或点遮罩关闭）
+    // 已有产物时点技能：选择处理技能弹窗（新网页生成，可点按钮或点遮罩关闭）
     if(closeSkillActionBtn) closeSkillActionBtn.addEventListener("click", closeSkillActionModal);
     if(skillActionModal) skillActionModal.addEventListener("click", (ev)=>{ if(ev.target === skillActionModal) closeSkillActionModal(); });
+    // 送到画布：先选「现有画布 / 新建画布」，选好后再投递
+    if(closeSendCanvasBtn) closeSendCanvasBtn.addEventListener("click", closeSendCanvasModal);
+    if(sendCanvasModal) sendCanvasModal.addEventListener("click", (ev)=>{ if(ev.target === sendCanvasModal) closeSendCanvasModal(); });
+    if(sendCanvasExistingBtn) sendCanvasExistingBtn.addEventListener("click", ()=>{ closeSendCanvasModal(); deliverToCanvas("existing"); });
+    if(sendCanvasNewBtn) sendCanvasNewBtn.addEventListener("click", ()=>{ closeSendCanvasModal(); deliverToCanvas("new"); });
+    syncSendToCanvasBtn();
     stopBtn.addEventListener("click", stopGenerate);
     sendMsgBtn.addEventListener("click", sendMessage);
     downloadAiBtn.addEventListener("click", downloadAiText);
@@ -2303,6 +2434,8 @@ function initUI(){
         console.error("界面初始化异常：", e);
         try { append(`⚠️界面初始化异常：${e.message}（可刷新页面重试）`, "err"); } catch(_){}
     }
+    /* 跨页技能任务放在最后：确保按钮绑定完成，即使初始化中途出错也尽量把任务跑起来 */
+    Promise.resolve(runPendingSkillTask()).catch(e=>console.error("新网页技能任务异常：", e));
 }
 if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", initUI, { once:true });
