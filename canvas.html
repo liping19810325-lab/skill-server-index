@@ -285,12 +285,12 @@
                 <div class="row"><button class="mini-btn cyan" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
                 <div class="hint" style="margin:4px 0 0">与创作台共用同一份本机地址：创作台「推理参数 → ⚡ 自动接通」扫到的 llama / Ollama / LM Studio 等，画布页直接复用；也可以在这里再点一次，独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
                 <div class="row" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:8px"><label>补充模型清单（可选 · 创作台模型已自动并入下拉）</label></div>
-                <div class="row"><input type="text" id="modelLibInput" placeholder="填服务商模型名，如 xxx-image / xxx-video"></div>
-                <div class="row"><select id="modelLibKind"><option value="image">生图</option><option value="video">生视频</option><option value="both">通用</option></select><button class="mini-btn" id="modelLibAddBtn">＋ 添加</button></div>
+                <div class="row"><input type="text" id="modelLibInput" placeholder="填服务商模型名，如 xxx-image / xxx-video / xxx-llm"></div>
+                <div class="row"><select id="modelLibKind"><option value="image">生图</option><option value="video">生视频</option><option value="llm">大语言（写作）</option></select><button class="mini-btn" id="modelLibAddBtn">＋ 添加</button></div>
                 <div class="row"><button class="mini-btn cyan" id="modelLibFetchBtn">⟳ 从服务商获取模型列表</button><span class="kv" id="modelLibState"></span></div>
                 <div class="row"><select id="modelLibList" size="4" style="width:100%"></select></div>
                 <div class="row"><button class="mini-btn red" id="modelLibDelBtn">删除选中模型</button></div>
-                <div class="hint" style="margin:4px 0 0"><b>创作台「第三方API」里配置的模型会自动同步进来</b>（新增 / 改名 / 删除实时生效），并自动按生图 / 生视频分组；判断不出类型的归「通用」，两种生成类型都能选；写作模型会加标注列在最后。这里只用于补充：创作台没配、又想额外加的模型，可点「⟳ 从服务商获取模型列表」或手动填写，填过的记在本机浏览器、跨画布共用。<b>漫流算力</b>的模型正在接入中，暂不可选。</div>
+                <div class="hint" style="margin:4px 0 0"><b>创作台「第三方API」里配置的模型会自动同步进来</b>（新增 / 改名 / 删除实时生效），并按生图 / 生视频 / 大语言（写作）分类；生成节点「选择模型」只列当前「生成类型」这一类专属模型 + 通用 / 服务商模型，不会把三类模型混在一起；判断不出类型的归「通用」，每一类都能选。这里只用于补充：创作台没配、又想额外加的模型，可点「⟳ 从服务商获取模型列表」或手动填写，填过的记在本机浏览器、跨画布共用。<b>漫流算力</b>的模型正在接入中，暂不可选。</div>
                 <div class="row"><a class="mini-btn gray" href="./index.html" style="text-decoration:none;display:inline-block;">去创作台修改</a></div>
                 </div>
             </div>
@@ -298,9 +298,9 @@
             <div class="card collapsible collapsed" id="cardGuide">
                 <h2 class="card-toggle">③ 三类接入方式</h2>
                 <div class="card-body">
-                <div class="hint">生成节点三选一：<br>· <b>1. 漫流算力</b>：预置模型 + 扫码充值 / 积分扣费正在接入中，当前仅占位、不可运行。<br>· <b>2. 本机算力</b>：本机 ComfyUI 工作流，可存多份模板，<b>模型在「模型 / 工作流」下拉里选</b>，生图与生视频各用各的。<br>· <b>3. 第三方API</b>：云端生图 / 生视频，接口地址与 Key 复用<b>你自己在创作台填写</b>的配置，<b>模型名在下拉里选创作台已配好的模型（也可手填）</b>；预设只决定请求协议：异步任务（提交 → 轮询）、OpenAI 兼容同步、百炼 Qwen、自定义 JSON。</div>
+                <div class="hint">生成节点三选一：<br>· <b>1. 漫流算力</b>：预置模型 + 扫码充值 / 积分扣费正在接入中，当前仅占位、不可运行。<br>· <b>2. 本机算力</b>：本机 ComfyUI 工作流，可存多份模板，<b>模型在「模型 / 工作流」下拉里选</b>，生图与生视频各用各的。<br>· <b>3. 第三方API</b>：先在「生成类型」里选<b>大语言（文字）/ 生图（图片）/ 生视频（视频）</b>，下面「选择模型」就只列这一类专属模型 + 通用 / 服务商模型，不会把三类模型混在一起；切换类型会记住你在每一类里选过的模型，切回来还在（不会清空）。接口地址与 Key 复用<b>你自己在创作台填写</b>的配置，<b>模型名在下拉里选创作台已配好的模型（也可手填）</b>。选「大语言（文字）」时走 <code>/v1/chat/completions</code> 文字→文字，结果输出成文本节点（可复制、可继续连到提示词节点），画幅 / 分辨率 / 时长自动隐藏。生图 / 生视频的预设只决定请求协议：异步任务（提交 → 轮询）、OpenAI 兼容同步、百炼 Qwen、自定义 JSON。</div>
                 <div class="hint">异步任务型网关的协议：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>。<b>不能用 OpenAI 的复数 <code>/v1/images/generations</code></b>，否则返回 400。</div>
-                <div class="hint"><b>多参考素材</b>：把「＋ 声音」「＋ 视频」节点连到生成节点、生成类型切到生视频，会自动改用 <code>-multi</code> 多模态模型，按官方格式把图片、视频与音频一起写进 <code>metadata.content</code>；本地文件先上传换直链。视频 ≤3 个、音频 ≤3 段。</div>
+                <div class="hint"><b>多参考素材</b>：把「＋ 声音」「＋ 视频」节点连到生成节点、生成类型切到生视频，会按 <code>-multi</code> 多模态格式提交（部分服务商需自行选 <code>-multi</code> 版本模型），按官方格式把图片、视频与音频一起写进 <code>metadata.content</code>；本地文件先上传换直链。视频 ≤3 个、音频 ≤3 段。</div>
                 <div class="hint">生成失败时结果节点会显示接口原始返回，方便边测边调。</div>
                 </div>
             </div>
@@ -390,7 +390,7 @@
             <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
         </ul>
         <h2>多参考素材怎么生效（异步任务型网关）</h2>
-        <p>连入声音或视频参考节点、且生成类型选「生视频」时，模型会自动推荐 <code>-multi</code> 多模态版本；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
+        <p>连入声音或视频参考节点、且生成类型选「生视频」时，按 <code>-multi</code> 多模态格式提交（部分服务商需自行选 <code>-multi</code> 版本模型）；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
         <h2>鼠标与快捷键（贴近常用画布习惯）</h2>
         <ul>
             <li><b>框选</b>：在空白处按住左键拖出蓝框，框到的节点全部选中；按 <code>Shift</code> 拖框可追加选择，<code>Ctrl/⌘</code> 或 <code>Shift</code> 点节点可加减单个。</li>
@@ -421,7 +421,7 @@
         <h2>3. 第三方API · 每个用户自己配置</h2>
         <ul>
             <li><b>页面不预置任何接口、Key、模型名</b>：默认全部为空。先在创作台的「第三方API」里新增 API 配置，填接口地址、API Key 与模型名称（只存你本机浏览器）；<b>这些模型会自动出现在画布生成节点的「选择模型」下拉里，直接选即可，不用再手填模型名</b>。画布与创作台同源共用同一份配置，并把 <code>…/v1/chat/completions</code> 归一到域名层；选中某个模型后，请求会自动使用该模型所属配置的接口地址与 Key，不同服务商分别配也能正确调用。没有填接口 / Key / 模型时会明确报错提示，不会悄悄用别人的配置。</li>
-            <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名按你要用的版本自己改（文生 / 图生 <code>-i2i</code> / <code>-i2v</code>、多模态 <code>-multi</code>，以你的服务商文档为准）。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 0.4（864×480）/ 0.9（1280×736）/ 2.0（1920×1088））和<b>视频时长 1–15 秒</b>。这些选项<b>两种引擎都生效</b>：第三方 API 按各厂商参数写法提交（生视频 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；生图换算 <code>metadata.width / height</code> 或传 <code>resolution</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符）；本地 ComfyUI 对 H3 官方模板写 ResolutionSelector（宽高比+百万像素+32 步进）与 duration 秒数，其它工作流写 Latent 宽高与帧数，留空「跟随工作流」就不修改原工作流。</li>
+            <li><b>大语言（文字）/ 生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，下面「选择模型」会按类过滤，只列该类专属模型 + 通用 / 服务商模型；每一类选过的模型会被记住，来回切换不会丢。选「大语言（文字）」走文字→文字，画幅 / 分辨率 / 时长隐藏，结果是文本节点。模型名按你要用的版本自己改（文生 / 图生 <code>-i2i</code> / <code>-i2v</code>、多模态 <code>-multi</code>，以你的服务商文档为准）。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 0.4（864×480）/ 0.9（1280×736）/ 2.0（1920×1088））和<b>视频时长 1–15 秒</b>。这些选项<b>两种引擎都生效</b>：第三方 API 按各厂商参数写法提交（生视频 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；生图换算 <code>metadata.width / height</code> 或传 <code>resolution</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符）；本地 ComfyUI 对 H3 官方模板写 ResolutionSelector（宽高比+百万像素+32 步进）与 duration 秒数，其它工作流写 Latent 宽高与帧数，留空「跟随工作流」就不修改原工作流。</li>
             <li><b>异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，这类网关会返回 400 <code>invalid_request</code>。</li>
             <li>模型名以你的服务商文档为准（同一个网关里生图、生视频、多模态模型通常各不相同）。下拉里的候选来自<b>创作台「第三方API」所有 API 配置</b>，按配置名 / 模型名自动分到生图、生视频、通用与写作模型四组；判断不出类型的一律归「通用」，生图 / 生视频都能选，绝不会因为识别不出就找不到。左侧「② API 配置 / 模型清单」还可补充拉取或手填模型。填错模型会收到接口原始报错，可在结果节点里看到。</li>
             <li>其它服务商：预设里可切「OpenAI 兼容同步生图」「阿里百炼 Qwen Image 2.1 异步生图」「自定义 JSON 接口」。切到非 seedance 预设时，请在「▸ 高级」里填该服务商的独立 API Key。</li>
@@ -627,6 +627,7 @@ function hasUpstreamVideos(n){
     return upstream(n.id,"video").some(x=>(x.data.videos||[]).length);
 }
 function recommendedModel(n){
+    if(n.data.kind==="text") return "";   /* 大语言（文字）不套用生图 / 生视频预设模型 */
     const m=API_PRESETS[presetOf(n)].models;
     const ref=hasUpstreamImages(n), video=n.data.kind==="video";
     /* 有声音或视频参考时必须走 -multi 多模态模型，官方文档：-t2v / -i2v 不接受音频/视频参考 */
@@ -636,6 +637,7 @@ function recommendedModel(n){
 function defaultGenData(){
     return {
         engine:"third_party", preset:"seedance", kind:"image", model:"", modelTouched:false,
+        modelByKind:{}, profileByKind:{},
         endpoint:"", apiKey:"", headers:"", bodyTemplate:DEFAULT_BODY_TEMPLATE,
         workflowId:"", status:"", seconds:"", resolution:"", ratio:"",
         pollUrl:"", taskIdPath:DEFAULT_POLL.taskIdPath, statusPath:DEFAULT_POLL.statusPath,
@@ -1345,7 +1347,14 @@ function buildGenerateBody(body,n){
     if(!d.engine) d.engine = "third_party";
     if(!["manflow","comfyui","third_party"].includes(d.engine)) d.engine = "third_party";
     if(!API_PRESETS[d.preset]) d.preset = "seedance";
-    if(!d.kind) d.kind = "image";
+    if(!d.kind || !["text","image","video"].includes(d.kind)) d.kind = "image";
+    /* 每类各自记住选过的模型与接口绑定：切换「生成类型」不清空，切回来还在 */
+    if(!d.modelByKind || typeof d.modelByKind!=="object") d.modelByKind={};
+    if(!d.profileByKind || typeof d.profileByKind!=="object") d.profileByKind={};
+    if(!d.modelByKind[d.kind] && String(d.model||"").trim()){
+        d.modelByKind[d.kind]=String(d.model||"").trim();
+        if(d.modelProfileId) d.profileByKind[d.kind]=String(d.modelProfileId);
+    }
     const mkIn = (parent,label,child)=>{
         const f=document.createElement("div"); f.className="fld";
         const l=document.createElement("label"); l.textContent=label; f.appendChild(l); f.appendChild(child); parent.appendChild(f); return f;
@@ -1391,11 +1400,12 @@ function buildGenerateBody(body,n){
     preSel.value = presetOf(n); d.preset=preSel.value;
     const preFld = mk("服务商 / 接口模式",preSel);
 
+    /* 先定类型，下面「选择模型」只列这一类专属模型 + 通用 / 服务商模型 */
     const kindSel = document.createElement("select");
-    [["image","生图（图片）"],["video","生视频（视频）"]].forEach(([v,t])=>{
+    [["text","大语言（文字）"],["image","生图（图片）"],["video","生视频（视频）"]].forEach(([v,t])=>{
         const o=document.createElement("option"); o.value=v; o.textContent=t; kindSel.appendChild(o);
     });
-    kindSel.value = d.kind==="video"?"video":"image"; d.kind=kindSel.value;
+    kindSel.value = d.kind; d.kind=kindSel.value;
     const kindFld = mk("生成类型",kindSel);
 
     /* 三种引擎统一的「选择模型」：本机算力沿用下面的工作流下拉，漫流算力占位，
@@ -1415,7 +1425,7 @@ function buildGenerateBody(body,n){
             mdlSel.disabled=true; mdlSel.value=""; CV_MODEL_FILLERS.set(n.id,fillModelOpts); return;
         }
         mdlSel.disabled=false;
-        const kind=d.kind==="video"?"video":"image";
+        const kind=["text","image","video"].includes(d.kind)?d.kind:"image";
         const g=modelsForKind(kind);
         const lead=document.createElement("option"); lead.value=""; lead.textContent="— 请选择模型 —"; mdlSel.appendChild(lead);
         const group=(label,arr)=>{
@@ -1428,9 +1438,8 @@ function buildGenerateBody(body,n){
             });
             mdlSel.appendChild(og);
         };
-        group(kind==="video"?"生视频模型（创作台 / 清单）":"生图模型（创作台 / 清单）",g.typed);
+        group(kind==="text"?"大语言 / 写作模型（创作台 / 清单）":(kind==="video"?"生视频模型（创作台 / 清单）":"生图模型（创作台 / 清单）"),g.typed);
         group("通用 / 服务商模型",g.both);
-        group("写作模型（通常不能生图 / 生视频）",g.llm);
         const customOpt=document.createElement("option"); customOpt.value="__custom__"; customOpt.textContent="＋ 手动输入模型名"; mdlSel.appendChild(customOpt);
         const cur=String(d.model||"").trim();
         mdlSel.value = cur ? (g.all.some(m=>m.name===cur)?cur:"__custom__") : "";
@@ -1487,7 +1496,7 @@ function buildGenerateBody(body,n){
     secsTip.textContent="Seedance 2.0 官方支持 4–15 秒；1–3 秒个别模型可能报错";
     secsFld.appendChild(secsTip);
     const modelTip=document.createElement("div"); modelTip.className="mini-line";
-    modelTip.textContent="创作台「第三方API」里配好的模型已自动列在上方下拉；选中后接口地址与 Key 跟着该配置走，也可手填";
+    modelTip.textContent="「选择模型」只列当前「生成类型」这一类模型 + 通用 / 服务商模型；选中后接口地址与 Key 跟着该配置走，也可手填";
     body.appendChild(modelTip);
 
     /* 高级：绝大多数用户不用展开 */
@@ -1537,8 +1546,10 @@ function buildGenerateBody(body,n){
     const st = document.createElement("div"); st.className="gen-status"; st.textContent = d.status||""; body.appendChild(st);
 
     function refreshTip(){
-        const p=presetOf(n), custom=p==="custom", video=d.kind==="video";
-        if(p==="seedance"){
+        const p=presetOf(n), custom=p==="custom", video=d.kind==="video", text=d.kind==="text";
+        if(text){
+            routeTip.textContent="实际请求：POST …/v1/chat/completions（文字→文字，同步返回文本；接口地址与 Key 跟着所选模型的创作台配置走）";
+        }else if(p==="seedance"){
             routeTip.textContent="实际请求："+(video
                 ?"POST /v1/videos → 轮询 GET /v1/videos/{id}"
                 :"POST /v1/image/generations → 轮询 GET /v1/image/generations/{id}");
@@ -1549,8 +1560,10 @@ function buildGenerateBody(body,n){
         }else{
             routeTip.textContent="自定义接口：请填完整地址，模板支持 {{prompt}} {{model}} {{images}} 等占位符";
         }
-        ep.placeholder=custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝复用你在创作台填写的接口地址（自动派生到域名层）";
-        modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"创作台「第三方API」配置的模型已自动列出；下拉选中后接口地址与 Key 跟着该配置走（也可手填）";
+        ep.placeholder=text?"留空＝复用所选模型在创作台配置的接口地址（也可填完整 /v1/chat/completions 地址）":(custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝复用你在创作台填写的接口地址（自动派生到域名层）");
+        modelTip.textContent=text
+            ?"已选「大语言（文字）」：上游提示词作为用户输入发给 /v1/chat/completions，结果显示在文本结果节点（可复制、可继续连到提示词节点）。"
+            :(custom?"自定义接口：请填完整地址与请求体模板":"「选择模型」只列当前生成类型的模型 + 通用 / 服务商模型；选中后接口地址与 Key 跟着该配置走（也可手填）");
     }
     /* ComfyUI 引擎下，生图 / 生视频类型由所选工作流模板决定；
        模板标成生图但实际带 SaveVideo / CreateVideo 等输出节点时按生视频对待，
@@ -1568,14 +1581,16 @@ function buildGenerateBody(body,n){
     function syncFields(){
         const c = d.engine==="comfyui", m = d.engine==="manflow", t = !c && !m;
         const custom = presetOf(n)==="custom";
+        const text = t && d.kind==="text";
         const video = c ? wfKindOf()==="video" : d.kind==="video";
         wfFld.style.display = c?"":"none";
-        [preFld,kindFld,mdlFld,modelTip,adv].forEach(x=>x.style.display=t?"":"none");
+        [kindFld,mdlFld,modelTip,adv].forEach(x=>x.style.display=t?"":"none");
+        preFld.style.display = (t&&!text)?"":"none";   /* 大语言（文字）固定走 chat/completions，服务商预设不适用 */
         mdlSelFld.style.display = (t||m)?"":"none";
         manflowNote.style.display = m?"block":"none";
-        /* 比例 / 分辨率 / 时长：两种引擎都显示 —— ComfyUI 引擎写进工作流宽高 / 帧数字段 */
-        specFld.style.display=m?"none":"";
-        secsFld.style.display = (video&&!m)?"":"none";
+        /* 比例 / 分辨率 / 时长：两种引擎都显示 —— ComfyUI 引擎写进工作流宽高 / 帧数字段；文字类型不显示 */
+        specFld.style.display=(m||text)?"none":"";
+        secsFld.style.display = (video&&!m&&!text)?"":"none";
         fillRatioOpts(video,c); mountSpecRow(video); fillSecsOpts(c);
         if(!c && !d.seconds) d.seconds=secsSel.value||"5";
         imgReso.options[0].textContent=c?"跟随工作流（不修改）":"默认";
@@ -1584,7 +1599,8 @@ function buildGenerateBody(body,n){
         secsTip.textContent=c
             ?"H3 模板写 duration 秒数（自动换算合法帧位）；其它工作流按 fps 换算成帧数写进 length / num_frames"
             :"Seedance 2.0 官方支持 4–15 秒；1–3 秒个别模型可能报错";
-        customFields.forEach(x=>x.style.display=custom?"":"none");
+        customFields.forEach(x=>x.style.display=(custom&&!text)?"":"none");
+        quick.style.display=text?"none":"";   /* 文字生成不用轮询 / 自定义模板 */
         refreshTip();
         fillModelOpts();
         if(c) fillWf();
@@ -1605,11 +1621,31 @@ function buildGenerateBody(body,n){
     sel.addEventListener("change",()=>{ d.engine=sel.value; syncFields(); scheduleSave(); });
     wfSel.addEventListener("change",()=>{ d.workflowId=wfSel.value; syncFields(); scheduleSave(); });
     preSel.addEventListener("change",()=>{ d.preset=API_PRESETS[preSel.value]?preSel.value:"seedance"; preSel.value=d.preset; d.model=""; d.modelTouched=false; applyRecommended(true); syncFields(); scheduleSave(); });
-    kindSel.addEventListener("change",()=>{ d.kind=kindSel.value==="video"?"video":"image"; kindSel.value=d.kind; if(!d.modelTouched){ d.model=""; applyRecommended(true); } syncFields(); scheduleSave(); });
+    kindSel.addEventListener("change",()=>{
+        const oldKind=d.kind;
+        /* 先记住当前类型选过的模型与接口绑定：不删除、不清空用户加过的模型 */
+        if(String(d.model||"").trim()){
+            d.modelByKind[oldKind]=String(d.model||"").trim();
+            if(d.modelProfileId) d.profileByKind[oldKind]=String(d.modelProfileId);
+            else delete d.profileByKind[oldKind];
+        }
+        const nk=["text","image","video"].includes(kindSel.value)?kindSel.value:"image";
+        d.kind=nk; kindSel.value=nk;
+        /* 切回某一类时恢复它自己的模型与绑定；没选过就空着，其它类的记忆仍在 */
+        const saved=String(d.modelByKind[nk]||"").trim();
+        d.model=saved; d.modelTouched=!!saved; mdl.value=saved;
+        const sp=String(d.profileByKind[nk]||"").trim();
+        if(sp) d.modelProfileId=sp; else delete d.modelProfileId;
+        if(!saved) applyRecommended(true);
+        syncFields(); scheduleSave();
+    });
     mdl.addEventListener("input",()=>{ d.model=mdl.value; d.modelTouched=!!mdl.value.trim(); delete d.modelProfileId; scheduleSave(true); });
     mdl.addEventListener("change",()=>{
         const v=String(mdl.value||"").trim();
-        if(v && d.engine==="third_party") addModelToLib(v,d.kind==="video"?"video":"image","manual");
+        if(v && d.engine==="third_party"){
+            addModelToLib(v,d.kind==="text"?"llm":(d.kind==="video"?"video":"image"),"manual");
+            d.modelByKind[d.kind]=v; delete d.profileByKind[d.kind];
+        }
         delete d.modelProfileId;
         fillModelOpts();
     });
@@ -1622,6 +1658,8 @@ function buildGenerateBody(body,n){
         const opt=mdlSel.selectedOptions&&mdlSel.selectedOptions[0];
         const pid=opt&&opt.dataset?String(opt.dataset.profileId||""):"";
         if(pid) d.modelProfileId=pid; else delete d.modelProfileId;
+        d.modelByKind[d.kind]=v;
+        if(pid) d.profileByKind[d.kind]=pid; else delete d.profileByKind[d.kind];
         fillModelOpts(); scheduleSave();
     });
     ratioSel.addEventListener("change",()=>{ d.ratio=ratioSel.value; scheduleSave(); });
@@ -2903,7 +2941,7 @@ function loadModelLib(){
     if(!Array.isArray(a)) a=[];
     return a.filter(x=>x&&x.name).map(x=>({
         id:String(x.id||""), name:String(x.name).slice(0,160),
-        kind:(x.kind==="video"||x.kind==="image")?x.kind:"both",
+        kind:(x.kind==="video"||x.kind==="image")?x.kind:(x.kind==="llm"?"llm":"both"),
         source:x.source==="vendor"?"vendor":"manual"
     }));
 }
@@ -2914,14 +2952,14 @@ function addModelToLib(name,kind,source){
     const a=loadModelLib();
     const hit=a.find(x=>x.name===name);
     if(hit){
-        if((kind==="image"||kind==="video") && hit.kind!==kind && hit.kind!=="both"){ hit.kind="both"; saveModelLib(a); }
+        if(kind!=="both" && hit.kind!==kind && hit.kind!=="both"){ hit.kind="both"; saveModelLib(a); }
         return false;
     }
-    a.unshift({id:uid(),name,kind:(kind==="image"||kind==="video")?kind:"both",source:source==="vendor"?"vendor":"manual"});
+    a.unshift({id:uid(),name,kind:(kind==="image"||kind==="video"||kind==="llm")?kind:"both",source:source==="vendor"?"vendor":"manual"});
     saveModelLib(a); return true;
 }
 function removeModelFromLib(id){ saveModelLib(loadModelLib().filter(x=>x.id!==id)); }
-/* 按当前生成类型分组：专属模型 + 通用 / 服务商模型（两种类型都可见） */
+/* 按「生成类型」过滤：该类专属模型 + 通用 / 服务商模型；大语言（文字）对应写作模型组 */
 function modelsForKind(kind){
     const out=[], seen=new Set();
     /* 创作台「第三方API」配置为主来源：同名时优先它，选中后可带上该配置的接口地址与 Key */
@@ -2936,11 +2974,12 @@ function modelsForKind(kind){
         out.push({id:x.id,name:x.name,kind:x.kind,source:x.source,
             label:x.name+(x.source==="vendor"?" · 服务商":""),isLlm:false,profileId:""});
     });
+    const want=(kind==="text")?"llm":kind;
     return {
-        typed:out.filter(x=>x.kind===kind),
+        typed:out.filter(x=>x.kind===want),
         both:out.filter(x=>x.kind==="both"),
         llm:out.filter(x=>x.kind==="llm"),
-        all:out.filter(x=>x.kind==="llm"||x.kind==="both"||x.kind===kind)
+        all:out.filter(x=>x.kind===want||x.kind==="both")
     };
 }
 /* 从用户自己接入的服务商拉模型列表；尽力而为，跨域 / 格式不符时静默降级到手填 */
@@ -2980,7 +3019,7 @@ function renderModelLib(){
     }
     lib.forEach(m=>{
         const o=document.createElement("option"); o.value=m.id;
-        const tag=m.kind==="image"?"生图":(m.kind==="video"?"生视频":"通用");
+        const tag=m.kind==="image"?"生图":(m.kind==="video"?"生视频":(m.kind==="llm"?"大语言":"通用"));
         o.textContent="["+tag+"] "+m.name+(m.source==="vendor"?" · 服务商":"");
         box.appendChild(o);
     });
@@ -3285,6 +3324,7 @@ function ratioDims(ratio,reso){
 }
 function genMeta(n){
     const m={};
+    if(n.data.kind==="text") return m;   /* 文字生成没有画幅 / 分辨率参数 */
     const reso=resolutionApi(n.data.resolution);
     const ratio=String(n.data.ratio||"").trim();
     if(n.data.kind==="video"){
@@ -3463,7 +3503,56 @@ async function genDashscope(n,input){
     return parseGenResponse(d,"image");
 }
 /* 第三方 API 统一入口：按服务商预设分派协议 */
+/* ===== 大语言（文字）：写作 / 大语言模型 → 文本结果节点 =====
+   接口地址与 Key 跟着「选择模型」绑定的创作台配置走（同 resolveKey / apiBaseFor）：
+   配置里若本来就是完整的 /chat/completions 地址直接沿用，否则在 Base URL 后拼 /v1/chat/completions。
+   非流式；兼容只给 reasoning_content 的思考模型，并带 enable_thinking:false 主动关闭思考，
+   服务商不认该参数返回 HTTP 400 时自动去掉再试一次。 */
+async function genChat(n,input){
+    const own=String(n.data.endpoint||"").trim().replace(/\/+$/,"");
+    const bound=profileForNode(n);
+    const boundEp=String((bound&&bound.endpoint)||"").trim().replace(/\/+$/,"");
+    const raw=own||boundEp;
+    let url="";
+    if(/\/chat\/completions$/i.test(raw)) url=raw;
+    else if(/\/(?:compatible-mode\/)?v\d+(?:\.\d+)?$/i.test(raw)) url=raw+"/chat/completions";
+    else{
+        const base=raw?deriveApiBase(raw):apiBaseFor(n,"").replace(/\/+$/,"");
+        if(!base) throw new Error("接口地址为空：请在创作台「第三方API」里给这个大语言模型配好接口地址，或在生成节点「▸ 高级 → 接口地址」里填写。");
+        url=base.replace(/\/+$/,"")+"/v1/chat/completions";
+    }
+    const model=String(n.data.model||"").trim();
+    if(!model) throw new Error("请选择或填写大语言模型名：在「选择模型」里选一个创作台已配好的写作 / 大语言模型。");
+    const key=resolveKey(n), headers=parseHeaders(n.data);
+    const body={model:model,messages:[{role:"user",content:input.prompt}],stream:false};
+    /* 部分本地 / 第三方推理服务默认开启思考、只回 reasoning_content，显式关闭才能拿到正文 */
+    body.chat_template_kwargs={enable_thinking:false};
+    let j;
+    try{ j=await postJson(url,key,body,120000,headers); }
+    catch(e){
+        if(!/^HTTP 400/.test(String((e&&e.message)||""))) throw e;
+        const retry=Object.assign({},body); delete retry.chat_template_kwargs;
+        j=await postJson(url,key,retry,120000,headers);
+    }
+    const pickText=(v)=>{
+        if(v==null) return "";
+        if(typeof v==="string") return v;
+        if(Array.isArray(v)) return v.map(x=>(x&&typeof x==="object")?(x.text||""):String(x||"")).join("");
+        return typeof v==="object"?String(v.text||""):String(v);
+    };
+    const choice=(j&&Array.isArray(j.choices)&&j.choices[0])||{};
+    const msg=choice.message||choice.delta||{};
+    let text=pickText(msg.content);
+    if(!text.trim()) text=pickText(msg.reasoning_content);
+    if(!text.trim()) text=pickText(choice.text);
+    if(!text.trim()) text=pickText(j&&(j.output_text||j.text||(j.output&&j.output.text)||(j.data&&j.data.text)||j.response));
+    if(!text.trim()) text=pickText(j&&j._raw);
+    if(!text.trim()) throw new Error("接口没有返回文本内容，原始响应："+JSON.stringify(j).slice(0,800));
+    return {kind:"text",text:text};
+}
 async function genThirdParty(n,input){
+    /* 大语言（文字）：走 chat/completions，与生图 / 生视频协议分开 */
+    if(n.data.kind==="text") return genChat(n,input);
     const p=presetOf(n);
     if(p==="custom"){
         /* 自定义接口若仍指向 seedance 网关，本地音频/视频也先换直链，模板里才拿得到可用 URL */
@@ -4076,8 +4165,10 @@ async function runGenerate(n){
         setGenStatus(n,"没有连入提示词 / 参考图：连入后才会写入工作流，否则等于按工作流自带内容原样跑。","err"); n.data.busy=false; renderAll(); return;
     }
     setGenStatus(n,"正在生成…","busy");
-    if((input.audios.length||input.videos.length) && n.data.kind!=="video" && n.data.engine!=="comfyui")
-        setStatus("已连入声音/视频参考：请把「生成类型」切到生视频，才会作为多模态素材提交","busy");
+    if((input.audios.length||input.videos.length) && n.data.kind!=="video" && n.data.engine==="third_party")
+        setStatus(n.data.kind==="text"
+            ?"大语言（文字）任务会忽略声音 / 视频参考素材"
+            :"已连入声音/视频参考：请把「生成类型」切到生视频，才会作为多模态素材提交","busy");
     try{
         let out;
         if(n.data.engine==="comfyui") out=await genComfy(n,input);
