@@ -279,18 +279,18 @@
             <div class="card collapsible collapsed" id="cardApi">
                 <h2 class="card-toggle">② API 配置 / 模型清单</h2>
                 <div class="card-body">
-                <div class="hint">接口地址 / Key / 写作模型与创作台同源共享，这里只读取、不修改；「第三方API」会直接复用。<b>下方的生图 / 生视频模型清单由你自己维护，只存本机浏览器</b>，生成节点里直接下拉选，不用每次手打。</div>
+                <div class="hint">接口地址 / Key / 模型名称与创作台同源共享，这里只读取、不修改。<b>创作台「第三方API」里每条配置填的模型名称，会自动出现在生成节点的「选择模型」下拉里，直接选就行、不用手填模型名</b>；选中后接口地址与 Key 也跟着那条配置走。下方清单是可选的补充入口。</div>
                 <div class="api-box" id="apiInfo">读取中…</div>
                 <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点的智能拆分 / 图片提示词 / SD / H3 用）</label></div>
                 <div class="row"><button class="mini-btn cyan" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
                 <div class="hint" style="margin:4px 0 0">与创作台共用同一份本机地址：创作台「推理参数 → ⚡ 自动接通」扫到的 llama / Ollama / LM Studio 等，画布页直接复用；也可以在这里再点一次，独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
-                <div class="row" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:8px"><label>生图 / 生视频模型清单（生成节点里直接下拉选，只存本机浏览器）</label></div>
+                <div class="row" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:8px"><label>补充模型清单（可选 · 创作台模型已自动并入下拉）</label></div>
                 <div class="row"><input type="text" id="modelLibInput" placeholder="填服务商模型名，如 xxx-image / xxx-video"></div>
                 <div class="row"><select id="modelLibKind"><option value="image">生图</option><option value="video">生视频</option><option value="both">通用</option></select><button class="mini-btn" id="modelLibAddBtn">＋ 添加</button></div>
                 <div class="row"><button class="mini-btn cyan" id="modelLibFetchBtn">⟳ 从服务商获取模型列表</button><span class="kv" id="modelLibState"></span></div>
                 <div class="row"><select id="modelLibList" size="4" style="width:100%"></select></div>
                 <div class="row"><button class="mini-btn red" id="modelLibDelBtn">删除选中模型</button></div>
-                <div class="hint" style="margin:4px 0 0">优先点「⟳ 从服务商获取模型列表」自动拉取你接入的「第三方API」支持的模型；服务商不支持或跨域被拦时，在上方手动填写即可。填过的模型名会记在本机浏览器、跨画布共用，生成节点里手填过的也会自动加进来。<b>漫流算力</b>的模型正在接入中，暂不可选。</div>
+                <div class="hint" style="margin:4px 0 0"><b>创作台「第三方API」里配置的模型会自动同步进来</b>（新增 / 改名 / 删除实时生效），并自动按生图 / 生视频分组；判断不出类型的归「通用」，两种生成类型都能选；写作模型会加标注列在最后。这里只用于补充：创作台没配、又想额外加的模型，可点「⟳ 从服务商获取模型列表」或手动填写，填过的记在本机浏览器、跨画布共用。<b>漫流算力</b>的模型正在接入中，暂不可选。</div>
                 <div class="row"><a class="mini-btn gray" href="./index.html" style="text-decoration:none;display:inline-block;">去创作台修改</a></div>
                 </div>
             </div>
@@ -298,7 +298,7 @@
             <div class="card collapsible collapsed" id="cardGuide">
                 <h2 class="card-toggle">③ 三类接入方式</h2>
                 <div class="card-body">
-                <div class="hint">生成节点三选一：<br>· <b>1. 漫流算力</b>：预置模型 + 扫码充值 / 积分扣费正在接入中，当前仅占位、不可运行。<br>· <b>2. 本机算力</b>：本机 ComfyUI 工作流，可存多份模板，<b>模型在「模型 / 工作流」下拉里选</b>，生图与生视频各用各的。<br>· <b>3. 第三方API</b>：云端生图 / 生视频，接口地址与 Key 复用<b>你自己在创作台填写</b>的配置，<b>模型名在下拉里选（或手填）</b>；预设只决定请求协议：异步任务（提交 → 轮询）、OpenAI 兼容同步、百炼 Qwen、自定义 JSON。</div>
+                <div class="hint">生成节点三选一：<br>· <b>1. 漫流算力</b>：预置模型 + 扫码充值 / 积分扣费正在接入中，当前仅占位、不可运行。<br>· <b>2. 本机算力</b>：本机 ComfyUI 工作流，可存多份模板，<b>模型在「模型 / 工作流」下拉里选</b>，生图与生视频各用各的。<br>· <b>3. 第三方API</b>：云端生图 / 生视频，接口地址与 Key 复用<b>你自己在创作台填写</b>的配置，<b>模型名在下拉里选创作台已配好的模型（也可手填）</b>；预设只决定请求协议：异步任务（提交 → 轮询）、OpenAI 兼容同步、百炼 Qwen、自定义 JSON。</div>
                 <div class="hint">异步任务型网关的协议：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>。<b>不能用 OpenAI 的复数 <code>/v1/images/generations</code></b>，否则返回 400。</div>
                 <div class="hint"><b>多参考素材</b>：把「＋ 声音」「＋ 视频」节点连到生成节点、生成类型切到生视频，会自动改用 <code>-multi</code> 多模态模型，按官方格式把图片、视频与音频一起写进 <code>metadata.content</code>；本地文件先上传换直链。视频 ≤3 个、音频 ≤3 段。</div>
                 <div class="hint">生成失败时结果节点会显示接口原始返回，方便边测边调。</div>
@@ -420,10 +420,10 @@
         <h2>三类接入方式（生成节点三选一）</h2>
         <h2>3. 第三方API · 每个用户自己配置</h2>
         <ul>
-            <li><b>页面不预置任何接口、Key、模型名</b>：默认全部为空。先在创作台填写你自己的接口地址与 API Key（只存你本机浏览器），画布页自动复用同一份配置并把 <code>…/v1/chat/completions</code> 归一到域名层；再在生成节点<b>「选择模型」下拉里选一个（也可手填）</b>，即可点「▶ 运行生成」。没有填接口 / Key / 模型时会明确报错提示，不会悄悄用别人的配置。</li>
+            <li><b>页面不预置任何接口、Key、模型名</b>：默认全部为空。先在创作台的「第三方API」里新增 API 配置，填接口地址、API Key 与模型名称（只存你本机浏览器）；<b>这些模型会自动出现在画布生成节点的「选择模型」下拉里，直接选即可，不用再手填模型名</b>。画布与创作台同源共用同一份配置，并把 <code>…/v1/chat/completions</code> 归一到域名层；选中某个模型后，请求会自动使用该模型所属配置的接口地址与 Key，不同服务商分别配也能正确调用。没有填接口 / Key / 模型时会明确报错提示，不会悄悄用别人的配置。</li>
             <li><b>生图 / 生视频切换</b>：生成节点「生成类型」换一下即可，模型名按你要用的版本自己改（文生 / 图生 <code>-i2i</code> / <code>-i2v</code>、多模态 <code>-multi</code>，以你的服务商文档为准）。生成节点上可直接选<b>画幅比例与分辨率</b>（生图 16:9 / 9:16 / 3:2 / 2:3 / 1:1 + 1K / 2K / 4K；生视频 16:9 / 9:16 + 0.4（864×480）/ 0.9（1280×736）/ 2.0（1920×1088））和<b>视频时长 1–15 秒</b>。这些选项<b>两种引擎都生效</b>：第三方 API 按各厂商参数写法提交（生视频 <code>metadata.ratio / metadata.resolution</code> 与顶层 <code>seconds</code>；生图换算 <code>metadata.width / height</code> 或传 <code>resolution</code>；OpenAI 兼容与 Qwen 模板走派生后的 <code>size</code>；自定义接口用 <code>{{ratio}} {{resolution}} {{seconds}}</code> 占位符）；本地 ComfyUI 对 H3 官方模板写 ResolutionSelector（宽高比+百万像素+32 步进）与 duration 秒数，其它工作流写 Latent 宽高与帧数，留空「跟随工作流」就不修改原工作流。</li>
             <li><b>异步任务模式</b>：生图 <code>POST /v1/image/generations</code> → 轮询 <code>GET /v1/image/generations/{id}</code>，成功读 <code>data.result_url</code>；生视频 <code>POST /v1/videos</code> → 轮询 <code>GET /v1/videos/{id}</code>，成功读 <code>metadata.url</code>。轮询已内置，不用手工配置。<b>不要改用 OpenAI 复数路径 <code>/v1/images/generations</code></b>，这类网关会返回 400 <code>invalid_request</code>。</li>
-            <li>模型名以你的服务商文档为准，可在左侧「② API 配置 / 模型清单」点「⟳ 从服务商获取模型列表」自动拉取，或手动添加（同一个网关里生图、生视频、多模态模型通常各不相同），填错会收到接口原始报错，可在结果节点里看到。</li>
+            <li>模型名以你的服务商文档为准（同一个网关里生图、生视频、多模态模型通常各不相同）。下拉里的候选来自<b>创作台「第三方API」所有 API 配置</b>，按配置名 / 模型名自动分到生图、生视频、通用与写作模型四组；判断不出类型的一律归「通用」，生图 / 生视频都能选，绝不会因为识别不出就找不到。左侧「② API 配置 / 模型清单」还可补充拉取或手填模型。填错模型会收到接口原始报错，可在结果节点里看到。</li>
             <li>其它服务商：预设里可切「OpenAI 兼容同步生图」「阿里百炼 Qwen Image 2.1 异步生图」「自定义 JSON 接口」。切到非 seedance 预设时，请在「▸ 高级」里填该服务商的独立 API Key。</li>
             <li>「▸ 高级」可改接口地址、独立 Key、请求头；自定义预设还能填请求体模板与轮询路径，占位符支持 <code>{{prompt}}</code> <code>{{model}}</code> <code>{{images}}</code> <code>{{content_array}}</code> <code>{{audios}}</code> <code>{{audio_objects}}</code> <code>{{videos}}</code> <code>{{video_objects}}</code> 等。比例 / 分辨率 / 时长已做成生成节点上的下拉，不用进高级。</li>
             <li>结果直链是带签名的临时地址（约 24 小时），拿到后请及时下载转存。</li>
@@ -588,7 +588,8 @@ const DEFAULT_POLL = {
 };
 /* ===== 生成接入三类：1 漫流算力（占位） 2 本机算力（ComfyUI 工作流） 3 第三方API =====
    第三方API 内部用「服务商预设」只选「协议」，不预置任何接口地址、Key、模型名：
-   接口地址 / Key 复用创作台里用户自己填的配置；模型名从本机模型清单下拉选择，也可手填。 */
+   接口地址 / Key 与模型名都来自创作台「第三方API」里用户自己填的 API 配置；
+   生成节点下拉自动列出这些模型，选中后接口地址 / Key 跟着该配置走，也可手填补充。 */
 const API_PRESETS = {
     seedance:{
         label:"异步任务接口（提交 → 轮询）",
@@ -1398,7 +1399,7 @@ function buildGenerateBody(body,n){
     const kindFld = mk("生成类型",kindSel);
 
     /* 三种引擎统一的「选择模型」：本机算力沿用下面的工作流下拉，漫流算力占位，
-       第三方API 从本机模型清单按生图 / 生视频分组选，末尾保留手动输入 */
+       第三方API 自动列出创作台「第三方API」配置的模型 + 本机清单，按生图 / 生视频分组，末尾保留手动输入 */
     const mdlSel = document.createElement("select"); mdlSel.className="model-pick-select";
     const mdlSelFld = mk("选择模型",mdlSel);
     const manflowNote=document.createElement("div"); manflowNote.className="mini-line";
@@ -1420,11 +1421,16 @@ function buildGenerateBody(body,n){
         const group=(label,arr)=>{
             if(!arr.length) return;
             const og=document.createElement("optgroup"); og.label=label;
-            arr.forEach(m=>{ const o=document.createElement("option"); o.value=m.name; o.textContent=m.name+(m.source==="vendor"?" · 服务商":""); og.appendChild(o); });
+            arr.forEach(m=>{
+                const o=document.createElement("option"); o.value=m.name; o.textContent=m.label||m.name;
+                if(m.profileId) o.dataset.profileId=m.profileId;
+                og.appendChild(o);
+            });
             mdlSel.appendChild(og);
         };
-        group(kind==="video"?"生视频模型":"生图模型",g.typed);
+        group(kind==="video"?"生视频模型（创作台 / 清单）":"生图模型（创作台 / 清单）",g.typed);
         group("通用 / 服务商模型",g.both);
+        group("写作模型（通常不能生图 / 生视频）",g.llm);
         const customOpt=document.createElement("option"); customOpt.value="__custom__"; customOpt.textContent="＋ 手动输入模型名"; mdlSel.appendChild(customOpt);
         const cur=String(d.model||"").trim();
         mdlSel.value = cur ? (g.all.some(m=>m.name===cur)?cur:"__custom__") : "";
@@ -1481,7 +1487,7 @@ function buildGenerateBody(body,n){
     secsTip.textContent="Seedance 2.0 官方支持 4–15 秒；1–3 秒个别模型可能报错";
     secsFld.appendChild(secsTip);
     const modelTip=document.createElement("div"); modelTip.className="mini-line";
-    modelTip.textContent="接口地址与 Key 复用创作台里你自己填的配置；模型名在下拉里选，也可手填";
+    modelTip.textContent="创作台「第三方API」里配好的模型已自动列在上方下拉；选中后接口地址与 Key 跟着该配置走，也可手填";
     body.appendChild(modelTip);
 
     /* 高级：绝大多数用户不用展开 */
@@ -1544,7 +1550,7 @@ function buildGenerateBody(body,n){
             routeTip.textContent="自定义接口：请填完整地址，模板支持 {{prompt}} {{model}} {{images}} 等占位符";
         }
         ep.placeholder=custom?"必填：完整接口地址，如 https://api.xxx.com/v1/videos":"留空＝复用你在创作台填写的接口地址（自动派生到域名层）";
-        modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"接口地址与 Key 复用你在创作台填写的配置；模型名在下拉里选（也可手填）";
+        modelTip.textContent=custom?"自定义接口：请填完整地址与请求体模板":"创作台「第三方API」配置的模型已自动列出；下拉选中后接口地址与 Key 跟着该配置走（也可手填）";
     }
     /* ComfyUI 引擎下，生图 / 生视频类型由所选工作流模板决定；
        模板标成生图但实际带 SaveVideo / CreateVideo 等输出节点时按生视频对待，
@@ -1587,6 +1593,7 @@ function buildGenerateBody(body,n){
         if(force || !d.modelTouched){
             const v=recommendedModel(n);
             mdl.value=v; d.model=v; d.modelTouched=false;
+            delete d.modelProfileId;   /* 预设推荐模型不属于创作台某条配置 */
         }
         fillModelOpts();
     }
@@ -1599,10 +1606,11 @@ function buildGenerateBody(body,n){
     wfSel.addEventListener("change",()=>{ d.workflowId=wfSel.value; syncFields(); scheduleSave(); });
     preSel.addEventListener("change",()=>{ d.preset=API_PRESETS[preSel.value]?preSel.value:"seedance"; preSel.value=d.preset; d.model=""; d.modelTouched=false; applyRecommended(true); syncFields(); scheduleSave(); });
     kindSel.addEventListener("change",()=>{ d.kind=kindSel.value==="video"?"video":"image"; kindSel.value=d.kind; if(!d.modelTouched){ d.model=""; applyRecommended(true); } syncFields(); scheduleSave(); });
-    mdl.addEventListener("input",()=>{ d.model=mdl.value; d.modelTouched=!!mdl.value.trim(); scheduleSave(true); });
+    mdl.addEventListener("input",()=>{ d.model=mdl.value; d.modelTouched=!!mdl.value.trim(); delete d.modelProfileId; scheduleSave(true); });
     mdl.addEventListener("change",()=>{
         const v=String(mdl.value||"").trim();
         if(v && d.engine==="third_party") addModelToLib(v,d.kind==="video"?"video":"image","manual");
+        delete d.modelProfileId;
         fillModelOpts();
     });
     mdlSel.addEventListener("change",()=>{
@@ -1610,6 +1618,10 @@ function buildGenerateBody(body,n){
         if(v==="__custom__"){ mdl.focus(); return; }
         if(!v) return;
         mdl.value=v; d.model=v; d.modelTouched=true;
+        /* 选中创作台配置里的模型时只记 id 引用，接口地址 / Key 运行时现查，不写进画布存档 */
+        const opt=mdlSel.selectedOptions&&mdlSel.selectedOptions[0];
+        const pid=opt&&opt.dataset?String(opt.dataset.profileId||""):"";
+        if(pid) d.modelProfileId=pid; else delete d.modelProfileId;
         fillModelOpts(); scheduleSave();
     });
     ratioSel.addEventListener("change",()=>{ d.ratio=ratioSel.value; scheduleSave(); });
@@ -2874,12 +2886,15 @@ function renderApiInfo(){
     const base=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
     const model=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
     html+='<br><b>本机大模型：</b>'+(base?esc(base)+(model?' · '+esc(model):' · 模型名留空按 local'):'<span style="color:#fcd34d">未接通（点下方「⚡ 自动接通」）</span>');
+    const pm=profileModelEntries();
+    html+='<br><b>创作台模型：</b>'+(pm.length?('已自动并入 '+pm.length+' 个，生成节点「选择模型」里直接选'):'<span style="color:#fcd34d">暂无，请到创作台「第三方API」里配置</span>');
     box.innerHTML=html;
 }
 
 /* ============ 生图 / 生视频模型清单（只存本机浏览器，跨画布共享） ============
-   候选来源：① 用户自己接入的服务商 /v1/models；② 在「② API 配置 / 模型清单」里手填；
-   ③ 生成节点里手填过的模型名自动记住。三者合并去重，生成节点下拉直接选。 */
+   候选来源：① 创作台「第三方API」里所有 API 配置的模型名称（主来源，自动同步）；
+   ② 用户自己接入的服务商 /v1/models；③ 在「② API 配置 / 模型清单」里手填；
+   ④ 生成节点里手填过的模型名自动记住。四者合并去重，生成节点下拉直接选。 */
 const KEY_MODELS = "manflows_model_library";
 const CV_MODEL_FILLERS = new Map();
 function loadModelLib(){
@@ -2908,11 +2923,24 @@ function addModelToLib(name,kind,source){
 function removeModelFromLib(id){ saveModelLib(loadModelLib().filter(x=>x.id!==id)); }
 /* 按当前生成类型分组：专属模型 + 通用 / 服务商模型（两种类型都可见） */
 function modelsForKind(kind){
-    const lib=loadModelLib();
+    const out=[], seen=new Set();
+    /* 创作台「第三方API」配置为主来源：同名时优先它，选中后可带上该配置的接口地址与 Key */
+    profileModelEntries().forEach(m=>{
+        if(seen.has(m.name)) return;
+        seen.add(m.name); out.push(m);
+    });
+    /* 本机模型清单 / 服务商拉取 / 手填记忆作为补充，去重后合并 */
+    loadModelLib().forEach(x=>{
+        if(seen.has(x.name)) return;
+        seen.add(x.name);
+        out.push({id:x.id,name:x.name,kind:x.kind,source:x.source,
+            label:x.name+(x.source==="vendor"?" · 服务商":""),isLlm:false,profileId:""});
+    });
     return {
-        typed:lib.filter(x=>x.kind===kind),
-        both:lib.filter(x=>x.kind==="both"),
-        all:lib.filter(x=>x.kind==="both"||x.kind===kind)
+        typed:out.filter(x=>x.kind===kind),
+        both:out.filter(x=>x.kind==="both"),
+        llm:out.filter(x=>x.kind==="llm"),
+        all:out.filter(x=>x.kind==="llm"||x.kind==="both"||x.kind===kind)
     };
 }
 /* 从用户自己接入的服务商拉模型列表；尽力而为，跨域 / 格式不符时静默降级到手填 */
@@ -2988,6 +3016,48 @@ function initModelLib(){
         fetchBtn.disabled=true;
         try{ await fetchVendorModels(); renderModelLib(); refreshOpenModelSelects(); }
         finally{ fetchBtn.disabled=false; }
+    });
+}
+/* ===== 创作台「第三方API」配置里的模型：生成节点直接选，不用手填 =====
+   两页共用同一个 localStorage 键 manflows_api_profiles（同源共享，无需后端）。
+   每条配置的 model 字段就是一个模型；按配置名 / 模型名自动判断生图 / 生视频，
+   判断不出归「通用」；明显的写作模型加标注后仍列出，避免用户找不到。 */
+function profileList(){
+    let a=[];
+    try{ a=JSON.parse(safeStorage.get(KEY_API)||"[]")||[]; }catch(e){ a=[]; }
+    return (Array.isArray(a)?a:[]).filter(p=>p&&String(p.model||"").trim());
+}
+/* 节点只记配置 id 引用；接口地址 / Key 运行时现查，不把密钥复制进画布存档 */
+function profileForNode(n){
+    const id=String((n&&n.data&&n.data.modelProfileId)||"").trim();
+    if(!id) return null;
+    return profileList().find(p=>String(p.id||"")===id)||null;
+}
+function cvProfileModelKind(p){
+    const t=(String(p.name||"")+" "+String(p.model||"")).toLowerCase();
+    const V=/(video|videos|\bvid\b|h3|r2v|i2v|t2v|kling|可灵|runway|sora|veo|luma|pika|wanx|图生视频|文生视频|生视频)/;
+    const I=/(image|img|flux|midjourney|seedream|dall[- ]?e|gpt-image|qwen-image|sdxl|stable-diffusion|绘图|生图|图片|画图|文生图)/;
+    if(V.test(t)) return "video";
+    if(I.test(t)) return "image";
+    return "both";
+}
+function cvIsLlmProfile(p){
+    const ep=String(p.endpoint||"").toLowerCase();
+    const t=(String(p.name||"")+" "+String(p.model||"")).toLowerCase();
+    return /chat\/completions|\/v1\/chat|\/responses/.test(ep)
+        || /(deepseek|qwen|gpt-4|gpt-3|claude|llama|gemini|glm-|doubao|ernie|instruct|reasoner|\bflash\b|\bchat\b|写作|对话)/.test(t);
+}
+function profileModelEntries(){
+    return profileList().map(p=>{
+        const name=String(p.model||"").trim();
+        const k=cvProfileModelKind(p);
+        const isLlm=(k==="both" && cvIsLlmProfile(p));
+        return {
+            id:String(p.id||""), name:name, kind:isLlm?"llm":k,
+            source:"profile", profileId:String(p.id||""),
+            profileName:String(p.name||"未命名"), isLlm:isLlm,
+            label:name+" · 创作台"+(isLlm?"（写作模型・通常不能生图/生视频）":"")
+        };
     });
 }
 /* ============ 生成引擎 ============ */
@@ -3080,7 +3150,7 @@ function parseHeaders(d){
 function resolveKey(n){
     const own=String(n.data.apiKey||"").trim();
     if(own) return own;
-    const p=currentProfile();
+    const p=profileForNode(n)||currentProfile();
     return p?(p.key||""):"";
 }
 async function postJson(url,key,body,timeoutMs,extraHeaders){
@@ -3133,13 +3203,18 @@ function hostOf(u){ try{ return new URL(u).host; }catch(e){ return ""; } }
 function apiBaseFor(n,fallback){
     const own=String(n.data.endpoint||"").trim();
     if(own) return deriveApiBase(own);
+    /* 从「选择模型」里选了创作台某条配置的模型：直接用该配置的接口地址，不做同域判断，
+       这样不同服务商配在不同 API 配置里也能正确调用；旧节点没有绑定时完全沿用原逻辑。 */
+    const bound=profileForNode(n);
+    const fromBound=bound?deriveApiBase(bound.endpoint||""):"";
+    if(fromBound) return fromBound;
     const p=currentProfile();
     const fromProfile=deriveApiBase(p&&p.endpoint||"");
     if(fromProfile && (!fallback || !hostOf(fallback) || hostOf(fromProfile)===hostOf(fallback))) return fromProfile;
     return fallback||API_PRESETS[presetOf(n)].fallback||"";
 }
 function jsonEscape(s){ return JSON.stringify(String(s==null?"":s)).slice(1,-1); }
-/* 模型名只取生成节点自己的值；创作台的模型是「写作模型」，不能拿来生图/生视频 */
+/* 模型名取生成节点「选择模型」下拉所选（含创作台 API 配置的模型）或手填值；节点与配置按 modelProfileId 关联 */
 function genParams(n){
     const raw=String(n.data.model||"").trim();
     const isSize=/^\d+x\d+$/i.test(raw);
@@ -3238,7 +3313,7 @@ function pollConfig(n){
 /* ===== 声音参考：本地音频先经 /v1/files/upload 换 24 小时直链 =====
    官方文档：POST /v1/files/upload（multipart/form-data，字段 file）→ {url,file_type,size,expires_in}。
    已有公网直链可直接使用；上传结果在节点里缓存 23 小时，避免重复上传。 */
-/* 模型名优先取生成节点下拉所选（来自本机模型清单），也可手动填写；页面不预置默认模型，没填就明确报错。 */
+/* 模型名优先取生成节点下拉所选（来自创作台 API 配置 + 本机模型清单），也可手动填写；页面不预置默认模型，没填就明确报错。 */
 function effectiveModel(n,video){
     return String(n.data.model||"").trim();
 }
@@ -4379,7 +4454,7 @@ async function initUI(){
         await drainInbox();
         setupChannel();
         window.addEventListener("storage",e=>{
-            if(e.key===KEY_API||e.key===KEY_CURR) renderApiInfo();
+            if(e.key===KEY_API||e.key===KEY_CURR){ renderApiInfo(); refreshOpenModelSelects(); }
             if(e.key===KEY_MODELS){ renderModelLib(); refreshOpenModelSelects(); }
             if(e.key===CV_KEY_LOCAL_BASE||e.key===CV_KEY_LOCAL_MODEL){
                 cvScanLocal(false);
