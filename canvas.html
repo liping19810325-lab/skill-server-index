@@ -396,7 +396,7 @@
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。本地 ComfyUI：<b>MiniMax H3 工作流不用预先接声音节点</b>——画布会自动注入 LoadAudio 并接到 H3 的 <code>ref_audios</code>（上限 3 段）；含 LoadAudio 的其它工作流则直接写入载入节点。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
-            <li><b>生成节点</b>：选「1. 漫流算力」「2. 本机算力」或「3. 第三方API」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 0.4（864×480）/0.9（1280×736）/2.0（1920×1088）三档百万像素），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 对 MiniMax H3 官方模板直接写 ResolutionSelector（宽高比 + 百万像素 + 32 步进）与 duration 秒数（自动换算合法帧位），其它工作流写 Latent 宽高与帧数，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。点「运行生成」时，若本节点右侧没有连着「结果」节点，会<b>立即在右侧自动新建一个连好线的结果节点</b>（生成中就能看到）；已有结果节点则直接沿用、不重复创建，生成失败时错误信息也会写进这个结果节点。<b>引擎不用一个个改：左侧【算力总控】可一键把本画布所有生成节点切到同一档；在节点里改「生成引擎」也会同步写回总控与创作台，但只改当前这一个节点</b>，其它节点仍可各自保留。</li>
+            <li><b>生成节点</b>：选「1. 漫流算力」「2. 本机算力」或「3. 第三方API」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 0.4（864×480）/0.9（1280×736）/2.0（1920×1088）三档百万像素），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 对 MiniMax H3 官方模板直接写 ResolutionSelector（宽高比 + 百万像素 + 32 步进）与 duration 秒数（自动换算合法帧位），其它工作流写 Latent 宽高与帧数，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。点「运行生成」时，若本节点右侧没有连着「结果」节点，会<b>立即在右侧自动新建一个连好线的结果节点</b>（生成中就能看到）；已有结果节点则直接沿用、不重复创建，生成失败时错误信息也会写进这个结果节点。<b>引擎不用一个个改：左侧【算力总控】可一键把本画布所有生成节点切到同一档；在节点里改「生成引擎」也会同步写回总控与创作台，但只改当前这一个节点</b>，其它节点仍可各自保留。<b>「本机算力」的「模型 / 工作流」里也直接列了本机大语言模型</b>：页面已自动接通的 llama / Ollama / LM Studio 等会按探测到的真实模型名显示一条（端口能对应到明确软件时补软件名，识别不到就统一显示「大语言模型」），和你自己导入的 ComfyUI 生图 / 生视频工作流分在同一栏、两组里任选；选中它后点「运行生成」会直接用本机大模型走 /v1/chat/completions 把上游提示词生成文字、写进右侧结果节点，画幅 / 分辨率 / 时长自动隐藏，<b>不经过 ComfyUI</b>；改选任意 ComfyUI 工作流则一切照旧。本机大模型没接通时这一条仍在，选中并运行会给出排查提示，不会弹窗打断画布。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。视频若因跨域 / 直链格式受限无法直接播放，点一下视频窗口会<b>自动缓存到本地播放</b>，连缓存也被挡时自动转下载。</li>
             <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
@@ -1389,20 +1389,38 @@ function buildGenerateBody(body,n){
 
     /* 本地 ComfyUI：只需选一份已导入的工作流 */
     const wfSel = document.createElement("select");
+    wfSel.className="wf-pick-select";
     const wfFld = mk("模型 / 工作流",wfSel);
+    const wfLlmTip=document.createElement("div"); wfLlmTip.className="mini-line";
+    wfLlmTip.style.cssText="display:none;white-space:normal";
+    wfLlmTip.textContent="已选本机大语言模型：上游提示词直接发给本机已接通的大语言模型，生成的文字写进右侧结果节点（不经过 ComfyUI）。";
+    wfFld.appendChild(wfLlmTip);
     function fillWf(){
         wfSel.innerHTML="";
+        /* ① 本机大语言模型：始终 1 条，与下面的 ComfyUI 工作流同栏可选（分组区分） */
+        const gLlm=document.createElement("optgroup"); gLlm.label="大语言模型（本机 llama / Ollama 等）";
+        const lo=document.createElement("option"); lo.value=CV_LOCAL_LLM_WFID;
+        lo.textContent=cvLocalLlmLabel(); gLlm.appendChild(lo); wfSel.appendChild(gLlm);
+        /* ② 用户自己导入的 ComfyUI 生图 / 生视频工作流 API（原有内容与顺序不变） */
         const list=canvas.settings.workflows||[];
+        const gWf=document.createElement("optgroup"); gWf.label="ComfyUI 工作流（生图 / 生视频）";
         if(!list.length){
-            const o=document.createElement("option"); o.value=""; o.textContent="未导入，请先在左侧导入"; wfSel.appendChild(o);
-            return;
+            const o=document.createElement("option"); o.value=""; o.textContent="未导入，请先在左侧导入"; gWf.appendChild(o);
+        }else{
+            list.forEach(w=>{
+                const o=document.createElement("option"); o.value=w.id;
+                o.textContent="["+(w.kind==="video"?"生视频":"生图")+"] "+w.name; gWf.appendChild(o);
+            });
         }
-        list.forEach(w=>{
-            const o=document.createElement("option"); o.value=w.id;
-            o.textContent="["+(w.kind==="video"?"生视频":"生图")+"] "+w.name; wfSel.appendChild(o);
-        });
-        wfSel.value=(d.workflowId&&list.some(w=>w.id===d.workflowId))?d.workflowId:list[0].id;
+        wfSel.appendChild(gWf);
+        /* 记住选择：特殊值原样保留；普通工作流走原来的有效性判断；没有工作流时保持空值 */
+        const valid=d.workflowId && list.some(w=>w.id===d.workflowId);
+        if(d.workflowId===CV_LOCAL_LLM_WFID) wfSel.value=CV_LOCAL_LLM_WFID;
+        else if(valid) wfSel.value=d.workflowId;
+        else if(list.length) wfSel.value=list[0].id;
+        else wfSel.value="";
         d.workflowId=wfSel.value;
+        CV_WF_FILLERS.set(n.id,fillWf);
     }
     fillWf();
 
@@ -1594,17 +1612,19 @@ function buildGenerateBody(body,n){
     }
     function syncFields(){
         const c = d.engine==="comfyui", m = d.engine==="manflow", t = !c && !m;
+        const llm = c && d.workflowId===CV_LOCAL_LLM_WFID;   /* 本机算力 → 大语言模型 */
         const custom = presetOf(n)==="custom";
         const text = t && d.kind==="text";
-        const video = c ? wfKindOf()==="video" : d.kind==="video";
+        const video = c ? (llm?false:wfKindOf()==="video") : d.kind==="video";
         wfFld.style.display = c?"":"none";
+        wfLlmTip.style.display = llm?"block":"none";
         [kindFld,mdlFld,modelTip,adv].forEach(x=>x.style.display=t?"":"none");
         preFld.style.display = (t&&!text)?"":"none";   /* 大语言（文字）固定走 chat/completions，服务商预设不适用 */
         mdlSelFld.style.display = (t||m)?"":"none";
         manflowNote.style.display = m?"block":"none";
-        /* 比例 / 分辨率 / 时长：两种引擎都显示 —— ComfyUI 引擎写进工作流宽高 / 帧数字段；文字类型不显示 */
-        specFld.style.display=(m||text)?"none":"";
-        secsFld.style.display = (video&&!m&&!text)?"":"none";
+        /* 比例 / 分辨率 / 时长：两种引擎都显示 —— ComfyUI 引擎写进工作流宽高 / 帧数字段；文字类型 / 本机大语言模型不显示 */
+        specFld.style.display=(m||text||llm)?"none":"";
+        secsFld.style.display = (video&&!m&&!text&&!llm)?"":"none";
         fillRatioOpts(video,c); mountSpecRow(video); fillSecsOpts(c);
         if(!c && !d.seconds) d.seconds=secsSel.value||"5";
         imgReso.options[0].textContent=c?"跟随工作流（不修改）":"默认";
@@ -2151,6 +2171,30 @@ async function smartSplitLLM(n){
    ================================================================== */
 const CV_KEY_LOCAL_BASE  = "manflows_local_base";
 const CV_KEY_LOCAL_MODEL = "manflows_local_model";
+/* ===== 生成节点「模型 / 工作流」里的本机大语言模型（与 ComfyUI 工作流同栏可选） =====
+   · 特殊 workflowId 只作选中标记，不新增存档字段，旧画布里普通工作流 id 一律原样保留；
+   · 标签按「自动接通」写下的真实模型名显示，端口能对应到明确软件时补软件名；
+     模型名与软件名都拿不到（或尚未接通）时统一显示「大语言模型」。 */
+const CV_LOCAL_LLM_WFID = "__cv_local_llm__";
+const CV_LLM_SOFT_BY_PORT = {
+    11434:"Ollama", 1234:"LM Studio", 8080:"llama.cpp", 8000:"vLLM",
+    5000:"text-generation-webui", 1337:"Jan", 4891:"GPT4All", 5001:"KoboldCpp"
+};
+function cvLocalLlmLabel(){
+    const base=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(!base) return "[大语言模型] 大语言模型（未接通）";
+    const model=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
+    const port=(base.match(/:(\d+)(?:\/|$)/)||[])[1]||"";
+    const soft=CV_LLM_SOFT_BY_PORT[port]||"";
+    const parts=[];
+    if(model) parts.push(model);
+    if(soft) parts.push(soft);
+    if(!parts.length) parts.push("大语言模型");
+    return "[大语言模型] "+parts.join(" · ");
+}
+function cvIsLocalLlm(n){
+    return !!(n && n.data && n.data.engine==="comfyui" && n.data.workflowId===CV_LOCAL_LLM_WFID);
+}
 const CV_LLM_PORT_PRESETS = [
     {port:9931, name:"llama_server / 自定义端口"},
     {port:8080, name:"llama.cpp llama-server"},
@@ -2252,6 +2296,7 @@ async function cvAutoConnectLlm(opts){
     const host=keep.base.replace(/^https?:\/\//i,"");
     const model=(keep.model||String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim());
     cvSetLlmState("✓ 已接通 "+host+(model?" · "+model:"")+(found.length>1?"（共 "+found.length+" 个服务）":""),true);
+    refreshOpenWfSelects();   /* 下拉里的「大语言模型」标签同步显示刚探测到的真实模型名 */
     if(!o.silent) setStatus("本机大模型已接通 "+host+"，提示词节点可调用本机算力","ok");
     return {base:keep.base,model:model};
 }
@@ -3033,6 +3078,7 @@ function renderApiInfo(){
    ④ 生成节点里手填过的模型名自动记住。四者合并去重，生成节点下拉直接选。 */
 const KEY_MODELS = "manflows_model_library";
 const CV_MODEL_FILLERS = new Map();
+const CV_WF_FILLERS = new Map();      /* 生成节点「模型 / 工作流」下拉：接通状态变了就刷新标签 */
 function loadModelLib(){
     let a=[];
     try{ a=JSON.parse(safeStorage.get(KEY_MODELS)||"[]")||[]; }catch(e){ a=[]; }
@@ -3126,6 +3172,14 @@ function refreshOpenModelSelects(){
     CV_MODEL_FILLERS.forEach((fn,id)=>{
         const sel=document.querySelector('.node[data-id="'+id+'"] .model-pick-select');
         if(!sel){ CV_MODEL_FILLERS.delete(id); return; }
+        try{ fn(); }catch(e){}
+    });
+}
+/* 本机大模型接通 / 创作台同步地址或模型名后，只重填已打开的下拉标签，不动节点选中值 */
+function refreshOpenWfSelects(){
+    CV_WF_FILLERS.forEach((fn,id)=>{
+        const sel=document.querySelector('.node[data-id="'+id+'"] .wf-pick-select');
+        if(!sel){ CV_WF_FILLERS.delete(id); return; }
         try{ fn(); }catch(e){}
     });
 }
@@ -3601,6 +3655,50 @@ async function genDashscope(n,input){
     return parseGenResponse(d,"image");
 }
 /* 第三方 API 统一入口：按服务商预设分派协议 */
+/* ===== 本机算力 → 大语言模型：与 ComfyUI 工作流同栏可选，走本机 /v1/chat/completions =====
+   地址 / 真实模型名取「⚡ 自动接通」写下的共用键（与提示词节点智能拆分 / SD / H3 同一份结果），
+   完全独立于第三方API 的 genChat 链路，不改动原有任何文字生成行为。
+   非流式；兼容只回 reasoning_content 的思考模型，带 enable_thinking:false，
+   服务商不认该参数返回 HTTP 400 时自动去掉再试一次。 */
+async function genLocalLlm(n,input){
+    const base=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(!base) throw new Error("本机大语言模型还没接通：请先启动 llama / Ollama / LM Studio 等软件，再到左侧【算力总控 → ⚙ 接入工具】点「⚡ 自动接通」（或到创作台【算力总控】接通）。若已启动仍失败，多半是跨域没放行：llama.cpp 加 --cors-origins * / Ollama 设 OLLAMA_ORIGINS=*；HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面。");
+    let model=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
+    if(!model){
+        try{
+            const found=await cvScanLocal(false);
+            const hit=(found||[]).find(f=>cvNormBase(f.base)===base && String(f.model||"").trim());
+            if(hit) model=String(hit.model).trim();
+        }catch(e){}
+    }
+    if(!model) throw new Error("本机大模型已接通（"+base.replace(/^https?:\/\//i,"")+"），但没识别到模型名：请到左侧【算力总控 → ⚙ 接入工具】再点一次「⚡ 自动接通」刷新，或在创作台「本机算力」里填好模型名；Ollama / OpenAI 兼容接口要求请求带 model 字段。");
+    const url=llmChatUrl(base);
+    const body={model:model,messages:[{role:"user",content:input.prompt}],stream:false};
+    body.chat_template_kwargs={enable_thinking:false};
+    let j;
+    try{ j=await postJson(url,"",body,120000,{}); }
+    catch(e){
+        if(!/^HTTP 400/.test(String((e&&e.message)||""))) throw e;
+        const retry=Object.assign({},body); delete retry.chat_template_kwargs;
+        j=await postJson(url,"",retry,120000,{});
+    }
+    const pickText=(v)=>{
+        if(v==null) return "";
+        if(typeof v==="string") return v;
+        if(Array.isArray(v)) return v.map(x=>(x&&typeof x==="object")?(x.text||""):String(x||"")).join("");
+        return typeof v==="object"?String(v.text||""):String(v);
+    };
+    const choice=(j&&Array.isArray(j.choices)&&j.choices[0])||{};
+    const msg=choice.message||choice.delta||{};
+    let text=pickText(msg.content);
+    if(!text.trim()) text=pickText(msg.reasoning_content);
+    if(!text.trim()) text=pickText(choice.text);
+    if(!text.trim()) text=pickText(j&&(j.output_text||j.text||(j.output&&j.output.text)||(j.data&&j.data.text)||j.response));
+    if(!text.trim()) text=pickText(j&&j._raw);
+    if(!text.trim()) throw new Error("本机大语言模型没有返回文本内容，原始响应："+JSON.stringify(j).slice(0,800));
+    return {kind:"text",text:text};
+}
+
 /* ===== 大语言（文字）：写作 / 大语言模型 → 文本结果节点 =====
    接口地址与 Key 跟着「选择模型」绑定的创作台配置走（同 resolveKey / apiBaseFor）：
    配置里若本来就是完整的 /chat/completions 地址直接沿用，否则在 Base URL 后拼 /v1/chat/completions。
@@ -4101,6 +4199,7 @@ function applyComfySpec(wf,d,kindVideo){
     return msgs.join(" · ");
 }
 async function genComfy(n,input){
+    if(cvIsLocalLlm(n)) throw new Error("当前在「模型 / 工作流」里选的是本机大语言模型，不会走 ComfyUI；要出图 / 出视频请改选一份 ComfyUI 工作流。");
     const base=(canvas.settings.comfyBase||"").trim().replace(/\/+$/,"")||COMFY_DEFAULT;
     const alive=await probeComfy(base,4000);
     if(!alive) throw new Error("连不上 ComfyUI（"+base+"）。请先启动 ComfyUI；若已启动仍失败，多半是跨域没放行：启动参数要带 --enable-cors-header *（改过参数需重启一次 ComfyUI），画布请用 http:// 本机打开。");
@@ -4259,6 +4358,9 @@ async function runGenerate(n){
     n.data.busy=true; renderAll(); selectNode(n.id);
     const input=collectInputs(n);
     if(!input.prompt && n.data.engine!=="comfyui"){ setGenStatus(n,"没有连入提示词：请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; renderAll(); return; }
+    if(cvIsLocalLlm(n) && !input.prompt){
+        setGenStatus(n,"没有连入提示词：本机大语言模型需要文字提示词，请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; renderAll(); return;
+    }
     if(n.data.engine==="comfyui" && !input.prompt && !input.images.length && !input.audios.length && !input.videos.length){
         setGenStatus(n,"没有连入提示词 / 参考图：连入后才会写入工作流，否则等于按工作流自带内容原样跑。","err"); n.data.busy=false; renderAll(); return;
     }
@@ -4274,7 +4376,7 @@ async function runGenerate(n){
             :"已连入声音/视频参考：请把「生成类型」切到生视频，才会作为多模态素材提交","busy");
     try{
         let out;
-        if(n.data.engine==="comfyui") out=await genComfy(n,input);
+        if(n.data.engine==="comfyui") out = cvIsLocalLlm(n) ? await genLocalLlm(n,input) : await genComfy(n,input);
         else out=await genThirdParty(n,input);
         const r=resultNodeFor(n);
         r.data=Object.assign({},out);
@@ -4643,6 +4745,7 @@ async function initUI(){
             if(e.key===CV_KEY_LOCAL_BASE||e.key===CV_KEY_LOCAL_MODEL){
                 cvScanLocal(false);
                 renderApiInfo();
+                refreshOpenWfSelects();
                 const b=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
                 if(b) cvSetLlmState("✓ 已同步创作台的接通地址 "+b.replace(/^https?:\/\//i,""),true);
             }
