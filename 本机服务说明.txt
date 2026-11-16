@@ -19,6 +19,11 @@
      已配置好的接口地址 / 模型 / Key 随请求传给本机，由本机转发给
      Claude / GPT 等模型（含 tool 工具调用），绕开浏览器 CORS，
      Key 也不会暴露给第三方页面。OpenAI 与 Anthropic 两种接口都支持。
+  7）【新】给 .mkv / Matroska 素材做预览兜底：Chrome / Edge 本来就原生
+     支持 MKV，不需要转换；Safari 等不原生支持的浏览器，才由本机 FFmpeg
+     把 MKV 无损流拷贝（-c copy）成一份「仅用于预览」的 MP4 副本。
+     原始 MKV 文件始终保留，真渲染 / 导出 / AI字幕 / 静音检测全部读原文件，
+     画质与既有链路不变。需要本机服务 1.5.1 及以上版本。
 
 服务本身只用 Python 3 标准库，零第三方依赖，不需要联网安装任何 pip 包。
 （AI 字幕若要走「本机 faster-whisper」这一档，才需要另外装一次，见下文。）
@@ -228,6 +233,9 @@ AI 字幕的音频切片：走「本机 faster-whisper」时完全不出本机�
   GET/POST /api/resolve     把分享链接/直链解析成可播放地址
   GET  /api/media?u=...     流式代理媒体（支持 Range、防盗链 Referer）
   POST /api/export          转码导出 / 抽音频 / 生成 GIF
+                            action=remux：MKV → 可预览 MP4（dataBase64=本地文件字节，
+                            或 sourceUrl=公网直链；返回 dataBase64=MP4）。
+                            优先 -c copy 无损流拷贝，容器不兼容时自动改 H.264 重编码。
   POST /api/probe           探测素材真实时长 / 独立音视频流（无 ffprobe 也能用）
   POST /api/transcribe      抽音轨 + 60 秒分段 + 转写 + 毫秒级时间码 + 静音检测
                             可选参数：silenceDb(默认-35)、silenceMin(默认0.5)、keepPad(默认0.12)

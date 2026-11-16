@@ -9,7 +9,7 @@
   GET  /api/ffmpeg-install  按需自动准备静态 FFmpeg
   GET/POST /api/resolve     把分享链接/直链解析成可播放地址
   GET  /api/media?u=...     流式代理媒体（Range / 防盗链 Referer）
-  POST /api/export          FFmpeg 转码导出 / 抽音频 / 生成 GIF
+  POST /api/export          FFmpeg 转码导出 / 抽音频 / 生成 GIF / action=remux 把 MKV 转封装成可预览 MP4
   POST /api/probe           探测素材时长 / 音视频流（无 ffprobe 也能用）
   POST /api/transcribe      抽音轨 + 分段 + 本机/第三方转写（绕开浏览器 CORS）
   POST /api/silences        独立静音检测：Whisper 失败时仍可列出可删区间
@@ -52,7 +52,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -513,7 +513,7 @@ def api_ping():
     return {"ok": True, "port": PORT, "platform": _plat(), "arch": _arch(),
             "python": _python_ver(), "version": VERSION,
             "ffmpeg": info, "guide": FFMPEG_GUIDE, "hint": hint,
-        "ffmpegInstall": FFMPEG_INSTALL_GUIDE, "render": True,
+        "ffmpegInstall": FFMPEG_INSTALL_GUIDE, "render": True, "remux": True,
             "asrLocal": _asr_probe_local(), "asrGuide": ASR_INSTALL_GUIDE}
 
 
@@ -555,6 +555,12 @@ def api_guide():
             "what": "POST /api/burn-subtitles 把 SRT 字幕用 FFmpeg libass/subtitles 滤镜真正烧进画面（硬字幕）。",
             "why": "浏览器只能录屏合成，无法把文字写进画面像素；烧录在导出阶段由本机 FFmpeg 完成，任何播放器都能看到。",
             "input": "dataBase64=已合成视频，srt=SRT 文本，filename=导出文件名；返回 dataBase64。",
+        },
+        "mkv": {
+            "what": "POST /api/export 带 action=remux：把 .mkv / Matroska 用 FFmpeg 转封装成浏览器可播放的 MP4（优先 -c copy 无损流拷贝，不兼容时自动改 H.264 重编码）。",
+            "why": "Chrome / Edge 已原生支持 MKV，无需转换；Safari 等不原生支持 Matroska 的浏览器才走这条兜底，只为预览生成一份副本，原始 MKV 仍用于真渲染 / 导出 / 字幕 / 静音检测。",
+            "input": "本地文件：dataBase64=<MKV 原始字节> + filename=<xxx.mkv>；在线直链：sourceUrl=<公网 http/https 直链>（由本机下载，仍做 SSRF 校验）；返回 dataBase64=<MP4>。",
+            "limit": "浏览器单次请求受 300MB 请求体上限约束，超大 MKV 建议直接用 Chrome / Edge 导入。",
         },
         "ai": {
             "what": "POST /api/ai/chat 是真正 AI 剪辑的模型代理：浏览器把「算力总控」里已配置的 endpoint/model/key 随请求交给本机，由本机转发给 Claude / GPT 等模型，绕开浏览器 CORS 且 Key 不暴露在网页。",
@@ -1879,6 +1885,38 @@ def api_render_status(jid):
         return res
 
 
+def _run_remux(ff, td, in_path, stem):
+    """MKV / Matroska → 浏览器可播放的 MP4（优先无损流拷贝，失败再轻量重编码）。
+
+    只用于「浏览器原生不支持 Matroska」时的预览兜底；页面仍保留原始 MKV，
+    FFmpeg 真渲染 / 转写 / 静音检测 / 导出全部走原文件，画质与原有链路不变。
+    """
+    out_path = os.path.join(td, "preview.mp4")
+    notes = ["只保留首条视频与首条音频，丢弃字幕 / 附件 / 数据流"]
+    cmd = [ff, "-hide_banner", "-loglevel", "error", "-y", "-i", in_path,
+           "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn",
+           "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+           "-movflags", "+faststart", out_path]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          timeout=TIMEOUT_TRANSCODE)
+    first_err = _scrub((proc.stderr or b"").decode("utf-8", "replace"), ff, td)[-300:]
+    if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) < 1024:
+        notes.append("流拷贝不兼容，已自动改为 H.264 重编码（首次预览会慢一些）")
+        cmd = [ff, "-hide_banner", "-loglevel", "error", "-y", "-i", in_path,
+               "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn",
+               "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+               "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+               "-movflags", "+faststart", out_path]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=TIMEOUT_TRANSCODE)
+        if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) < 1024:
+            tail = _scrub((proc.stderr or b"").decode("utf-8", "replace"), ff, td)[-400:]
+            raise RuntimeError("转封装与重编码均失败：%s" % (tail or first_err))
+    return _ok_file(out_path, stem + ".mp4",
+                    "ffmpeg -i <mkv> -map 0:v:0 -map 0:a:0? -c:v copy -c:a aac -movflags +faststart",
+                    notes)
+
+
 def api_export(body):
     try:
         data = json.loads(body.decode("utf-8")) if body else {}
@@ -1907,7 +1945,13 @@ def api_export(body):
     except Exception as e:
         return _fail("dataBase64 解码失败：%s" % _short(e),
                      "请确认传入的是纯 base64 字符串。")
-    if not raw or len(raw) < 16:
+    # remux 允许由本机服务直接下载公网 MKV 直链（仍走 is_allowed_target 的 SSRF 校验）
+    src_url = str(data.get("sourceUrl") or "").strip() if action == "remux" else ""
+    if src_url:
+        ok, why = is_allowed_target(src_url)
+        if not ok:
+            return _fail("素材地址不被允许：%s" % why, "请改用「上传本地文件」导入 MKV。")
+    elif not raw or len(raw) < 16:
         return _fail("dataBase64 为空或过小，没有可转码的媒体数据",
                      "请先在浏览器里录制/生成中间文件再导出。")
 
@@ -1915,10 +1959,23 @@ def api_export(body):
     stem = _safe_stem(fname)
     with tempfile.TemporaryDirectory(prefix="manflows-") as td:
         in_path = os.path.join(td, "input" + _input_ext(fname))
-        with open(in_path, "wb") as f:
-            f.write(raw)
+        if src_url and not raw:
+            try:
+                resp = _open_url(src_url,
+                                 headers={"Referer": _referer_for(src_url)},
+                                 timeout=TIMEOUT_MEDIA)
+                with resp, open(in_path, "wb") as f:
+                    shutil.copyfileobj(resp, f)
+            except Exception as e:
+                return _fail("下载 MKV 直链失败：%s" % _short(e),
+                             "请改用「上传本地文件」导入，或检查直链是否仍有效。")
+        else:
+            with open(in_path, "wb") as f:
+                f.write(raw)
         try:
-            if action == "audio":
+            if action == "remux":
+                result = _run_remux(ff, td, in_path, stem)
+            elif action == "audio":
                 result = _run_audio(ff, td, in_path, data, stem)
             elif action == "gif":
                 result = _run_gif(ff, td, in_path, data, stem)

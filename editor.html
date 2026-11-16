@@ -219,7 +219,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .tl-inner{position:relative;min-width:100%;}
 .ruler{height:28px;position:relative;background:#20242b;border-bottom:1px solid #0b0d12;display:flex;position:sticky;top:0;z-index:6;}
 .ruler-label{width:118px;flex:0 0 118px;position:sticky;left:0;z-index:7;background:#20242b;border-right:1px solid #0b0d12;font-size:10px;color:#8f99a9;display:flex;align-items:center;padding-left:8px;}
-.ruler-scale{position:relative;flex:1 1 auto;cursor:pointer;}
+.ruler-scale{position:relative;flex:1 1 auto;cursor:ew-resize;}
 .tick{position:absolute;top:0;bottom:0;border-left:1px solid #39414e;}
 .tick.minor{border-left-color:#2a303b;top:60%;}
 .tick span{position:absolute;left:4px;top:5px;font-size:9.5px;color:#94a0b2;white-space:nowrap;font-variant-numeric:tabular-nums;}
@@ -282,6 +282,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .trim-hint[hidden]{display:none;}
 .playhead{position:absolute;top:0;bottom:0;width:2px;background:#ff4d4f;box-shadow:0 0 5px rgba(255,77,79,.6);z-index:8;pointer-events:none;}
 .playhead::before{content:"";position:absolute;top:0;left:-5px;width:12px;height:11px;background:#ff4d4f;clip-path:polygon(0 0,100% 0,50% 100%);}
+/* 红色三角是播放头的拖拽把手：只有这一小块接收鼠标，红线本体不挡轨道点击 */
+.playhead-grab{position:absolute;top:0;left:-7px;width:16px;height:15px;pointer-events:auto;cursor:ew-resize;z-index:9;}
 
 /* ===== 录音设备选择 / 双声道电平表 ===== */
 .rec-meter{margin-top:10px;padding:10px 12px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;position:relative;}
@@ -369,8 +371,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .fx-rot{position:absolute;left:50%;top:-13px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#f59e0b;border:2px solid #fff;cursor:grab;z-index:3;}
 .fx-rot::after{content:"";position:absolute;left:5px;top:12px;width:2px;height:15px;background:#f59e0b;}
 .fx-badge{position:absolute;left:3px;top:2px;font-size:9px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:1px 5px;z-index:2;letter-spacing:.5px;}
-/* ===== 右栏两个并列标签 ===== */
-.prop-tabs{display:flex;gap:5px;flex:0 0 auto;}
+/* ===== 右栏两个并列标签 =====（最终生效的样式在下方「右栏 5 个并列标签」处） */
 .prop-tab{flex:1 1 0;padding:8px 6px;border:1px solid var(--border2);border-radius:8px;background:var(--panel);color:var(--muted);font-size:11.5px;}
 .prop-tab:hover{background:var(--hover);}
 .prop-tab.active{background:var(--blue);border-color:transparent;color:#fff;font-weight:600;}
@@ -443,8 +444,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .zoom-range{width:96px;accent-color:var(--cyan);cursor:pointer;}
 .zoom-fit{padding:3px 7px;border:1px solid var(--border2);border-radius:6px;background:var(--panel);color:var(--muted);font-size:10.5px;}
 .zoom-fit:hover{background:var(--hover);color:#fff;}
-/* 右栏 5 个并列标签 */
-.prop-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;flex:0 0 auto;}
+/* 右栏 5 个并列标签：上下滚动查看子栏目内容时始终吸顶固定 */
+.prop-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;flex:0 0 auto;
+  position:sticky;top:0;z-index:15;background:var(--bg);padding:5px 0 7px;
+  box-shadow:0 6px 10px -8px rgba(0,0,0,.85);}
 .prop-tab{padding:7px 2px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);
   color:var(--muted);font-size:10px;line-height:1.3;text-align:center;white-space:nowrap;}
 .prop-tab:hover{background:var(--hover);}
@@ -463,9 +466,11 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .export-modal{width:min(930px,100%);}
 .export-grid{display:grid;grid-template-columns:270px 1fr;gap:20px;}
 .export-cover-box{display:flex;flex-direction:column;gap:8px;}
-.export-cover{position:relative;width:100%;aspect-ratio:3/4;border-radius:10px;overflow:hidden;
+/* 封面比例跟随工程实际画幅（--cover-ar 由 applyExportCoverRatio 按 stage 比例写入），
+   不再写死 3:4 竖版；极端竖屏时限高，图片用 contain 保证绝不拉伸变形 */
+.export-cover{position:relative;width:100%;aspect-ratio:var(--cover-ar,1.7778);max-height:360px;border-radius:10px;overflow:hidden;
   background:linear-gradient(145deg,#1e293b,#0f172a);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;}
-.export-cover img{width:100%;height:100%;object-fit:cover;}
+.export-cover img{width:100%;height:100%;object-fit:contain;}
 .export-cover .cover-empty{color:var(--muted);font-size:11px;text-align:center;line-height:1.8;padding:14px;}
 .export-side-note{font-size:10px;color:var(--muted);line-height:1.65;}
 .export-side-note a{color:#67e8f9;}
@@ -583,7 +588,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <button class="mini-btn purple" id="importUrl">🔗 粘贴在线 URL</button>
                 </div>
                 <div class="drop-zone" id="dropZone">把本地 <b>文本 / 图片 / 视频 / 声音</b> 拖到这里<br>也可以直接拖入一个在线文件 URL</div>
-                <div class="hint">素材按<b>素材库宽度自动排成一行多个</b>；<b>单击素材在预览窗口立即预览</b>（视频/声音自动播放、图片/文字只显示），<b>不自动加入轨道</b>；按住拖到下方对应轨道才开始剪辑。单击选中后按 <code>Delete</code> 删除素材。支持 <b>.txt .md .srt .vtt / .png .jpg .webp / .mp4 .webm .mov / .mp3 .wav .m4a</b>。</div>
+                <div class="hint">素材按<b>素材库宽度自动排成一行多个</b>；<b>单击素材在预览窗口立即预览</b>（视频/声音自动播放、图片/文字只显示），<b>不自动加入轨道</b>；按住拖到下方对应轨道才开始剪辑。单击选中后按 <code>Delete</code> 删除素材。支持 <b>.txt .md .srt .vtt / .png .jpg .webp / .mp4 .webm .mov <ins>.mkv</ins> / .mp3 .wav .m4a</b>；<b>.mkv</b> 在 Chrome / Edge 直接预览，Safari 等浏览器由本机 FFmpeg 自动转封装预览副本，导出与 AI 字幕始终读原始 MKV。</div>
                 <div class="asset-preview-tip" id="assetPreviewTip" hidden></div>
                 <div class="asset-list" id="assetList"></div>
             </div>
@@ -748,7 +753,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </div>
             <div class="tl-tools right">
                 <button class="tl-tool" id="zoomOut" title="缩小时间轴 (-)">−</button>
-                <input type="range" class="zoom-range" id="zoomRange" min="8" max="160" step="1" value="36" title="拖动缩放时间轴">
+                <input type="range" class="zoom-range" id="zoomRange" min="0.01" max="160" step="any" value="36" title="拖动缩放时间轴（最左端＝完整显示整条时间轴）">
                 <button class="tl-tool" id="zoomIn" title="放大时间轴 (+)">＋</button>
                 <button class="tl-tool" id="zoomFit" title="按当前素材总时长自动适配时间轴宽度">适应</button>
                 <button class="tl-tool" id="keyHelpBtn" title="查看全部快捷键">⌨</button>
@@ -758,7 +763,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="tl-inner" id="tlInner">
                 <div class="ruler"><div class="ruler-label">时间 / 轨道</div><div class="ruler-scale" id="rulerScale"></div><div class="ruler-marks" id="rulerMarks"></div></div>
                 <div id="tracks"></div>
-                <div class="playhead" id="playhead"></div>
+                <div class="playhead" id="playhead"><div class="playhead-grab" id="playheadGrab" title="按住红线左右拖动播放头，可拖到 0 秒与整条素材结尾"></div></div>
             </div>
         </div>
     </section>
@@ -843,7 +848,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <h2>⑧ 本轮新增：工作区 / 导出成片 / 调整栏 / 素材预览 / 缩放 / URL 解析</h2>
             <ul>
                 <li><b>用户工作区（互不串工程）</b>：顶栏「👤 工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「打开工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。不同电脑、不同浏览器配置文件本来就天然互不相通。注意：静态站点没有账号体系，这是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
-                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。视频区块含一键超清、分辨率、补分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。<br><b>字幕烧录</b>：视频区块的「烧录字幕」默认开启，导出时把字幕轨交给本机 FFmpeg 的 libass 滤镜真正写进画面像素（硬字幕，支持中文），不依赖播放器外挂；关闭则只输出画面，可另在「字幕导出」里单独拿 SRT / VTT。<b>防爆音</b>：导出真渲染时每个片段首尾各加 30ms 淡入淡出，消除智能剪口播切段拼接处的爆音，预览逻辑不受影响。</li>
+                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。左侧封面按<b>工程实际画幅比例</b>自适应（与导出分辨率取自同一个预览画幅，横版 / 竖版都不再被压成 3:4 竖图）。视频区块只保留真实生效的参数：分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；原先的「一键超清」「补分辨率」两个开关没有任何前后端实现，属于无效装饰，已移除。底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。<br><b>字幕烧录</b>：视频区块的「烧录字幕」默认开启，导出时把字幕轨交给本机 FFmpeg 的 libass 滤镜真正写进画面像素（硬字幕，支持中文），不依赖播放器外挂；关闭则只输出画面，可另在「字幕导出」里单独拿 SRT / VTT。<b>防爆音</b>：导出真渲染时每个片段首尾各加 30ms 淡入淡出，消除智能剪口播切段拼接处的爆音，预览逻辑不受影响。</li>
                 <li><b>本机小服务（Mac / Windows 通用，可选）</b>：仓库里的 <code>启动本机服务.command</code>（Mac 双击）或 <code>启动本机服务.bat</code>（Windows 双击）会在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。<br><b>每位用户用自己电脑上的 FFmpeg</b>：Windows 可 <code>winget install --id Gyan.FFmpeg</code> 或下载 <code>https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip</code>，Mac 用 <code>brew install ffmpeg</code>，Linux 用 <code>sudo apt install ffmpeg</code>；服务也会按需自动下载静态版到 <code>~/.manflows/bin/</code>。仓库里的 <code>render_verify.py</code> 是 10 秒短视频验证用例，可直接跑出倒放与各档变速的实测结果。</li>
                 <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
                 <li><b>单击素材即预览</b>：点素材库里任一素材，预览窗口立即预览——视频 / 声音自动播放，图片 / 文字只显示画面，<b>都不自动加入轨道</b>；要剪辑请自己用鼠标把素材拖到时间轴对应轨道（双击加入仍保留给习惯用它的用户）。</li>
@@ -899,10 +904,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <div class="export-sec" id="secVideo">
                         <div class="export-sec-head"><input type="checkbox" id="expChkVideo" checked><span>视频导出</span><span class="caret">▲</span></div>
                         <div class="export-sec-fields">
-                            <div class="export-field"><span>一键超清 💎</span><input type="checkbox" class="sw" id="expUltra"><span style="flex:1;font-size:10px;color:var(--muted)">画质增强开关（非 AI 超分，只做高质量重采样）</span></div>
                             <div class="export-field"><span>分辨率</span><select id="expRes"><option value="source">原始</option><option value="720">720P</option><option value="1080">1080P</option><option value="1440">2K</option><option value="2160">4K</option></select></div>
                             <div class="export-note" id="expResNote">以当前画幅与素材原始尺寸导出</div>
-                            <div class="export-field"><span>补分辨率 💎</span><input type="checkbox" class="sw" id="expUpscale"><span style="flex:1;font-size:10px;color:var(--muted)">用高质量重采样把画面补到设置值（非 AI 超分）</span></div>
                             <div class="export-field"><span>烧录字幕</span><input type="checkbox" class="sw" id="expBurnSub" checked><span style="flex:1;font-size:10px;color:var(--muted)">把字幕轨真正烧进画面（本机 FFmpeg libass 硬字幕，中文字体可用）；关闭则只输出画面，可另在下方单独导出 SRT / VTT</span></div>
                             <div class="export-field"><span>格式</span><select id="expFormat"><option value="mp4">MP4</option><option value="mov">MOV</option><option value="webm">WebM</option></select></div>
                             <div class="export-field"><span>帧率</span><select id="expFps"><option value="24">24</option><option value="25">25</option><option value="30" selected>30</option><option value="60">60</option></select></div>
@@ -1179,7 +1182,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <button data-kind="audio">＋ 音频轨（最下层）</button>
 </div>
 <div id="toast"></div>
-<input type="file" id="fileInput" multiple hidden accept="video/*,audio/*,image/*,.txt,.md,.srt,.vtt,.json,text/plain">
+<input type="file" id="fileInput" multiple hidden accept="video/*,audio/*,image/*,.mkv,.txt,.md,.srt,.vtt,.json,text/plain">
 
 <script>
 "use strict";
@@ -1321,7 +1324,7 @@ async function resolveWebpage(u){
 function classifyUrl(u){
     let path="";
     try{ path=new URL(u).pathname.toLowerCase(); }catch(e){ return "webpage"; }
-    if(/\.(mp4|webm|mov|m4v|ogv)$/.test(path)) return "video";
+    if(/\.(mp4|webm|mov|m4v|ogv|mkv)$/.test(path)) return "video";
     if(/\.(png|jpe?g|webp|gif|bmp|avif|svg)$/.test(path)) return "image";
     if(/\.(mp3|wav|m4a|aac|flac|ogg|opus)$/.test(path)) return "audio";
     if(/\.(txt|md|srt|vtt|json|csv)$/.test(path)) return "text";
@@ -1647,13 +1650,13 @@ function clipHasAudio(c){
 }
 /* WebAudio 峰值缓存：给视频复合轨下半段与所有音频轨画波形 */
 function ensureWave(a, cb){
-    if(!a||!a.url) return;
+    if(!a||!mediaUrl(a)) return;
     let w=waveCache.get(a.id);
     if(w){ if(w.ready&&cb) cb(); return; }
     w={ready:false,peaks:null}; waveCache.set(a.id,w);
     (async()=>{
         try{
-            const buf=await fetch(a.url).then(r=>r.arrayBuffer());
+            const buf=await fetch(mediaUrl(a)).then(r=>r.arrayBuffer());
             const AC=window.AudioContext||window.webkitAudioContext;
             if(!AC) throw new Error("当前浏览器不支持 WebAudio");
             const actx=new AC();
@@ -1993,18 +1996,18 @@ function previewAsset(a){
     vEl.classList.remove("show"); imgEl.classList.remove("show");
     pipLayer.innerHTML=""; pipLayer.dataset.key="";
     $("subOverlay").innerHTML=""; $("stageEmpty").style.display="none";
-    if(a.type==="video" && a.url){
+    if(a.type==="video" && mediaUrl(a)){
         vEl.style.transform=""; vEl.style.filter="none"; vEl.style.opacity=1;
-        vEl.src=a.url; vEl.dataset.aid=""; vEl.muted=false; vEl.playbackRate=1;
+        vEl.src=mediaUrl(a); vEl.dataset.aid=""; vEl.muted=false; vEl.playbackRate=1;
         vEl.classList.add("show");
         try{ vEl.currentTime=0; }catch(e){}
         vEl.play().catch(()=>{ if(tip) tip.innerHTML+='<br><span style="color:#fca5a5">自动播放被浏览器拦截，可点下方「▶ 播放」重试。</span>'; });
-    }else if(a.type==="image" && a.url){
+    }else if(a.type==="image" && mediaUrl(a)){
         imgEl.style.transform=""; imgEl.style.filter="none"; imgEl.style.opacity=1;
-        imgEl.src=a.url; imgEl.dataset.aid=""; imgEl.classList.add("show");
-    }else if(a.type==="audio" && a.url){
+        imgEl.src=mediaUrl(a); imgEl.dataset.aid=""; imgEl.classList.add("show");
+    }else if(a.type==="audio" && mediaUrl(a)){
         if(!assetAudioEl){ assetAudioEl=document.createElement("audio"); assetAudioEl.preload="auto"; assetAudioEl.style.display="none"; document.body.appendChild(assetAudioEl); }
-        assetAudioEl.src=a.url;
+        assetAudioEl.src=mediaUrl(a);
         try{ assetAudioEl.currentTime=0; }catch(e){}
         assetAudioEl.play().catch(()=>{});
         $("subOverlay").innerHTML='<div class="sub-line" style="font-size:15px">🎵 正在播放：'+esc(a.name)+'</div>';
@@ -2017,18 +2020,33 @@ function previewAsset(a){
     }
 }
 
-/* ---------- 时间轴缩放：默认按素材总时长自适应 ---------- */
+/* ---------- 时间轴缩放：默认按素材总时长自适应 ----------
+   滑块最左端 = 刚好把当前工程完整铺进一屏的最小倍率。
+   旧版下限写死 8 px/s，26 分钟素材只能看到约 3 分钟，这里改成动态下限。 */
+function minZoom(){
+    const box=$("tlScroll"); const w=Math.max(200,(box?box.clientWidth:1200)-LABEL_W-24);
+    return Math.max(0.01,Math.min(8,w/Math.max(6,totalDuration())));
+}
+function rulerStep(){
+    const cand=[1,2,5,10,15,30,60,120,300,600,900,1800,3600,7200];
+    for(const s of cand) if(s*state.zoom>=64) return s;   /* 标签至少隔 64px，长视频刻度不会糊成一片 */
+    return cand[cand.length-1];
+}
+function syncZoomRange(){
+    const r=$("zoomRange"); if(!r) return;
+    r.min=String(minZoom()); r.max="160"; r.step="any";
+    r.value=String(state.zoom);
+}
 function setZoom(v,manual){
-    state.zoom=clamp(Math.round(Number(v)||36),8,160);
+    /* 不做四舍五入：fit / 滑块最左端算出的最小倍率必须精确，长视频才能刚好铺满一屏 */
+    state.zoom=clamp(Number(v)||36,minZoom(),160);
     if(manual) state.zoomAuto=false;
-    const r=$("zoomRange");
-    if(r) r.value=state.zoom;
     renderTimeline();
 }
 function fitZoom(){
     const box=$("tlScroll"); if(!box) return;
     const w=Math.max(200,box.clientWidth-LABEL_W-24);
-    setZoom(clamp(w/Math.max(6,totalDuration()),8,160),false);
+    setZoom(w/Math.max(6,totalDuration()),false);
     state.zoomAuto=true;
 }
 
@@ -2059,15 +2077,15 @@ function toggleReverse(){
    预览画幅：16:9 / 9:16 / 自适应（默认，按导入的第一条视频或图片）
    ================================================================== */
 function probeAssetRatio(a){
-    if(!a||a.ratio||!a.url) return;
+    if(!a||a.ratio||!mediaUrl(a)) return;
     if(a.type==="image"){
         const im=new Image();
         im.onload=()=>{ if(im.naturalWidth&&im.naturalHeight){ a.ratio=im.naturalWidth/im.naturalHeight; applyAspect(); } };
-        im.src=a.url;
+        im.src=mediaUrl(a);
     }else if(a.type==="video"){
         const v=document.createElement("video"); v.preload="metadata"; v.muted=true;
         v.onloadedmetadata=()=>{ if(v.videoWidth&&v.videoHeight){ a.ratio=v.videoWidth/v.videoHeight; applyAspect(); } };
-        v.src=a.url;
+        v.src=mediaUrl(a);
     }
 }
 function autoRatio(){
@@ -2089,6 +2107,7 @@ function applyAspect(){
     st.dataset.aspect=mode;
     document.querySelectorAll(".asp-btn").forEach(b=>b.classList.toggle("active",b.dataset.asp===mode));
     $("playerMode").textContent=(mode==="auto"?"自适应画幅 ":"画幅 ")+(mode==="auto"?(r.toFixed(2)+":1"):mode);
+    applyExportCoverRatio();      /* 画幅切换时导出弹窗封面同步跟着变，不再固定竖版 */
     updateFxBox();
 }
 /* 录音期间静音轨道上所有声音，停止后恢复 */
@@ -2096,7 +2115,7 @@ function setRecordMute(on){
     recordMuted=on;
     const vol=Number($("volRange").value)||0.8;
     const vc=mainVisualClip();
-    try{ vEl.muted=on||!!(vc&&vc.muteAudio); vEl.volume=on?0:vol; }catch(e){}
+    try{ const m=on||!!(vc&&vc.muteAudio)||clipTrackMuted(vc); vEl.muted=m; vEl.volume=m?0:vol; }catch(e){}
     audioPool.forEach(o=>{ try{ o.el.muted=on; o.el.volume=on?0:vol; }catch(e){} });
 }
 /* 时间轴鼠标框选多个片段 */
@@ -2187,6 +2206,12 @@ function orderedTracks(){
 }
 function trackById(id){ return state.tracks.find(t=>t.id===id)||null; }
 function trackKind(id){ const t=trackById(id); return t?t.kind:""; }
+/* 轨道级静音 / 隐藏：预览与导出共用同一判断，复合视频片段里的内置音频也受控 */
+function clipTrackMuted(c){
+    if(!c) return false;
+    const t=trackById(c.track);
+    return !!(t && (t.muted || t.hidden));
+}
 function textTracks(){ return orderedTracks().filter(t=>t.kind==="text"); }
 function assetById(id){ return state.assets.find(a=>a.id===id)||null; }
 function clipById(id){ return state.clips.find(c=>c.id===id)||null; }
@@ -2314,6 +2339,48 @@ function guessType(name, forced){
 function typeIcon(t){ return {video:"🎬",image:"🖼",audio:"🎵",text:"📄"}[t]||"📦"; }
 function typeLabel(t){ return {video:"视频",image:"图片",audio:"声音",text:"文本"}[t]||"文件"; }
 
+/* ---------- .mkv / Matroska 兼容 ----------
+   Chrome / Edge 已能原生播放 MKV；Safari 等不原生支持的浏览器由本机服务用
+   FFmpeg 转封装出一份「仅用于预览」的 MP4（a.previewUrl）。原始 a.url 不变，
+   FFmpeg 真渲染 / 导出 / AI字幕 / 静音检测继续读原始 MKV（画质与既有链路不变）。 */
+function mediaUrl(a){ return a ? (a.previewUrl || a.url || "") : ""; }
+function isMkvAsset(a){
+    if(!a || a.type!=="video") return false;
+    if(String(a.ext||"").toLowerCase()==="mkv") return true;
+    return /\.mkv(?=[?#&]|$)/i.test(String(a.name||"")+" "+String(a.url||""));
+}
+function browserPlaysMkv(){
+    try{
+        const v=document.createElement("video");
+        return !!v.canPlayType("video/x-matroska")
+            || !!v.canPlayType('video/x-matroska; codecs="avc1.42E01E, mp4a.40.2"');
+    }catch(e){ return false; }
+}
+async function prepareMkvPreview(a, blob){
+    if(!isMkvAsset(a) || browserPlaysMkv()) return;
+    if(!svcOnline) await pingService(2800);
+    if(!svcInfo || !svcInfo.remux){
+        a.mkvNote="当前浏览器不原生支持 MKV 预览；时长、AI字幕与导出仍可用。建议换用 Chrome / Edge，或更新并重启本机服务自动转封装。";
+        return;
+    }
+    try{
+        toast("正在为 MKV 生成可预览版本…");
+        const payload={action:"remux",filename:a.name||"video.mkv"};
+        if(blob){
+            if(blob.size>200*1024*1024) throw new Error("文件超过 200MB，超出本机服务单次请求上限，请改用 Chrome / Edge 导入");
+            payload.dataBase64=await blobToBase64(blob);
+        }else if(/^https?:\/\//i.test(a.url||"")) payload.sourceUrl=a.url;
+        else throw new Error("没有可读取的 MKV 数据");
+        const j=await serviceExport(payload);
+        a.previewUrl=URL.createObjectURL(base64ToBlob(j.dataBase64,"video/mp4"));
+        a.mkvNote="已由本机 FFmpeg 转封装出可预览副本；原始 MKV 仍用于导出与字幕";
+        toast("MKV 已可在预览窗口播放","ok");
+    }catch(e){
+        a.mkvNote="MKV 预览转封装失败："+((e&&e.message)||String(e))+"；导出与字幕不受影响";
+        toast(a.mkvNote,"err");
+    }
+}
+
 /* 素材时长：大 MOV / moov 在尾部 / HEVC 等容器 2.5 秒常常读不出来，
    这里延长到 12 秒并监听多个事件；仍读不到再交给本机 FFmpeg /api/probe 兜底。 */
 const MEDIA_META_WAIT=12000;
@@ -2403,6 +2470,7 @@ async function addFiles(files){
             const blobUrl=URL.createObjectURL(f);
             a.url=blobUrl; a.urlKind="blob"; a.blob=f; a.blobId=uid();
             a.duration=await mediaDuration(blobUrl,type,f.name);
+            await prepareMkvPreview(a,f);   /* 仅 Safari 等不原生支持 MKV 的浏览器会转封装 */
         }
         await addAsset(a); n++;
     }
@@ -2447,6 +2515,7 @@ async function addUrls(raw, forced){
             try{ const r=await fetch(line,{mode:"cors"}); if(!r.ok) throw new Error("HTTP "+r.status); a.text=await r.text(); }
             catch(e){ a.text=""; report.push("⚠️ "+esc(name)+" · 文本读取失败（对方未开跨域），可改用「上传本地文件」"); }
         }else a.duration=await mediaDuration(url,type,name);
+        await prepareMkvPreview(a);        /* 在线 MKV 直链在不支持的浏览器上由本机服务下载并转封装 */
         await addAsset(a); n++;
     }
     const box=$("urlReport");
@@ -2460,8 +2529,8 @@ async function addUrls(raw, forced){
     return n;
 }
 function assetThumbHtml(a){
-    if(a.type==="image" && a.url) return '<img src="'+esc(a.url)+'" alt="">';
-    if(a.type==="video" && a.url) return typeIcon("video");
+    if(a.type==="image" && mediaUrl(a)) return '<img src="'+esc(mediaUrl(a))+'" alt="">';
+    if(a.type==="video" && mediaUrl(a)) return typeIcon("video");
     if(a.type==="audio") return typeIcon("audio");
     return typeIcon(a.type);
 }
@@ -2476,7 +2545,8 @@ function renderAssets(){
         const durTxt=a.duration?fmt(a.duration):"时长读取中 / 0.00";
         const meta=(a.type==="text" ? (a.text?a.text.length+" 字":"在线文本（未读取）") : durTxt)
             +" · "+typeLabel(a.type)+(a.size?" · "+fmtSize(a.size):"")
-            +((a.type==="video"||a.type==="audio")&&pm&&pm.hasAudio?" · 独立音轨 ✓":"");
+            +((a.type==="video"||a.type==="audio")&&pm&&pm.hasAudio?" · 独立音轨 ✓":"")
+            +(a.mkvNote?" · "+a.mkvNote:"");
         return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+(assetPreviewId===a.id?" previewing":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="单击立即在预览窗口预览（不自动入轨）；拖到下方轨道开始剪辑；双击自动加入；Delete 删除">'
           +'<div class="asset-thumb">'+assetThumbHtml(a)+'</div>'
           +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+'</div>'
@@ -2645,11 +2715,11 @@ function addBlankSubtitle(){
 }
 /* ---------- 时间轴渲染（动态轨道） ---------- */
 function renderRuler(){
-    const sc=$("rulerScale"); const total=totalDuration(); const step=state.zoom>=60?2:(state.zoom>=28?5:10);
+    const sc=$("rulerScale"); const total=totalDuration(); const step=rulerStep();
     let html="";
     for(let t=0;t<=total;t+=step){
         html+='<div class="tick" style="left:'+(t*state.zoom)+'px"><span>'+fmt(t).replace(/\.0$/,"")+'</span></div>';
-        if(state.zoom>=28 && t+step/2<=total) html+='<div class="tick minor" style="left:'+((t+step/2)*state.zoom)+'px"></div>';
+        if(t+step/2<=total) html+='<div class="tick minor" style="left:'+((t+step/2)*state.zoom)+'px"></div>';
     }
     sc.innerHTML=html;
     const mk=$("rulerMarks");
@@ -2676,7 +2746,7 @@ function renderTracks(){
           +'<span class="tl-ops"><button data-tkadd="'+esc(t.id)+'" title="在下方新建一条同类型轨道">＋</button>'
           +'<button class="tkdel" data-tkdel="'+esc(t.id)+'" title="删除这条空轨道">×</button></span></div>'
           +'<div class="tl-bar" style="background:'+TK_COLOR[t.kind]+'"></div></div>'
-          +'<div class="lane" data-track="'+esc(t.id)+'" style="width:'+w+'px;--grid-step:'+(state.zoom*5)+'px">'+inner+'</div></div>';
+          +'<div class="lane" data-track="'+esc(t.id)+'" style="width:'+w+'px;--grid-step:'+Math.max(24,rulerStep()*state.zoom)+'px">'+inner+'</div></div>';
     }).join("");
 }
 function clipHtml(c,t){
@@ -2710,7 +2780,7 @@ function renderPlayhead(){
 function renderTimeline(){
     const sc=$("tlScroll"), sl=sc.scrollLeft, st=sc.scrollTop;
     $("tlInner").style.width=(LABEL_W+contentWidth())+"px";
-    renderRuler(); renderTracks(); drawAllWaves(); renderPlayhead();
+    renderRuler(); renderTracks(); drawAllWaves(); renderPlayhead(); syncZoomRange();
     sc.scrollLeft=sl; sc.scrollTop=st;
 }
 
@@ -2773,7 +2843,7 @@ function renderPips(){
         if(t.kind!=="image" || t.hidden) continue;
         const c=activeClipOn(t.id); if(!c) continue;
         const a=c.assetId?assetById(c.assetId):null;
-        if(a && a.type==="image" && a.url) list.push({id:c.id,url:a.url,aid:a.id});
+        if(a && a.type==="image" && mediaUrl(a)) list.push({id:c.id,url:mediaUrl(a),aid:a.id});
     }
     const key=list.map(x=>x.aid).join("|");
     if(pipLayer.dataset.key===key) return list.length;
@@ -2800,7 +2870,7 @@ function syncAudioPool(){
             document.body.appendChild(el); o={el:el,aid:""}; audioPool.set(x.c.id,o);
         }
         const aid=x.a.id+(ov?"#rendered":"");
-        if(o.aid!==aid){ o.el.src=ov?ov.url:x.a.url; o.aid=aid; }
+        if(o.aid!==aid){ o.el.src=ov?ov.url:mediaUrl(x.a); o.aid=aid; }
         /* 中间片已经是真变速/真倒放后的成品，播放倍率必须回到 1，避免二次变速 */
         const asp=ov?1:localSpeed(x.c);
         if(o.el.playbackRate!==asp) o.el.playbackRate=asp;
@@ -2828,12 +2898,18 @@ function syncMedia(){
     if(assetPreviewId) return;              /* 素材库单击预览期间不覆盖预览画面 */
     const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
     let showVideo=false, showImage=false;
-    if(va && va.type==="video" && va.url){
-        const ov=renderedClip(vc), aid=va.id+(ov?"#rendered":"");
-        if(vEl.dataset.aid!==aid){ vEl.src=ov?ov.url:va.url; vEl.dataset.aid=aid; }
+    if(va && va.type==="video" && mediaUrl(va)){
+        const ov=renderedClip(vc), aid=va.id+(ov?"#rendered":"")+(va.previewUrl?"#mkvproxy":"");
+        if(vEl.dataset.aid!==aid){ vEl.src=ov?ov.url:mediaUrl(va); vEl.dataset.aid=aid; }
         /* 预览可以临时模拟；导出期间换成 FFmpeg 真渲染中间片，禁止再改 playbackRate */
         const spd=ov?1:localSpeed(vc);
-        try{ vEl.muted=recordMuted||!!(vc&&vc.muteAudio); }catch(e){}
+        /* 视频轨「静音」按钮：把当前主画面所在轨道的 muted 状态同步到 <video>，
+           音频轨的静音由 syncAudioPool() 处理，两者互不影响。 */
+        try{
+            const vm=recordMuted||!!(vc&&vc.muteAudio)||clipTrackMuted(vc);
+            vEl.muted=vm;
+            vEl.volume=vm?0:(Number($("volRange").value)||0.8);
+        }catch(e){}
         if(vEl.playbackRate!==spd) vEl.playbackRate=spd;
         const rev=ov?false:!!fxOf(vc).reverse;
         if(rev){
@@ -2848,8 +2924,8 @@ function syncMedia(){
             if(!playing && !vEl.paused) vEl.pause();
         }
         showVideo=true;
-    }else if(va && va.type==="image" && va.url){
-        if(imgEl.dataset.aid!==va.id){ imgEl.src=va.url; imgEl.dataset.aid=va.id; }
+    }else if(va && va.type==="image" && mediaUrl(va)){
+        if(imgEl.dataset.aid!==va.id){ imgEl.src=mediaUrl(va); imgEl.dataset.aid=va.id; }
         showImage=true;
     }
     vEl.classList.toggle("show",showVideo); imgEl.classList.toggle("show",showImage);
@@ -3045,7 +3121,10 @@ function toggleTrackFlag(id,flag){
     const t=trackById(id); if(!t) return;
     pushHistory();
     t[flag]=!t[flag];
-    renderAll(); autoSave();
+    renderAll();
+    /* 静音 / 隐藏切换后立刻刷新 <video> 与独立音频池，不用等下一次播放或 seek */
+    syncMedia();
+    autoSave();
     const nm={locked:"锁定",hidden:"隐藏",muted:"静音"}[flag]||flag;
     toast("轨道「"+t.label+"」已"+(t[flag]?nm:"取消"+nm),"ok");
 }
@@ -3053,10 +3132,10 @@ async function freezeFrame(){
     const c=mainVisualClip();
     if(!c){ toast("播放头下没有可定格的主画面","err"); return; }
     const a=c.assetId?assetById(c.assetId):null;
-    if(!a||!a.url){ toast("这段画面没有可定格的素材文件","err"); return; }
+    if(!a||!mediaUrl(a)){ toast("这段画面没有可定格的素材文件","err"); return; }
     toast("正在截取当前画面…");
     const sp=clipSpeed(c), src=(c.offset||0)+(state.playhead-c.start)*sp;
-    const data=await grabFrame(a.url,src);
+    const data=await grabFrame(mediaUrl(a),src);
     if(!data){ toast("抽帧失败：该素材可能不允许跨域读取","err"); return; }
     const aid=uid();
     state.assets.push({id:aid,type:"image",name:"定格 "+fmt(state.playhead),url:data,
@@ -3788,11 +3867,11 @@ async function collectFrames(){
     const vids=state.clips.filter(c=>trackKind(c.track)==="video"&&c.assetId).slice(0,4);
     const imgs=state.clips.filter(c=>trackKind(c.track)==="image"&&c.assetId).slice(0,2);
     for(const c of vids){
-        const a=assetById(c.assetId); if(!a||!a.url) continue;
-        if(a.type==="image") jobs.push(shrinkImage(a.url).then(d=>d?{name:a.name,data:d}:null));
-        else if(a.type==="video") jobs.push(grabFrame(a.url,(c.offset||0)+Math.min(c.duration/2,3)).then(d=>d?{name:a.name,data:d}:null));
+        const a=assetById(c.assetId); if(!a||!mediaUrl(a)) continue;
+        if(a.type==="image") jobs.push(shrinkImage(mediaUrl(a)).then(d=>d?{name:a.name,data:d}:null));
+        else if(a.type==="video") jobs.push(grabFrame(mediaUrl(a),(c.offset||0)+Math.min(c.duration/2,3)).then(d=>d?{name:a.name,data:d}:null));
     }
-    for(const c of imgs){ const a=assetById(c.assetId); if(a&&a.type==="image"&&a.url) jobs.push(shrinkImage(a.url).then(d=>d?{name:a.name,data:d}:null)); }
+    for(const c of imgs){ const a=assetById(c.assetId); if(a&&a.type==="image"&&mediaUrl(a)) jobs.push(shrinkImage(mediaUrl(a)).then(d=>d?{name:a.name,data:d}:null)); }
     const res=await Promise.all(jobs);
     return res.filter(Boolean).slice(0,6);
 }
@@ -3942,9 +4021,9 @@ async function agentPreviewFrame(time){
     const segs=state.clips.filter(c=>trackKind(c.track)==="video"&&t>=c.start&&t<c.start+c.duration);
     for(const c of segs){
         const a=c.assetId?assetById(c.assetId):null;
-        if(!a||!a.url) continue;
+        if(!a||!mediaUrl(a)) continue;
         const src=timelineToSource(c,t).t;
-        const d=await grabFrame(a.url,src);
+        const d=await grabFrame(mediaUrl(a),src);
         if(d) return {ok:true,time:t,clipId:c.id,data:d};
     }
     return {ok:false,error:"该时刻没有可抽帧的视频片段（t="+t.toFixed(2)+"s）"};
@@ -4656,6 +4735,7 @@ function projectPayload(){
     return {v:2,date:state.date,zoom:state.zoom,playhead:0,
         tracks:state.tracks, subTrack:state.subTrack, markers:state.markers,
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
+            delete o.previewUrl; delete o.mkvNote;   /* 转封装副本是一次性 blob，重开工程后重新生成 */
             o.remoteUrl=(a.urlKind==="blob")?"":(a.url||""); return o; }),
         clips:state.clips, savedAt:Date.now()};
 }
@@ -4704,9 +4784,15 @@ async function loadProject(date){
                 const b=await dbGet("assets",a.id);
                 x.url=b?URL.createObjectURL(b):(a.remoteUrl||"");
                 x.urlKind=b?"blob":(a.remoteUrl?"remote":"inline");
+                if(b) x.blob=b;   /* 仅内存持有，供 MKV 转封装兜底；存档时会被剔除 */
             }else if(a.remoteUrl){ x.url=a.remoteUrl; x.urlKind=/^data:/.test(a.remoteUrl)?"data":"remote"; }
             else{ x.url=""; x.urlKind="inline"; }
+            delete x.previewUrl; delete x.mkvNote;
             state.assets.push(x);
+        }
+        /* 重开工程后，若浏览器不原生支持 MKV，后台重新生成一次预览副本 */
+        for(const a of state.assets) if(isMkvAsset(a)){
+            prepareMkvPreview(a,a.blob).then(()=>{ renderAssets(); syncMedia(); }).catch(()=>{});
         }
         state.selected=null; state.multi=[]; state.selectedAsset=null; state.playhead=0;
         historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key="";
@@ -5120,8 +5206,8 @@ function wire(){
     $("copyBtn").onclick=()=>copySelection(false);
     $("pasteBtn").onclick=pasteClips;
     $("undoBtn").onclick=undo; $("redoBtn").onclick=redo;
-    $("zoomIn").onclick=()=>setZoom(state.zoom+12,true);
-    $("zoomOut").onclick=()=>setZoom(state.zoom-12,true);
+    $("zoomIn").onclick=()=>setZoom(state.zoom*1.3,true);
+    $("zoomOut").onclick=()=>setZoom(state.zoom/1.3,true);
     $("zoomRange").oninput=e=>setZoom(Number(e.target.value),true);
     $("zoomFit").onclick=()=>{ fitZoom(); toast("已按当前素材总时长自适应时间轴","ok"); };
     $("keyHelpBtn").onclick=()=>$("helpModal").classList.add("show");
@@ -5161,6 +5247,38 @@ function wire(){
             seek(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration()));
             if(lane){ state.selected=null; state.multi=[]; state.selectedAsset=null; renderProps(); renderAssets(); renderTimeline(); }
         }
+    });
+    /* 剪映式播放头拖拽：按住标尺或红色三角左右移动，红线实时跟随；
+       0 秒与整条素材结尾都可达；放大后拖到视口边缘会自动横向滚动。 */
+    sc.addEventListener("mousedown",e=>{
+        if(e.button!==0) return;
+        const scale=e.target.closest(".ruler-scale"), head=e.target.closest(".playhead-grab");
+        if(!scale && !head) return;
+        e.preventDefault();
+        const base=scale||$("rulerScale");
+        const moveTo=x=>{
+            const rect=base.getBoundingClientRect();
+            seek(clamp((x-rect.left)/state.zoom,0,totalDuration()));
+        };
+        let lastX=e.clientX;
+        moveTo(lastX);
+        let raf=0;
+        const autoScroll=()=>{
+            const box=sc.getBoundingClientRect(), edgeL=box.left+LABEL_W+28, edgeR=box.right-28;
+            if(lastX>edgeR) sc.scrollLeft+=Math.max(6,(lastX-edgeR)*0.6);
+            else if(lastX<edgeL) sc.scrollLeft-=Math.max(6,(edgeL-lastX)*0.6);
+            raf=requestAnimationFrame(autoScroll);
+        };
+        const mv=ev=>{ lastX=ev.clientX; moveTo(lastX); };
+        const up=()=>{
+            document.removeEventListener("mousemove",mv);
+            document.removeEventListener("mouseup",up);
+            document.body.style.cursor=""; cancelAnimationFrame(raf);
+        };
+        document.addEventListener("mousemove",mv);
+        document.addEventListener("mouseup",up);
+        document.body.style.cursor="ew-resize";
+        raf=requestAnimationFrame(autoScroll);
     });
     sc.addEventListener("mousedown",e=>{
         const split=e.target.closest("[data-split]");
@@ -5321,8 +5439,8 @@ function wire(){
         else if(e.key==="ArrowRight"){ e.preventDefault(); seek(state.playhead+(e.shiftKey?1:0.1)); }
         else if(e.key==="Home"){ e.preventDefault(); seek(0); }
         else if(e.key==="End"){ e.preventDefault(); seek(totalDuration()); }
-        else if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(state.zoom+12,true); }
-        else if(e.key==="-"||e.key==="_"){ e.preventDefault(); setZoom(state.zoom-12,true); }
+        else if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(state.zoom*1.3,true); }
+        else if(e.key==="-"||e.key==="_"){ e.preventDefault(); setZoom(state.zoom/1.3,true); }
         /* 剪映 6.0 时间轴快捷键 */
         else if(e.shiftKey && k==="m"){ e.preventDefault(); addMarker(); }
         else if(k==="v"){ e.preventDefault(); setToolMode("select"); }
@@ -5883,10 +6001,11 @@ async function renderTimelineAudio(){
     let added=0, failed=0;
     for(const c of state.clips){
         const k=trackKind(c.track); if(k!=="audio"&&k!=="video") continue;
-        const a=c.assetId?assetById(c.assetId):null; if(!a||!a.url) continue;
+        if(clipTrackMuted(c)) continue;      /* 轨道静音 / 隐藏在导出成片里同样生效 */
+        const a=c.assetId?assetById(c.assetId):null; if(!a||!mediaUrl(a)) continue;
         try{
             const ov=renderedClip(c);
-            const r=await fetch(ov?ov.url:a.url); if(!r.ok) throw new Error("HTTP "+r.status);
+            const r=await fetch(ov?ov.url:mediaUrl(a)); if(!r.ok) throw new Error("HTTP "+r.status);
             const audio=await ctx.decodeAudioData(await r.arrayBuffer());
             /* 中间片已由 FFmpeg atempo 做过时间拉伸并保持音调，这里不能再改 playbackRate */
             const sp=ov?1:localSpeed(c), off=ov?0:Math.max(0,Number(c.offset)||0);
@@ -6125,17 +6244,34 @@ function updateExportStatus(){
     }
     updateExportEstimate();
 }
+/* 导出弹窗封面：比例跟随工程实际画幅。
+   与 applyAspect() 用同一套公式（画幅模式 / 自动读取第一条视频或图片的比例），
+   不读 stage 的取整像素，避免小窗口下几像素的舍入误差。 */
+function coverRatio(){
+    const mode=state.aspect||"auto";
+    return clamp(mode==="9:16"?9/16:(mode==="16:9"?16/9:autoRatio()),0.3,4);
+}
+function applyExportCoverRatio(){
+    const box=$("exportCover"); if(!box) return;
+    box.style.setProperty("--cover-ar",String(+coverRatio().toFixed(4)));
+}
 function captureCover(silent){
-    const cv=document.createElement("canvas"); cv.width=270; cv.height=360;
+    const r=coverRatio(), W=480, H=Math.max(120,Math.min(1080,Math.round(W/r)));
+    const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
     const x=cv.getContext("2d");
-    x.fillStyle="#1e293b"; x.fillRect(0,0,270,360);
+    x.fillStyle="#1e293b"; x.fillRect(0,0,W,H);
     try{
-        if(vEl.classList.contains("show")&&vEl.readyState>1) x.drawImage(vEl,0,0,270,360);
-        else if(imgEl.classList.contains("show")&&imgEl.complete) x.drawImage(imgEl,0,0,270,360);
-        else{ x.fillStyle="#94a3b8"; x.font="14px sans-serif"; x.textAlign="center"; x.fillText("当前预览画面",135,180); }
-        exportCoverData=cv.toDataURL("image/jpeg",0.82);
+        const src=(vEl.classList.contains("show")&&vEl.readyState>1)?vEl
+            :((imgEl.classList.contains("show")&&imgEl.complete)?imgEl:null);
+        if(src){
+            const sw=src.videoWidth||src.naturalWidth||W, sh=src.videoHeight||src.naturalHeight||H;
+            const s=Math.min(W/sw,H/sh), dw=sw*s, dh=sh*s;
+            x.drawImage(src,(W-dw)/2,(H-dh)/2,dw,dh);   /* 等比 contain，绝不把横版压成竖版 */
+        }else{ x.fillStyle="#94a3b8"; x.font="20px sans-serif"; x.textAlign="center"; x.fillText("当前预览画面",W/2,H/2); }
+        exportCoverData=cv.toDataURL("image/jpeg",0.86);
     }catch(e){ exportCoverData=""; }
     if(exportCoverData){ const im=$("coverImg"); im.src=exportCoverData; im.hidden=false; const em=$("coverEmpty"); if(em) em.hidden=true; }
+    applyExportCoverRatio();
     if(!silent) toast("封面已更新为当前预览画面","ok");
 }
 async function openExport(){
@@ -6233,7 +6369,7 @@ async function init(){
     applyCompute(loadCompute(),true);
     showPropTab("basic");
     wireMarquee(); wireFxBox();
-    window.addEventListener("resize",()=>applyAspect());
+    window.addEventListener("resize",()=>{ applyAspect(); if(state.zoomAuto) fitZoom(); else syncZoomRange(); });
     const saved=safeStorage.get(PROJECT_PREFIX+todayStr());
     if(saved){
         try{ await loadProject(todayStr()); }
