@@ -195,7 +195,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .tl-tools{display:flex;align-items:center;gap:2px;min-width:0;}
 .tl-tools.left{flex:0 0 auto;}
 /* 注意：不要用 .center 类名——会与中间预览区的 .center{flex-direction:column} 冲突 */
-.tl-tools.mid{flex:1 1 300px;justify-content:center;flex-direction:row;flex-wrap:nowrap;padding:0;background:transparent;gap:5px;}
+/* 右侧状态文字已移除，AI 按钮组整体右移靠拢缩放控件，填补空出来的位置 */
+.tl-tools.mid{flex:1 1 300px;justify-content:flex-end;flex-direction:row;flex-wrap:nowrap;padding:0;background:transparent;gap:5px;}
 .tl-tools.right{flex:0 0 auto;margin-left:auto;}
 /* 剪映式工具按钮：上图标 + 下文字，紧凑排列 */
 .tl-tool{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:42px;height:40px;padding:2px 5px;border:1px solid transparent;border-radius:5px;background:transparent;color:#b7bec9;cursor:pointer;font-size:9px;line-height:1;white-space:nowrap;transition:background .12s,color .12s,border-color .12s;}
@@ -266,6 +267,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .clip.sel{border:2px solid #fff;box-shadow:0 0 0 2px rgba(96,165,250,.6),inset 0 1px 0 rgba(255,255,255,.2);z-index:3;}
 .clip.dragging{cursor:grabbing;opacity:.88;z-index:4;}
 .clip-body{flex:1 1 auto;min-width:0;padding:0 7px;font-size:10.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:30px;text-shadow:0 1px 2px rgba(0,0,0,.45);}
+/* 可伸缩占位：把右裁剪手柄顶到片段最右侧（复合音视频轨内部都是固定宽元素，否则手柄会停在片段左侧） */
+.clip-fill{flex:1 1 auto;min-width:0;height:100%;pointer-events:none;}
 .clip-handle{width:8px;flex:0 0 8px;height:100%;background:rgba(255,255,255,.22);cursor:ew-resize;position:relative;z-index:6;transition:background .12s;}
 .clip-handle::after{content:"";position:absolute;left:3px;top:9px;width:2px;height:12px;border-radius:1px;background:rgba(255,255,255,.65);}
 .clip-handle:hover{background:rgba(255,255,255,.55);}
@@ -748,8 +751,6 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <input type="range" class="zoom-range" id="zoomRange" min="8" max="160" step="1" value="36" title="拖动缩放时间轴">
                 <button class="tl-tool" id="zoomIn" title="放大时间轴 (+)">＋</button>
                 <button class="tl-tool" id="zoomFit" title="按当前素材总时长自动适配时间轴宽度">适应</button>
-                <span class="tl-info" id="zoomLabel">36 px/s</span>
-                <span class="tl-info" id="tlInfo">共 0 轨</span>
                 <button class="tl-tool" id="keyHelpBtn" title="查看全部快捷键">⌨</button>
             </div>
         </div>
@@ -2020,9 +2021,8 @@ function previewAsset(a){
 function setZoom(v,manual){
     state.zoom=clamp(Math.round(Number(v)||36),8,160);
     if(manual) state.zoomAuto=false;
-    const r=$("zoomRange"), l=$("zoomLabel");
+    const r=$("zoomRange");
     if(r) r.value=state.zoom;
-    if(l) l.textContent=state.zoom+" px/s";
     renderTimeline();
 }
 function fitZoom(){
@@ -2544,7 +2544,8 @@ function textToSegments(txt, name){
     const lines=s.split(/\r?\n/).map(x=>x.replace(/^[-*•\d\.、\s]+/,"").trim()).filter(x=>x && !/^WEBVTT$/i.test(x));
     let t=0.4;
     return lines.slice(0,80).map(line=>{
-        const dur=clamp(line.length*0.16,1.8,4.2);
+        /* 纯文本字幕素材拖到轨道默认 3 秒；SRT / VTT / AI 字幕仍按各自时间戳 */
+        const dur=3;
         const seg={start:t,end:t+dur,text:line,kind:guessSubKind(line)}; t+=dur+0.28; return seg;
     });
 }
@@ -2625,7 +2626,8 @@ function addAssetToTrack(a, opts){
     const kind=({video:"video",image:"image",audio:"audio"})[a.type]||"video";
     let tr=opts.trackId?trackById(opts.trackId):null;
     if(tr && tr.kind!==kind){ toast("素材是「"+typeLabel(a.type)+"」，已自动改放到"+TK_NAME[kind]+"轨"); tr=null; }
-    const dur=a.type==="image" ? 5 : (a.duration>0 ? Math.min(a.duration,60) : 8);
+    /* 音视频素材按它本身的实际时长完整展开（不再截到 60 秒）；图片等静态素材默认 3 秒 */
+    const dur=a.type==="image" ? 3 : (Number(a.duration)>0 ? Number(a.duration) : 8);
     if(!tr) tr=pickTrackFor(kind,opts.at,dur);
     const base=Math.max(0,opts.at!=null?Number(opts.at):state.playhead);
     pushHistory();
@@ -2638,7 +2640,7 @@ function addBlankSubtitle(){
     const tr=currentSubTrack()||newTrack("text");
     pushHistory();
     state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,state.playhead),
-        duration:2.6, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:defaultFx()});
+        duration:3, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:defaultFx()});
     renderAll(); autoSave();
 }
 /* ---------- 时间轴渲染（动态轨道） ---------- */
@@ -2694,6 +2696,7 @@ function clipHtml(c,t){
       +'style="left:'+left+'px;width:'+width+'px;background:'+TK_COLOR[t.kind]+'" title="'+esc(label)+(c.muteAudio?"（已拆分音频）":"")+'">'
       +'<div class="clip-handle clip-handle-l" data-handle-l="'+esc(c.id)+'" title="按住拖动裁掉片段开头"></div>'
       +body
+      +'<div class="clip-fill"></div>'
       +'<button class="clip-split" data-split="'+esc(c.id)+'" title="在此剪断">✂</button>'
       +'<div class="clip-handle" data-handle="'+esc(c.id)+'" title="按住拖动裁掉片段结尾"></div></div>';
 }
@@ -2709,8 +2712,6 @@ function renderTimeline(){
     $("tlInner").style.width=(LABEL_W+contentWidth())+"px";
     renderRuler(); renderTracks(); drawAllWaves(); renderPlayhead();
     sc.scrollLeft=sl; sc.scrollTop=st;
-    $("zoomLabel").textContent=state.zoom+" px/s";
-    $("tlInfo").textContent="共 "+state.tracks.length+" 轨 · "+state.clips.length+" 个片段 · 总长 "+fmt(totalDuration());
 }
 
 /* ---------- 右键拆分视频 / 音频 ---------- */
@@ -5541,7 +5542,7 @@ function applyLutAtPlayhead(lut){
     const st=state.playhead, remain=Math.max(1,totalDuration()-st);
     const exist=state.clips.find(c=>c.track===tr.id&&st>=c.start&&st<c.start+c.duration);
     if(exist){ exist.lut=lut; exist.name="LUT · "+lut.name; }
-    else state.clips.push({id:uid(),track:tr.id,assetId:"",start:st,duration:Math.min(5,remain),offset:0,text:"",name:"LUT · "+lut.name,fx:defaultFx(),lut:lut});
+    else state.clips.push({id:uid(),track:tr.id,assetId:"",start:st,duration:Math.min(3,remain),offset:0,text:"",name:"LUT · "+lut.name,fx:defaultFx(),lut:lut});
     renderAll(); autoSave(); drawLutFrame(); toast("LUT「"+lut.name+"」已放到视频轨上方","ok");
 }
 
