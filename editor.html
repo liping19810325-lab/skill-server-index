@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>漫流 Manflows - AI 剪辑台</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230591669'/%3E%3Cpath d='M18 20h28v24H18z' fill='none' stroke='white' stroke-width='4'/%3E%3Cpath d='M26 20v24M38 20v24' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="./logo.png">
 <style>
 :root{
     --bg:#0f1117; --card:#171a23; --panel:#1f232e; --border:#242834; --border2:#2f3440;
@@ -25,8 +25,6 @@ button{cursor:pointer;}
 /* ===== 顶栏：与画布页同款 ===== */
 .topbar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0;flex-wrap:wrap;}
 .brand{display:flex;align-items:center;gap:8px;margin-right:6px;}
-.logo-mark{width:40px;height:40px;border-radius:9px;background:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.logo-mark svg{width:26px;height:26px;}
 .brand-text h1{font-size:15px;font-weight:600;color:#fff;line-height:1.3;white-space:nowrap;}
 .brand-text p{font-size:10px;color:var(--muted);line-height:1.5;}
 .date-chip{font-size:11px;color:#a7f3d0;background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:5px 9px;white-space:nowrap;}
@@ -292,13 +290,108 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ai-idea-label{flex:0 0 70px;font-size:11.5px;color:#d1d5db;}
 .ai-idea-warn{background:rgba(217,119,6,.12);border:1px solid rgba(217,119,6,.5);border-radius:8px;padding:9px 11px;color:#fcd34d;font-size:11.5px;line-height:1.75;margin:0 0 10px;}
 .modal-body #aiIdeaText{min-height:92px;}
+
+/* ===== 本轮新增：LOGO / 工作区 / 导出成片 / 缩放 / 调整栏 ===== */
+.logo-link{display:inline-flex;align-items:center;flex-shrink:0;text-decoration:none;border-radius:8px;transition:opacity .15s ease;}
+.logo-link:hover{opacity:.85;}
+.logo-img{height:40px;max-width:132px;object-fit:contain;display:block;}
+.logo-fallback{display:none;align-items:center;justify-content:center;flex-direction:column;
+  width:48px;height:40px;flex-shrink:0;border-radius:8px;background:var(--panel);
+  border:1px solid var(--border2);color:var(--text);font-size:12px;font-weight:600;line-height:1.25;letter-spacing:.5px;}
+.logo-fallback small{font-size:7px;font-weight:400;color:var(--muted);letter-spacing:1px;}
+.ws-btn{display:inline-flex;align-items:center;gap:4px;max-width:170px;}
+.ws-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.export-btn{background:var(--cyan);border-color:transparent;color:#fff;font-weight:600;}
+.export-btn:hover{filter:brightness(1.15);}
+/* 时间轴缩放滑块 */
+.zoom-range{width:96px;accent-color:var(--cyan);cursor:pointer;}
+.zoom-fit{padding:3px 7px;border:1px solid var(--border2);border-radius:6px;background:var(--panel);color:var(--muted);font-size:10.5px;}
+.zoom-fit:hover{background:var(--hover);color:#fff;}
+/* 右栏 5 个并列标签 */
+.prop-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;flex:0 0 auto;}
+.prop-tab{padding:7px 2px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);
+  color:var(--muted);font-size:10px;line-height:1.3;text-align:center;white-space:nowrap;}
+.prop-tab:hover{background:var(--hover);}
+.prop-tab.active{background:var(--blue);border-color:transparent;color:#fff;font-weight:600;}
+.prop-panel{overflow:auto;}
+.adj-sec{font-size:11px;color:#93c5fd;border-left:3px solid var(--blue);padding-left:7px;margin:10px 0 5px;}
+.preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:6px 0;}
+.preset-btn{padding:5px 3px;border:1px solid var(--border2);border-radius:6px;background:var(--panel);
+  color:var(--muted);font-size:10px;line-height:1.35;}
+.preset-btn:hover{background:var(--hover);color:#fff;}
+.preset-btn.active{background:var(--purple);border-color:transparent;color:#fff;}
+.range-row{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted);margin:6px 0;}
+.range-row input[type=range]{flex:1;accent-color:var(--cyan);}
+.range-row b{min-width:38px;text-align:right;color:#fff;font-weight:500;}
+/* 导出成片弹窗 */
+.export-modal{width:min(930px,100%);}
+.export-grid{display:grid;grid-template-columns:270px 1fr;gap:20px;}
+.export-cover-box{display:flex;flex-direction:column;gap:8px;}
+.export-cover{position:relative;width:100%;aspect-ratio:3/4;border-radius:10px;overflow:hidden;
+  background:linear-gradient(145deg,#1e293b,#0f172a);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;}
+.export-cover img{width:100%;height:100%;object-fit:cover;}
+.export-cover .cover-empty{color:var(--muted);font-size:11px;text-align:center;line-height:1.8;padding:14px;}
+.export-cover .cover-edit{position:absolute;left:9px;top:9px;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.28);
+  color:#fff;border-radius:6px;padding:4px 8px;font-size:10.5px;}
+.export-cover .cover-edit:hover{background:rgba(0,0,0,.85);}
+.export-side-note{font-size:10px;color:var(--muted);line-height:1.65;}
+.export-side-note a{color:#67e8f9;}
+.export-row{display:flex;align-items:center;gap:9px;margin:9px 0;}
+.export-row>label{flex:0 0 92px;font-size:11.5px;color:#cbd5e1;}
+.export-row input[type=text],.export-row select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border2);
+  border-radius:7px;color:var(--text);font-size:11.5px;padding:6px 8px;}
+.export-row .folder-btn{flex:0 0 auto;padding:5px 9px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);color:var(--text);font-size:11px;}
+.export-row .folder-btn:hover{background:var(--hover);}
+.export-sec{border-top:1px solid var(--border);padding:9px 0 3px;margin-top:8px;}
+.export-sec-head{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#fff;font-weight:600;cursor:pointer;user-select:none;}
+.export-sec-head input{accent-color:var(--cyan);width:14px;height:14px;margin:0;}
+.export-sec-head .caret{font-size:9px;color:var(--muted);margin-left:2px;}
+.export-sec-fields{padding:7px 0 3px 21px;}
+.export-sec.off .export-sec-fields{opacity:.42;pointer-events:none;}
+.export-field{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:11px;color:#cbd5e1;}
+.export-field>span{flex:0 0 96px;}
+.export-field select,.export-field input[type=text]{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border2);
+  border-radius:7px;color:var(--text);font-size:11px;padding:5px 8px;}
+.export-field .sw{position:relative;width:34px;height:18px;flex:0 0 34px;appearance:none;background:var(--border2);
+  border-radius:10px;cursor:pointer;transition:background .2s;}
+.export-field .sw:checked{background:var(--cyan);}
+.export-field .sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s;}
+.export-field .sw:checked::after{left:18px;}
+.export-note{font-size:10px;color:var(--muted);line-height:1.6;margin:1px 0 6px 21px;}
+.export-static{font-size:10.5px;color:var(--muted);margin:5px 0 0 21px;}
+.export-status{font-size:10.5px;line-height:1.7;border-radius:8px;padding:8px 10px;margin:0 0 10px;
+  background:rgba(8,145,178,.10);border:1px solid rgba(8,145,178,.4);color:#a5f3fc;}
+.export-status.off{background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.45);color:#fcd34d;}
+.export-foot{display:flex;align-items:center;gap:10px;padding:10px 15px;border-top:1px solid var(--border);flex-shrink:0;}
+.export-foot .est{flex:1;font-size:11px;color:var(--muted);}
+.export-foot .do-btn{background:var(--cyan);border-color:transparent;color:#fff;font-weight:600;padding:7px 22px;border-radius:8px;font-size:12px;}
+.export-foot .do-btn:hover{filter:brightness(1.15);}
+.export-progress{height:7px;border-radius:4px;background:var(--panel);border:1px solid var(--border2);overflow:hidden;margin:0 15px 9px;display:none;}
+.export-progress.show{display:block;}
+.export-progress>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#0891b2);transition:width .3s;}
+.export-steps{font-size:10.5px;color:var(--muted);padding:0 15px 9px;line-height:1.6;}
+/* 工作区弹窗 */
+.ws-item{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--border2);
+  border-radius:8px;padding:8px 10px;margin:6px 0;font-size:11.5px;}
+.ws-item.cur{border-color:var(--cyan);}
+.ws-item .ws-n{flex:1;color:#fff;}
+.ws-item button{padding:3px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:10.5px;}
+.ws-item button:hover{background:var(--hover);}
+.ws-hint{font-size:10.5px;color:var(--muted);line-height:1.8;background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:9px 11px;margin:8px 0;}
+/* 素材预览状态条 */
+.asset-preview-tip{font-size:10px;color:#a5f3fc;background:rgba(8,145,178,.12);border:1px solid rgba(8,145,178,.4);
+  border-radius:7px;padding:6px 8px;margin:6px 0;line-height:1.6;}
+.asset-item.previewing{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(8,145,178,.45);}
 </style>
 </head>
 <body>
 <div class="app">
     <header class="topbar">
         <div class="brand">
-            <div class="logo-mark"><svg viewBox="0 0 64 64" fill="none"><rect x="12" y="16" width="40" height="32" rx="4" stroke="white" stroke-width="4"/><path d="M24 16v32M40 16v32" stroke="white" stroke-width="3"/><path d="M12 26h40M12 38h40" stroke="white" stroke-width="1.5" opacity=".65"/></svg></div>
+            <a class="logo-link" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">
+                <img class="logo-img" src="./logo.png" alt="漫流 MANFLOWS" onerror="this.style.display='none';var f=document.getElementById('logoFallback');if(f)f.style.display='inline-flex';">
+                <span class="logo-fallback" id="logoFallback">漫流<small>MANFLOWS</small></span>
+            </a>
             <div class="brand-text"><h1>漫流 AI 剪辑台</h1><p>Manflows · AI Auto Editing</p></div>
         </div>
         <span class="date-chip" id="dateChip">当天工程</span>
@@ -308,12 +401,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="tb-sep"></div>
         <button class="tb-btn green" id="topSave" title="保存工程 (Ctrl+S)">💾 保存工程</button>
         <button class="tb-btn" id="topOpen" title="打开工程 (Ctrl+O)">📂 打开工程</button>
-        <button class="tb-btn cyan" id="topSrt" title="导出字幕 SRT (Ctrl+E)">⬇ 导出字幕 SRT</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" id="resetLayout" title="把三栏宽度与时间轴高度恢复为初始尺寸">↺ 恢复初始化布局</button>
-        <button class="tb-btn" id="topDemo">重置演示工程</button>
         <button class="tb-btn" id="topHelp">📖 使用帮助</button>
+        <button class="tb-btn ws-btn" id="wsBtn" title="切换用户工作区：各用户工程互不串">👤 <span id="wsName">我的工作区</span></button>
         <span class="spacer"></span>
+        <button class="tb-btn export-btn" id="topExport" title="导出成片：视频 / 音频 / GIF / 字幕">⬆ 导出成片</button>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         <span class="tl-info" id="saveState">工程自动保存</span>
     </header>
@@ -347,7 +440,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <button class="mini-btn purple" id="importUrl">🔗 粘贴在线 URL</button>
                 </div>
                 <div class="drop-zone" id="dropZone">把本地 <b>文本 / 图片 / 视频 / 声音</b> 拖到这里<br>也可以直接拖入一个在线文件 URL</div>
-                <div class="hint">素材按<b>素材库宽度自动排成一行多个</b>；<b>按住素材拖到下方对应轨道</b>即可剪辑，双击自动放到该类轨道。单击选中后按 <code>Delete</code> 删除素材。支持 <b>.txt .md .srt .vtt / .png .jpg .webp / .mp4 .webm .mov / .mp3 .wav .m4a</b>。</div>
+                <div class="hint">素材按<b>素材库宽度自动排成一行多个</b>；<b>单击素材在预览窗口立即预览</b>（视频/声音自动播放、图片/文字只显示），<b>不自动加入轨道</b>；按住拖到下方对应轨道才开始剪辑。单击选中后按 <code>Delete</code> 删除素材。支持 <b>.txt .md .srt .vtt / .png .jpg .webp / .mp4 .webm .mov / .mp3 .wav .m4a</b>。</div>
+                <div class="asset-preview-tip" id="assetPreviewTip" hidden></div>
                 <div class="asset-list" id="assetList"></div>
             </div>
 
@@ -419,16 +513,32 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <aside class="side right" id="sideRight">
             <div class="prop-tabs" id="propTabs">
                 <button class="prop-tab active" data-ptab="basic">基础调整</button>
-                <button class="prop-tab" data-ptab="sub">字幕层</button>
+                <button class="prop-tab" data-ptab="anim">动画</button>
+                <button class="prop-tab" data-ptab="speed">变速</button>
+                <button class="prop-tab" data-ptab="color">调色LUT</button>
+                <button class="prop-tab" data-ptab="sub">字幕</button>
             </div>
             <div class="card prop-panel" id="panelBasic">
-                <h2>选中片段属性</h2>
+                <h2>调整 · 片段属性</h2>
                 <div id="propBox"><div class="prop-empty">点时间轴上任意一个片段，可在这里改名称、起止时间、时长、素材切入点，以及字幕文字与类型标签。</div></div>
                 <div id="basicBox"></div>
             </div>
+            <div class="card prop-panel" id="panelAnim" hidden>
+                <h2>调整 · 动画</h2>
+                <div id="animBox"></div>
+            </div>
+            <div class="card prop-panel" id="panelSpeed" hidden>
+                <h2>调整 · 变速</h2>
+                <div id="speedBox"></div>
+            </div>
+            <div class="card prop-panel" id="panelColor" hidden>
+                <h2>调整 · 调色 LUT</h2>
+                <div id="colorBox"></div>
+            </div>
             <div class="card prop-panel" id="panelSub" hidden>
-                <h2>字幕层 <span class="h2-extra" id="subCount">0 条</span></h2>
-                <div class="row" style="margin-top:0"><label style="flex:0 0 52px;font-size:11px">字幕轨</label><select id="subTrackSel" style="flex:1"></select></div>
+                <h2>调整 · 字幕 <span class="h2-extra" id="subCount">0 条</span></h2>
+                <div id="subStyleBox"></div>
+                <div class="row" style="margin-top:8px"><label style="flex:0 0 52px;font-size:11px">字幕轨</label><select id="subTrackSel" style="flex:1"></select></div>
                 <div class="hint" style="margin:0 0 5px">字幕不再按对白 / 旁白 / 内心独白分轨，全部放在字幕轨上，由你自己决定内容和位置；类型只是可选标签。</div>
                 <div class="sub-list" id="subList"></div>
                 <div class="row"><button class="mini-btn" id="addSub" style="flex:1">＋ 新增一条空白字幕</button></div>
@@ -438,7 +548,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="kv" id="projInfo"></div>
                 <div class="row"><button class="mini-btn gray" id="exportProject" style="flex:1">⬇ 导出工程 JSON</button></div>
             </div>
-        </aside>        </aside>
+        </aside>
     </div>
 
     <div class="hsplit" id="splitTimeline" title="拖动调整剪辑轨道高度"></div>
@@ -463,7 +573,11 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tb-btn ai-rec" id="recBtn" title="录音：调用电脑麦克风，结束后自动加入音频轨">⏺ 录音</button>
             </div>
             <div class="tl-tools right">
-                <button class="tb-btn" id="zoomOut" title="缩小时间轴 (-)">−</button><span class="tl-info" id="zoomLabel">36 px/s</span><button class="tb-btn" id="zoomIn" title="放大时间轴 (+)">＋</button>
+                <button class="tb-btn" id="zoomOut" title="缩小时间轴 (-)">−</button>
+                <input type="range" class="zoom-range" id="zoomRange" min="8" max="160" step="1" value="36" title="拖动缩放时间轴">
+                <button class="tb-btn" id="zoomIn" title="放大时间轴 (+)">＋</button>
+                <button class="zoom-fit" id="zoomFit" title="按当前素材总时长自动适配时间轴宽度">适应</button>
+                <span class="tl-info" id="zoomLabel">36 px/s</span>
                 <span class="tl-info" id="tlInfo">共 0 轨</span>
                 <button class="tb-btn" id="keyHelpBtn" title="查看全部快捷键">⌨ 快捷键</button>
             </div>
@@ -527,12 +641,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <tr><td>播放 / 暂停</td><td><code>Space</code></td><td>分割（剪断）</td><td><code>Ctrl/⌘ + B</code>（兼容 <code>S</code>）</td></tr>
                 <tr><td>删除选中片段 / 素材</td><td><code>Delete</code> / <code>Backspace</code></td><td>撤销 / 重做</td><td><code>Ctrl/⌘ + Z</code> / <code>Ctrl/⌘ + Shift + Z</code></td></tr>
                 <tr><td>复制 / 剪切 / 粘贴</td><td><code>Ctrl/⌘ + C</code> / <code>Ctrl/⌘ + X</code> / <code>Ctrl/⌘ + V</code></td><td>全选片段</td><td><code>Ctrl/⌘ + A</code></td></tr>
-                <tr><td>保存 / 打开工程</td><td><code>Ctrl/⌘ + S</code> / <code>Ctrl/⌘ + O</code></td><td>导入素材 / 导出 SRT</td><td><code>Ctrl/⌘ + I</code> / <code>Ctrl/⌘ + E</code></td></tr>
+                <tr><td>保存 / 打开工程</td><td><code>Ctrl/⌘ + S</code> / <code>Ctrl/⌘ + O</code></td><td>导入素材 / 导出成片</td><td><code>Ctrl/⌘ + I</code> / <code>Ctrl/⌘ + E</code></td></tr>
                 <tr><td>回到开头 / 结尾</td><td><code>Home</code> / <code>End</code></td><td>播放头逐帧 / 逐秒</td><td><code>← →</code> / <code>Shift + ← →</code></td></tr>
-                <tr><td>放大 / 缩小时间轴</td><td><code>+</code> / <code>-</code></td><td>关闭弹窗</td><td><code>Esc</code></td></tr>
+                <tr><td>放大 / 缩小时间轴</td><td><code>+</code> / <code>-</code></td><td>时间轴自适应素材时长</td><td>工具条「适应」</td></tr>
+                <tr><td>镜像 / 倒放</td><td><code>M</code> / <code>R</code></td><td>关闭弹窗</td><td><code>Esc</code></td></tr>
                 <tr><td>按住 Shift 点片段</td><td>多选片段</td><td>拖片段 / 拖右边缘</td><td>移动 / 裁切长度</td></tr>
             </table>
-            <p>点标尺或轨道空白处移动播放头；片段上的小剪刀可在点击位置直接剪断。预览区会同步播放主画面视频、混播所有音频轨、叠加所有图片层与字幕层。「⬇ 导出字幕 SRT」把所有字幕轨合并导出。</p>
+            <p>点标尺或轨道空白处移动播放头；片段上的小剪刀可在点击位置直接剪断。预览区会同步播放主画面视频、混播所有音频轨、叠加所有图片层与字幕层。<b>点顶栏「⬆ 导出成片」</b>可一次勾选导出综合视频、单独音频、GIF 动图与单独字幕（原「导出字幕 SRT」按钮已并入这里）。</p>
             <h2>⑥ 从导演画布一键转入</h2>
             <p>左侧「⇢ 扫描画布生成结果」会读取本机画布的 IndexedDB 历史结果（<code>manflows_canvas_db / canvas / __global__ / history</code>），列出生成过的视频与图片，每项可<b>转入素材库</b>或<b>直接放进当天剪辑轨道</b>。画布结果页后续要加的转入按钮，也会走下面这个通道（三页已同域，通道现已生效）：</p>
             <pre>function sendToEditor(d, target){
@@ -543,18 +658,111 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
   window.open("./editor.html?fromCanvas=1","_blank");
 }</pre>
             <p>剪辑台同时监听 <code>BroadcastChannel("manflows_ai_editor")</code>、<code>storage</code> 收件箱与 <code>postMessage</code>，也暴露了 <code>window.ManflowsAIEditor.receiveFromCanvas(payload)</code> 供直接调用。本地单文件预览与线上站点不同源，读不到线上画布数据时可用「模拟转入」查看效果；部署到 www.manflows.com 同目录后即自动读得到。</p>
-            <h2>⑧ 本轮新增：算力总控 / 画幅 / 框选 / 镜像倒放 / 基础调整</h2>
+            <h2>⑧ 本轮新增：工作区 / 导出成片 / 调整栏 / 素材预览 / 缩放 / URL 解析</h2>
             <ul>
-                <li><b>算力总控（素材库上方）</b>：跟导演画布同款的三档单选「漫流算力 / 本机算力 / 第三方API」，点一下即切换；原来的「AI 剪辑·模型配置」「AI 字幕·语音识别」两栏已全部合并进来，<b>只剩这三个选项</b>，不用再手填接口。配置数据仍与创作台 / 画布共用，档位则是<b>本页独立</b>，三页可同时用不同算力并行工作。漫流算力目前是占位档，点 AI 剪辑 / AI 字幕会提示切到本机算力或第三方API。</li>
-                <li><b>素材库</b>：一行多个素材，列数按你拖出来的素材库宽度自动增减；「＋ 导入素材」「🔗 粘贴在线 URL」两个按钮已从顶栏搬进素材库栏。缩略图仍是放大后的尺寸，卡片上不放演示 / ＋ / 播放 / 删除按钮，按住拖到轨道，单击选中后 <code>Delete</code> 删除。</li>
-                <li><b>预览画幅</b>：预览区顶部有「<b>自适应（默认）</b> / 16:9 / 9:16」三个按钮。自适应按<b>你导入的第一条视频或图片的画幅</b>自动决定（读不到尺寸前先按 16:9，读到后自动重算）；手动切 16:9 或 9:16 时画面居中、其余部分留黑边。调板块大小或改窗口尺寸都会自动重算。</li>
-                <li><b>框选素材</b>：在时间轴空白处按住鼠标拖出一个矩形，框到的片段会一起选中（可配合复制 / 剪切 / 删除 / 镜像 / 倒放批量操作）；轻点空白仍是移动播放头。</li>
-                <li><b>⇋ 镜像 / ◀ 倒放</b>：工具条新增两个按钮，快捷键 <code>M</code> / <code>R</code>，对选中的片段生效，片段上会显示 ⇋ / ◀ 标记，随时可再点一次取消。镜像＝画面水平翻转（<code>scaleX(-1)</code>）；倒放＝播放时把该段画面按时间反向映射，真正倒着放，不重新编码、不改素材文件，工程里保留标记。<b>浏览器不支持音频倒放</b>，音轨片段只打标记、声音仍按原样播放并会提示。</li>
-                <li><b>基础调整（右栏与「字幕层」并列的两个标签）</b>：右栏顶部是「基础调整 | 字幕层」两个并列标签，基础调整在左。选中片段后可在这里以<b>预览窗口中心为 (0, 0)</b> 输入位置 X / Y（px，右 / 下为正）、缩放（1＝原始大小）、旋转（度），还有镜像 / 倒放开关与「↺ 重置变换」。<b>预览窗口里也能直接用鼠标操作</b>：按住虚线框拖动移动、拖四角缩放、拖顶部橙色圆点旋转、滚轮缩放，两边数值实时同步。多个字幕层、图片层、视频层可以各自独立变换。</li>
+                <li><b>用户工作区（互不串工程）</b>：顶栏「👤 工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「打开工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。不同电脑、不同浏览器配置文件本来就天然互不相通。注意：静态站点没有账号体系，这是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
+                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。视频区块含一键超清、分辨率、补分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。</li>
+                <li><b>本机小服务（Mac / Windows 通用，可选）</b>：仓库里的 <code>启动本机服务.command</code>（Mac 双击）或 <code>启动本机服务.bat</code>（Windows 双击）会在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。</li>
+                <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
+                <li><b>单击素材即预览</b>：点素材库里任一素材，预览窗口立即预览——视频 / 声音自动播放，图片 / 文字只显示画面，<b>都不自动加入轨道</b>；要剪辑请自己用鼠标把素材拖到时间轴对应轨道（双击加入仍保留给习惯用它的用户）。</li>
+                <li><b>时间轴缩放</b>：工具条右侧有缩放滑块、＋/−、以及「适应」按钮；<b>默认按导入素材的总时长自动适配</b>宽度，手动拖过滑块后不再自动改，点「适应」可随时回到自适应。</li>
+                <li><b>调整栏（右栏 5 个并列标签）</b>：由原「选中片段属性」改名为「调整」，内含「基础调整 | 动画 | 变速 | 调色LUT | 字幕」。基础调整＝位置 / 缩放 / 旋转 / 镜像 / 倒放（以预览窗口中心为 (0,0)，与窗口内鼠标操作双向同步）；动画＝入场 / 出场 / 循环预设与时长；变速＝0.25x–4x 并自动重算片段时长；调色LUT＝亮度 / 对比度 / 饱和度 / 色温 / 模糊与 8 组滤镜预设，预览实时生效；字幕＝选中字幕的文字 / 字号 / 颜色 / 描边 / 位置 / 对齐，并保留整条字幕轨的列表管理。所有参数写进工程存档、可 <code>Ctrl+Z</code> 撤销、导出时一并生效。</li>
             </ul>
-            <h2>⑨ 当天工程</h2>
-            <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道、字幕与素材自动存在本机；「💾 保存工程」手动存，「📂 打开工程」可切到其它日期，「⬇ 导出工程 JSON」可备份，「重置演示工程」回到内置示例。</p>
+            <h2>⑨ 当天工程与自动保存</h2>
+            <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道、字幕与素材自动存在本机；「💾 保存工程」手动存，「📂 打开工程」可切到其它日期（只列当前工作区），「⬇ 导出工程 JSON」可备份。<b>没点保存直接关网页也不会丢</b>：关页 / 切到后台 / 刷新都会立即自动写盘一次，配合原有的编辑后 0.7 秒自动保存。</p>
+            <h2>⑩ 之前一轮的功能（仍在）</h2>
+            <ul>
+                <li><b>算力总控（素材库上方）</b>：跟导演画布同款的三档单选「漫流算力 / 本机算力 / 第三方API」，点一下即切换；原来的「AI 剪辑·模型配置」「AI 字幕·语音识别」两栏已全部合并进来，只剩这三个选项。档位<b>本页独立</b>，配置数据仍与创作台 / 画布共用。漫流算力目前是占位档。</li>
+                <li><b>预览画幅</b>：「自适应（默认）/ 16:9 / 9:16」，自适应按导入的第一条视频或图片的画幅自动决定。<b>框选素材</b>：时间轴空白处拖矩形可多选。<b>⇋ 镜像 / ◀ 倒放</b>：快捷键 <code>M</code> / <code>R</code>，片段上有 ⇋ / ◀ 标记；倒放是预览级反向映射，不重编码、不改素材文件，音轨不支持倒放会提示。</li>
+            </ul>
         </div>
+    </div>
+</div>
+
+
+<!-- 导出成片：布局与字段参照剪映导出窗口 -->
+<div class="modal-overlay" id="exportModal">
+    <div class="modal-box export-modal">
+        <div class="modal-head">导出成片 · <span id="exportTitleHead" style="color:var(--muted);font-size:12px"></span><button class="mh-close" data-close="exportModal">×</button></div>
+        <div class="modal-body" style="padding-top:12px">
+            <div class="export-status" id="exportStatus">正在探测本机服务…</div>
+            <div class="export-grid">
+                <div class="export-cover-box">
+                    <div class="export-cover" id="exportCover">
+                        <button class="cover-edit" id="coverEdit" title="用当前播放头所在画面作为封面">✎ 编辑封面</button>
+                        <div class="cover-empty" id="coverEmpty">封面取自当前预览画面<br>点上方「编辑封面」抓取</div>
+                        <img id="coverImg" alt="封面" hidden>
+                    </div>
+                    <div class="export-side-note" id="coverNote">用 AI 设计爆款封面：<a href="https://www.manflows.cn/" target="_blank" rel="noopener noreferrer">去主站设计</a>（本站不内嵌 AI 封面设计，封面只用于此处预览，不影响导出文件）。</div>
+                </div>
+                <div>
+                    <div class="export-row"><label>标题</label><input type="text" id="exportTitle" value=""></div>
+                    <div class="export-row"><label>导出至</label><input type="text" id="exportDest" value="浏览器下载目录" readonly><button class="folder-btn" id="pickExportDir" title="选择导出文件夹（Chrome / Edge 支持）">📁 选择</button></div>
+
+                    <div class="export-sec" id="secVideo">
+                        <div class="export-sec-head"><input type="checkbox" id="expChkVideo" checked><span>视频导出</span><span class="caret">▲</span></div>
+                        <div class="export-sec-fields">
+                            <div class="export-field"><span>一键超清 💎</span><input type="checkbox" class="sw" id="expUltra"><span style="flex:1;font-size:10px;color:var(--muted)">画质增强开关（非 AI 超分，只做高质量重采样）</span></div>
+                            <div class="export-field"><span>分辨率</span><select id="expRes"><option value="source">原始</option><option value="720">720P</option><option value="1080">1080P</option><option value="1440">2K</option><option value="2160">4K</option></select></div>
+                            <div class="export-note" id="expResNote">以当前画幅与素材原始尺寸导出</div>
+                            <div class="export-field"><span>补分辨率 💎</span><input type="checkbox" class="sw" id="expUpscale"><span style="flex:1;font-size:10px;color:var(--muted)">用高质量重采样把画面补到设置值（非 AI 超分）</span></div>
+                            <div class="export-field"><span>格式</span><select id="expFormat"><option value="mp4">MP4</option><option value="mov">MOV</option><option value="webm">WebM</option></select></div>
+                            <div class="export-field"><span>帧率</span><select id="expFps"><option value="24">24</option><option value="25">25</option><option value="30" selected>30</option><option value="60">60</option></select></div>
+                            <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="recommend">推荐</option><option value="low">较低</option><option value="high">较高</option><option value="8M">8 Mbps</option><option value="16M">16 Mbps</option></select></div>
+                            <div class="export-field"><span>视频编码</span><select id="expCodec"><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="prores">Apple ProRes</option><option value="av1">AV1</option></select></div>
+                            <div class="export-note" id="expCodecNote">H.264 由浏览器 / 显卡直接编码；HEVC / ProRes / AV1 与 MOV 需要本机 ffmpeg。</div>
+                            <div class="export-field"><span>网络播放优化 ⓘ</span><input type="checkbox" class="sw" id="expFaststart" checked><span style="flex:1;font-size:10px;color:var(--muted)">MP4 前置索引，边下边播</span></div>
+                            <div class="export-static">色彩空间：Rec.709 SDR</div>
+                            <div class="export-note">↓ 向下滚动还可勾选「音频导出 / GIF 导出 / 字幕导出」，底部「导出」按钮始终可见。</div>
+                        </div>
+                    </div>
+
+                    <div class="export-sec off" id="secAudio">
+                        <div class="export-sec-head"><input type="checkbox" id="expChkAudio"><span>音频导出</span><span class="caret">▲</span></div>
+                        <div class="export-sec-fields">
+                            <div class="export-field"><span>格式</span><select id="expAudioFmt"><option value="wav">WAV</option><option value="mp3">MP3</option><option value="m4a">M4A</option></select></div>
+                            <div class="export-note">WAV 由浏览器直接合成；MP3 / M4A 需要本机 ffmpeg 转码。</div>
+                        </div>
+                    </div>
+
+                    <div class="export-sec off" id="secGif">
+                        <div class="export-sec-head"><input type="checkbox" id="expChkGif"><span>GIF 导出</span><span class="caret">▲</span></div>
+                        <div class="export-sec-fields">
+                            <div class="export-field"><span>分辨率</span><select id="expGifRes"><option value="240">240P</option><option value="480">480P</option><option value="720">720P</option></select></div>
+                            <div class="export-note">GIF 由本机 ffmpeg 按调色板算法生成；未启动本机服务时该项不可用。</div>
+                        </div>
+                    </div>
+
+                    <div class="export-sec off" id="secSub">
+                        <div class="export-sec-head"><input type="checkbox" id="expChkSub"><span>字幕导出</span><span class="caret">▲</span></div>
+                        <div class="export-sec-fields">
+                            <div class="export-field"><span>格式</span><select id="expSubFmt"><option value="srt">SRT</option><option value="vtt">VTT</option></select></div>
+                            <div class="export-static">文字编码：Unicode / UTF-8</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="export-progress" id="exportProg"><i id="exportProgFill"></i></div>
+        <div class="export-steps" id="exportSteps"></div>
+        <div class="export-foot">
+            <span class="est" id="exportEst">时长 0 秒 | 大小 0 MB（估计）</span>
+            <button class="mini-btn gray" data-close="exportModal">取消</button>
+            <button class="do-btn" id="exportDo">导出</button>
+        </div>
+    </div>
+</div>
+
+<!-- 用户工作区：各用户工程互不串 -->
+<div class="modal-overlay" id="wsModal">
+    <div class="modal-box" style="width:min(520px,100%)">
+        <div class="modal-head">👤 用户工作区<button class="mh-close" data-close="wsModal">×</button></div>
+        <div class="modal-body">
+            <div class="ws-hint">每个工作区拥有<b>独立的工程、素材与布局</b>，切换后只能看到本工作区的工程，不会看到别人的。不同电脑、不同浏览器配置文件本来就天然互不相通。<br>说明：本站是静态网页、没有账号体系，工作区是「分目录」级隔离而不是加密；高度敏感内容请不要多人共用同一个浏览器配置文件。</div>
+            <div id="wsList"></div>
+            <div class="row" style="margin-top:10px"><input type="text" id="wsNewName" placeholder="新工作区名称，例如：小张的剪辑" style="flex:1"><button class="mini-btn green" id="wsCreate">＋ 新建独立工作区</button></div>
+        </div>
+        <div class="modal-foot"><button class="mini-btn gray" data-close="wsModal">关闭</button></div>
     </div>
 </div>
 
@@ -563,12 +771,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="modal-box" style="width:min(620px,100%)">
         <div class="modal-head">🔗 粘贴在线文件 URL<button class="mh-close" data-close="urlModal">×</button></div>
         <div class="modal-body url-box">
-            <p class="hint" style="margin-top:0">一行一个 URL，支持 <b>视频 / 图片 / 声音 / 文本 / SRT 字幕</b>；也可以直接粘贴一段纯文字，会存成文本素材。</p>
-            <textarea id="urlText" placeholder="https://example.com/clip.mp4&#10;https://example.com/bgm.mp3&#10;https://example.com/台词.txt&#10;https://example.com/字幕.srt"></textarea>
+            <p class="hint" style="margin-top:0">一行一个 URL，支持 <b>视频 / 图片 / 声音 / 文本 / SRT 字幕直链</b>；<b>抖音 / B站等分享链接</b>会交给本机服务自动解析成可播放视频；也可以直接粘贴一段纯文字，会存成文本素材。</p>
+            <textarea id="urlText" placeholder="https://example.com/clip.mp4&#10;https://v.douyin.com/xxxxx/&#10;https://www.bilibili.com/video/BVxxxx&#10;https://example.com/字幕.srt"></textarea>
+            <div id="urlReport" style="display:none"></div>
             <div class="row"><label style="flex:0 0 88px;font-size:11.5px">类型判定</label>
                 <select id="urlType" style="flex:1"><option value="auto">自动按扩展名识别</option><option value="video">视频</option><option value="image">图片</option><option value="audio">声音 / 音乐</option><option value="text">文本 / 字幕</option></select>
             </div>
-            <p class="hint">在线文本文件会尝试 fetch 读取内容；若对方站点未开跨域，请改用「上传本地文件」。媒体文件（视频 / 图片 / 声音）可直接用直链播放。</p>
+            <p class="hint"><b>网页分享链接不是视频文件</b>：直接塞给播放器只会黑屏无声，所以现在会先识别再由本机服务解析。解析失败会明确告诉你是「防盗链 / 未开跨域 / 需要直链 / 本机服务未启动」中的哪一种，不会再生成一个黑屏素材。<br>在线文本文件会尝试 fetch 读取；未开跨域请改用「上传本地文件」。媒体直链（.mp4 / .webm / .mp3 / .jpg 等）可直接播放。</p>
         </div>
         <div class="modal-foot"><button class="mini-btn gray" data-close="urlModal">取消</button><button class="mini-btn green" id="urlAdd">添加到素材库</button></div>
     </div>
@@ -666,6 +875,133 @@ const ED_COMPUTE_LABEL  = {manflow:"漫流算力", local:"本机算力", third_p
 const LABEL_W           = 92;
 const DEF_LAYOUT        = {left:308, right:300, tl:294};
 
+/* ==================================================================
+   用户工作区隔离：每个工作区拥有独立的工程 / 素材 / 布局。
+   默认工作区 default 沿用原始键名，因此旧工程零迁移、原样可见。
+   跨页「画布转入」收件箱与创作台/画布共用配置仍保持全局，不隔离。
+   ================================================================== */
+const WS_LIST_KEY = "manflows_ai_editor_ws_list";
+const WS_CUR_KEY  = "manflows_ai_editor_ws_current";
+const WS_DEFAULT_ID = "default";
+const WS_SCOPED = [PROJECT_PREFIX, LAYOUT_KEY, AI_CFG_KEY, AI_MODEL_KEY, "manflows_ai_editor_aspect"];
+function wsId(){
+    let v=null;
+    try{ v=localStorage.getItem(WS_CUR_KEY); }catch(e){}
+    if(!v){
+        try{
+            localStorage.setItem(WS_CUR_KEY,WS_DEFAULT_ID);
+            if(!localStorage.getItem(WS_LIST_KEY))
+                localStorage.setItem(WS_LIST_KEY,JSON.stringify([{id:WS_DEFAULT_ID,name:"我的工作区",created:Date.now()}]));
+        }catch(e){}
+        return WS_DEFAULT_ID;
+    }
+    return v;
+}
+function wsScoped(k){ return WS_SCOPED.some(x=>String(k).indexOf(x)===0); }
+function wsKey(k){
+    k=String(k);
+    if(!wsScoped(k)) return k;
+    const id=wsId();
+    return id===WS_DEFAULT_ID?k:"mfws_"+id+"_"+k;
+}
+function wsUnkey(real){
+    const id=wsId();
+    if(id===WS_DEFAULT_ID) return String(real).indexOf("mfws_")===0?null:real;
+    const pre="mfws_"+id+"_";
+    return String(real).indexOf(pre)===0?String(real).slice(pre.length):null;
+}
+function wsList(){
+    try{
+        const a=JSON.parse(localStorage.getItem(WS_LIST_KEY)||"[]");
+        return Array.isArray(a)&&a.length?a:[{id:WS_DEFAULT_ID,name:"我的工作区",created:Date.now()}];
+    }catch(e){ return [{id:WS_DEFAULT_ID,name:"我的工作区",created:Date.now()}]; }
+}
+function wsSaveList(a){ try{ localStorage.setItem(WS_LIST_KEY,JSON.stringify(a)); }catch(e){} }
+function wsName(){ const w=wsList().find(x=>x.id===wsId()); return w?w.name:"我的工作区"; }
+function dbName(){ const id=wsId(); return id===WS_DEFAULT_ID?MF_EDITOR_DB:MF_EDITOR_DB+"_ws"+id; }
+function wsBoot(){ const el=document.getElementById("wsName"); if(el) el.textContent=wsName(); }
+function renderWsList(){
+    const box=$("wsList"); if(!box) return;
+    const cur=wsId();
+    box.innerHTML=wsList().map(w=>'<div class="ws-item'+(w.id===cur?" cur":"")+'">'
+        +'<span class="ws-n">'+esc(w.name)+(w.id===cur?' <b style="color:#67e8f9;font-size:10px">（当前）</b>':'')+'</span>'
+        +(w.id!==cur?'<button data-ws="use" data-id="'+esc(w.id)+'">切换</button>':'')
+        +'<button data-ws="rename" data-id="'+esc(w.id)+'">改名</button>'
+        +(w.id!==WS_DEFAULT_ID?'<button data-ws="del" data-id="'+esc(w.id)+'">删除</button>':'')
+        +'</div>').join("");
+}
+function openWsModal(){ renderWsList(); $("wsModal").classList.add("show"); }
+function wsSwitch(id){
+    try{ saveProject(true); }catch(e){}
+    try{ localStorage.setItem(WS_CUR_KEY,id); }catch(e){}
+    location.reload();
+}
+function wsCreate(name){
+    const list=wsList();
+    const id="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    list.push({id:id,name:String(name||("工作区 "+(list.length+1))).trim().slice(0,24),created:Date.now()});
+    wsSaveList(list); wsSwitch(id);
+}
+function wsRename(id){
+    const list=wsList(), w=list.find(x=>x.id===id); if(!w) return;
+    const n=prompt("给这个工作区改个名字",w.name); if(!n||!n.trim()) return;
+    w.name=n.trim().slice(0,24); wsSaveList(list); renderWsList(); wsBoot();
+}
+function wsDelete(id){
+    if(id===WS_DEFAULT_ID){ toast("默认工作区不能删除","err"); return; }
+    const w=wsList().find(x=>x.id===id);
+    if(!confirm("确定删除工作区「"+(w?w.name:id)+"」？该工作区的所有工程与素材会一并删除，且不可恢复。")) return;
+    const pre="mfws_"+id+"_", del=[];
+    try{
+        for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(String(k).indexOf(pre)===0) del.push(k); }
+        del.forEach(k=>localStorage.removeItem(k));
+        try{ indexedDB.deleteDatabase(MF_EDITOR_DB+"_ws"+id); }catch(e){}
+    }catch(e){}
+    wsSaveList(wsList().filter(x=>x.id!==id));
+    if(wsId()===id){ try{ localStorage.setItem(WS_CUR_KEY,WS_DEFAULT_ID); }catch(e){} location.reload(); }
+    else renderWsList();
+}
+
+/* ==================================================================
+   本机小服务探测（Mac / Windows 通用）：分享链接解析 + ffmpeg 导出
+   ================================================================== */
+const LOCAL_SERVICE="http://127.0.0.1:8788";
+function serviceMediaUrl(u){ return svcOnline?(LOCAL_SERVICE+"/api/media?u="+encodeURIComponent(u)):u; }
+async function pingService(ms){
+    try{
+        const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),ms||1800);
+        const r=await fetch(LOCAL_SERVICE+"/api/ping",{signal:ctl.signal,mode:"cors"});
+        clearTimeout(tm);
+        const j=await r.json(); svcOnline=!!(j&&j.ok); svcInfo=j||null;
+    }catch(e){ svcOnline=false; svcInfo=null; }
+    return svcOnline;
+}
+async function resolveWebpage(u){
+    if(!svcOnline) await pingService(2800);
+    if(!svcOnline) return {ok:false,
+        reason:"未检测到本机服务（127.0.0.1:8788）",
+        hint:"双击运行仓库里的「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows) 后重试；或改粘贴以 .mp4 / .mp3 结尾的真实文件直链。"};
+    try{
+        const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),12000);
+        const r=await fetch(LOCAL_SERVICE+"/api/resolve",{method:"POST",
+            headers:{"Content-Type":"application/json"},body:JSON.stringify({url:u}),signal:ctl.signal});
+        clearTimeout(tm);
+        return await r.json();
+    }catch(e){ return {ok:false,reason:"本机服务解析失败："+e.message,hint:"确认服务窗口还开着，或重启服务后重试。"}; }
+}
+function classifyUrl(u){
+    let path="";
+    try{ path=new URL(u).pathname.toLowerCase(); }catch(e){ return "webpage"; }
+    if(/\.(mp4|webm|mov|m4v|ogv)$/.test(path)) return "video";
+    if(/\.(png|jpe?g|webp|gif|bmp|avif|svg)$/.test(path)) return "image";
+    if(/\.(mp3|wav|m4a|aac|flac|ogg|opus)$/.test(path)) return "audio";
+    if(/\.(txt|md|srt|vtt|json|csv)$/.test(path)) return "text";
+    if(/\.m3u8($|\?)/.test(path)) return "hls";
+    return "webpage";
+}
+
+
+
 /* 四类轨道：数组顺序即渲染层级（上 → 下） */
 const TK_ORDER = ["text","image","video","audio"];
 const TK_NAME  = {text:"字幕", image:"图片", video:"视频", audio:"音频"};
@@ -689,12 +1025,15 @@ let state = {
     date: todayStr(), zoom:36, playhead:0, tab:"all",
     assets:[], clips:[], tracks:defaultTracks(),
     selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1",
-    compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic"
+    compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic", zoomAuto:true
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
 let pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
 let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
+let assetPreviewId=null, assetAudioEl=null, svcOnline=false, svcInfo=null;
+let exportBusy=false, exportDirHandle=null, exportCoverData="", coverPinned=false;
+let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
 const AI_STEPS=["模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
 const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
 const $ = id => document.getElementById(id);
@@ -845,27 +1184,88 @@ async function startAiIdea(){
    片段变换：fx = {x,y,scale,rotate,mirror,reverse}
    以预览窗口中心为 (0,0)；镜像 = scaleX(-1)；倒放 = 播放时间反向映射。
    ================================================================== */
-function defaultFx(){ return {x:0,y:0,scale:1,rotate:0,mirror:false,reverse:false}; }
+function defaultFx(){
+    return {x:0,y:0,scale:1,rotate:0,mirror:false,reverse:false,
+        speed:1, animIn:"", animOut:"", animLoop:"", animDur:0.5,
+        color:{brightness:100,contrast:100,saturate:100,sepia:0,hue:0,blur:0,preset:""},
+        sub:{size:28,color:"#ffffff",stroke:"#000000",strokeW:2,align:"center",pos:"bottom",bold:true,font:"Microsoft YaHei"}};
+}
 function fxOf(c){
     if(!c) return defaultFx();
     if(!c.fx||typeof c.fx!=="object") c.fx=defaultFx();
     const d=defaultFx();
-    for(const k in d) if(c.fx[k]===undefined) c.fx[k]=d[k];
+    for(const k in d){
+        if(c.fx[k]===undefined) c.fx[k]=d[k];
+        else if(d[k] && typeof d[k]==="object" && !Array.isArray(d[k])){
+            if(!c.fx[k]||typeof c.fx[k]!=="object") c.fx[k]=d[k];
+            else for(const kk in d[k]) if(c.fx[k][kk]===undefined) c.fx[k][kk]=d[k][kk];
+        }
+    }
     return c.fx;
+}
+function animT(name,k){
+    if(name==="slideL") return " translateX("+(-80*k)+"px)";
+    if(name==="slideR") return " translateX("+(80*k)+"px)";
+    if(name==="slideU") return " translateY("+(70*k)+"px)";
+    if(name==="slideD") return " translateY("+(-70*k)+"px)";
+    if(name==="zoomIn") return " scale("+(1-0.45*k)+")";
+    if(name==="zoomOut") return " scale("+(1+0.35*k)+")";
+    if(name==="rotateIn") return " rotate("+(-35*k)+"deg)";
+    return "";
+}
+function animExtra(c){
+    const f=fxOf(c);
+    if(!f.animIn && !f.animOut && !f.animLoop) return "";
+    const t=state.playhead-c.start, d=Math.max(0.15,Number(f.animDur)||0.5), dur=Math.max(0.3,c.duration||1);
+    let x="";
+    if(f.animIn && t<d) x+=animT(f.animIn,1-clamp(t/d,0,1));
+    if(f.animOut && t>dur-d) x+=animT(f.animOut,1-clamp((dur-t)/d,0,1));
+    if(f.animLoop==="breath") x+=" scale("+(1+0.035*Math.sin(t*4))+")";
+    else if(f.animLoop==="shake") x+=" translateX("+(3*Math.sin(t*14))+"px)";
+    else if(f.animLoop==="slowzoom") x+=" scale("+(1+0.10*clamp(t/dur,0,1))+")";
+    return x;
+}
+function animOpacity(c){
+    const f=fxOf(c);
+    if(!f.animIn && !f.animOut) return 1;
+    const t=state.playhead-c.start, d=Math.max(0.15,Number(f.animDur)||0.5), dur=Math.max(0.3,c.duration||1);
+    if(f.animIn==="fade" && t<d) return clamp(t/d,0.05,1);
+    if(f.animOut==="fade" && t>dur-d) return clamp((dur-t)/d,0.05,1);
+    return 1;
 }
 function fxTransform(c){
     const f=fxOf(c), sc=Number(f.scale)||1;
-    return "translate("+Number(f.x||0)+"px,"+Number(f.y||0)+"px) rotate("+Number(f.rotate||0)+"deg) scale("+((f.mirror?-1:1)*sc)+","+sc+")";
+    return "translate("+Number(f.x||0)+"px,"+Number(f.y||0)+"px) rotate("+Number(f.rotate||0)+"deg) scale("+((f.mirror?-1:1)*sc)+","+sc+")"+animExtra(c);
+}
+function fxFilter(c){
+    const q=fxOf(c).color||{}, out=["brightness("+(Number(q.brightness)||100)+"%)",
+        "contrast("+(Number(q.contrast)||100)+"%)","saturate("+(Number(q.saturate)||100)+"%)"];
+    if(Number(q.sepia)) out.push("sepia("+Number(q.sepia)+"%)");
+    if(Number(q.hue)) out.push("hue-rotate("+Number(q.hue)+"deg)");
+    if(Number(q.blur)) out.push("blur("+Number(q.blur)+"px)");
+    return out.join(" ");
+}
+function subStyleOf(c){
+    const q=fxOf(c).sub||{}, st=$("stage"), H=st?st.clientHeight:360;
+    const off=q.pos==="top"?-Math.round(H*0.34):(q.pos==="middle"?-Math.round(H*0.15):0);
+    return "font-size:"+(Number(q.size)||28)+"px;color:"+(q.color||"#fff")
+        +";font-weight:"+(q.bold===false?"400":"700")
+        +";-webkit-text-stroke:"+(Number(q.strokeW)||0)+"px "+(q.stroke||"#000")
+        +";text-align:"+(q.align||"center")+";font-family:'"+(q.font||"Microsoft YaHei")+"',sans-serif"
+        +";translate:0 "+off+"px;";
 }
 function applyClipTransforms(){
-    const vc=mainVisualClip();
-    const tr=vc?fxTransform(vc):"";
+    const vc=mainVisualClip(), tr=vc?fxTransform(vc):"", fl=vc?fxFilter(vc):"none", op=vc?animOpacity(vc):1;
     vEl.style.transform=tr; imgEl.style.transform=tr;
+    vEl.style.filter=fl; imgEl.style.filter=fl;
+    vEl.style.opacity=op; imgEl.style.opacity=op;
     pipLayer.querySelectorAll(".pip-item").forEach(el=>{
-        const c=clipById(el.dataset.clip); el.style.transform=c?fxTransform(c):"";
+        const c=clipById(el.dataset.clip);
+        el.style.transform=c?fxTransform(c):""; el.style.filter=c?fxFilter(c):"none"; el.style.opacity=c?animOpacity(c):1;
     });
     $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
-        const c=clipById(el.dataset.clip); el.style.transform=c?fxTransform(c):"";
+        const c=clipById(el.dataset.clip);
+        el.style.transform=c?fxTransform(c):""; el.style.opacity=c?animOpacity(c):1;
     });
     updateFxBox();
 }
@@ -914,14 +1314,78 @@ function renderBasicBox(){
         $(id).addEventListener("input",apply);
     });
     ["fxMirror","fxReverse"].forEach(id=>$(id).addEventListener("change",()=>{ pushHistory(); apply(); }));
-    $("fxReset").onclick=()=>{ pushHistory(); c.fx=defaultFx(); renderAll(); autoSave(); toast("已重置该片段的基础调整","ok"); };
+    $("fxReset").onclick=()=>{ pushHistory(); const d=defaultFx(); ["x","y","scale","rotate","mirror","reverse"].forEach(k=>f[k]=d[k]); renderAll(); autoSave(); toast("已重置该片段的基础调整","ok"); };
 }
 function showPropTab(name){
-    state.propTab=name==="sub"?"sub":"basic";
+    const ok=["basic","anim","speed","color","sub"];
+    state.propTab=ok.indexOf(name)>=0?name:"basic";
     document.querySelectorAll(".prop-tab").forEach(b=>b.classList.toggle("active",b.dataset.ptab===state.propTab));
-    $("panelBasic").hidden=(state.propTab!=="basic");
-    $("panelSub").hidden=(state.propTab!=="sub");
+    ok.forEach(n=>{ const el=$("panel"+n.charAt(0).toUpperCase()+n.slice(1)); if(el) el.hidden=(n!==state.propTab); });
+    renderAdjustPanels();
 }
+
+/* ---------- 素材库单击预览：视频 / 声音自动播放，图片 / 文字只显示，不自动入轨 ---------- */
+function exitAssetPreview(silent){
+    if(!assetPreviewId) return;
+    assetPreviewId=null;
+    if(assetAudioEl){ try{ assetAudioEl.pause(); }catch(e){} }
+    vEl.dataset.aid=""; imgEl.dataset.aid="";
+    vEl.style.filter="none"; vEl.style.opacity=1; imgEl.style.filter="none"; imgEl.style.opacity=1;
+    const tip=$("assetPreviewTip"); if(tip) tip.hidden=true;
+    document.querySelectorAll(".asset-item.previewing").forEach(x=>x.classList.remove("previewing"));
+    if(!silent) syncMedia();
+}
+function previewAsset(a){
+    if(!a) return;
+    pause();
+    assetPreviewId=a.id;
+    const tip=$("assetPreviewTip");
+    if(tip){ tip.hidden=false; tip.innerHTML='正在预览素材「<b>'+esc(a.name)+'</b>」（'+typeLabel(a.type)
+        +'）· <b>不会自动加入轨道</b>；把它拖到下方时间轴才开始剪辑，点播放 / 时间轴可退出预览。'; }
+    document.querySelectorAll(".asset-item").forEach(x=>x.classList.toggle("previewing",x.dataset.id===a.id));
+    vEl.classList.remove("show"); imgEl.classList.remove("show");
+    pipLayer.innerHTML=""; pipLayer.dataset.key="";
+    $("subOverlay").innerHTML=""; $("stageEmpty").style.display="none";
+    if(a.type==="video" && a.url){
+        vEl.style.transform=""; vEl.style.filter="none"; vEl.style.opacity=1;
+        vEl.src=a.url; vEl.dataset.aid=""; vEl.muted=false; vEl.playbackRate=1;
+        vEl.classList.add("show");
+        try{ vEl.currentTime=0; }catch(e){}
+        vEl.play().catch(()=>{ if(tip) tip.innerHTML+='<br><span style="color:#fca5a5">自动播放被浏览器拦截，可点下方「▶ 播放」重试。</span>'; });
+    }else if(a.type==="image" && a.url){
+        imgEl.style.transform=""; imgEl.style.filter="none"; imgEl.style.opacity=1;
+        imgEl.src=a.url; imgEl.dataset.aid=""; imgEl.classList.add("show");
+    }else if(a.type==="audio" && a.url){
+        if(!assetAudioEl){ assetAudioEl=document.createElement("audio"); assetAudioEl.preload="auto"; assetAudioEl.style.display="none"; document.body.appendChild(assetAudioEl); }
+        assetAudioEl.src=a.url;
+        try{ assetAudioEl.currentTime=0; }catch(e){}
+        assetAudioEl.play().catch(()=>{});
+        $("subOverlay").innerHTML='<div class="sub-line" style="font-size:15px">🎵 正在播放：'+esc(a.name)+'</div>';
+    }else if(a.type==="text"){
+        $("subOverlay").innerHTML='<div class="sub-line" style="font-size:14px;white-space:pre-wrap;max-height:80%;overflow:auto">'
+            +esc(String(a.text||"（这个文本素材没有内容）").slice(0,1200))+'</div>';
+    }else{
+        $("stageEmpty").style.display="flex";
+        $("stageEmpty").innerHTML='<b>这个素材没有可预览的地址</b><br>可能是在线链接解析失败，请重新导入';
+    }
+}
+
+/* ---------- 时间轴缩放：默认按素材总时长自适应 ---------- */
+function setZoom(v,manual){
+    state.zoom=clamp(Math.round(Number(v)||36),8,160);
+    if(manual) state.zoomAuto=false;
+    const r=$("zoomRange"), l=$("zoomLabel");
+    if(r) r.value=state.zoom;
+    if(l) l.textContent=state.zoom+" px/s";
+    renderTimeline();
+}
+function fitZoom(){
+    const box=$("tlScroll"); if(!box) return;
+    const w=Math.max(200,box.clientWidth-LABEL_W-24);
+    setZoom(clamp(w/Math.max(6,totalDuration()),8,160),false);
+    state.zoomAuto=true;
+}
+
 function toggleMirror(){
     const ids=selectedIds();
     if(!ids.length){ toast("先点选一个片段，再点「⇋ 镜像」","err"); return; }
@@ -1086,10 +1550,20 @@ function contentWidth(){ return totalDuration()*state.zoom; }
 
 /* ---------- 本机存储 ---------- */
 const safeStorage = {
-    get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
-    set(k,v){ try{ localStorage.setItem(k,v); return true; }catch(e){ return false; } },
-    remove(k){ try{ localStorage.removeItem(k); }catch(e){} },
-    keys(){ try{ return Object.keys(localStorage); }catch(e){ return []; } }
+    /* 工作区隔离：只有工程 / 布局 / 本页配置 / 画幅这些键加工作区前缀；
+       画布转入收件箱与创作台 / 画布的共用配置保持全局，跨页通信与配置复用不受影响。 */
+    get(k){ try{ return localStorage.getItem(wsKey(k)); }catch(e){ return null; } },
+    set(k,v){ try{ localStorage.setItem(wsKey(k),v); return true; }catch(e){ return false; } },
+    remove(k){ try{ localStorage.removeItem(wsKey(k)); }catch(e){} },
+    keys(){ try{
+        const out=[], id=wsId();
+        for(let i=0;i<localStorage.length;i++){
+            const real=localStorage.key(i);
+            if(String(real).indexOf("mfws_")===0){ const k=wsUnkey(real); if(k) out.push(k); }
+            else if(id===WS_DEFAULT_ID || !wsScoped(real)) out.push(real);
+        }
+        return out;
+    }catch(e){ return []; } }
 };
 function openDB(name, store){
     return new Promise((res,rej)=>{
@@ -1099,12 +1573,12 @@ function openDB(name, store){
     });
 }
 async function dbPut(store,key,val){
-    const db=await openDB(MF_EDITOR_DB,store);
+    const db=await openDB(dbName(),store);
     return new Promise((res,rej)=>{ const tx=db.transaction(store,"readwrite"); tx.objectStore(store).put(val,key);
         tx.oncomplete=()=>{db.close();res(true);}; tx.onerror=()=>{db.close();rej(tx.error);}; });
 }
 async function dbGet(store,key){
-    const db=await openDB(MF_EDITOR_DB,store);
+    const db=await openDB(dbName(),store);
     return new Promise((res,rej)=>{ const tx=db.transaction(store,"readonly"); const r=tx.objectStore(store).get(key);
         r.onsuccess=()=>{db.close();res(r.result);}; r.onerror=()=>{db.close();rej(r.error);}; });
 }
@@ -1208,6 +1682,7 @@ async function addAsset(o){
     delete a.blob;
     if(a.type==="video"||a.type==="image"){ probeAssetRatio(a); applyAspect(); }
     renderAssets(); renderProjInfo(); autoSave();
+    if(state.zoomAuto!==false) fitZoom();
     return a;
 }
 async function addFiles(files){
@@ -1228,28 +1703,53 @@ async function addFiles(files){
     return n;
 }
 async function addUrls(raw, forced){
-    const lines=String(raw||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    let n=0, skipped=0;
+    const lines=String(raw||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    let n=0, skipped=0, report=[];
     for(const line of lines){
         if(!/^https?:\/\//i.test(line)){
             if(line.length>1){ await addAsset({name:"粘贴文本 "+String(line).slice(0,12), type:"text", url:"", urlKind:"inline", text:line, source:"url", ext:"txt"}); n++; }
             else skipped++;
             continue;
         }
-        let name="在线文件";
-        try{ name=decodeURIComponent(new URL(line).pathname.split("/").pop()||"在线文件"); }catch(e){}
-        const type=guessType(name,forced);
-        const a={name:name||"在线文件", type, url:line, urlKind:"remote", source:"url",
-                 ext:(name.split(".").pop()||"").toLowerCase()};
+        const cls=classifyUrl(line);
+        let name="在线文件", type=cls, url=line, originUrl=line, via="direct", note="";
+        if(cls==="webpage"){
+            const r=await resolveWebpage(line);
+            if(!r || !r.ok){
+                report.push("❌ "+line.slice(0,72)+" · "+(r?r.reason:"解析失败")
+                    +"<br><span style='color:#fcd34d'>"+esc(r?r.hint:"请粘贴真实文件直链")+"</span>");
+                continue;
+            }
+            name=r.title||name;
+            type=(r.kind==="image"||r.kind==="audio"||r.kind==="text")?r.kind:"video";
+            url=r.playUrl||r.directUrl||line;
+            originUrl=r.directUrl||line;
+            via=r.via||"webpage";
+            note="本机服务解析（"+via+"）"+(r.note?" · "+r.note:"");
+            report.push("✅ "+line.slice(0,72)+" · 已解析为可播放" + typeLabel(type) + (r.note?"（"+esc(r.note)+"）":""));
+        }else if(cls==="hls"){
+            report.push("❌ "+line.slice(0,72)+" · HLS(.m3u8) 直播流<br><span style='color:#fcd34d'>浏览器桌面版不原生支持 HLS，请改粘贴 .mp4 直链，或让本机服务转封装后再导入。</span>");
+            continue;
+        }else{
+            try{ name=decodeURIComponent(new URL(line).pathname.split("/").pop()||"在线文件"); }catch(e){}
+        }
+        if(forced && forced!=="auto") type=forced;
+        const a={name:name||"在线文件", type, url, urlKind:"remote", source:"url", originUrl, via, note,
+                 ext:((String(name).split(".").pop()||"").toLowerCase())};
         if(type==="text"){
             try{ const r=await fetch(line,{mode:"cors"}); if(!r.ok) throw new Error("HTTP "+r.status); a.text=await r.text(); }
-            catch(e){ a.text=""; }
-        }else a.duration=await mediaDuration(line,type);
+            catch(e){ a.text=""; report.push("⚠️ "+esc(name)+" · 文本读取失败（对方未开跨域），可改用「上传本地文件」"); }
+        }else a.duration=await mediaDuration(url,type);
         await addAsset(a); n++;
     }
+    const box=$("urlReport");
+    if(box){
+        box.innerHTML=report.length?'<div class="hint" style="margin:8px 0 0;line-height:1.8">'+report.join("<br>")+'</div>':"";
+        box.style.display=report.length?"block":"none";
+    }
     if(n) toast("已添加 "+n+" 个在线素材"+(skipped?"（跳过 "+skipped+" 行）":""),"ok");
-    else toast("没有可添加的内容","err");
-    if(lines.some(l=>/^https?:/i.test(l)) && n) renderAssets();
+    else if(!report.length) toast("没有可添加的内容","err");
+    else toast("没有成功导入的素材，请看下方具体原因","err");
     return n;
 }
 function assetThumbHtml(a){
@@ -1266,7 +1766,7 @@ function renderAssets(){
     list.innerHTML=arr.map(a=>{
         const meta=(a.type==="text" ? (a.text?a.text.length+" 字":"在线文本（未读取）") : (a.duration?fmt(a.duration):"—"))
             +" · "+typeLabel(a.type)+(a.size?" · "+fmtSize(a.size):"");
-        return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="拖到下方轨道；双击自动加入；单击选中后 Delete 删除">'
+        return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+(assetPreviewId===a.id?" previewing":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="单击立即在预览窗口预览（不自动入轨）；拖到下方轨道开始剪辑；双击自动加入；Delete 删除">'
           +'<div class="asset-thumb">'+assetThumbHtml(a)+'</div>'
           +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+'</div>'
           +'<div class="asset-sub">'+esc(meta)+'</div>'
@@ -1506,6 +2006,8 @@ function syncAudioPool(){
             document.body.appendChild(el); o={el:el,aid:""}; audioPool.set(x.c.id,o);
         }
         if(o.aid!==x.a.id){ o.el.src=x.a.url; o.aid=x.a.id; }
+        const asp=clamp(Number(fxOf(x.c).speed)||1,0.25,4);
+        if(o.el.playbackRate!==asp) o.el.playbackRate=asp;
         const wt=(x.c.offset||0)+(state.playhead-x.c.start);
         if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>0.32 && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
         o.el.muted=recordMuted; o.el.volume=recordMuted?0:vol;
@@ -1522,13 +2024,16 @@ function renderSubtitleOverlay(){
     const key=active.map(c=>c.id+c.text+(c.subKind||"")).join("|");
     if(key===subCache) return;
     subCache=key;
-    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+'" data-clip="'+esc(c.id)+'">'+esc(c.text)+'</div>').join("");
+    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+'" data-clip="'+esc(c.id)+'" style="'+subStyleOf(c)+'">'+esc(c.text)+'</div>').join("");
 }
 function syncMedia(){
+    if(assetPreviewId) return;              /* 素材库单击预览期间不覆盖预览画面 */
     const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
     let showVideo=false, showImage=false;
     if(va && va.type==="video" && va.url){
         if(vEl.dataset.aid!==va.id){ vEl.src=va.url; vEl.dataset.aid=va.id; }
+        const spd=clamp(Number(fxOf(vc).speed)||1,0.25,4);
+        if(vEl.playbackRate!==spd) vEl.playbackRate=spd;
         const rev=!!fxOf(vc).reverse;
         if(rev){
             /* 预览级倒放：暂停视频自身播放，由播放头反向映射 currentTime */
@@ -1569,14 +2074,14 @@ function tick(ts){
     if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
     else rafId=requestAnimationFrame(tick);
 }
-function play(){ if(playing)return; playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=requestAnimationFrame(tick); }
+function play(){ if(playing)return; if(assetPreviewId) exitAssetPreview(true); playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=requestAnimationFrame(tick); }
 function pause(){
     playing=false; cancelAnimationFrame(rafId);
     if(!vEl.paused) vEl.pause();
     audioPool.forEach(o=>{ try{ if(!o.el.paused) o.el.pause(); }catch(e){} });
     renderPlayhead();
 }
-function seek(t){ state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
+function seek(t){ if(assetPreviewId) exitAssetPreview(true); state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
 
 /* ---------- 属性 / 字幕列表 / 统计 ---------- */
 function renderProps(){
@@ -1640,7 +2145,7 @@ function renderProjInfo(){
     $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
     $("dateChip").textContent="当天工程 "+state.date;
 }
-function renderAll(){ renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); applyClipTransforms(); }
+function renderAll(){ renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
 function snapshot(){ state.clips.forEach(fxOf); return JSON.stringify({clips:state.clips,tracks:state.tracks}); }
@@ -2275,14 +2780,11 @@ function download(name,content,mime){
     setTimeout(()=>URL.revokeObjectURL(u),3000);
 }
 function exportSRT(){
-    const arr=state.clips.filter(c=>trackKind(c.track)==="text"&&c.text).sort((a,b)=>a.start-b.start);
-    if(!arr.length){ toast("字幕轨是空的，先生成或导入字幕","err"); return; }
-    const srt=t=>{ const ms=Math.round(t*1000); const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000),x=ms%1000;
-        return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")+","+String(x).padStart(3,"0"); };
-    const txt=arr.map((c,i)=>(i+1)+"\n"+srt(c.start)+" --> "+srt(c.start+c.duration)+"\n"
-        +(c.subKind&&SUB_NAME[c.subKind]?"["+SUB_NAME[c.subKind]+"] ":"")+c.text+"\n").join("\n");
-    download("manflows_"+state.date+"_字幕.srt",txt,"text/plain;charset=utf-8");
-    toast("已导出 "+arr.length+" 条字幕","ok");
+    /* 兼容旧调用：原顶栏按钮已移除，字幕统一走「导出成片」弹窗 */
+    const r=buildSubtitleText("srt");
+    if(!r.count){ toast("字幕轨是空的，先生成或导入字幕","err"); return; }
+    download("manflows_"+state.date+"_字幕.srt",r.text,"text/plain;charset=utf-8");
+    toast("已导出 "+r.count+" 条字幕","ok");
 }
 function exportProject(){
     download("manflows_"+state.date+"_工程.json",JSON.stringify(projectPayload(),null,2),"application/json");
@@ -2363,9 +2865,9 @@ function wire(){
     /* 顶栏 */
     $("topSave").onclick=()=>saveProject(false);
     $("topOpen").onclick=()=>{ listProjects(); $("projModal").classList.add("show"); };
-    $("topSrt").onclick=exportSRT;
+    $("topExport").onclick=()=>openExport();
+    $("wsBtn").onclick=openWsModal;
     $("resetLayout").onclick=()=>{ resetLayout(); applyAspect(); };
-    $("topDemo").onclick=()=>{ if(confirm("重置为内置演示工程？当前轨道与素材会被替换（已保存的其它日期工程不受影响）。")) loadDemoProject(); };
     $("topHelp").onclick=()=>$("helpModal").classList.add("show");
     /* 三页已同处一个站点目录：返回创作台 / 返回画布一律走同目录相对地址 */
     const go=page=>{ location.href="./"+page; };
@@ -2379,9 +2881,19 @@ function wire(){
     /* URL 弹窗 */
     $("urlAdd").onclick=async()=>{
         const raw=$("urlText").value.trim(); if(!raw){ toast("请先粘贴 URL 或文字","err"); return; }
-        $("urlModal").classList.remove("show"); $("urlText").value="";
-        await addUrls(raw,$("urlType").value);
+        $("urlText").value="";
+        const n=await addUrls(raw,$("urlType").value);
+        if(n>0 && !$("urlReport").innerHTML) $("urlModal").classList.remove("show");
+        else if(n>0) toast("已导入，窗口保留以便查看解析结果","ok");
     };
+    $("wsList").addEventListener("click",e=>{
+        const b=e.target.closest("[data-ws]"); if(!b) return;
+        const act=b.dataset.ws, id=b.dataset.id;
+        if(act==="use") wsSwitch(id);
+        else if(act==="rename") wsRename(id);
+        else if(act==="del") wsDelete(id);
+    });
+    $("wsCreate").onclick=()=>{ const v=$("wsNewName").value.trim(); if(!v){ toast("请先给新工作区起个名字","err"); return; } wsCreate(v); };
     /* 工程列表 */
     $("projList").addEventListener("click",async e=>{
         const b=e.target.closest("[data-load]"); if(!b)return;
@@ -2403,6 +2915,7 @@ function wire(){
         state.selectedAsset=it.dataset.id; state.selected=null; state.multi=[];
         document.querySelectorAll(".asset-item").forEach(x=>x.classList.toggle("sel",x.dataset.id===state.selectedAsset));
         renderProps(); renderTimeline();
+        previewAsset(assetById(state.selectedAsset));
     });
     $("assetList").addEventListener("dblclick",e=>{
         const it=e.target.closest(".asset-item"); if(!it)return;
@@ -2542,8 +3055,10 @@ function wire(){
     $("copyBtn").onclick=()=>copySelection(false);
     $("pasteBtn").onclick=pasteClips;
     $("undoBtn").onclick=undo; $("redoBtn").onclick=redo;
-    $("zoomIn").onclick=()=>{ state.zoom=clamp(state.zoom+12,12,120); renderTimeline(); };
-    $("zoomOut").onclick=()=>{ state.zoom=clamp(state.zoom-12,12,120); renderTimeline(); };
+    $("zoomIn").onclick=()=>setZoom(state.zoom+12,true);
+    $("zoomOut").onclick=()=>setZoom(state.zoom-12,true);
+    $("zoomRange").oninput=e=>setZoom(Number(e.target.value),true);
+    $("zoomFit").onclick=()=>{ fitZoom(); toast("已按当前素材总时长自适应时间轴","ok"); };
     $("keyHelpBtn").onclick=()=>$("helpModal").classList.add("show");
     $("addTrackBtn").onclick=e=>{
         const m=$("trackMenu"), r=e.currentTarget.getBoundingClientRect();
@@ -2660,7 +3175,7 @@ function wire(){
             else if(k==="s"){ e.preventDefault(); saveProject(false); }
             else if(k==="o"){ e.preventDefault(); listProjects(); $("projModal").classList.add("show"); }
             else if(k==="i"){ e.preventDefault(); $("fileInput").click(); }
-            else if(k==="e"){ e.preventDefault(); exportSRT(); }
+            else if(k==="e"){ e.preventDefault(); openExport(); }
             return;
         }
         if(e.key===" "){ e.preventDefault(); playing?pause():play(); }
@@ -2670,19 +3185,516 @@ function wire(){
         else if(e.key==="ArrowRight"){ e.preventDefault(); seek(state.playhead+(e.shiftKey?1:0.1)); }
         else if(e.key==="Home"){ e.preventDefault(); seek(0); }
         else if(e.key==="End"){ e.preventDefault(); seek(totalDuration()); }
-        else if(e.key==="+"||e.key==="="){ e.preventDefault(); state.zoom=clamp(state.zoom+12,12,120); renderTimeline(); }
-        else if(e.key==="-"||e.key==="_"){ e.preventDefault(); state.zoom=clamp(state.zoom-12,12,120); renderTimeline(); }
+        else if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(state.zoom+12,true); }
+        else if(e.key==="-"||e.key==="_"){ e.preventDefault(); setZoom(state.zoom-12,true); }
         else if(k==="m"){ e.preventDefault(); toggleMirror(); }
         else if(k==="r"){ e.preventDefault(); toggleReverse(); }
     });
-    window.addEventListener("beforeunload",()=>saveProject(true));
+    /* 未点「保存工程」就关网页也不丢：关页 / 刷新 / 切后台都立即落盘一次 */
+    /* 工作区被切换的瞬间（wsSwitch 已改 WS_CUR_KEY、页面正在 reload）绝不能落盘，
+       否则 beforeunload 会把上一个工作区的内存状态写进新工作区，造成工程互串。 */
+    const flushSave=()=>{
+        if(bootWsId && wsId()!==bootWsId) return;
+        try{ clearTimeout(saveTimer); saveTimer=0; saveProject(true); }catch(e){}
+    };
+    window.addEventListener("beforeunload",flushSave);
+    window.addEventListener("pagehide",flushSave);
+    document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flushSave(); });
+}
+
+
+/* ==================================================================
+   调整栏：动画 / 变速 / 调色 LUT / 字幕样式
+   全部写入 clip.fx，工程存档与撤销天然包含；预览与导出同步生效
+   ================================================================== */
+const ANIM_IN_OPTS=[["","无"],["fade","淡入"],["slideL","左滑入"],["slideR","右滑入"],["slideU","上滑入"],
+                    ["slideD","下滑入"],["zoomIn","放大进入"],["zoomOut","缩小进入"],["rotateIn","旋转进入"]];
+const ANIM_OUT_OPTS=[["","无"],["fade","淡出"],["slideL","左滑出"],["slideR","右滑出"],
+                     ["zoomIn","缩小退出"],["zoomOut","放大退出"]];
+const ANIM_LOOP_OPTS=[["","无"],["breath","呼吸"],["shake","轻微摇晃"],["slowzoom","缓慢放大"]];
+const COLOR_PRESETS={
+    ""     :{brightness:100,contrast:100,saturate:100,sepia:0,hue:0,blur:0},
+    "film" :{brightness:104,contrast:112,saturate:88,sepia:16,hue:0,blur:0},
+    "cool" :{brightness:100,contrast:108,saturate:92,sepia:0,hue:-14,blur:0},
+    "warm" :{brightness:104,contrast:104,saturate:110,sepia:12,hue:8,blur:0},
+    "mono" :{brightness:102,contrast:116,saturate:0,sepia:0,hue:0,blur:0},
+    "vivid":{brightness:102,contrast:116,saturate:148,sepia:0,hue:0,blur:0},
+    "japan":{brightness:110,contrast:92,saturate:88,sepia:6,hue:0,blur:0},
+    "cyber":{brightness:96,contrast:124,saturate:132,sepia:0,hue:22,blur:0}
+};
+const COLOR_LABELS=[["","原片"],["film","胶片"],["cool","冷调"],["warm","暖调"],
+                    ["mono","黑白"],["vivid","高饱和"],["japan","日系"],["cyber","赛博"]];
+const COLOR_ROWS=[["brightness","亮度",40,180],["contrast","对比度",40,200],["saturate","饱和度",0,220],
+                  ["sepia","色温",0,100],["hue","色相",-60,60],["blur","模糊",0,8]];
+function opts(list,cur){ return list.map(o=>'<option value="'+o[0]+'"'+(String(cur)===String(o[0])?" selected":"")+'>'+o[1]+'</option>').join(""); }
+function adjNote(txt){ return '<div class="fx-note">'+txt+'</div>'; }
+function adjCommit(msg){ renderAll(); autoSave(); if(msg) toast(msg,"ok"); }
+function renderAdjustPanels(){
+    /* 正在拖滑块时不重建 DOM，避免打断输入 */
+    const ae=document.activeElement;
+    if(ae && ae.id && /^adj/.test(ae.id)) return;
+    const c=selectedClip();
+    const aBox=$("animBox"), sBox=$("speedBox"), oBox=$("colorBox"), uBox=$("subStyleBox");
+    if(!c){
+        const tip="先点选时间轴上的一个片段，再在这里调整；改动会写进工程存档，可 Ctrl+Z 撤销。";
+        if(aBox) aBox.innerHTML=adjNote(tip);
+        if(sBox) sBox.innerHTML=adjNote(tip);
+        if(oBox) oBox.innerHTML=adjNote(tip);
+        if(uBox) uBox.innerHTML=adjNote("点选一条字幕片段后，这里可改字号 / 颜色 / 描边 / 位置；下方仍是整条字幕轨的列表。");
+        return;
+    }
+    const f=fxOf(c);
+    /* ---- 动画 ---- */
+    if(aBox){
+        aBox.innerHTML='<div class="fx-sec">入场动画</div><div class="prop-row"><select id="adjAnimIn">'+opts(ANIM_IN_OPTS,f.animIn)+'</select></div>'
+          +'<div class="fx-sec">出场动画</div><div class="prop-row"><select id="adjAnimOut">'+opts(ANIM_OUT_OPTS,f.animOut)+'</select></div>'
+          +'<div class="fx-sec">循环动画</div><div class="prop-row"><select id="adjAnimLoop">'+opts(ANIM_LOOP_OPTS,f.animLoop)+'</select></div>'
+          +'<div class="fx-sec">动画时长 <b id="adjAnimDurVal">'+Number(f.animDur||0.5).toFixed(1)+' s</b></div>'
+          +'<div class="range-row"><input type="range" id="adjAnimDur" min="0.2" max="2" step="0.1" value="'+Number(f.animDur||0.5)+'"></div>'
+          +adjNote("动画按播放头在片段内的进度实时计算，暂停后拖动播放头也能看到；导出录制时同样生效。动画叠加在基础调整之上。")
+          +'<div class="row"><button class="mini-btn gray" id="adjAnimReset" style="flex:1">↺ 清除该片段动画</button></div>';
+        const fire=()=>{ applyClipTransforms(); autoSave(); };
+        $("adjAnimIn").onchange=e=>{ pushHistory(); f.animIn=e.target.value; fire(); };
+        $("adjAnimOut").onchange=e=>{ pushHistory(); f.animOut=e.target.value; fire(); };
+        $("adjAnimLoop").onchange=e=>{ pushHistory(); f.animLoop=e.target.value; fire(); };
+        $("adjAnimDur").oninput=e=>{ f.animDur=Number(e.target.value); $("adjAnimDurVal").textContent=f.animDur.toFixed(1)+" s"; fire(); };
+        $("adjAnimReset").onclick=()=>{ pushHistory(); f.animIn=""; f.animOut=""; f.animLoop=""; f.animDur=0.5;
+            renderAll(); autoSave(); toast("已清除该片段的动画","ok"); };
+    }
+    /* ---- 变速 ---- */
+    if(sBox){
+        const sp=clamp(Number(f.speed)||1,0.25,4);
+        sBox.innerHTML='<div class="fx-sec">播放速度 <b id="adjSpeedVal">'+sp.toFixed(2)+' x</b></div>'
+          +'<div class="range-row"><input type="range" id="adjSpeed" min="0.25" max="4" step="0.05" value="'+sp+'"></div>'
+          +'<div class="preset-grid" id="adjSpeedPresets">'
+          +[0.5,0.75,1,1.5,2,3].map(v=>'<button class="preset-btn'+(Math.abs(sp-v)<0.001?" active":"")+'" data-sp="'+v+'">'+v+' x</button>').join("")+'</div>'
+          +adjNote("调速会按「原时长 × 原速度 ÷ 新速度」自动重算片段长度，并同步到预览播放与导出。倒放片段以倒放优先，变速不叠加；音轨同样变速。")
+          +'<div class="row"><button class="mini-btn gray" id="adjSpeedReset" style="flex:1">↺ 恢复 1.00 x</button></div>';
+        const applySp=v=>{
+            v=clamp(Number(v)||1,0.25,4); const old=Number(f.speed)||1;
+            if(Math.abs(old-v)<0.001) return;
+            pushHistory();
+            c.duration=clamp(c.duration*old/v,0.2,3600);
+            f.speed=v; $("adjSpeedVal").textContent=v.toFixed(2)+" x";
+            document.querySelectorAll("#adjSpeedPresets .preset-btn").forEach(b=>b.classList.toggle("active",Math.abs(Number(b.dataset.sp)-v)<0.001));
+            adjCommit("速度已设为 "+v.toFixed(2)+" x，片段时长同步重算");
+        };
+        $("adjSpeed").oninput=e=>{ $("adjSpeedVal").textContent=Number(e.target.value).toFixed(2)+" x"; };
+        $("adjSpeed").onchange=e=>applySp(e.target.value);
+        $("adjSpeedPresets").onclick=e=>{ const b=e.target.closest("[data-sp]"); if(b){ $("adjSpeed").value=b.dataset.sp; applySp(b.dataset.sp); } };
+        $("adjSpeedReset").onclick=()=>{ $("adjSpeed").value=1; applySp(1); };
+    }
+    /* ---- 调色 LUT ---- */
+    if(oBox){
+        const q=f.color||{};
+        oBox.innerHTML='<div class="fx-sec">滤镜预设</div><div class="preset-grid" id="adjColorPresets">'
+          +COLOR_LABELS.map(x=>'<button class="preset-btn'+((q.preset||"")===x[0]?" active":"")+'" data-cp="'+x[0]+'">'+x[1]+'</button>').join("")+'</div>'
+          +'<div class="fx-sec">手动调色</div>'
+          +COLOR_ROWS.map(r=>'<div class="range-row"><span style="flex:0 0 52px">'+r[1]+'</span>'
+              +'<input type="range" id="adjC_'+r[0]+'" data-ck="'+r[0]+'" min="'+r[2]+'" max="'+r[3]+'" step="1" value="'+Number(q[r[0]]!==undefined?q[r[0]]:(r[0]==="hue"||r[0]==="blur"||r[0]==="sepia"?0:100))+'">'
+              +'<b id="adjV_'+r[0]+'">'+Number(q[r[0]]!==undefined?q[r[0]]:0)+'</b></div>').join("")
+          +adjNote("调色用 CSS filter 实时叠加到预览画面，导出录制时用 canvas filter 同步应用；不影响字幕层。")
+          +'<div class="row"><button class="mini-btn gray" id="adjColorReset" style="flex:1">↺ 恢复原片</button></div>';
+        const paint=()=>{ applyClipTransforms(); autoSave(); };
+        $("adjColorPresets").onclick=e=>{
+            const b=e.target.closest("[data-cp]"); if(!b) return;
+            pushHistory(); const p=COLOR_PRESETS[b.dataset.cp]||COLOR_PRESETS[""];
+            Object.assign(f.color,p); f.color.preset=b.dataset.cp;
+            renderAll(); autoSave(); toast("已应用「"+b.textContent+"」滤镜","ok");
+        };
+        COLOR_ROWS.forEach(r=>{
+            const el=$("adjC_"+r[0]); if(!el) return;
+            el.oninput=e2=>{ const v=Number(e2.target.value); f.color[r[0]]=v; f.color.preset="";
+                $("adjV_"+r[0]).textContent=v; document.querySelectorAll("#adjColorPresets .preset-btn").forEach(b=>b.classList.remove("active")); paint(); };
+        });
+        $("adjColorReset").onclick=()=>{ pushHistory(); f.color=Object.assign({},COLOR_PRESETS[""],{preset:""});
+            renderAll(); autoSave(); toast("调色已恢复原片","ok"); };
+    }
+    /* ---- 字幕样式 ---- */
+    if(uBox){
+        const isText=trackKind(c.track)==="text", q=f.sub||{};
+        if(!isText){
+            uBox.innerHTML=adjNote("当前选中的不是字幕片段。点选时间轴上一条字幕后，这里可改字号 / 颜色 / 描边 / 位置 / 对齐；下方列表仍管理整条字幕轨。");
+        }else{
+            uBox.innerHTML='<div class="fx-sec">选中字幕：'+esc(String(c.text||"").slice(0,14))+'</div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">字号</span><input type="range" id="adjSubSize" min="12" max="72" step="1" value="'+Number(q.size||28)+'"><b id="adjSubSizeV">'+Number(q.size||28)+'</b></div>'
+              +'<div class="prop-row"><label>文字颜色</label><input type="color" id="adjSubColor" value="'+esc(q.color||"#ffffff")+'"></div>'
+              +'<div class="prop-row"><label>描边颜色</label><input type="color" id="adjSubStroke" value="'+esc(q.stroke||"#000000")+'"></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">描边</span><input type="range" id="adjSubStrokeW" min="0" max="6" step="0.5" value="'+Number(q.strokeW||0)+'"><b id="adjSubStrokeWV">'+Number(q.strokeW||0)+'</b></div>'
+              +'<div class="prop-row"><label>位置</label><select id="adjSubPos">'+opts([["bottom","底部"],["middle","居中"],["top","顶部"]],q.pos)+'</select></div>'
+              +'<div class="prop-row"><label>对齐</label><select id="adjSubAlign">'+opts([["center","居中"],["left","左对齐"],["right","右对齐"]],q.align)+'</select></div>'
+              +'<div class="prop-row"><label>字体</label><select id="adjSubFont">'+opts([["Microsoft YaHei","微软雅黑"],["SimHei","黑体"],["KaiTi","楷体"],["Arial","Arial"]],q.font)+'</select></div>'
+              +'<div class="prop-row"><label style="flex:0 0 66px">加粗</label><label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="adjSubBold"'+((q.bold===false)?"":" checked")+'> 粗体</label></div>'
+              +adjNote("样式按片段保存，每条字幕可以不同；预览与导出都按这里的设置绘制。");
+            const fire=()=>{ subCache=""; renderSubtitleOverlay(); applyClipTransforms(); autoSave(); };
+            $("adjSubSize").oninput=e=>{ f.sub.size=Number(e.target.value); $("adjSubSizeV").textContent=e.target.value; fire(); };
+            $("adjSubStrokeW").oninput=e=>{ f.sub.strokeW=Number(e.target.value); $("adjSubStrokeWV").textContent=e.target.value; fire(); };
+            ["adjSubColor","adjSubStroke"].forEach(id=>$(id).oninput=e=>{ f.sub[id==="adjSubColor"?"color":"stroke"]=e.target.value; fire(); });
+            ["adjSubPos","adjSubAlign","adjSubFont"].forEach(id=>$(id).onchange=e=>{
+                f.sub[({adjSubPos:"pos",adjSubAlign:"align",adjSubFont:"font"})[id]]=e.target.value; fire(); });
+            $("adjSubBold").onchange=e=>{ f.sub.bold=e.target.checked; fire(); };
+        }
+    }
+}
+
+/* ==================================================================
+   导出成片：浏览器录制 + 可选本机 ffmpeg（MOV / HEVC / ProRes / AV1 / GIF / MP3）
+   ================================================================== */
+let ffmpegInstallTried=false;
+function ffmpegReady(){ return !!(svcOnline && svcInfo && svcInfo.ffmpeg && svcInfo.ffmpeg.found); }
+/* 服务在线但没装 ffmpeg 时，后台尝试自动准备静态版；失败则在弹窗里保留官方下载链接 */
+async function tryPrepareFfmpeg(){
+    if(ffmpegInstallTried || !svcOnline || ffmpegReady()) return;
+    ffmpegInstallTried=true;
+    try{
+        const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),30000);
+        const r=await fetch(LOCAL_SERVICE+"/api/ffmpeg-install",{signal:ctl.signal});
+        clearTimeout(tm);
+        const j=await r.json();
+        if(j&&j.ok){ await pingService(1800); toast("已自动准备本机 ffmpeg，全格式导出可用","ok"); }
+    }catch(e){ /* 自动准备失败：弹窗状态栏会给出官方下载链接与安装协助 */ }
+}
+function exportTitle(){ return String($("exportTitle").value||"").trim()||todayStr(); }
+function exportSize(){
+    const st=$("stage"), r=clamp(st.clientWidth/Math.max(1,st.clientHeight),0.3,4), v=$("expRes").value;
+    let h=v==="720"?720:v==="1080"?1080:v==="1440"?1440:v==="2160"?2160:Math.round((vEl.videoHeight||st.clientHeight)/2)*2;
+    let w=Math.round(h*r/2)*2;
+    if(v==="source" && vEl.videoWidth){ w=Math.round(vEl.videoWidth/2)*2; h=Math.round(vEl.videoHeight/2)*2; }
+    return {w:Math.max(64,Math.min(w,3840)),h:Math.max(64,Math.min(h,2160))};
+}
+function exportBitrate(){
+    const v=$("expBitrate").value;
+    if(v==="low") return 2500000;
+    if(v==="high") return 16000000;
+    if(v==="8M") return 8000000;
+    if(v==="16M") return 16000000;
+    return 7000000;
+}
+function blobToBase64(b){
+    return new Promise((res,rej)=>{ const r=new FileReader();
+        r.onload=()=>res(String(r.result).split(",")[1]||""); r.onerror=()=>rej(r.error); r.readAsDataURL(b); });
+}
+function base64ToBlob(b64,mime){
+    const bin=atob(String(b64||"")), arr=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+    return new Blob([arr],{type:mime||"application/octet-stream"});
+}
+async function serviceExport(payload){
+    const r=await fetch(LOCAL_SERVICE+"/api/export",{method:"POST",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const j=await r.json();
+    if(!j||!j.ok) throw new Error(j?(j.reason||"本机转码失败"):"本机服务返回异常");
+    return j;
+}
+async function saveBlob(blob,name){
+    if(exportDirHandle){
+        try{
+            const fh=await exportDirHandle.getFileHandle(name,{create:true});
+            const w=await fh.createWritable(); await w.write(blob); await w.close();
+            return "所选文件夹";
+        }catch(e){ /* 目录权限失效时降级为普通下载 */ }
+    }
+    download(name,blob);
+    return "浏览器下载目录";
+}
+function buildSubtitleText(fmt){
+    const arr=state.clips.filter(c=>trackKind(c.track)==="text"&&c.text).sort((a,b)=>a.start-b.start);
+    const ms=t=>{ const x=Math.round(Math.max(0,t)*1000), h=Math.floor(x/3600000),m=Math.floor(x%3600000/60000),
+        s=Math.floor(x%60000/1000),q=x%1000; return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); };
+    const line=c=>(c.subKind&&SUB_NAME[c.subKind]?"["+SUB_NAME[c.subKind]+"] ":"")+c.text;
+    if(fmt==="vtt"){
+        return {count:arr.length,text:"WEBVTT\n\n"+arr.map((c,i)=>(i+1)+"\n"+ms(c.start)+"."+String(Math.round(c.start*1000)%1000).padStart(3,"0")
+            +" --> "+ms(c.start+c.duration)+"."+String(Math.round((c.start+c.duration)*1000)%1000).padStart(3,"0")+"\n"+line(c)+"\n").join("\n")};
+    }
+    return {count:arr.length,text:arr.map((c,i)=>(i+1)+"\n"+ms(c.start)+","+String(Math.round(c.start*1000)%1000).padStart(3,"0")
+        +" --> "+ms(c.start+c.duration)+","+String(Math.round((c.start+c.duration)*1000)%1000).padStart(3,"0")
+        +"\n"+line(c)+"\n").join("\n")};
+}
+async function exportSubtitleFile(){
+    const fmt=$("expSubFmt").value, r=buildSubtitleText(fmt);
+    if(!r.count) throw new Error("字幕轨是空的，先生成或导入字幕");
+    await saveBlob(new Blob(["\uFEFF"+r.text],{type:"text/plain;charset=utf-8"}),exportTitle()+"."+fmt);
+    return r.count;
+}
+function audioBufferToWav(buf){
+    const ch=Math.min(2,buf.numberOfChannels), len=buf.length, sr=buf.sampleRate;
+    const ab=new ArrayBuffer(44+len*ch*2), v=new DataView(ab);
+    const str=(o,x)=>{ for(let i=0;i<x.length;i++) v.setUint8(o+i,x.charCodeAt(i)); };
+    str(0,"RIFF"); v.setUint32(4,36+len*ch*2,true); str(8,"WAVE"); str(12,"fmt ");
+    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,ch,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr*ch*2,true); v.setUint16(32,ch*2,true); v.setUint16(34,16,true);
+    str(36,"data"); v.setUint32(40,len*ch*2,true);
+    const data=[]; for(let c=0;c<ch;c++) data.push(buf.getChannelData(c));
+    let o=44;
+    for(let i=0;i<len;i++) for(let c=0;c<ch;c++){
+        const x=Math.max(-1,Math.min(1,data[c][i])); v.setInt16(o,x<0?x*0x8000:x*0x7fff,true); o+=2;
+    }
+    return new Blob([ab],{type:"audio/wav"});
+}
+async function renderTimelineAudio(){
+    const dur=Math.max(0.5,totalDuration()), sr=44100;
+    const Ctx=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    if(!Ctx) throw new Error("当前浏览器不支持离线音频合成，请改用 Chrome / Edge");
+    const ctx=new Ctx(2,Math.ceil(dur*sr),sr);
+    let added=0, failed=0;
+    for(const c of state.clips){
+        const k=trackKind(c.track); if(k!=="audio"&&k!=="video") continue;
+        const a=c.assetId?assetById(c.assetId):null; if(!a||!a.url) continue;
+        try{
+            const r=await fetch(a.url); if(!r.ok) throw new Error("HTTP "+r.status);
+            const audio=await ctx.decodeAudioData(await r.arrayBuffer());
+            const sp=clamp(Number(fxOf(c).speed)||1,0.25,4), off=Math.max(0,Number(c.offset)||0);
+            const len=Math.min(Math.max(0.05,c.duration*sp),Math.max(0,audio.duration-off));
+            if(len<=0) continue;
+            const src=ctx.createBufferSource(); src.buffer=audio; src.playbackRate.value=sp;
+            const g=ctx.createGain(); g.gain.value=0.9;
+            src.connect(g); g.connect(ctx.destination); src.start(Math.max(0,c.start),off,len);
+            added++;
+        }catch(e){ failed++; }
+    }
+    if(!added) return {buf:null,failed:failed};
+    return {buf:await ctx.startRendering(),failed:failed};
+}
+async function exportAudioFile(){
+    const fmt=$("expAudioFmt").value, r=await renderTimelineAudio();
+    if(!r.buf) throw new Error("轨道上没有可读取的音频"+(r.failed?"（"+r.failed+" 段在线素材因跨域被跳过，建议先把素材下载到本地再导入）":""));
+    const wav=audioBufferToWav(r.buf);
+    if(fmt==="wav"){ await saveBlob(wav,exportTitle()+".wav"); return r.failed; }
+    if(!ffmpegReady()) throw new Error(fmt.toUpperCase()+" 需要本机 ffmpeg，请改选 WAV 或启动本机服务并安装 ffmpeg");
+    const j=await serviceExport({action:"audio",acodec:fmt,dataBase64:await blobToBase64(wav)});
+    await saveBlob(base64ToBlob(j.dataBase64,fmt==="mp3"?"audio/mpeg":"audio/mp4"),exportTitle()+"."+fmt);
+    return r.failed;
+}
+let mfAudioCtx=null, mfAudioSrc=null, mfAudioDest=null;
+function previewAudioTrack(){
+    try{
+        const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+        if(!mfAudioCtx) mfAudioCtx=new AC();
+        if(!mfAudioSrc) mfAudioSrc=mfAudioCtx.createMediaElementSource(vEl);
+        if(!mfAudioDest){ mfAudioDest=mfAudioCtx.createMediaStreamDestination();
+            mfAudioSrc.connect(mfAudioDest); mfAudioSrc.connect(mfAudioCtx.destination); }
+        if(mfAudioCtx.state==="suspended") mfAudioCtx.resume();
+        return mfAudioDest.stream.getAudioTracks()[0]||null;
+    }catch(e){ return null; }
+}
+function drawStageFrame(x,W,H){
+    x.save(); x.filter="none"; x.globalAlpha=1;
+    x.fillStyle="#000"; x.fillRect(0,0,W,H);
+    const vc=mainVisualClip(), f=vc?fxOf(vc):null;
+    if(f){
+        x.translate(W/2+Number(f.x||0),H/2+Number(f.y||0));
+        x.rotate(Number(f.rotate||0)*Math.PI/180);
+        x.scale((f.mirror?-1:1)*Number(f.scale||1),Number(f.scale||1));
+    }
+    try{ x.filter=vc?fxFilter(vc):"none"; x.globalAlpha=vc?animOpacity(vc):1;
+        if(vEl.classList.contains("show")&&vEl.readyState>1) x.drawImage(vEl,-W/2,-H/2,W,H);
+        else if(imgEl.classList.contains("show")&&imgEl.complete) x.drawImage(imgEl,-W/2,-H/2,W,H);
+    }catch(e){ throw new Error("素材受跨域保护，浏览器无法把画面写入导出画布；请把该素材下载到本地后重新导入"); }
+    x.restore();
+    x.filter="none";
+    pipLayer.querySelectorAll(".pip-item").forEach(el=>{
+        try{ if(el.complete) x.drawImage(el,W*0.06,H*0.62,W*0.28,H*0.28); }catch(e){}
+    });
+    $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
+        const c=clipById(el.dataset.clip), q=c?fxOf(c).sub:null, size=Math.max(12,Math.round((q?Number(q.size)||28:28)*W/640));
+        x.font=(q&&q.bold===false?"":"bold ")+size+"px '"+(q?q.font:"Microsoft YaHei")+"',sans-serif";
+        x.textAlign=q?(q.align||"center"):"center"; x.textBaseline="bottom";
+        const px=x.textAlign==="left"?12:(x.textAlign==="right"?W-12:W/2);
+        const pos=q?q.pos:"bottom";
+        const py=pos==="top"?H*0.16:(pos==="middle"?H*0.55:H*0.92);
+        x.lineWidth=Math.max(0,(q?Number(q.strokeW)||0:2))*W/640; x.strokeStyle=q?(q.stroke||"#000"):"#000";
+        x.fillStyle=q?(q.color||"#fff"):"#fff";
+        if(x.lineWidth>0) x.strokeText(el.textContent,px,py);
+        x.fillText(el.textContent,px,py);
+    });
+}
+async function recordCanvas(dur,opts,onProgress){
+    const size=opts.size, W=size.w, H=size.h, fps=Number(opts.fps)||30;
+    const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+    const x=cv.getContext("2d",{alpha:false});
+    x.fillStyle="#000"; x.fillRect(0,0,W,H);
+    /* 先试画一帧，跨域素材会在这里暴露问题，避免录到一半才失败 */
+    vEl.classList.contains("show")&&vEl.readyState>1 ? (()=>{ try{ x.drawImage(vEl,0,0,W,H); }catch(e){ throw new Error("素材受跨域保护，无法导出画面；请先把素材下载到本地再导入"); } })() : null;
+    const stream=cv.captureStream(fps);
+    const at=previewAudioTrack(); if(at) stream.addTrack(at);
+    const mp4=MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.42E01E");
+    const mime=mp4?"video/mp4":(MediaRecorder.isTypeSupported("video/webm;codecs=vp9")?"video/webm;codecs=vp9":"video/webm");
+    const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:exportBitrate()});
+    const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    const done=new Promise(res=>{ rec.onstop=()=>res(new Blob(chunks,{type:mime})); });
+    const before=state.playhead;
+    rec.start(250);
+    state.playhead=0; seek(0); play();
+    await new Promise(resolve=>{
+        const t0=performance.now();
+        function frame(){
+            try{ drawStageFrame(x,W,H); }catch(e){ /* 单帧失败不中断整段录制 */ }
+            const p=clamp(state.playhead/Math.max(0.1,dur),0,1);
+            if(onProgress) onProgress(p,"正在录制画面 "+(p*100).toFixed(0)+"%");
+            if(state.playhead>=dur-0.05 || performance.now()-t0>dur*1000+4000 || !playing){ resolve(); return; }
+            requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+    });
+    pause(); rec.stop();
+    const blob=await done;
+    state.playhead=before; seek(before);
+    return blob;
+}
+async function exportVideoFile(recorded,onProgress){
+    const fmt=$("expFormat").value, codec=$("expCodec").value;
+    const needFF=(fmt==="mov"||codec!=="h264");
+    if(needFF&&!ffmpegReady()) throw new Error("MOV / "+codec.toUpperCase()+" 需要本机 ffmpeg；可改选 MP4 + H.264，或启动本机服务并安装 ffmpeg");
+    const blob=await recorded();
+    if(!blob||!blob.size) throw new Error("没有录到画面，请确认轨道上有视频 / 图片素材并且预览窗口能显示");
+    const ext=(fmt==="webm")?"webm":(fmt==="mov"?"mov":"mp4");
+    if(!needFF){ await saveBlob(blob,exportTitle()+"."+ext); return; }
+    const size=exportSize();
+    const j=await serviceExport({filename:exportTitle()+"."+ext,container:fmt,vcodec:codec,
+        width:size.w,height:size.h,fps:Number($("expFps").value)||30,bitrate:$("expBitrate").value,
+        acodec:"aac",faststart:$("expFaststart").checked,dataBase64:await blobToBase64(blob)});
+    await saveBlob(base64ToBlob(j.dataBase64,fmt==="mov"?"video/quicktime":"video/mp4"),j.filename||(exportTitle()+"."+ext));
+}
+async function exportGifFile(recorded){
+    if(!ffmpegReady()) throw new Error("GIF 导出需要本机服务与 ffmpeg");
+    const blob=await recorded();
+    const j=await serviceExport({action:"gif",width:Number($("expGifRes").value)||240,fps:12,
+        dataBase64:await blobToBase64(blob)});
+    await saveBlob(base64ToBlob(j.dataBase64,"image/gif"),exportTitle()+".gif");
+}
+function updateExportEstimate(){
+    const d=totalDuration();
+    let mb=0;
+    if($("expChkVideo").checked) mb+=d*0.9;
+    if($("expChkAudio").checked) mb+=d*0.18;
+    if($("expChkGif").checked) mb+=d*1.2;
+    if($("expChkSub").checked) mb+=0.01;
+    const el=$("exportEst"); if(el) el.textContent="时长："+d.toFixed(1)+" 秒 | 大小："+(mb<1?mb.toFixed(2):mb.toFixed(1))+" MB（估计）";
+}
+function updateExportStatus(){
+    const el=$("exportStatus"); if(!el) return;
+    const guides='Mac：<code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows：<code>https://www.gyan.dev/ffmpeg/builds/</code>';
+    if(svcOnline){
+        const ff=svcInfo&&svcInfo.ffmpeg?svcInfo.ffmpeg:{};
+        el.className="export-status";
+        el.innerHTML="✅ 已连接本机服务（"+esc((svcInfo&&svcInfo.platform)||"本机")+"）· ffmpeg："+(ff.found?"已就绪 "+esc(ff.version||""):"未安装")
+          +"<br>可导出 MP4 / MOV、H.264 / HEVC / Apple ProRes / AV1、MP3 / M4A、GIF；抖音等分享链接也会自动解析。"
+          +(ff.found?"":"<br><b>要启用全格式请安装 ffmpeg</b>："+guides+"（装完重启本机服务）");
+    }else{
+        el.className="export-status off";
+        el.innerHTML="⚠️ 未检测到本机服务：当前可导出 <b>MP4 / WebM（H.264 / VP9）、WAV、SRT / VTT</b>；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 暂不可用，会自动置灰。"
+          +"<br>启用全格式：双击仓库里的「启动本机服务.command」(Mac) / 「启动本机服务.bat」(Windows)。ffmpeg 下载："+guides;
+    }
+    const off=!ffmpegReady();
+    const codec=$("expCodec"), fmt=$("expFormat"), af=$("expAudioFmt");
+    Array.from(codec.options).forEach(o=>{ if(o.value!=="h264") o.disabled=off; });
+    Array.from(fmt.options).forEach(o=>{ if(o.value==="mov") o.disabled=off; });
+    Array.from(af.options).forEach(o=>{ if(o.value!=="wav") o.disabled=off; });
+    $("expChkGif").disabled=off;
+    if(off){
+        if(codec.value!=="h264") codec.value="h264";
+        if(fmt.value==="mov") fmt.value="mp4";
+        if(af.value!=="wav") af.value="wav";
+        $("expChkGif").checked=false;
+    }
+    updateExportEstimate();
+}
+function captureCover(silent){
+    const cv=document.createElement("canvas"); cv.width=270; cv.height=360;
+    const x=cv.getContext("2d");
+    x.fillStyle="#1e293b"; x.fillRect(0,0,270,360);
+    try{
+        if(vEl.classList.contains("show")&&vEl.readyState>1) x.drawImage(vEl,0,0,270,360);
+        else if(imgEl.classList.contains("show")&&imgEl.complete) x.drawImage(imgEl,0,0,270,360);
+        else{ x.fillStyle="#94a3b8"; x.font="14px sans-serif"; x.textAlign="center"; x.fillText("当前预览画面",135,180); }
+        exportCoverData=cv.toDataURL("image/jpeg",0.82);
+    }catch(e){ exportCoverData=""; }
+    if(exportCoverData){ const im=$("coverImg"); im.src=exportCoverData; im.hidden=false; const em=$("coverEmpty"); if(em) em.hidden=true; }
+    if(!silent) toast("封面已更新为当前预览画面","ok");
+}
+async function openExport(){
+    if(exportBusy) return;
+    if(!$("exportTitle").value) $("exportTitle").value=todayStr();
+    $("exportTitleHead").textContent=$("exportTitle").value;
+    $("exportSteps").textContent="";
+    $("exportProg").classList.remove("show"); $("exportProgFill").style.width="0%";
+    await pingService(1900);
+    updateExportStatus();
+    if(!coverPinned) captureCover(true);
+    $("exportModal").classList.add("show");
+    /* 不阻塞弹窗：后台尝试自动准备 ffmpeg，成功后刷新可用格式 */
+    if(svcOnline && !ffmpegReady()) tryPrepareFfmpeg().then(()=>updateExportStatus());
+}
+async function startExport(){
+    if(exportBusy) return;
+    const jobs=[];
+    if($("expChkSub").checked) jobs.push("sub");
+    if($("expChkAudio").checked) jobs.push("audio");
+    if($("expChkGif").checked) jobs.push("gif");
+    if($("expChkVideo").checked) jobs.push("video");
+    if(!jobs.length){ toast("请至少勾选一个导出项","err"); return; }
+    exportBusy=true; $("exportDo").disabled=true;
+    const fill=$("exportProgFill"), steps=$("exportSteps"), prog=$("exportProg");
+    prog.classList.add("show");
+    let recorded=null;
+    const getRecorded=async()=>{
+        if(!recorded) recorded=await recordCanvas(Math.max(0.5,totalDuration()),
+            {size:exportSize(),fps:Number($("expFps").value)||30},
+            (p,msg)=>{ fill.style.width=Math.round(p*100)+"%"; steps.textContent="🎬 "+msg; });
+        return recorded;
+    };
+    const label={sub:"生成字幕文件",audio:"混音并导出音频",gif:"生成 GIF 动图",video:"录制并编码综合视频"};
+    try{
+        for(let i=0;i<jobs.length;i++){
+            const j=jobs[i];
+            fill.style.width=Math.round((i/jobs.length)*100)+"%";
+            steps.textContent="["+(i+1)+"/"+jobs.length+"] "+label[j]+"…";
+            if(j==="sub") await exportSubtitleFile();
+            else if(j==="audio"){ const failed=await exportAudioFile(); if(failed) steps.textContent+="（"+failed+" 段在线素材因跨域跳过）"; }
+            else if(j==="gif") await exportGifFile(getRecorded);
+            else if(j==="video") await exportVideoFile(getRecorded,()=>{});
+        }
+        fill.style.width="100%";
+        steps.textContent="✅ 全部导出完成，文件已保存到"+(exportDirHandle?"所选文件夹":"浏览器下载目录");
+        toast("导出完成","ok");
+    }catch(e){
+        steps.textContent="❌ 导出中断："+esc(e.message||String(e));
+        toast("导出失败："+(e.message||e),"err");
+    }finally{ exportBusy=false; $("exportDo").disabled=false; }
+}
+function wireExport(){
+    $("exportDo").onclick=startExport;
+    $("exportTitle").oninput=e=>{ $("exportTitleHead").textContent=e.target.value||todayStr(); };
+    $("coverEdit").onclick=()=>{ coverPinned=true; captureCover(false); };
+    $("pickExportDir").onclick=async()=>{
+        if(!window.showDirectoryPicker){ toast("当前浏览器不支持选择文件夹，将使用浏览器下载目录","err"); return; }
+        try{ exportDirHandle=await window.showDirectoryPicker(); $("exportDest").value="已选择文件夹："+exportDirHandle.name; }
+        catch(e){ if(!e||e.name!=="AbortError") toast("选择文件夹失败："+(e.message||e),"err"); }
+    };
+    [["expChkVideo","secVideo"],["expChkAudio","secAudio"],["expChkGif","secGif"],["expChkSub","secSub"]].forEach(pair=>{
+        const cb=$(pair[0]), box=$(pair[1]);
+        const sync=()=>box.classList.toggle("off",!cb.checked);
+        cb.addEventListener("change",()=>{ sync(); updateExportEstimate(); });
+        sync();
+    });
+    ["expRes","expFormat","expCodec","expBitrate","expFps","expAudioFmt","expGifRes","expSubFmt"].forEach(id=>{
+        const el=$(id); if(el) el.addEventListener("change",updateExportEstimate);
+    });
+    document.querySelectorAll(".export-sec-head").forEach(h=>h.addEventListener("click",e=>{
+        if(e.target.tagName==="INPUT") return;
+        const f=h.parentElement.querySelector(".export-sec-fields"); if(!f) return;
+        const hide=f.style.display!=="none"; f.style.display=hide?"none":"";
+        const c=h.querySelector(".caret"); if(c) c.textContent=hide?"▼":"▲";
+    }));
 }
 
 /* ---------- 启动 ---------- */
 async function init(){
+    bootWsId=wsId();
     applyLayout(loadLayout());
     wireSplitters();
-    wire(); setupChannels(); loadAiCfg();
+    wire(); setupChannels(); loadAiCfg(); wsBoot(); wireExport();
+    pingService(1800);                       /* 后台探测本机服务，不阻塞页面启动 */
     state.aspect=String(safeStorage.get("manflows_ai_editor_aspect")||"auto").trim();
     applyCompute(loadCompute(),true);
     showPropTab("basic");
@@ -2697,6 +3709,7 @@ async function init(){
     await drainInbox();
     scanCanvasHistory();
     applyAspect();
+    fitZoom();
     saveProject(true);
 }
 init().catch(e=>{ console.error("初始化失败",e); toast("初始化失败："+e.message,"err"); });
