@@ -90,6 +90,13 @@
     .node-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
     .node-title{font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e5e7eb;}
     .node-actions{display:flex;gap:4px;}
+    .node-head.prompt-head .node-title{flex:0 1 auto;}
+    .node-ai-btn{border:none;border-radius:5px;background:#7c3aed;color:#fff;font-size:10px;height:22px;line-height:1;cursor:pointer;padding:0 7px;white-space:nowrap;flex-shrink:0;margin-right:auto;}
+    .node-ai-btn:hover{background:#8b5cf6;}
+    .node-ai-btn:disabled{opacity:.55;cursor:not-allowed;}
+    .ai-foot{display:flex;align-items:flex-start;gap:8px;margin-top:7px;}
+    .ai-foot .mini-btn{flex-shrink:0;}
+    .ai-foot-tip{flex:1;min-width:0;font-size:10px;line-height:1.5;color:#9ca3af;word-break:break-word;}
     .node-actions button{border:none;border-radius:5px;background:var(--hover);color:#fff;font-size:11px;width:22px;height:22px;line-height:1;cursor:pointer;padding:0;}
     .node-actions button:hover{background:#4b5563;}
     .node-actions button.act-run{background:var(--green);}
@@ -317,6 +324,7 @@
         <button class="tb-btn" id="importBtn">导入画布</button>
         <button class="tb-btn" id="historyBtn" title="查看本机生成的历史图片 / 视频（可预览、下载）">🖼 历史结果</button>
         <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
+        <a class="tb-btn" id="openEditorBtn" href="./editor.html" target="_blank" rel="noopener noreferrer" title="打开漫流 AI 剪辑台（新标签页）">✂ AI剪辑台</a>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
     </header>
 
@@ -1170,8 +1178,8 @@ function buildNode(n){
     if(n.type==="generate") actions.push('<button class="act-run" data-act="run" title="运行生成">▶</button>');
     actions.push('<button data-act="del" title="删除节点">×</button>');
     box.innerHTML =
-        '<div class="node-head"><span class="node-dot" style="background:'+meta.color+'"></span>'+
-        '<span class="node-title"></span><div class="node-actions">'+actions.join("")+'</div></div>'+
+        '<div class="node-head'+(n.type==="prompt"?" prompt-head":"")+'"><span class="node-dot" style="background:'+meta.color+'"></span>'+
+        '<span class="node-title"></span>'+(n.type==="prompt"?'<button type="button" class="node-ai-btn" data-act="ai" title="按生成节点已选定的模型，把非标提示词转为该模型专用的单条提示词">AI提示词</button>':'')+'<div class="node-actions">'+actions.join("")+'</div></div>'+
         '<div class="node-body"></div>'+
         '<div class="port port-in" title="输入：把别的节点连到这里；按住已连的线拖走可拔断"></div>'+
         '<div class="port port-out" title="输出：单击弹出六类节点菜单（自动建联）；拖到别的节点左侧圆点可手动连线"></div>';
@@ -1229,7 +1237,12 @@ function buildPromptBody(body,n){
         if(!t){ setStatus("提示词还是空的，先写点内容","busy"); return; }
         openLightbox({kind:"text",text:t,title:"提示词全文（"+t.length+" 字）"});
     });
-    body.appendChild(pv);
+    const foot=document.createElement("div"); foot.className="ai-foot";
+    foot.appendChild(pv);
+    const aiTip=document.createElement("div"); aiTip.className="ai-foot-tip";
+    aiTip.innerHTML='<div>&quot;AI提示词&quot;先在生成节点选定模型</div><div>将把写的非标提示词转为该模型专用（比如gpt image、minjourney、seedance、minimax h3等）</div>';
+    foot.appendChild(aiTip);
+    body.appendChild(foot);
     function updateCharCount(){ cnt.textContent = (n.data.text||"").length + " 字"; }
     updateCharCount();
 }
@@ -2314,6 +2327,7 @@ function handleNodeAction(act,n){
         else if(act==="split"){ splitAction(n).catch(e=>onErr("图片提示词",e)); }
         else if(act==="sd"){ skillRefineLLM(n,"b","SD提示词").catch(e=>onErr("SD提示词",e)); }
         else if(act==="h3"){ skillRefineLLM(n,"d","H3提示词").catch(e=>onErr("H3提示词",e)); }
+        else if(act==="ai"){ aiPromptRefine(n).catch(e=>onErr("AI提示词",e)); }
     }catch(e){ onErr("按钮操作",e); }
 }
 /* ===== 美术资产提示词：一条资产＝一个节点 =====
@@ -2718,6 +2732,8 @@ function cvResetBusy(n,silent){
         const labels={split:"图片提示词",sd:"SD提示词",h3:"H3提示词"};
         if(labels[b.dataset.act]) b.textContent=labels[b.dataset.act];
     });
+    const aiBtn=node&&node.querySelector('button[data-act="ai"]');
+    if(aiBtn){ aiBtn.disabled=false; aiBtn.textContent="AI提示词"; }
     if(!silent){ try{ setStatus("已重置提示词节点的任务状态，可重新点击按钮","ok"); }catch(e){} }
 }
 function cvBusy(n){
@@ -2789,7 +2805,9 @@ const skillTextCache = {};   /* 内存缓存：同一会话内每个技能只拉
 /* 技能服务器偶发不可用时，SD / H3 仍然能用内置精简规则继续工作，不让按钮变成「点了没用」 */
 const CV_FALLBACK_SKILL = {
     b:"Seedance 2.0 生视频分镜标准：每镜头 ≤15 秒；写清画面主体、动作、运镜、光线氛围与构图；台词逐字保留，不新增剧情；以情绪转折或说话人切换分段。",
-    d:"MiniMax H3 Ref2VA 生视频分镜标准：每镜头 ≤15 秒；写清主体描述、动作时序、运镜、光影与构图；台词逐字保留，不新增剧情；以情绪转折或说话人切换分段。"
+    c:"GPT Image 单条生图提示词规范：固定四段英文段名各独占一行——scene:（用途与构图）/ subject:（主体静态外观定式）/ details:（材质、光照、色彩、取景，末句写全剧统一画风）/ constraints:（硬约束与一致性）；四段各 2–5 句中文，不堆形容词；正文里禁写模型名、像素尺寸、--ar 等平台参数；不虚构外观，不改原意。只输出一条完整提示词。",
+    d:"MiniMax H3 Ref2VA 生视频分镜标准：每镜头 ≤15 秒；写清主体描述、动作时序、运镜、光影与构图；台词逐字保留，不新增剧情；以情绪转折或说话人切换分段。",
+    e:"Midjourney 单条生图提示词规范：一段连贯英文描述（约 40–80 词），按 Subject / Medium / Environment / Lighting / Color / Mood / Composition 按需取，不列字段清单；描述句禁中文、禁 :: 权重、禁量化字段；参数一律放末尾且固定顺序 --ar <画幅> --raw --sref <STYLE_REF> --no <排除项>，参数之后不得再有英文正文；禁 --q / --style raw / --v 等旧版参数。只输出一条完整提示词。"
 };
 async function fetchSkillText(type){
     if(skillTextCache[type]) return {ok:true,text:skillTextCache[type]};
@@ -2812,6 +2830,98 @@ async function fetchSkillText(type){
 }
 /* SD提示词（skillType=b，Seedance 标准） / H3提示词（skillType=d，MiniMax H3 标准）：
    拉技能全文 → 组装系统提示词（强调不改本意）→ 走画布现有大语言模型链路 → 按 ▌ 拆成多个新节点，原节点保留 */
+/* ===== AI 提示词：按生成节点已选定的模型，用对应助手技能里「单条提示词规范」章节，
+   把用户写的非标提示词改写成【一条】该模型专用的完整提示词。
+   与 SD / H3 按钮的区别：绝不拆成多条、绝不生成多个节点，结果写回当前提示词节点（Ctrl+Z 可撤销）。
+   生图 = 一条图提示词；生视频 = 一条视频提示词（内部按技能规范含多个子分镜仍算一条）。 ===== */
+function cvAiTarget(n){
+    /* 优先取与本提示词节点直接相连的生成节点；没有连线时取画布上第一个已选模型的生成节点 */
+    const linked=canvas.edges.filter(e=>e.from===n.id).map(e=>e.to);
+    let gens=canvas.nodes.filter(g=>g.type==="generate"&&linked.includes(g.id));
+    if(!gens.length) gens=canvas.nodes.filter(g=>g.type==="generate");
+    const g=gens.find(x=>String((x.data&&x.data.model)||"").trim());
+    if(!g) return null;
+    return {model:String(g.data.model).trim(),kind:String(g.data.kind||"image"),node:g};
+}
+function cvAiSkillOf(t){
+    const s=String(t.model||"").toLowerCase().replace(/[\s_\-]+/g,"");
+    if(/midjourney|minjourney|mjv|niji/.test(s)) return {type:"e",label:"Midjourney 生图提示词规范"};
+    if(/minimax|h3|海螺|ref2va/.test(s)) return {type:"d",label:"MiniMax H3 生视频提示词规范"};
+    if(/seedance|即梦|doubao|豆包|可灵|kling|runway|veo|sora|wanx|万相|luma|pika|hailuo/.test(s)) return {type:"b",label:"Seedance 生视频提示词规范"};
+    if(/gptimage|gpt.?image|image2|dalle|dall.?e|flux|seedream|qwenimage|即梦画|nanobanana|imagen|ideogram|recraft/.test(s)) return {type:"c",label:"GPT Image 生图提示词规范"};
+    if(t.kind==="video") return {type:"b",label:"Seedance 生视频提示词规范"};
+    if(t.kind==="text") return {type:"",label:"通用提示词整理规范"};
+    return {type:"c",label:"GPT Image 生图提示词规范"};
+}
+/* 只从技能全文里抽「## 3. 官方标准」这一章：它纯粹讲一条提示词怎么写，
+   不含 §1 全剧资产台账 / §2 逐条交付契约，避免把用户的一段话扩写成多条提示词。 */
+function cvAiSingleRule(md){
+    const s=String(md||"");
+    const start=s.search(/^## 3\./m);
+    if(start<0) return s.slice(0,12000);
+    const rest=s.slice(start);
+    const m=/^## [4-9]\./m.exec(rest);
+    const sec=(m?rest.slice(0,m.index):rest).trim();
+    return sec.length>16000?sec.slice(0,16000):sec;
+}
+async function aiPromptRefine(n){
+    const text=String(n.data.text||"").trim();
+    if(!text){ setStatus("提示词是空的，先写入你的非标提示词","err"); setLlmNote(n,"❌ 提示词是空的，先写入你的非标提示词","err"); return; }
+    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候（若已卡住，点本行重置）","busy"); return; }
+    const t=cvAiTarget(n);
+    if(!t){ setStatus("请先在生成节点选定模型，再点「AI提示词」","err"); setLlmNote(n,"❌ 没找到已选模型的生成节点。请先在生成节点的「模型/工作流」里选定模型（比如 gpt image、midjourney、seedance、minimax h3），再点「AI提示词」。","err"); return; }
+    const sk=cvAiSkillOf(t);
+    n.data.splitting=true;
+    cvBusyAt.set(n.id,Date.now());
+    const sel='.node[data-id="'+n.id+'"] button[data-act="ai"]';
+    const btn=document.querySelector(sel);
+    if(btn){ btn.disabled=true; btn.textContent="转换中…"; }
+    setStatus("正在按「"+t.model+"」的单条提示词规范转换…","busy");
+    setLlmNote(n,"⏳ 目标模型「"+t.model+"」→ "+sk.label+"，正在调用大语言模型…","busy");
+    try{
+        let rule="把用户原文整理成结构清晰、指令明确的一条标准提示词，保留全部原意，不新增内容。";
+        if(sk.type){
+            const got=await fetchSkillText(sk.type);
+            if(got.ok){
+                rule="下面是「"+sk.label+"」技能里【单条提示词规范】章节原文，请把它作为唯一书写标准：\n---- 单条提示词规范 ----\n"+cvAiSingleRule(got.text)+"\n---- 规范结束 ----";
+                if(got.fallback) setLlmNote(n,"⏳ 技能服务器暂时不可用，已用内置精简的「"+sk.label+"」继续调用大语言模型…","busy");
+            }else{
+                setStatus("技能服务器不可用，已改用内置精简规范继续","busy");
+            }
+        }
+        const sys=rule+"\n\n———— 本次任务（优先级高于上面技能里的其它章节）————\n"+
+            "你是漫流导演画布的「AI 提示词」转换器。用户给的是一段随手写的非标准提示词，请按上面的单条提示词书写规范，把它改写成【一条】「"+t.model+"」专用、可直接提交使用的完整提示词。\n"+
+            "1. 只输出一条提示词，一个完整文本块：禁止拆成多条、禁止按资产或镜头逐条输出多个提示词、禁止生成多个节点、禁止 ▌ 资产标记行、禁止「生成参数：」「参考图：」「中文对照：」等元数据行、禁止开场声明与自检清单。\n"+
+            "2. 若目标是生视频模型（Seedance / MiniMax H3），这一条视频提示词内部按技能规范包含多个子分镜是允许的，但整体仍只是一条提示词，不得拆成多条分别输出。\n"+
+            "3. 只采用上面给出的「单条提示词规范」（段落结构、要素顺序、参数段写法、禁混用其它模型语法等）；技能中关于「全剧资产台账必须写满」「每条资产一块」「分组输出」「逐条交付」等多条交付契约，本次一律忽略。\n"+
+            "4. 严格在用户原文基础上改写：剧情、人物、场景、台词的本意一个都不改，不新增资产、剧情、台词或配乐说明；只做格式规范化与模型语法适配。\n"+
+            "5. 只输出改写后的这一条提示词正文，不要解释、标题、前后缀或代码块。";
+        const r=await llmSplitText(text,sys);
+        if(!r.ok){
+            const why=(r.tried||[]).slice(0,2).join("；")||"没有可用模型";
+            setStatus("AI提示词转换失败：本机与云端大模型都没连上（原因见节点内提示）","err");
+            setLlmNote(n,"❌ 转换失败："+why+"\n排查：① 模型软件保持运行；② 左侧【算力总控 → ⚙ 接入工具】点「⚡ 自动接通」；③ HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面；④ llama.cpp 加 --cors-origins * / Ollama 设 OLLAMA_ORIGINS=*","err");
+            return;
+        }
+        const out=String(r.text||"").replace(/```[a-z]*\n?/gi,"").trim();
+        if(!out){ setStatus("大模型返回为空，原文保持不变","err"); setLlmNote(n,"❌ 大模型返回内容为空，原文保持不变","err"); return; }
+        const ok=await cvConfirm("已用「"+r.via+"」按「"+t.model+"」的"+sk.label+"把当前提示词改写为【一条】专用提示词，将替换本节点原文（Ctrl+Z 可撤销）。继续？","AI提示词 · 单条转换");
+        if(!ok){ setStatus("已取消，原文保持不变","busy"); setLlmNote(n); return; }
+        const box=document.querySelector('.node[data-id="'+n.id+'"]');
+        const ta=box&&box.querySelector(".node-body textarea");
+        n.data.text=out;
+        if(ta) ta.value=out;
+        if(box){ const c=box.querySelector(".mini-line span"); if(c) c.textContent=out.length+" 字"; }
+        scheduleSave(true);
+        setStatus("AI提示词已按「"+t.model+"」规范输出单条提示词","ok");
+        setLlmNote(n,"✅ 已按「"+t.model+"」的"+sk.label+"输出单条提示词（来源："+r.via+"）","ok");
+    }finally{
+        n.data.splitting=false;
+        cvBusyAt.delete(n.id);
+        const b2=document.querySelector(sel)||btn;
+        if(b2){ b2.disabled=false; b2.textContent="AI提示词"; }
+    }
+}
 async function skillRefineLLM(n,skillType,label){
     const text=String(n.data.text||"").trim();
     if(!text){ setStatus("提示词是空的，先填入剧本 / 提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入剧本 / 提示词","err"); return; }
