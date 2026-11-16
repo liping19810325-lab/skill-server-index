@@ -86,17 +86,17 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .import-row .mini-btn{flex:1 1 auto;}
 .drop-zone{border:1px dashed var(--border2);border-radius:8px;padding:10px 8px;text-align:center;font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:8px;transition:border-color .15s,background .15s;}
 .drop-zone.over{border-color:var(--green);background:rgba(5,150,105,.09);color:#a7f3d0;}
-.asset-list{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:120px;max-height:520px;overflow:auto;margin-top:8px;padding-right:2px;}
-.asset-item{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:7px 8px;cursor:grab;transition:border-color .12s,background .12s,opacity .12s;}
+.asset-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;align-content:start;flex:1 1 auto;min-height:120px;max-height:520px;overflow:auto;margin-top:8px;padding-right:2px;}
+.asset-item{display:flex;flex-direction:column;gap:5px;align-items:stretch;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:6px;cursor:grab;transition:border-color .12s,background .12s,opacity .12s;min-width:0;}
 .asset-item:hover{border-color:#3b82f6;}
 .asset-item.sel{border-color:#60a5fa;background:#1b2740;box-shadow:0 0 0 1px rgba(96,165,250,.45) inset;}
 .asset-item.dragging{opacity:.45;cursor:grabbing;}
-.asset-thumb{width:92px;height:76px;border-radius:6px;flex-shrink:0;object-fit:contain;background:#0b0d13;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:#93c5fd;overflow:hidden;}
+.asset-thumb{width:100%;height:76px;border-radius:6px;flex-shrink:0;object-fit:contain;background:#0b0d13;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:#93c5fd;overflow:hidden;}
 .asset-thumb img,.asset-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
 .asset-meta{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:4px;}
 .asset-name{font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .asset-sub{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.asset-drag-tip{font-size:9.5px;color:#64748b;line-height:1.5;}
+.asset-drag-tip{display:none;}
 .empty-line{font-size:10.5px;color:var(--muted);text-align:center;padding:16px 4px;line-height:1.7;}
 
 /* AI 面板 */
@@ -119,15 +119,15 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .player-head h2{font-size:13px;color:#cbd5e1;font-weight:500;}
 .player-head .ph-extra{margin-left:auto;font-size:10.5px;color:var(--muted);}
 .stage-wrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;border:1px solid var(--border2);border-radius:12px;overflow:hidden;position:relative;}
-.stage{position:relative;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;}
-#previewVideo,#previewImage{width:100%;height:100%;object-fit:contain;display:none;background:#000;}
+.stage{position:relative;flex:0 0 auto;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+#previewVideo,#previewImage{width:100%;height:100%;object-fit:contain;display:none;background:#000;transform-origin:center center;}
 #previewVideo.show,#previewImage.show{display:block;}
 #pipLayer{position:absolute;inset:0;pointer-events:none;}
-.pip-item{position:absolute;right:14px;width:20%;max-height:20%;object-fit:contain;border:2px solid rgba(255,255,255,.7);border-radius:8px;background:#000;box-shadow:0 6px 20px rgba(0,0,0,.6);}
+.pip-item{position:absolute;right:14px;width:20%;max-height:20%;object-fit:contain;border:2px solid rgba(255,255,255,.7);border-radius:8px;background:#000;box-shadow:0 6px 20px rgba(0,0,0,.6);transform-origin:center center;}
 .stage-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#6b7280;font-size:12px;line-height:1.8;text-align:center;pointer-events:none;}
 .stage-empty b{color:#cbd5e1;font-size:14px;}
 .subtitle-overlay{position:absolute;left:0;right:0;bottom:7%;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;padding:0 24px;}
-.sub-line{font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:92%;word-break:break-word;}
+.sub-line{font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:92%;word-break:break-word;transform-origin:center center;}
 .sub-line.dialogue{color:#fff;background:rgba(0,0,0,.42);}
 .sub-line.narration{color:#fde68a;background:rgba(0,0,0,.42);}
 .sub-line.inner{color:#f9a8d4;font-style:italic;background:rgba(0,0,0,.42);}
@@ -243,6 +243,55 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .menu-pop.show{display:block;}
 .menu-pop button{display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);font-size:11.5px;padding:8px 10px;border-radius:6px;}
 .menu-pop button:hover{background:var(--hover);}
+
+/* ===== 算力总控：三档快捷切换（本页独立） ===== */
+.ed-mode-row{display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 5px;}
+.ed-mode-row label{display:flex;align-items:center;gap:4px;padding:6px 7px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);font-size:11px;color:var(--text);cursor:pointer;flex:1 1 auto;white-space:nowrap;}
+.ed-mode-row label.active{background:var(--blue);border-color:transparent;color:#fff;}
+.ed-mode-row input{accent-color:var(--blue);margin:0;}
+/* 通用进度条与阶段列表（AI 剪辑 / AI 字幕共用） */
+.ai-progress{height:8px;border-radius:5px;background:var(--panel);border:1px solid var(--border2);overflow:hidden;margin:9px 0 6px;}
+.ai-progress[hidden]{display:none;}
+.ai-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#2563eb,#0891b2);transition:width .32s ease;}
+.ai-steps{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(--muted);}
+.ai-step{display:flex;align-items:center;gap:6px;padding:2px 0;line-height:1.5;}
+.ai-step .dot{width:8px;height:8px;border-radius:50%;background:var(--border2);flex:0 0 8px;}
+.ai-step.done{color:#a7f3d0;} .ai-step.done .dot{background:var(--green);}
+.ai-step.active{color:#fff;} .ai-step.active .dot{background:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.28);}
+.ai-step.err{color:#fca5a5;} .ai-step.err .dot{background:var(--red);}
+/* ===== 预览画幅比例 ===== */
+.aspect-row{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);}
+.asp-btn{padding:3px 7px;border:1px solid var(--border2);border-radius:6px;background:var(--panel);color:var(--muted);font-size:10.5px;}
+.asp-btn:hover{background:var(--hover);}
+.asp-btn.active{background:var(--cyan);border-color:transparent;color:#fff;}
+/* ===== 预览窗口变换框（移动 / 缩放 / 旋转） ===== */
+.fx-box{position:absolute;left:50%;top:50%;width:62%;height:62%;border:1px dashed #60a5fa;box-shadow:0 0 0 1px rgba(0,0,0,.4);transform-origin:center center;z-index:12;cursor:move;box-sizing:border-box;}
+.fx-box[hidden]{display:none;}
+.fx-corner{position:absolute;width:12px;height:12px;background:#60a5fa;border:2px solid #fff;border-radius:3px;z-index:2;}
+.fx-corner[data-fx="nw"]{left:-7px;top:-7px;cursor:nwse-resize;}
+.fx-corner[data-fx="ne"]{right:-7px;top:-7px;cursor:nesw-resize;}
+.fx-corner[data-fx="sw"]{left:-7px;bottom:-7px;cursor:nesw-resize;}
+.fx-corner[data-fx="se"]{right:-7px;bottom:-7px;cursor:nwse-resize;}
+.fx-rot{position:absolute;left:50%;top:-13px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#f59e0b;border:2px solid #fff;cursor:grab;z-index:3;}
+.fx-rot::after{content:"";position:absolute;left:5px;top:12px;width:2px;height:15px;background:#f59e0b;}
+.fx-badge{position:absolute;left:3px;top:2px;font-size:9px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:1px 5px;z-index:2;letter-spacing:.5px;}
+/* ===== 右栏两个并列标签 ===== */
+.prop-tabs{display:flex;gap:5px;flex:0 0 auto;}
+.prop-tab{flex:1 1 0;padding:8px 6px;border:1px solid var(--border2);border-radius:8px;background:var(--panel);color:var(--muted);font-size:11.5px;}
+.prop-tab:hover{background:var(--hover);}
+.prop-tab.active{background:var(--blue);border-color:transparent;color:#fff;font-weight:600;}
+.prop-panel[hidden]{display:none;}
+.fx-note{font-size:10px;color:var(--muted);line-height:1.6;background:var(--panel);border:1px solid var(--border2);border-radius:7px;padding:7px 8px;margin:6px 0;}
+.fx-sec{font-size:11px;color:#93c5fd;border-left:3px solid var(--blue);padding-left:7px;margin:10px 0 4px;}
+.fx-switches{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#d1d5db;}
+.fx-switches label{display:flex;align-items:center;gap:4px;cursor:pointer;}
+/* ===== 时间轴框选 ===== */
+.marquee{position:fixed;border:1px solid #60a5fa;background:rgba(96,165,250,.18);z-index:950;pointer-events:none;}
+.clip-fx-tag{position:absolute;left:2px;bottom:1px;font-size:8.5px;color:#fff;background:rgba(0,0,0,.5);border-radius:3px;padding:0 3px;line-height:12px;pointer-events:none;}
+/* ===== AI 剪辑弹窗 ===== */
+.ai-idea-label{flex:0 0 70px;font-size:11.5px;color:#d1d5db;}
+.ai-idea-warn{background:rgba(217,119,6,.12);border:1px solid rgba(217,119,6,.5);border-radius:8px;padding:9px 11px;color:#fcd34d;font-size:11.5px;line-height:1.75;margin:0 0 10px;}
+.modal-body #aiIdeaText{min-height:92px;}
 </style>
 </head>
 <body>
@@ -257,8 +306,6 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <button class="nav-btn" id="navIndex" title="打开漫流编导创作台">← 编导创作台</button>
         <button class="nav-btn" id="navCanvas" title="返回漫流导演画布">← 返回画布</button>
         <div class="tb-sep"></div>
-        <button class="tb-btn primary" id="topImport" title="导入素材 (Ctrl+I)">＋ 导入素材</button>
-        <button class="tb-btn purple" id="topUrl">🔗 粘贴在线 URL</button>
         <button class="tb-btn green" id="topSave" title="保存工程 (Ctrl+S)">💾 保存工程</button>
         <button class="tb-btn" id="topOpen" title="打开工程 (Ctrl+O)">📂 打开工程</button>
         <button class="tb-btn cyan" id="topSrt" title="导出字幕 SRT (Ctrl+E)">⬇ 导出字幕 SRT</button>
@@ -273,6 +320,19 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 
     <div class="workspace" id="workspace">
         <aside class="side left" id="sideLeft">
+            <div class="card" id="computeCard">
+                <h2>算力总控 <span class="h2-extra">本页独立 · 三档快捷切换</span></h2>
+                <div class="ed-mode-row" id="edModeRow">
+                    <label data-mode="manflow"><input type="radio" name="edComputeMode" value="manflow"> 漫流算力</label>
+                    <label data-mode="local"><input type="radio" name="edComputeMode" value="local"> 本机算力</label>
+                    <label data-mode="third_party"><input type="radio" name="edComputeMode" value="third_party"> 第三方API</label>
+                </div>
+                <div class="hint" id="edComputeHint">AI剪辑 / AI字幕 共用此档位：本机算力＝本机模型 + faster-whisper；第三方API＝创作台 / 画布已存配置。本页档位独立。</div>
+                <div class="ai-state" id="edState">当前：第三方API</div>
+                <div class="ai-progress" id="edProgress" hidden><div class="ai-progress-fill" id="edProgressFill"></div></div>
+                <div class="ai-steps" id="edSteps"></div>
+            </div>
+
             <div class="card">
                 <h2>素材库 <span class="h2-extra" id="assetCount">0 个素材</span></h2>
                 <div class="lib-tabs" id="libTabs">
@@ -283,53 +343,25 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <button class="lib-tab" data-tab="text">文本</button>
                 </div>
                 <div class="import-row">
-                    <button class="mini-btn" id="importFiles">＋ 上传本地文件</button>
-                    <button class="mini-btn purple" id="importUrl">🔗 粘贴 URL</button>
+                    <button class="mini-btn" id="importFiles" title="导入素材 (Ctrl+I)">＋ 导入素材</button>
+                    <button class="mini-btn purple" id="importUrl">🔗 粘贴在线 URL</button>
                 </div>
                 <div class="drop-zone" id="dropZone">把本地 <b>文本 / 图片 / 视频 / 声音</b> 拖到这里<br>也可以直接拖入一个在线文件 URL</div>
-                <div class="hint">缩略图已放大；<b>按住素材拖到下方对应轨道</b>即可剪辑，双击则自动放到该类轨道。单击选中后按 <code>Delete</code> 删除素材。支持 <b>.txt .md .srt .vtt / .png .jpg .webp / .mp4 .webm .mov / .mp3 .wav .m4a</b>。</div>
+                <div class="hint">素材按<b>素材库宽度自动排成一行多个</b>；<b>按住素材拖到下方对应轨道</b>即可剪辑，双击自动放到该类轨道。单击选中后按 <code>Delete</code> 删除素材。支持 <b>.txt .md .srt .vtt / .png .jpg .webp / .mp4 .webm .mov / .mp3 .wav .m4a</b>。</div>
                 <div class="asset-list" id="assetList"></div>
             </div>
 
-            <div class="card">
-                <h2>AI 剪辑 · 模型配置 <span class="h2-extra">需强多模态模型</span></h2>
-                <div class="hint warn">「✨ AI剪辑」会把整条时间轴结构、素材信息与视频抽帧交给大模型自主决策，需要 <b>Claude / GPT-4o / Gemini 等综合能力强的多模态大模型</b>；小参数本地模型通常无法稳定输出可执行方案。</div>
-                <div class="row" style="margin-top:0"><label>模型来源</label></div>
-                <select id="aiSrc">
-                    <option value="profile">复用创作台 / 画布「第三方API」当前配置</option>
-                    <option value="local">复用「本机算力」已接通的大语言模型</option>
-                    <option value="custom">自定义接口（下面手填）</option>
-                </select>
-                <div id="aiCustom" style="display:none;margin-top:7px">
-                    <input type="text" id="aiEndpoint" placeholder="完整接口地址 https://.../v1/chat/completions">
-                    <input type="text" id="aiKey" placeholder="API Key（本机服务可留空）" style="margin-top:5px">
-                    <input type="text" id="aiModel" placeholder="模型名，如 gpt-4o / claude-sonnet-4" style="margin-top:5px">
-                </div>
-                <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="aiFrames" checked> 附上视频抽帧 / 图片缩略图（多模态视觉输入）</label></div>
-                <div class="ai-state" id="aiEditState">配置好模型后，点时间轴上方居中的「✨ AI剪辑」自动分析轨道并生成剪辑方案。</div>
-            </div>
-
-            <div class="card">
-                <h2>AI 字幕 · 语音识别 <span class="h2-extra">→ 字幕轨</span></h2>
-                <div class="row" style="margin-top:0"><label>识别引擎</label></div>
-                <select id="asrEngine">
-                    <option value="demo">演示识别（内置漫剧台词，无需服务）</option>
-                    <option value="remote">本机 Whisper / 第三方 API（OpenAI 兼容）</option>
-                    <option value="mic">浏览器麦克风实时听写（实验）</option>
-                </select>
-                <div id="asrCfg" style="display:none;margin-top:7px">
-                    <div class="row" style="margin:5px 0"><label>转写接口地址</label></div>
-                    <input type="text" id="asrEndpoint" placeholder="http://127.0.0.1:9000/v1/audio/transcriptions">
-                    <div class="row" style="margin:6px 0 4px"><button class="mini-btn gray" data-preset="local">填本机 faster-whisper</button><button class="mini-btn gray" data-preset="oai">填 OpenAI</button></div>
-                    <div class="row" style="margin:5px 0"><label>API Key（本机可留空） / 模型 / 语言</label></div>
-                    <div style="display:flex;gap:5px"><input type="text" id="asrKey" placeholder="sk-... 可留空" style="flex:2"><input type="text" id="asrModel" value="whisper-1" style="flex:1"><input type="text" id="asrLang" value="zh" style="flex:0 0 48px"></div>
-                </div>
-                <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="asrKeep"> 保留已有字幕，只往空白段补充</label></div>
-                <div class="row">
-                    <button class="mini-btn green" id="asrRun" style="flex:1">🎙 识别语音并生成字幕</button>
-                </div>
-                <div class="ai-stat" id="aiStat"><span>字幕轨 0</span><span>字幕 0</span><span>对白 0</span><span>旁白 0</span><span>内心独白 0</span></div>
-                <div class="ai-state" id="aiState">会自动识别轨道上视频、音频里的对白 / 旁白 / 内心独白，按时间码写成统一字幕轨；演示识别可直接体验完整链路。</div>
+            <!-- 已合并进上方「算力总控」三档：原先的「AI 剪辑·模型配置」「AI 字幕·语音识别」两栏
+                 不再显示。这里只保留运行链路需要的隐藏字段，由档位自动填写，用户无需再手填。 -->
+            <div id="legacyAiCfg" hidden>
+                <select id="aiSrc"><option value="profile">复用创作台 / 画布「第三方API」当前配置</option><option value="local">复用「本机算力」已接通的大语言模型</option><option value="custom">自定义接口</option></select>
+                <div id="aiCustom"><input type="text" id="aiEndpoint"><input type="text" id="aiKey"><input type="text" id="aiModel"></div>
+                <input type="checkbox" id="aiFrames" checked>
+                <select id="asrEngine"><option value="remote">真实转写接口（按算力档位自动填写）</option></select>
+                <div id="asrCfg"><input type="text" id="asrEndpoint"><input type="text" id="asrKey"><input type="text" id="asrModel" value="whisper-1"><input type="text" id="asrLang" value="zh"><button data-preset="local"></button><button data-preset="oai"></button></div>
+                <input type="checkbox" id="asrKeep">
+                <button id="asrRun"></button>
+                <div id="aiEditState"></div><div id="aiState"></div><div id="aiStat"></div>
             </div>
 
             <div class="card">
@@ -349,6 +381,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <section class="center" id="centerPane">
             <div class="player-head">
                 <h2>预览</h2>
+                <div class="aspect-row" id="aspectRow" title="自适应＝按导入的第一条视频 / 图片的画幅决定，默认自适应">
+                    <span>画幅</span>
+                    <button class="asp-btn active" data-asp="auto">自适应</button>
+                    <button class="asp-btn" data-asp="16:9">16:9</button>
+                    <button class="asp-btn" data-asp="9:16">9:16</button>
+                </div>
                 <span class="ph-extra" id="playerMode">字幕 / 图片 / 视频 / 音频 多层同步预览</span>
             </div>
             <div class="stage-wrap">
@@ -357,6 +395,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <img id="previewImage" alt="画面">
                     <div id="pipLayer"></div>
                     <div class="stage-empty" id="stageEmpty"><b>把素材库的文件拖到下方轨道</b>或直接导入一个本地视频<br>导入后可播放、剪断、加字幕</div>
+                    <div class="fx-box" id="fxBox" hidden>
+                        <span class="fx-badge" id="fxBadge">拖动移动 · 四角缩放 · 顶部圆点旋转 · 滚轮缩放</span>
+                        <div class="fx-rot" id="fxRot" title="按住拖动旋转"></div>
+                        <div class="fx-corner" data-fx="nw"></div><div class="fx-corner" data-fx="ne"></div>
+                        <div class="fx-corner" data-fx="sw"></div><div class="fx-corner" data-fx="se"></div>
+                    </div>
                     <div class="subtitle-overlay" id="subOverlay"></div>
                 </div>
             </div>
@@ -373,11 +417,16 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="vsplit" id="splitRight" data-side="right" title="拖动调整属性面板宽度"></div>
 
         <aside class="side right" id="sideRight">
-            <div class="card">
+            <div class="prop-tabs" id="propTabs">
+                <button class="prop-tab active" data-ptab="basic">基础调整</button>
+                <button class="prop-tab" data-ptab="sub">字幕层</button>
+            </div>
+            <div class="card prop-panel" id="panelBasic">
                 <h2>选中片段属性</h2>
                 <div id="propBox"><div class="prop-empty">点时间轴上任意一个片段，可在这里改名称、起止时间、时长、素材切入点，以及字幕文字与类型标签。</div></div>
+                <div id="basicBox"></div>
             </div>
-            <div class="card">
+            <div class="card prop-panel" id="panelSub" hidden>
                 <h2>字幕层 <span class="h2-extra" id="subCount">0 条</span></h2>
                 <div class="row" style="margin-top:0"><label style="flex:0 0 52px;font-size:11px">字幕轨</label><select id="subTrackSel" style="flex:1"></select></div>
                 <div class="hint" style="margin:0 0 5px">字幕不再按对白 / 旁白 / 内心独白分轨，全部放在字幕轨上，由你自己决定内容和位置；类型只是可选标签。</div>
@@ -389,7 +438,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="kv" id="projInfo"></div>
                 <div class="row"><button class="mini-btn gray" id="exportProject" style="flex:1">⬇ 导出工程 JSON</button></div>
             </div>
-        </aside>
+        </aside>        </aside>
     </div>
 
     <div class="hsplit" id="splitTimeline" title="拖动调整剪辑轨道高度"></div>
@@ -404,6 +453,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tb-btn" id="pasteBtn" title="粘贴 (Ctrl+V)">📋 粘贴</button>
                 <button class="tb-btn" id="undoBtn" title="撤销 (Ctrl+Z)">↶</button>
                 <button class="tb-btn" id="redoBtn" title="重做 (Ctrl+Shift+Z)">↷</button>
+                <button class="tb-btn" id="mirrorBtn" title="镜像：水平翻转选中片段画面 (M)">⇋ 镜像</button>
+                <button class="tb-btn" id="reverseBtn" title="倒放：反向播放选中片段画面 (R)">◀ 倒放</button>
                 <button class="tb-btn" id="addTrackBtn" title="新建一条轨道">＋ 轨道</button>
             </div>
             <div class="tl-tools mid">
@@ -465,9 +516,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </ul>
             <h2>④ 三个 AI 按钮（剪辑轨道上方居中）</h2>
             <ul>
-                <li><b>✨ AI剪辑</b>：把整条时间轴的轨道结构、每段素材的名称 / 类型 / 时间码，以及勾选后的<b>视频抽帧、图片缩略图</b>一起发给多模态大模型，让它自主判断节奏、删减、裁切、移动、补字幕，返回一份可预览的剪辑方案，确认后一键应用到轨道（<code>Ctrl+Z</code> 可撤销）。<b>这项功能需要 Claude / GPT-4o / Gemini 等综合能力强的多模态大模型</b>；可在左侧「AI 剪辑 · 模型配置」里复用创作台 / 画布已保存的第三方 API 配置、本机算力配置，或自定义接口。未配置时会弹窗提醒去哪配置；模型不支持视觉输入时会自动降级为纯轨道数据分析。</li>
-                <li><b>🅰 AI字幕</b>：自动识别轨道上视频、音频中的对白 / 旁白 / 内心独白，按时间码转成字幕，放到对应位置的字幕轨。三种识别引擎：<b>演示识别</b>（内置漫剧台词，无需服务）、<b>本机 Whisper / 第三方 API</b>（任意 OpenAI 兼容 <code>/v1/audio/transcriptions</code>）、<b>浏览器麦克风实时听写</b>（实验）。识别结果可在右侧字幕层逐条改文字、起止时间与类型标签。</li>
-                <li><b>⏺ 录音</b>：调用电脑的麦克风输入，再点一次「⏹ 停止录音」即结束，录音文件自动加入素材库并放到当前播放头位置的音频轨。</li>
+                <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>（如 claude-sonnet-4 / gpt-4o），下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后窗口里会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型会拿到整条时间轴结构、素材信息、视频抽帧与你的思路，返回可预览的剪辑方案，确认后才写入轨道（<code>Ctrl+Z</code> 可撤销）。强多模态模型才能稳定输出可执行方案；带图请求失败会自动降级为纯轨道数据分析。</li>
+                <li><b>🅰 AI字幕</b>：<b>真实分析轨道上的视频 / 音频素材</b>，不再给演示假字幕。按左上「算力总控」的档位自动取接口：本机算力＝本机 faster-whisper（默认 9000 端口）/ 本机模型；第三方API＝创作台 / 画布已保存的接口推导出的 OpenAI 兼容 <code>/v1/audio/transcriptions</code>。会遍历轨道上每一段真实音视频，把音轨发给模型识别，拿到分段时间码后<b>对齐到该片段在轨道上的位置</b>再写进字幕轨；左栏有分阶段进度条（模型已调用 → 轨道素材分析中 → 音视频真实转写中 → 时间码对齐 → 字幕写入轨道）。标准转写接口不可用时会自动降级用支持音频的多模态模型直接听音频。没配好接口、素材没有对白或识别失败都会<b>明确报错，绝不生成假字幕</b>。识别出的对白 / 旁白 / 内心独白只作可选类型标签，可逐条改文字与时间。</li>
+                <li><b>⏺ 录音</b>：调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
             </ul>
             <h2>⑤ 剪映风格按钮与快捷键</h2>
             <p>剪辑工具条按剪映的排布重排（导入 / 分割 / 删除 / 复制 / 粘贴 / 撤销 / 重做 / 新建轨道 + 缩放），每个按钮悬停可看快捷键。</p>
@@ -492,7 +543,16 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
   window.open("./editor.html?fromCanvas=1","_blank");
 }</pre>
             <p>剪辑台同时监听 <code>BroadcastChannel("manflows_ai_editor")</code>、<code>storage</code> 收件箱与 <code>postMessage</code>，也暴露了 <code>window.ManflowsAIEditor.receiveFromCanvas(payload)</code> 供直接调用。本地单文件预览与线上站点不同源，读不到线上画布数据时可用「模拟转入」查看效果；部署到 www.manflows.com 同目录后即自动读得到。</p>
-            <h2>⑦ 当天工程</h2>
+            <h2>⑧ 本轮新增：算力总控 / 画幅 / 框选 / 镜像倒放 / 基础调整</h2>
+            <ul>
+                <li><b>算力总控（素材库上方）</b>：跟导演画布同款的三档单选「漫流算力 / 本机算力 / 第三方API」，点一下即切换；原来的「AI 剪辑·模型配置」「AI 字幕·语音识别」两栏已全部合并进来，<b>只剩这三个选项</b>，不用再手填接口。配置数据仍与创作台 / 画布共用，档位则是<b>本页独立</b>，三页可同时用不同算力并行工作。漫流算力目前是占位档，点 AI 剪辑 / AI 字幕会提示切到本机算力或第三方API。</li>
+                <li><b>素材库</b>：一行多个素材，列数按你拖出来的素材库宽度自动增减；「＋ 导入素材」「🔗 粘贴在线 URL」两个按钮已从顶栏搬进素材库栏。缩略图仍是放大后的尺寸，卡片上不放演示 / ＋ / 播放 / 删除按钮，按住拖到轨道，单击选中后 <code>Delete</code> 删除。</li>
+                <li><b>预览画幅</b>：预览区顶部有「<b>自适应（默认）</b> / 16:9 / 9:16」三个按钮。自适应按<b>你导入的第一条视频或图片的画幅</b>自动决定（读不到尺寸前先按 16:9，读到后自动重算）；手动切 16:9 或 9:16 时画面居中、其余部分留黑边。调板块大小或改窗口尺寸都会自动重算。</li>
+                <li><b>框选素材</b>：在时间轴空白处按住鼠标拖出一个矩形，框到的片段会一起选中（可配合复制 / 剪切 / 删除 / 镜像 / 倒放批量操作）；轻点空白仍是移动播放头。</li>
+                <li><b>⇋ 镜像 / ◀ 倒放</b>：工具条新增两个按钮，快捷键 <code>M</code> / <code>R</code>，对选中的片段生效，片段上会显示 ⇋ / ◀ 标记，随时可再点一次取消。镜像＝画面水平翻转（<code>scaleX(-1)</code>）；倒放＝播放时把该段画面按时间反向映射，真正倒着放，不重新编码、不改素材文件，工程里保留标记。<b>浏览器不支持音频倒放</b>，音轨片段只打标记、声音仍按原样播放并会提示。</li>
+                <li><b>基础调整（右栏与「字幕层」并列的两个标签）</b>：右栏顶部是「基础调整 | 字幕层」两个并列标签，基础调整在左。选中片段后可在这里以<b>预览窗口中心为 (0, 0)</b> 输入位置 X / Y（px，右 / 下为正）、缩放（1＝原始大小）、旋转（度），还有镜像 / 倒放开关与「↺ 重置变换」。<b>预览窗口里也能直接用鼠标操作</b>：按住虚线框拖动移动、拖四角缩放、拖顶部橙色圆点旋转、滚轮缩放，两边数值实时同步。多个字幕层、图片层、视频层可以各自独立变换。</li>
+            </ul>
+            <h2>⑨ 当天工程</h2>
             <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道、字幕与素材自动存在本机；「💾 保存工程」手动存，「📂 打开工程」可切到其它日期，「⬇ 导出工程 JSON」可备份，「重置演示工程」回到内置示例。</p>
         </div>
     </div>
@@ -519,6 +579,29 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="modal-box" style="width:min(460px,100%)">
         <div class="modal-head">📂 打开当天工程<button class="mh-close" data-close="projModal">×</button></div>
         <div class="modal-body"><div class="proj-list" id="projList"></div></div>
+    </div>
+</div>
+
+<!-- AI 剪辑 · 剪辑思路 / 模型选择 / 进度条 -->
+<div class="modal-overlay" id="aiIdeaModal">
+    <div class="modal-box" style="width:min(720px,100%)">
+        <div class="modal-head">✨ AI 剪辑 · 剪辑思路与模型<button class="mh-close" data-close="aiIdeaModal">×</button></div>
+        <div class="modal-body">
+            <p class="ai-idea-warn">✦ <b>建议只选 Claude 或 GPT 系列之一</b>（如 claude-sonnet-4 / claude-opus-4 / gpt-4o / gpt-4.1）。AI 剪辑要把整条时间轴结构与视频抽帧交给模型自主决策，<b>需要 Claude / GPT 等综合能力强的多模态大模型</b>；小参数或纯文本模型通常无法稳定输出可执行的剪辑方案。下拉里列出的都是你已经部署好的算力里的大语言模型。</p>
+            <div class="row" style="margin-top:0"><label class="ai-idea-label">当前算力</label><span class="kv" id="aiIdeaMode">第三方API</span></div>
+            <div class="row"><label class="ai-idea-label">选择模型</label><select id="aiIdeaModel" style="flex:1"></select></div>
+            <div class="row"><input type="text" id="aiIdeaModelCustom" placeholder="下拉里没有？可直接手填模型名，如 gpt-4o / claude-sonnet-4"></div>
+            <div class="row" style="margin-bottom:2px"><label class="ai-idea-label">剪辑思路</label><span class="hint" style="margin:0">写下你的想法，会连同轨道结构一起发给模型（可留空，交给模型自主判断）</span></div>
+            <textarea id="aiIdeaText" placeholder="例如：整体节奏快一点，删掉前面的空镜；前 3 秒要抓人；把两段对白之间的停顿压掉；旁白字幕放画面下方……"></textarea>
+            <div class="ai-progress" id="aiProgress" hidden><div class="ai-progress-fill" id="aiProgressFill"></div></div>
+            <div class="ai-steps" id="aiSteps"></div>
+            <div class="ai-state" id="aiIdeaState" style="margin-top:9px">填好思路、选好模型后点「开始 AI 剪辑」；方案生成后会先弹出来让你确认，确认后才写到轨道（可 Ctrl+Z 撤销）。</div>
+        </div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" data-close="aiIdeaModal">取消</button>
+            <button class="mini-btn purple" id="aiIdeaGoCompute">切换算力档位</button>
+            <button class="mini-btn green" id="aiIdeaStart">▶ 开始 AI 剪辑</button>
+        </div>
     </div>
 </div>
 
@@ -577,6 +660,9 @@ const MF_EDITOR_DB      = "manflows_ai_editor_db";
 const PROJECT_PREFIX    = "manflows_ai_editor_project_";
 const LAYOUT_KEY        = "manflows_ai_editor_layout";
 const AI_CFG_KEY        = "manflows_ai_editor_ai_cfg";
+const ED_COMPUTE_KEY    = "computeMode_editor";
+const AI_MODEL_KEY      = "manflows_ai_editor_ai_model";
+const ED_COMPUTE_LABEL  = {manflow:"漫流算力", local:"本机算力", third_party:"第三方API"};
 const LABEL_W           = 92;
 const DEF_LAYOUT        = {left:308, right:300, tl:294};
 
@@ -602,12 +688,379 @@ function defaultTracks(){
 let state = {
     date: todayStr(), zoom:36, playhead:0, tab:"all",
     assets:[], clips:[], tracks:defaultTracks(),
-    selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1"
+    selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1",
+    compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic"
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
 let pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
+let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
+const AI_STEPS=["模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
+const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
 const $ = id => document.getElementById(id);
+
+/* ==================================================================
+   算力总控（本页独立档位）：三档决定 AI剪辑 / AI字幕 实际用的接口。
+   配置数据仍与创作台 / 画布共用，只是档位各存各的。
+   ================================================================== */
+function loadCompute(){
+    let m=String(safeStorage.get(ED_COMPUTE_KEY)||"").trim();
+    if(!m) m=String(safeStorage.get("computeMode")||"").trim();      /* 首次从旧共用键迁移初值 */
+    if(m==="api") m="third_party";
+    if(m==="comfyui") m="local";
+    return ED_COMPUTE_LABEL[m]?m:"third_party";
+}
+function saveCompute(m){
+    /* 同源的多标签由 storage 事件同步即可；不用 BroadcastChannel，
+       否则同一页面里新建的临时 channel 会把消息回送给自己的监听器，造成自激循环。 */
+    safeStorage.set(ED_COMPUTE_KEY,m);
+}
+function computeProfile(){
+    let list=[]; try{ list=JSON.parse(safeStorage.get("manflows_api_profiles")||"[]")||[]; }catch(e){}
+    if(!Array.isArray(list)) list=[];
+    const cur=String(safeStorage.get("manflows_current_profile_id")||"").trim();
+    return list.find(x=>x&&String(x.id||"")===cur)||list[0]||null;
+}
+function computeLocal(){
+    return {base:String(safeStorage.get("manflows_local_base")||"").trim(),
+            model:String(safeStorage.get("manflows_local_model")||"").trim()};
+}
+function asrEndpointFromBase(base){
+    let t=String(base||"").trim().replace(/\/+$/,"");
+    if(!t) return "";
+    t=t.replace(/\/chat\/completions$/i,"").replace(/\/v1$/i,"");
+    return t+"/v1/audio/transcriptions";
+}
+function asrModelFor(m){
+    const t=String(m||"").toLowerCase();
+    if(/gpt-4o|gpt4o|transcribe|audio/.test(t)) return "gpt-4o-transcribe";
+    return "whisper-1";
+}
+function asrConfigForMode(){
+    if(state.compute==="local"){
+        const L=computeLocal(); let ep="";
+        if(L.base){ try{ const u=new URL(L.base); ep=u.protocol+"//"+u.hostname+":9000/v1/audio/transcriptions"; }catch(e){} }
+        if(!ep) ep="http://127.0.0.1:9000/v1/audio/transcriptions";
+        return {endpoint:ep,key:"",model:"whisper-1",chatModel:L.model||"",language:"zh",label:"本机算力 · faster-whisper / 本机转写"};
+    }
+    if(state.compute==="manflow") return {endpoint:"",key:"",model:"",chatModel:"",language:"zh",label:"漫流算力（占位，暂未开放）"};
+    const pr=computeProfile();
+    if(!pr) return {endpoint:"",key:"",model:"",chatModel:"",language:"zh",label:"尚未配置接口（到创作台 / 画布填）"};
+    const chosen=String(state.aiModel||"").trim();
+    return {endpoint:asrEndpointFromBase(String(pr.endpoint||"")),key:String(pr.key||"").trim(),
+        model:asrModelFor(chosen||pr.model),chatModel:chosen||String(pr.model||"").trim(),language:"zh",
+        label:String(pr.name||pr.model||"未命名")};
+}
+function setEdState(text,kind){
+    const el=$("edState"); if(el){ el.className="ai-state"+(kind?" "+kind:""); el.textContent=text; }
+}
+function setEdProgress(step,text,err){
+    const box=$("edProgress"), fill=$("edProgressFill"), steps=$("edSteps");
+    if(box) box.hidden=false;
+    if(fill) fill.style.width=Math.min(100,Math.round(step/(ASR_STEPS.length-1)*100))+"%";
+    if(steps) steps.innerHTML=ASR_STEPS.map((t,i)=>'<div class="ai-step '+(i<step?"done":(i===step?(err?"err":"active"):""))+'"><span class="dot"></span>'+esc(i===step&&text?(t+" · "+text):t)+'</div>').join("");
+    setEdState(text||ASR_STEPS[step]||"",err?"err":(step>=ASR_STEPS.length-1?"ok":""));
+}
+function setAiProgress(step,text,err){
+    const box=$("aiProgress"), fill=$("aiProgressFill"), steps=$("aiSteps");
+    if(box) box.hidden=false;
+    if(fill) fill.style.width=Math.min(100,Math.round(step/(AI_STEPS.length-1)*100))+"%";
+    if(steps) steps.innerHTML=AI_STEPS.map((t,i)=>'<div class="ai-step '+(i<step?"done":(i===step?(err?"err":"active"):""))+'"><span class="dot"></span>'+esc(i===step&&text?(t+" · "+text):t)+'</div>').join("");
+    const st=$("aiIdeaState"); if(st){ st.className="ai-state"+(err?" err":""); st.textContent=text||AI_STEPS[step]||""; }
+}
+function applyCompute(mode,silent,skipSave){
+    const m=ED_COMPUTE_LABEL[mode]?mode:"third_party";
+    state.compute=m;
+    document.querySelectorAll('#edModeRow input[name="edComputeMode"]').forEach(r=>{
+        r.checked=(r.value===m);
+        const lb=r.closest("label"); if(lb) lb.classList.toggle("active",r.checked);
+    });
+    if(m==="third_party") $("aiSrc").value="profile";
+    else if(m==="local") $("aiSrc").value="local";
+    const ac=asrConfigForMode();
+    $("asrEngine").value="remote";
+    $("asrEndpoint").value=ac.endpoint||"";
+    $("asrKey").value=ac.key||"";
+    $("asrModel").value=ac.model||"whisper-1";
+    $("asrLang").value="zh";
+    $("asrCfg").style.display="none";
+    $("aiCustom").style.display="none";
+    $("edComputeHint").textContent=m==="manflow"
+        ? "占位档，暂不可运行；请点「本机算力」或「第三方API」。本页档位与另两页独立。"
+        : "AI剪辑 / AI字幕 共用此档位：本机算力＝本机模型 + faster-whisper；第三方API＝创作台 / 画布已存配置。本页档位独立。";
+    setEdState("当前："+ED_COMPUTE_LABEL[m]+(m==="manflow"?" · 占位暂未开放":" · "+ac.label),m==="manflow"?"err":"");
+    const im=$("aiIdeaMode"); if(im) im.textContent=ED_COMPUTE_LABEL[m];
+    if(!skipSave) saveCompute(m);
+    if(!silent) toast("算力总控已切换为「"+ED_COMPUTE_LABEL[m]+"」","ok");
+}
+/* 模型下拉：只列用户已部署好的算力里的大语言模型 */
+function collectAiModels(){
+    const out=[], seen=new Set();
+    const add=(name,from)=>{
+        name=String(name||"").trim();
+        if(!name||seen.has(name.toLowerCase())) return;
+        seen.add(name.toLowerCase()); out.push({name:name,from:from});
+    };
+    if(state.compute==="local") add(computeLocal().model,"本机算力");
+    else if(state.compute==="third_party"){
+        let list=[]; try{ list=JSON.parse(safeStorage.get("manflows_api_profiles")||"[]")||[]; }catch(e){}
+        if(Array.isArray(list)) list.forEach(x=>add(x&&x.model,"第三方API · "+String((x&&x.name)||"")));
+    }
+    let lib=[]; try{ lib=JSON.parse(safeStorage.get("manflows_model_library")||"[]")||[]; }catch(e){}
+    if(Array.isArray(lib)) lib.forEach(x=>{ if(x&&(x.kind==="llm"||x.kind==="both")) add(x.name,"模型清单"); });
+    return out;
+}
+function fillAiIdeaModels(){
+    const sel=$("aiIdeaModel"); if(!sel) return;
+    const list=collectAiModels();
+    let html='<option value="">沿用当前算力里配置的模型</option>';
+    list.forEach(m=>{
+        const rec=/claude|gpt-4|gpt4|gpt-3\.5|o1|o3|gemini/i.test(m.name)?" ★ 推荐":"";
+        html+='<option value="'+esc(m.name)+'">'+esc(m.name)+" · "+esc(m.from)+rec+'</option>';
+    });
+    sel.innerHTML=html;
+    const saved=String(safeStorage.get(AI_MODEL_KEY)||"").trim();
+    if(saved && list.some(m=>m.name===saved)){ sel.value=saved; $("aiIdeaModelCustom").value=""; }
+    else { sel.value=""; $("aiIdeaModelCustom").value=saved; }
+}
+function openAiIdea(){
+    if(state.compute==="manflow") toast("当前在「漫流算力」（占位档），请先在左上「算力总控」切到本机算力或第三方API","err");
+    fillAiIdeaModels();
+    $("aiProgress").hidden=true; $("aiProgressFill").style.width="0%"; $("aiSteps").innerHTML="";
+    const st=$("aiIdeaState"); st.className="ai-state";
+    st.textContent="填好思路、选好模型后点「开始 AI 剪辑」；方案生成后会先弹出来让你确认，确认后才写到轨道（可 Ctrl+Z 撤销）。";
+    $("aiIdeaStart").disabled=false;
+    $("aiIdeaModal").classList.add("show");
+}
+async function startAiIdea(){
+    const typed=$("aiIdeaModelCustom").value.trim();
+    const chosen=typed||$("aiIdeaModel").value.trim();
+    state.aiModel=chosen;
+    safeStorage.set(AI_MODEL_KEY,chosen);
+    if(chosen) $("aiModel").value=chosen;
+    const idea=$("aiIdeaText").value.trim();
+    await runAiEdit(idea,chosen);
+}
+/* ==================================================================
+   片段变换：fx = {x,y,scale,rotate,mirror,reverse}
+   以预览窗口中心为 (0,0)；镜像 = scaleX(-1)；倒放 = 播放时间反向映射。
+   ================================================================== */
+function defaultFx(){ return {x:0,y:0,scale:1,rotate:0,mirror:false,reverse:false}; }
+function fxOf(c){
+    if(!c) return defaultFx();
+    if(!c.fx||typeof c.fx!=="object") c.fx=defaultFx();
+    const d=defaultFx();
+    for(const k in d) if(c.fx[k]===undefined) c.fx[k]=d[k];
+    return c.fx;
+}
+function fxTransform(c){
+    const f=fxOf(c), sc=Number(f.scale)||1;
+    return "translate("+Number(f.x||0)+"px,"+Number(f.y||0)+"px) rotate("+Number(f.rotate||0)+"deg) scale("+((f.mirror?-1:1)*sc)+","+sc+")";
+}
+function applyClipTransforms(){
+    const vc=mainVisualClip();
+    const tr=vc?fxTransform(vc):"";
+    vEl.style.transform=tr; imgEl.style.transform=tr;
+    pipLayer.querySelectorAll(".pip-item").forEach(el=>{
+        const c=clipById(el.dataset.clip); el.style.transform=c?fxTransform(c):"";
+    });
+    $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
+        const c=clipById(el.dataset.clip); el.style.transform=c?fxTransform(c):"";
+    });
+    updateFxBox();
+}
+function updateFxBox(){
+    const box=$("fxBox"), c=selectedClip();
+    if(!box) return;
+    if(!c){ box.hidden=true; return; }
+    box.hidden=false;
+    box.style.transform="translate(-50%,-50%) "+fxTransform(c);
+    const f=fxOf(c), bg=$("fxBadge");
+    if(bg) bg.textContent=(f.mirror?"⇋ 镜像 ":"")+(f.reverse?"◀ 倒放 ":"")+"拖动移动 · 四角缩放 · 圆点旋转 · 滚轮缩放";
+}
+function updateFxInputs(f){
+    const map={fxX:Math.round(f.x||0),fxY:Math.round(f.y||0),
+        fxScale:Number(f.scale||1).toFixed(2),fxRotate:Math.round(f.rotate||0)};
+    for(const k in map){ const el=$(k); if(el && document.activeElement!==el) el.value=map[k]; }
+    const m=$("fxMirror"), r=$("fxReverse");
+    if(m) m.checked=!!f.mirror; if(r) r.checked=!!f.reverse;
+}
+function renderBasicBox(){
+    const box=$("basicBox"), c=selectedClip();
+    if(!box) return;
+    if(!c){
+        box.innerHTML='<div class="fx-sec">基础调整</div><div class="fx-note">点选时间轴上任意片段后，这里可以移动 / 缩放 / 旋转它在预览窗口里的画面；也可以直接在预览窗口里按住拖动、拖四角缩放、拖顶部圆点旋转，两边数值实时同步。</div>';
+        return;
+    }
+    const f=fxOf(c);
+    box.innerHTML='<div class="fx-sec">基础调整 · 以预览窗口中心为 (0, 0)</div>'
+      +'<div class="fx-note">原点在预览窗口正中心：X 向右为正、Y 向下为正（px）；缩放 1 = 原始大小；旋转单位度。数值改动会立刻反映到预览窗口，也可直接在预览窗口用鼠标操作。</div>'
+      +'<div class="prop-row"><label>位置 X / Y</label><input type="number" id="fxX" step="1" value="'+Math.round(f.x||0)+'"><input type="number" id="fxY" step="1" value="'+Math.round(f.y||0)+'"></div>'
+      +'<div class="prop-row"><label>缩放</label><input type="number" id="fxScale" step="0.05" min="0.1" max="5" value="'+Number(f.scale||1).toFixed(2)+'"></div>'
+      +'<div class="prop-row"><label>旋转 (°)</label><input type="number" id="fxRotate" step="1" min="-360" max="360" value="'+Math.round(f.rotate||0)+'"></div>'
+      +'<div class="prop-row"><label style="flex:0 0 66px">画面</label><div class="fx-switches">'
+        +'<label><input type="checkbox" id="fxMirror"'+(f.mirror?" checked":"")+'> ⇋ 镜像</label>'
+        +'<label><input type="checkbox" id="fxReverse"'+(f.reverse?" checked":"")+'> ◀ 倒放</label></div></div>'
+      +'<div class="row"><button class="mini-btn gray" id="fxReset" style="flex:1">↺ 重置变换</button></div>';
+    const apply=()=>{
+        f.x=Number($("fxX").value)||0; f.y=Number($("fxY").value)||0;
+        f.scale=clamp(Number($("fxScale").value)||1,0.1,5);
+        f.rotate=clamp(Number($("fxRotate").value)||0,-360,360);
+        f.mirror=$("fxMirror").checked; f.reverse=$("fxReverse").checked;
+        applyClipTransforms(); renderTimeline(); autoSave();
+    };
+    ["fxX","fxY","fxScale","fxRotate"].forEach(id=>{
+        $(id).addEventListener("focus",()=>pushHistory());
+        $(id).addEventListener("input",apply);
+    });
+    ["fxMirror","fxReverse"].forEach(id=>$(id).addEventListener("change",()=>{ pushHistory(); apply(); }));
+    $("fxReset").onclick=()=>{ pushHistory(); c.fx=defaultFx(); renderAll(); autoSave(); toast("已重置该片段的基础调整","ok"); };
+}
+function showPropTab(name){
+    state.propTab=name==="sub"?"sub":"basic";
+    document.querySelectorAll(".prop-tab").forEach(b=>b.classList.toggle("active",b.dataset.ptab===state.propTab));
+    $("panelBasic").hidden=(state.propTab!=="basic");
+    $("panelSub").hidden=(state.propTab!=="sub");
+}
+function toggleMirror(){
+    const ids=selectedIds();
+    if(!ids.length){ toast("先点选一个片段，再点「⇋ 镜像」","err"); return; }
+    pushHistory();
+    const on=!ids.every(id=>{ const c=clipById(id); return c&&fxOf(c).mirror; });
+    ids.forEach(id=>{ const c=clipById(id); if(c) fxOf(c).mirror=on; });
+    renderAll(); autoSave(); toast(on?"已开启镜像（画面水平翻转）":"已关闭镜像","ok");
+}
+function toggleReverse(){
+    const ids=selectedIds();
+    if(!ids.length){ toast("先点选一个片段，再点「◀ 倒放」","err"); return; }
+    pushHistory();
+    const on=!ids.every(id=>{ const c=clipById(id); return c&&fxOf(c).reverse; });
+    let audioHit=false;
+    ids.forEach(id=>{
+        const c=clipById(id); if(!c) return;
+        fxOf(c).reverse=on;
+        if(trackKind(c.track)==="audio") audioHit=true;
+    });
+    renderAll(); autoSave();
+    toast(on?"已开启倒放（画面反向播放）":"已关闭倒放","ok");
+    if(on&&audioHit) toast("提示：浏览器不支持音频倒放，音轨片段仅打标记、声音仍按原样播放","err");
+}
+/* ==================================================================
+   预览画幅：16:9 / 9:16 / 自适应（默认，按导入的第一条视频或图片）
+   ================================================================== */
+function probeAssetRatio(a){
+    if(!a||a.ratio||!a.url) return;
+    if(a.type==="image"){
+        const im=new Image();
+        im.onload=()=>{ if(im.naturalWidth&&im.naturalHeight){ a.ratio=im.naturalWidth/im.naturalHeight; applyAspect(); } };
+        im.src=a.url;
+    }else if(a.type==="video"){
+        const v=document.createElement("video"); v.preload="metadata"; v.muted=true;
+        v.onloadedmetadata=()=>{ if(v.videoWidth&&v.videoHeight){ a.ratio=v.videoWidth/v.videoHeight; applyAspect(); } };
+        v.src=a.url;
+    }
+}
+function autoRatio(){
+    const a=state.assets.find(x=>x&&(x.type==="video"||x.type==="image"));
+    if(!a) return 16/9;
+    if(Number(a.ratio)>0) return Number(a.ratio);
+    probeAssetRatio(a);
+    return 16/9;                     /* 读不到尺寸前先按 16:9，读到后自动重算 */
+}
+function applyAspect(){
+    const mode=state.aspect||"auto";
+    const r=clamp(mode==="9:16"?9/16:(mode==="16:9"?16/9:autoRatio()),0.3,4);
+    const st=$("stage"), wrap=st.parentElement;
+    const W=Math.max(120,wrap.clientWidth-8), H=Math.max(90,wrap.clientHeight-8);
+    let w=W,h=W/r;
+    if(h>H){ h=H; w=H*r; }
+    st.style.width=Math.max(80,Math.round(w))+"px";
+    st.style.height=Math.max(60,Math.round(h))+"px";
+    st.dataset.aspect=mode;
+    document.querySelectorAll(".asp-btn").forEach(b=>b.classList.toggle("active",b.dataset.asp===mode));
+    $("playerMode").textContent=(mode==="auto"?"自适应画幅 ":"画幅 ")+(mode==="auto"?(r.toFixed(2)+":1"):mode);
+    updateFxBox();
+}
+/* 录音期间静音轨道上所有声音，停止后恢复 */
+function setRecordMute(on){
+    recordMuted=on;
+    const vol=Number($("volRange").value)||0.8;
+    try{ vEl.muted=on; vEl.volume=on?0:vol; }catch(e){}
+    audioPool.forEach(o=>{ try{ o.el.muted=on; o.el.volume=on?0:vol; }catch(e){} });
+}
+/* 时间轴鼠标框选多个片段 */
+function wireMarquee(){
+    const sc=$("tlScroll"); let st=null;
+    sc.addEventListener("mousedown",e=>{
+        if(e.button!==0||st) return;
+        if(e.target.closest(".clip")||e.target.closest("button")||e.target.closest("[data-split]")||e.target.closest("[data-handle]")) return;
+        const lane=e.target.closest(".lane")||e.target.closest(".ruler-scale")||e.target.closest("#tracks")||e.target.closest(".track-label");
+        if(!lane) return;
+        st={x0:e.clientX,y0:e.clientY,moved:false,el:null};
+        const mv=ev=>{
+            if(!st) return;
+            if(!st.moved && (Math.abs(ev.clientX-st.x0)>6||Math.abs(ev.clientY-st.y0)>6)){
+                st.moved=true;
+                const d=document.createElement("div"); d.className="marquee"; document.body.appendChild(d); st.el=d;
+            }
+            if(st.moved&&st.el){
+                st.el.style.left=Math.min(st.x0,ev.clientX)+"px"; st.el.style.top=Math.min(st.y0,ev.clientY)+"px";
+                st.el.style.width=Math.abs(ev.clientX-st.x0)+"px"; st.el.style.height=Math.abs(ev.clientY-st.y0)+"px";
+            }
+        };
+        const up=ev=>{
+            document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
+            const cur=st; st=null;
+            if(!cur) return;
+            if(cur.el) cur.el.remove();
+            if(!cur.moved) return;
+            const r={l:Math.min(cur.x0,ev.clientX),t:Math.min(cur.y0,ev.clientY),r:Math.max(cur.x0,ev.clientX),b:Math.max(cur.y0,ev.clientY)};
+            const ids=[];
+            sc.querySelectorAll(".clip").forEach(el=>{
+                const q=el.getBoundingClientRect();
+                if(q.right>=r.l&&q.left<=r.r&&q.bottom>=r.t&&q.top<=r.b) ids.push(el.dataset.id);
+            });
+            state.multi=ids; state.selected=ids[0]||null; state.selectedAsset=null;
+            suppressLaneClick=true; setTimeout(()=>{suppressLaneClick=false;},350);
+            renderProps(); renderSubList(); renderTimeline();
+            if(ids.length) toast("框选了 "+ids.length+" 个片段","ok");
+        };
+        document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+    });
+}
+/* 预览窗口：拖动移动 / 四角缩放 / 顶部圆点旋转 / 滚轮缩放 */
+function wireFxBox(){
+    const box=$("fxBox");
+    box.addEventListener("mousedown",e=>{
+        const c=selectedClip(); if(!c) return;
+        e.preventDefault(); e.stopPropagation();
+        pushHistory();
+        const f=fxOf(c), snap=Object.assign({},f);
+        const mode=e.target.closest(".fx-corner")?"scale":(e.target.closest(".fx-rot")?"rotate":"move");
+        const x0=e.clientX,y0=e.clientY;
+        const rect=$("stage").getBoundingClientRect();
+        const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+        const d0=Math.max(1,Math.hypot(x0-cx,y0-cy)), a0=Math.atan2(y0-cy,x0-cx);
+        const mv=ev=>{
+            if(mode==="move"){ f.x=snap.x+(ev.clientX-x0); f.y=snap.y+(ev.clientY-y0); }
+            else if(mode==="scale"){ f.scale=clamp(snap.scale*(Math.hypot(ev.clientX-cx,ev.clientY-cy)/d0),0.1,5); }
+            else{ f.rotate=snap.rotate+(Math.atan2(ev.clientY-cy,ev.clientX-cx)-a0)*180/Math.PI; }
+            applyClipTransforms(); updateFxInputs(f);
+        };
+        const up=()=>{
+            document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
+            renderAll(); autoSave();
+        };
+        document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+    });
+    $("stage").addEventListener("wheel",e=>{
+        const c=selectedClip(); if(!c) return;
+        e.preventDefault();
+        const f=fxOf(c);
+        f.scale=clamp((Number(f.scale)||1)*(e.deltaY<0?1.06:0.94),0.1,5);
+        applyClipTransforms(); updateFxInputs(f); autoSave();
+    },{passive:false});
+}
 
 /* ---------- 通用小工具 ---------- */
 function uid(){ return "e"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -690,7 +1143,7 @@ function wireSplitters(){
             const mv=ev=>{
                 let w=side==="left" ? w0+(ev.clientX-x0) : w0-(ev.clientX-x0);
                 L[side]=clamp(w,180,Math.min(620,window.innerWidth-360));
-                applyLayout(L);
+                applyLayout(L); applyAspect();
             };
             const up=()=>{
                 el.classList.remove("active"); document.body.classList.remove("resizing");
@@ -704,7 +1157,7 @@ function wireSplitters(){
     hs.addEventListener("mousedown",e=>{
         e.preventDefault(); hs.classList.add("active"); document.body.classList.add("resizing");
         const y0=e.clientY, L=loadLayout(), h0=L.tl;
-        const mv=ev=>{ L.tl=clamp(h0-(ev.clientY-y0),150,Math.max(180,window.innerHeight-160)); applyLayout(L); };
+        const mv=ev=>{ L.tl=clamp(h0-(ev.clientY-y0),150,Math.max(180,window.innerHeight-160)); applyLayout(L); applyAspect(); };
         const up=()=>{
             hs.classList.remove("active"); document.body.classList.remove("resizing");
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
@@ -753,6 +1206,7 @@ async function addAsset(o){
     state.assets.push(a);
     if(a.blobId){ try{ await dbPut("assets",a.id,a.blob); }catch(e){ console.warn("素材入库失败",e); } }
     delete a.blob;
+    if(a.type==="video"||a.type==="image"){ probeAssetRatio(a); applyAspect(); }
     renderAssets(); renderProjInfo(); autoSave();
     return a;
 }
@@ -904,7 +1358,7 @@ function applySegments(segs, opts){
     for(const s of segs){
         const dur=Math.max(0.4, (s.end||s.start+2)-s.start);
         state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,(Number(s.start)||0)+shift),
-            duration:dur, offset:0, text:String(s.text||"").trim(), name:String(s.text||"").slice(0,10), subKind:s.kind||""});
+            duration:dur, offset:0, text:String(s.text||"").trim(), name:String(s.text||"").slice(0,10), subKind:s.kind||"", fx:defaultFx()});
     }
     state.selected=null; state.multi=[];
     if(!opts.quiet){ renderAll(); autoSave(); }
@@ -945,7 +1399,7 @@ function addAssetToTrack(a, opts){
     if(!tr) tr=pickTrackFor(kind,opts.at,dur);
     const base=Math.max(0,opts.at!=null?Number(opts.at):state.playhead);
     pushHistory();
-    const c={id:uid(), track:tr.id, assetId:a.id, start:base, duration:dur, offset:0, text:"", name:a.name};
+    const c={id:uid(), track:tr.id, assetId:a.id, start:base, duration:dur, offset:0, text:"", name:a.name, fx:defaultFx()};
     state.clips.push(c); state.selected=c.id; state.multi=[]; state.selectedAsset=null;
     renderAll(); autoSave();
     toast("已加入「"+tr.label+"」轨道","ok");
@@ -954,7 +1408,7 @@ function addBlankSubtitle(){
     const tr=currentSubTrack()||newTrack("text");
     pushHistory();
     state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,state.playhead),
-        duration:2.6, offset:0, text:"新字幕", name:"新字幕", subKind:""});
+        duration:2.6, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:defaultFx()});
     renderAll(); autoSave();
 }
 /* ---------- 时间轴渲染（动态轨道） ---------- */
@@ -985,9 +1439,11 @@ function clipHtml(c,t){
     const label=c.text || c.name || (a?a.name:"片段");
     const left=Math.round(c.start*state.zoom), width=Math.max(14,Math.round(c.duration*state.zoom));
     const sel=state.selected===c.id || state.multi.indexOf(c.id)>=0;
+    const f=c.fx||{}, tag=(f.mirror?"⇋":"")+(f.reverse?"◀":"");
     return '<div class="clip'+(sel?" sel":"")+'" data-id="'+esc(c.id)+'" '
       +'style="left:'+left+'px;width:'+width+'px;background:'+TK_COLOR[t.kind]+'" title="'+esc(label)+'">'
       +'<div class="clip-body">'+esc(label)+'</div>'
+      +(tag?'<span class="clip-fx-tag">'+tag+'</span>':'')
       +'<button class="clip-split" data-split="'+esc(c.id)+'" title="在此剪断">✂</button>'
       +'<div class="clip-handle" data-handle="'+esc(c.id)+'"></div></div>';
 }
@@ -1029,7 +1485,7 @@ function renderPips(){
     const key=list.map(x=>x.aid).join("|");
     if(pipLayer.dataset.key===key) return list.length;
     pipLayer.dataset.key=key;
-    pipLayer.innerHTML=list.map((x,i)=>'<img class="pip-item" src="'+esc(x.url)+'" style="top:'+(14+i*118)+'px" alt="图片叠加">').join("");
+    pipLayer.innerHTML=list.map((x,i)=>'<img class="pip-item" data-clip="'+esc(x.id)+'" src="'+esc(x.url)+'" style="top:'+(14+i*118)+'px" alt="图片叠加">').join("");
     return list.length;
 }
 function syncAudioPool(){
@@ -1052,7 +1508,7 @@ function syncAudioPool(){
         if(o.aid!==x.a.id){ o.el.src=x.a.url; o.aid=x.a.id; }
         const wt=(x.c.offset||0)+(state.playhead-x.c.start);
         if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>0.32 && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
-        o.el.volume=vol;
+        o.el.muted=recordMuted; o.el.volume=recordMuted?0:vol;
         if(playing && o.el.paused) o.el.play().catch(()=>{});
         if(!playing && !o.el.paused) o.el.pause();
     }
@@ -1066,17 +1522,25 @@ function renderSubtitleOverlay(){
     const key=active.map(c=>c.id+c.text+(c.subKind||"")).join("|");
     if(key===subCache) return;
     subCache=key;
-    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+'">'+esc(c.text)+'</div>').join("");
+    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+'" data-clip="'+esc(c.id)+'">'+esc(c.text)+'</div>').join("");
 }
 function syncMedia(){
     const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
     let showVideo=false, showImage=false;
     if(va && va.type==="video" && va.url){
         if(vEl.dataset.aid!==va.id){ vEl.src=va.url; vEl.dataset.aid=va.id; }
-        const wt=(vc.offset||0)+(state.playhead-vc.start);
-        if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>0.32 && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
-        if(playing && vEl.paused) vEl.play().catch(()=>{});
-        if(!playing && !vEl.paused) vEl.pause();
+        const rev=!!fxOf(vc).reverse;
+        if(rev){
+            /* 预览级倒放：暂停视频自身播放，由播放头反向映射 currentTime */
+            if(!vEl.paused) vEl.pause();
+            const want=(vc.offset||0)+Math.max(0,vc.duration-(state.playhead-vc.start));
+            if(vEl.readyState>0 && Math.abs(vEl.currentTime-want)>0.05){ try{ vEl.currentTime=want; }catch(e){} }
+        }else{
+            const wt=(vc.offset||0)+(state.playhead-vc.start);
+            if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>0.32 && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
+            if(playing && vEl.paused) vEl.play().catch(()=>{});
+            if(!playing && !vEl.paused) vEl.pause();
+        }
         showVideo=true;
     }else if(va && va.type==="image" && va.url){
         if(imgEl.dataset.aid!==va.id){ imgEl.src=va.url; imgEl.dataset.aid=va.id; }
@@ -1087,14 +1551,17 @@ function syncMedia(){
     $("stageEmpty").style.display=(showVideo||showImage||nPip)?"none":"flex";
     syncAudioPool();
     renderSubtitleOverlay();
+    applyClipTransforms();
 }
 function tick(ts){
     if(!playing) return;
     if(!lastTs) lastTs=ts;
     const dt=(ts-lastTs)/1000; lastTs=ts;
     const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
+    const rev=!!(vc && fxOf(vc).reverse);
     let t;
-    if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
+    if(rev) t=state.playhead+Math.min(dt,0.25);
+    else if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
         t=vc.start+(vEl.currentTime-(vc.offset||0));
     }else t=state.playhead+Math.min(dt,0.25);
     state.playhead=clamp(t,0,totalDuration());
@@ -1173,10 +1640,10 @@ function renderProjInfo(){
     $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
     $("dateChip").textContent="当天工程 "+state.date;
 }
-function renderAll(){ renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); }
+function renderAll(){ renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); applyClipTransforms(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
-function snapshot(){ return JSON.stringify({clips:state.clips,tracks:state.tracks}); }
+function snapshot(){ state.clips.forEach(fxOf); return JSON.stringify({clips:state.clips,tracks:state.tracks}); }
 function pushHistory(){ historyStack.push(snapshot()); if(historyStack.length>40) historyStack.shift(); redoStack=[]; }
 function restore(s){
     let o; try{ o=JSON.parse(s); }catch(e){ return; }
@@ -1210,7 +1677,7 @@ function splitSelected(at){
     if(t<=c.start+0.08 || t>=c.start+c.duration-0.08){ toast("播放头要落在片段中间才能剪断"); return; }
     const leftDur=t-c.start, rightDur=c.duration-leftDur;
     pushHistory();
-    const right=Object.assign({},c,{id:uid(),start:t,duration:rightDur,offset:(c.offset||0)+leftDur});
+    const right=Object.assign({},c,{id:uid(),start:t,duration:rightDur,offset:(c.offset||0)+leftDur,fx:Object.assign({},fxOf(c))});
     if(c.text){
         const cut=Math.max(1,Math.round(c.text.length*(leftDur/c.duration)));
         right.text=c.text.slice(cut); c.text=c.text.slice(0,cut);
@@ -1223,7 +1690,7 @@ function splitSelected(at){
 function copySelection(cut){
     const ids=selectedIds();
     if(!ids.length){ toast("请先点选片段（Shift 点选可多选）"); return; }
-    clipboard=state.clips.filter(c=>ids.indexOf(c.id)>=0).map(c=>Object.assign({},c,{_kind:trackKind(c.track)}));
+    clipboard=state.clips.filter(c=>ids.indexOf(c.id)>=0).map(c=>Object.assign({},c,{_kind:trackKind(c.track),fx:Object.assign({},fxOf(c))}));
     if(cut){ pushHistory(); state.clips=state.clips.filter(c=>ids.indexOf(c.id)<0); state.selected=null; state.multi=[]; renderAll(); autoSave(); }
     toast((cut?"已剪切 ":"已复制 ")+clipboard.length+" 个片段","ok");
 }
@@ -1235,7 +1702,7 @@ function pasteClips(){
         let tr=trackById(src.track);
         const kind=src._kind||"video";
         if(!tr){ tr=orderedTracks().find(t=>t.kind===kind)||newTrack(kind); }
-        const c=Object.assign({},src,{id:uid(),track:tr.id,start:base+((src.start||0)-min)});
+        const c=Object.assign({},src,{id:uid(),track:tr.id,start:base+((src.start||0)-min),fx:Object.assign({},src.fx||defaultFx())});
         delete c._kind;
         state.clips.push(c); added.push(c.id);
     }
@@ -1269,8 +1736,9 @@ async function remoteASR(a,cfg){
     const arr=Array.isArray(j.segments)?j.segments:(j.result&&Array.isArray(j.result.segments)?j.result.segments:[]);
     if(!arr.length){
         const txt=(j.text||"").trim();
-        if(txt) return [{start:0,end:3,text:txt,kind:guessSubKind(txt)}];
-        throw new Error("接口没有返回 segments，请确认使用 verbose_json 格式");
+        /* 没有分段时间码时，用素材真实时长作为这一整句的范围，不再凭空造 3 秒 */
+        if(txt) return [{start:0,end:Math.max(1,Number(a.duration)||8),text:txt,kind:guessSubKind(txt)}];
+        throw new Error("接口既没有返回 segments 也没有返回 text，请确认使用 verbose_json 格式");
     }
     return arr.map(s=>({start:Number(s.start)||0,end:Number(s.end)||((Number(s.start)||0)+2),
         text:String(s.text||"").trim(),kind:guessSubKind(s.text)})).filter(s=>s.text);
@@ -1297,46 +1765,94 @@ function micASR(){
         btn.onclick=()=>{ try{ r.stop(); }catch(e){} };
     });
 }
+/* 多模态大模型音频输入降级：转写接口不可用时，用支持音频的对话模型听音频 */
+async function chatAudioASR(a,cfg){
+    const blob=await assetBlob(a);
+    if(blob.size>20*1024*1024) throw new Error("音频文件超过 20MB，多模态音频输入不适合，请改用转写接口");
+    const buf=await blob.arrayBuffer(), bytes=new Uint8Array(buf);
+    let bin=""; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+    const ext=String(a.ext||a.name||"").toLowerCase();
+    const fmt=/mp4|m4a|mov/.test(ext)?"mp4":(/wav/.test(ext)?"wav":(/mp3/.test(ext)?"mp3":"webm"));
+    const ep=String(cfg.endpoint||"").replace(/\/audio\/transcriptions$/i,"/chat/completions");
+    const headers={"Content-Type":"application/json"};
+    if(cfg.key) headers.Authorization="Bearer "+cfg.key;
+    const body={model:cfg.chatModel||"gpt-4o-audio-preview",stream:false,temperature:0,messages:[{role:"user",content:[
+        {type:"text",text:"请把这段音频逐句转写成字幕。只输出 JSON 数组，每项形如 {\"start\":秒,\"end\":秒,\"text\":\"逐字原文\",\"kind\":\"dialogue|narration|inner\"}，start/end 是相对这段音频开头的秒数。不要解释、不要代码块、不要额外文字；没有语音就输出 []。"},
+        {type:"input_audio",input_audio:{data:btoa(bin),format:fmt}}
+    ]}]};
+    const r=await fetch(ep,{method:"POST",headers:headers,body:JSON.stringify(body)});
+    const raw=await r.text();
+    if(!r.ok) throw new Error("多模态音频接口 HTTP "+r.status+"："+raw.slice(0,180));
+    let j; try{ j=JSON.parse(raw); }catch(e){ throw new Error("多模态音频接口返回的不是 JSON"); }
+    const msg=(j.choices&&j.choices[0]&&(j.choices[0].message||j.choices[0].delta))||{};
+    let t=msg.content; if(Array.isArray(t)) t=t.map(x=>x&&x.text||"").join("");
+    if(!t) t=msg.reasoning_content||j.output_text||j.text||"";
+    t=String(t||"").replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"").trim();
+    const i=t.indexOf("["), k=t.lastIndexOf("]");
+    if(i<0||k<i) throw new Error("模型没有返回可解析的字幕数组");
+    let arr; try{ arr=JSON.parse(t.slice(i,k+1)); }catch(e){ throw new Error("模型返回的字幕数组不是合法 JSON"); }
+    if(!Array.isArray(arr)) throw new Error("模型返回的不是数组");
+    return arr.map(x=>({start:Number(x.start)||0,end:Number(x.end)||((Number(x.start)||0)+2),
+        text:String(x.text||"").trim(),kind:guessSubKind(x.text)})).filter(x=>x.text);
+}
+/* AI 字幕：真实分析轨道上的视频 / 音频素材，绝不再给演示假字幕 */
 async function runASR(){
-    const btn=$("asrRun");
-    if(btn.dataset.mic==="1") return;
-    const engine=$("asrEngine").value, st=$("aiState");
-    let segs=[];
+    if(asrBusy) return;
+    if(state.compute==="manflow"){
+        setEdState("「漫流算力」是占位档，暂不可运行 AI 字幕。请在左上「算力总控」切到「本机算力」或「第三方API」。","err");
+        toast("请先切到本机算力或第三方API","err"); return;
+    }
+    const cfg=asrConfigForMode();
+    if(!cfg.endpoint){
+        showAiSetup(aiConfig());
+        setEdState("还没有可用的转写接口：请到创作台 / 画布「算力总控 → 第三方API」填好接口地址，或接通本机 faster-whisper（默认 9000 端口）。","err");
+        return;
+    }
+    const list=state.clips.filter(c=>{
+        const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
+        return (k==="video"||k==="audio") && a && (a.type==="video"||a.type==="audio");
+    }).sort((a,b)=>a.start-b.start);
+    if(!list.length){
+        setEdState("轨道上还没有可分析的真实视频 / 音频素材：请先把带声音的 mp4 / mp3 等文件导入素材库并拖到轨道，再点「AI字幕」。","err");
+        toast("轨道上没有可分析的音视频素材","err"); return;
+    }
+    asrBusy=true;
+    const btn=$("aiSubBtn"); btn.disabled=true;
     try{
-        if(engine==="mic"){
-            st.className="ai-state"; st.textContent="麦克风已开启，请开始说话…";
-            segs=await micASR();
-        }else if(engine==="remote"){
-            let c=selectedClip(), a=c&&c.assetId?assetById(c.assetId):null;
-            if(!a || (a.type!=="video"&&a.type!=="audio")){
-                const first=state.clips.find(x=>{
-                    const k=trackKind(x.track), aa=x.assetId?assetById(x.assetId):null;
-                    return (k==="video"||k==="audio") && aa && (aa.type==="video"||aa.type==="audio");
-                });
-                if(!first) throw new Error("轨道上还没有可识别的视频 / 音频片段，请先拖入素材，或改用演示识别");
-                a=assetById(first.assetId); state.selected=first.id;
-                toast("未选中片段，已自动识别轨道上第一个视频 / 音频","ok");
+        setEdProgress(0,"已选定转写模型「"+cfg.model+"」（"+cfg.label+"）");
+        setEdProgress(1,"轨道上找到 "+list.length+" 段真实音视频素材，开始逐段分析");
+        const all=[];
+        for(let i=0;i<list.length;i++){
+            const c=list[i], a=assetById(c.assetId);
+            setEdProgress(2,"正在把第 "+(i+1)+"/"+list.length+" 段「"+a.name+"」的音轨发给模型识别…");
+            let segs;
+            try{ segs=await remoteASR(a,cfg); }
+            catch(e){
+                setEdProgress(2,"标准转写接口不可用，正在改用多模态大模型直接听第 "+(i+1)+" 段音频…");
+                try{ segs=await chatAudioASR(a,cfg); }
+                catch(e2){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败："+(e.message||e)+"；多模态音频降级也失败："+(e2.message||e2)); }
             }
-            segs=await remoteASR(a,{endpoint:$("asrEndpoint").value.trim(),key:$("asrKey").value.trim(),
-                model:$("asrModel").value.trim(),language:$("asrLang").value.trim()});
-        }else{
-            const base=Math.max(20,Math.min(60,totalDuration()-4));
-            st.className="ai-state"; st.textContent="正在按时间码切分语音…";
-            await new Promise(r=>setTimeout(r,320));
-            segs=demoSegments(base);
+            const off=Number(c.offset||0);
+            for(const sg of segs){
+                const st=Math.max(c.start,c.start+(sg.start-off));
+                const en=Math.min(c.start+c.duration,c.start+(sg.end-off));
+                if(en>st+0.12) all.push({start:st,end:en,text:sg.text,kind:sg.kind});
+            }
         }
-        const n=applySegments(segs,{keep:!!$("asrKeep").checked});
-        st.className="ai-state ok";
-        st.textContent="识别完成：共 "+n+" 条，已按时间码写入字幕轨（对白 / 旁白 / 内心独白仅作为可选类型标签，不再分轨）。"
-            +(engine==="demo"?"（演示识别：内置漫剧台词，未调用真实模型）":"")
-            +(engine==="remote"?"（来自转写接口 segments）":"");
-        toast("AI 已生成 "+n+" 条字幕","ok");
+        setEdProgress(3,"真实识别共 "+all.length+" 句，正在把时间码对齐到轨道位置…");
+        if(!all.length){
+            setEdProgress(3,"识别完成但没有返回任何语音内容（素材可能没有对白，或接口未返回分段时间码）；本次不生成任何字幕。",true);
+            toast("没有识别到语音，未生成字幕","err"); return;
+        }
+        const n=applySegments(all,{keep:!!$("asrKeep").checked});
+        setEdProgress(4,"已把 "+n+" 条真实字幕写入字幕轨（分析 "+list.length+" 段音视频素材）");
+        toast("AI 字幕完成：真实识别 "+list.length+" 段素材，生成 "+n+" 条字幕","ok");
     }catch(e){
-        st.className="ai-state err";
-        st.textContent="识别失败："+((e&&e.message)?e.message:e)+"。演示工程用图片当主画面、本身没有音轨，可切换「演示识别」或先导入真实视频。";
-        toast("识别失败，请看左侧状态说明","err");
+        setEdProgress(2,"识别失败："+((e&&e.message)||e)+"。请确认转写接口可用（faster-whisper / OpenAI 兼容 /v1/audio/transcriptions），跨域未放行时改用本机服务；本次不会生成任何演示字幕。",true);
+        toast("AI 字幕失败，请看左侧状态说明","err");
     }finally{
-        btn.textContent="🎙 识别语音并生成字幕"; btn.dataset.mic=""; btn.onclick=runASR;
+        asrBusy=false; btn.disabled=false;
+        const b=$("asrRun"); if(b){ b.textContent="🎙 识别语音并生成字幕"; b.dataset.mic=""; }
     }
 }
 
@@ -1349,7 +1865,7 @@ function llmUrlFromBase(raw){
     if(/\/(?:compatible-mode\/)?v\d+(?:\.\d+)?$/i.test(s)) return s+"/chat/completions";
     return s+"/v1/chat/completions";
 }
-function aiConfig(){
+function aiConfig(overrideModel){
     const src=$("aiSrc").value;
     if(src==="custom") return {endpoint:$("aiEndpoint").value.trim(),key:$("aiKey").value.trim(),model:$("aiModel").value.trim(),label:"自定义接口"};
     if(src==="local"){
@@ -1360,8 +1876,11 @@ function aiConfig(){
     if(!Array.isArray(list)) list=[];
     const cur=String(safeStorage.get("manflows_current_profile_id")||"").trim();
     const p=list.find(x=>x&&String(x.id||"")===cur)||list[0]||null;
-    return {endpoint:llmUrlFromBase(p?String(p.endpoint||""):""),key:p?String(p.key||"").trim():"",
+    const cfg={endpoint:llmUrlFromBase(p?String(p.endpoint||""):""),key:p?String(p.key||"").trim():"",
         model:p?String(p.model||"").trim():"",label:p?("创作台 / 画布配置「"+String(p.name||p.model||"未命名")+"」"):"创作台 / 画布「第三方API」当前配置"};
+    const om=String(overrideModel||state.aiModel||"").trim();
+    if(om) cfg.model=om;
+    return cfg;
 }
 function saveAiCfg(){
     safeStorage.set(AI_CFG_KEY,JSON.stringify({src:$("aiSrc").value,endpoint:$("aiEndpoint").value,
@@ -1428,8 +1947,8 @@ async function collectFrames(){
     const res=await Promise.all(jobs);
     return res.filter(Boolean).slice(0,6);
 }
-const AI_SYS_PROMPT = "你是一位资深短视频 / 漫剧剪辑师。用户会给你一份剪辑时间轴的 JSON（含轨道层级、每个片段的 id、名称、类型、起止时间）以及若干视频抽帧图片。请结合画面与节奏自主完成剪辑决策：删除冗余片段、裁切拖沓部分、调整片段顺序位置、必要时补充字幕。你必须只输出一个 JSON 对象，不要输出任何解释文字、不要加 Markdown 围栏。格式：{\"summary\":\"整体剪辑思路（中文，60字内）\",\"actions\":[{\"id\":\"原片段id\",\"op\":\"keep|trim|delete|move\",\"start\":数字,\"duration\":数字,\"track\":\"可选，改放到的轨道id\",\"reason\":\"中文理由，20字内\"}],\"newSubtitles\":[{\"start\":数字,\"duration\":数字,\"text\":\"字幕文字\",\"kind\":\"dialogue|narration|inner\"}]}。要求：只使用给定的片段 id，时间单位为秒，trim 时 start/duration 必须在原片段范围内，不要虚构新素材，不要修改素材文件本身。";
-function buildAiMessages(frames){
+const AI_SYS_PROMPT = "你是一位资深短视频 / 漫剧剪辑师。用户会给你一份剪辑时间轴的 JSON（含轨道层级、每个片段的 id、名称、类型、起止时间）以及若干视频抽帧图片。请结合画面与节奏自主完成剪辑决策：删除冗余片段、裁切拖沓部分、调整片段顺序位置、必要时补充字幕。你必须只输出一个 JSON 对象，不要输出任何解释文字、不要加 Markdown 围栏。格式：{\"summary\":\"整体剪辑思路（中文，60字内）\",\"actions\":[{\"id\":\"原片段id\",\"op\":\"keep|trim|delete|move\",\"start\":数字,\"duration\":数字,\"track\":\"可选，改放到的轨道id\",\"reason\":\"中文理由，20字内\"}],\"newSubtitles\":[{\"start\":数字,\"duration\":数字,\"text\":\"字幕文字\",\"kind\":\"dialogue|narration|inner\"}]}。要求：只使用给定的片段 id，时间单位为秒，trim 时 start/duration 必须在原片段范围内，不要虚构新素材，不要修改素材文件本身。若用户提供了剪辑思路，必须优先满足该思路，不得与之冲突；";
+function buildAiMessages(frames,idea){
     const info={
         project:state.date, totalDuration:totalDuration(),
         trackOrder:"字幕(text) → 图片(image) → 视频(video) → 音频(audio)",
@@ -1443,9 +1962,11 @@ function buildAiMessages(frames){
         }),
         assets:state.assets.map(a=>({id:a.id,name:a.name,type:a.type}))
     };
-    const txt="请剪辑下面这份时间轴。轨道与片段数据（JSON）：\n"+JSON.stringify(info)
+    const ideaBlock=String(idea||"").trim()
+        ? "\n\n【用户的剪辑思路 / 想法 —— 优先级高于你自己的节奏偏好，必须严格遵守】\n"+String(idea).trim()+"\n【思路结束】\n" : "";
+    const txt="请剪辑下面这份时间轴。"+ideaBlock+"轨道与片段数据（JSON）：\n"+JSON.stringify(info)
         +"\n\n"+(frames.length?"后面附 "+frames.length+" 张按片段顺序抽取的画面（JPEG），请结合画面判断。":"本次没有附上画面，请仅依据轨道结构与时间码决策。")
-        +"\n严格只输出上面约定的 JSON 对象。";
+        +"\n严格只输出上面约定的 JSON 对象；若用户写了剪辑思路，方案必须体现该思路，并在 summary 里用一句话说明如何落实。";
     const content=frames.length
         ? [{type:"text",text:txt}].concat(frames.map(f=>({type:"image_url",image_url:{url:f.data}})))
         : txt;
@@ -1491,10 +2012,10 @@ function showAiSetup(cfg){
     const miss=[]; if(!cfg.endpoint) miss.push("接口地址"); if(!cfg.model) miss.push("模型名");
     $("aiSetupBody").innerHTML='<p class="hint warn">「✨ AI剪辑」会把整条时间轴的结构、素材信息与视频抽帧一起交给大模型，让它自主判断节奏、删减、裁切、补字幕并返回可执行的剪辑方案。<b>这需要使用 Claude / GPT-4o / Gemini 等综合能力强的多模态大模型</b>；小参数本地模型通常无法稳定输出可执行的 JSON 方案。</p>'
       +'<h2>当前模型来源</h2><p>'+esc(cfg.label)+'：'+(miss.length?'<b style="color:#fca5a5">还缺 '+esc(miss.join(" / "))+'</b>':'<b style="color:#a7f3d0">已配置</b>')+'</p>'
-      +'<h2>三种配置方式</h2><ul>'
-      +'<li><b>复用创作台 / 画布「第三方API」当前配置</b>：到编导创作台或导演画布的「算力总控 → 第三方API」填好接口地址、Key 与模型名，本页自动读取（共用键 <code>manflows_api_profiles</code>）。</li>'
-      +'<li><b>复用「本机算力」已接通的大语言模型</b>：在创作台 / 画布点「⚡ 自动接通」接通本机 llama / Ollama 后，本页读取地址与模型名。</li>'
-      +'<li><b>自定义接口</b>：在左侧「AI 剪辑 · 模型配置」把来源切到「自定义接口」，直接填完整 <code>/v1/chat/completions</code> 地址、Key 与模型名。</li></ul>'
+      +'<h2>怎么配置</h2><ul>'
+      +'<li>左上<b>「算力总控」</b>三档点选切换：<b>本机算力</b>＝本机 llama / Ollama 与 faster-whisper；<b>第三方API</b>＝创作台 / 画布已填好的接口配置（共用键 <code>manflows_api_profiles</code>）；<b>漫流算力</b>为占位档暂未开放。</li>'
+      +'<li>点「✨ AI剪辑」后，在弹窗的<b>「选择模型」</b>里挑一个你已经部署好的大语言模型，<b>建议只选 Claude 或 GPT 系列之一</b>；下拉没有就手填模型名。</li>'
+      +'<li>AI 字幕需要 OpenAI 兼容的 <code>/v1/audio/transcriptions</code> 转写接口（本机 faster-whisper 默认 9000 端口）；若服务商只提供多模态对话，会自动降级用支持音频的模型直接听音频。</li></ul>'
       +'<p class="hint">配置好后再点一次「✨ AI剪辑」即可；带图请求失败时会自动降级为纯轨道数据分析。</p>';
     $("aiSetupModal").classList.add("show");
 }
@@ -1533,38 +2054,57 @@ function applyAiPlan(){
     $("aiPlanModal").classList.remove("show");
     renderAll(); autoSave(); toast("AI 剪辑方案已应用（Ctrl+Z 可撤销）","ok");
 }
-async function runAiEdit(){
-    const st=$("aiEditState");
+async function runAiEdit(idea,overrideModel){
+    const cfg=aiConfig(overrideModel);
+    const st=$("aiIdeaState");
+    if(state.compute==="manflow"){
+        setAiProgress(0,"「漫流算力」是占位档，暂不可运行。请在左上「算力总控」切到「本机算力」或「第三方API」后再开始。",true);
+        toast("请先切到本机算力或第三方API","err"); return;
+    }
     if(!state.clips.length){
-        st.className="ai-state err"; st.textContent="轨道上还没有素材：请先把素材库的文件拖到下方轨道，再点「✨ AI剪辑」。";
+        setAiProgress(0,"轨道上还没有素材：请先把素材库的文件拖到下方轨道，再点「✨ AI剪辑」。",true);
         toast("轨道是空的，先拖入素材","err"); return;
     }
-    const cfg=aiConfig();
-    if(!cfg.endpoint||!cfg.model){ showAiSetup(cfg); return; }
-    const btn=$("aiCutBtn"); btn.disabled=true;
-    st.className="ai-state"; st.textContent="① 正在整理轨道结构…";
+    if(!cfg.endpoint||!cfg.model){ showAiSetup(cfg); setAiProgress(0,"模型还没配置好：请在弹窗里选一个已部署的模型，或到创作台 / 画布填好第三方API接口、接通本机算力。",true); return; }
+    const btn=$("aiIdeaStart"); btn.disabled=true;
     try{
+        setAiProgress(0,"已调用模型「"+cfg.model+"」（"+cfg.label+"）"+(idea?"，已带上你的剪辑思路":"，未写思路，由模型自主判断"));
+        await new Promise(r=>setTimeout(r,160));
+        setAiProgress(1,"正在整理 "+state.tracks.length+" 条轨道 / "+state.clips.length+" 个片段的结构与素材信息…");
         const frames=$("aiFrames").checked?await collectFrames():[];
-        st.textContent="② 已抽取 "+frames.length+" 帧画面，正在请求 "+cfg.model+" …（强多模态模型可能需要 10~60 秒）";
+        setAiProgress(2,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
+        setAiProgress(3,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
+        let elapsed=0;
+        const hb=setInterval(()=>{ elapsed+=5; setAiProgress(3,"AI 剪辑进程中：已等待 "+elapsed+" 秒（强多模态模型通常需要 10~60 秒）…"); },5000);
         let text="";
-        try{ text=await aiChat(cfg,buildAiMessages(frames)); }
-        catch(e){
-            if(frames.length){
-                st.textContent="带图请求失败（"+((e&&e.message)||e)+"），正在改用纯轨道数据重试…";
-                try{
-                    text=await aiChat(cfg,buildAiMessages([]));
-                    toast("当前模型可能不支持视觉输入，已改用纯轨道数据分析；建议换 Claude / GPT-4o / Gemini 等多模态模型","err");
-                }catch(e2){ aiEditFail(e2,st); return; }
-            }else{ aiEditFail(e,st); return; }
-        }
+        try{
+            try{ text=await aiChat(cfg,buildAiMessages(frames,idea)); }
+            catch(e){
+                if(frames.length){
+                    setAiProgress(3,"带图请求失败，正在改用纯轨道数据重试…");
+                    try{
+                        text=await aiChat(cfg,buildAiMessages([],idea));
+                        toast("当前模型可能不支持视觉输入，已改用纯轨道数据分析；建议换 Claude / GPT-4o / Gemini 等多模态模型","err");
+                    }catch(e2){ throw e2; }
+                }else throw e;
+            }
+        }finally{ clearInterval(hb); }
+        setAiProgress(4,"模型已返回，正在解析可执行的剪辑方案…");
         const plan=parseAiPlan(text);
-        if(!plan){ aiEditFail(new Error("模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o / Gemini 等综合能力强的多模态模型"),st); return; }
+        if(!plan){
+            setAiProgress(4,"模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o 等综合能力强的多模态模型重试。",true);
+            toast("方案解析失败，建议换 Claude / GPT 重试","err"); return;
+        }
+        setAiProgress(5,"方案已生成（"+plan.actions.length+" 项操作 / "+plan.newSubtitles.length+" 条新字幕），请在弹窗里确认后应用");
         pendingPlan=plan; renderAiPlan(plan,cfg,frames.length);
+        $("aiIdeaModal").classList.remove("show");
         $("aiPlanModal").classList.add("show");
-        st.className="ai-state ok";
-        st.textContent="③ 方案已生成（"+plan.actions.length+" 项片段操作 / "+plan.newSubtitles.length+" 条新字幕）：在弹窗里确认后应用，应用后可用 Ctrl+Z 撤销。";
-    }catch(e){ aiEditFail(e,st); }
-    finally{ btn.disabled=false; }
+        setEdState("AI 剪辑方案已生成，确认后写入轨道（可 Ctrl+Z 撤销）","ok");
+    }catch(e){
+        setAiProgress(3,"AI 剪辑失败："+((e&&e.message)||e)+"。请确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
+        setEdState("AI 剪辑失败："+((e&&e.message)||e),"err");
+        toast("AI 剪辑失败，请看弹窗里的状态说明","err");
+    }finally{ btn.disabled=false; }
 }
 
 /* ---------- 录音 → 音频轨 ---------- */
@@ -1582,10 +2122,11 @@ async function toggleRecord(){
         rec.ondataavailable=e=>{ if(e.data&&e.data.size) recState.chunks.push(e.data); };
         rec.onstop=()=>{ finishRecord(); };
         rec.start(200);
+        setRecordMute(true);        /* 录音期间轨道上所有声音静音，保证录音纯净 */
         const btn=$("recBtn"); btn.classList.add("recording"); btn.textContent="⏹ 停止录音";
         recState.timer=setInterval(()=>{ btn.title="录音中 "+((Date.now()-recState.t0)/1000).toFixed(0)+" 秒，再点一次结束并加入音频轨"; },500);
         toast("录音已开始，再点「⏹ 停止录音」结束并加入音频轨","ok");
-    }catch(e){ toast("无法调用麦克风："+((e&&e.message)||e),"err"); }
+    }catch(e){ setRecordMute(false); toast("无法调用麦克风："+((e&&e.message)||e),"err"); }
     finally{ recBusy=false; }
 }
 function stopRecord(){
@@ -1593,6 +2134,7 @@ function stopRecord(){
     try{ recState.rec.stop(); }catch(e){}
     clearInterval(recState.timer);
     try{ recState.stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    setRecordMute(false);        /* 停止录音后轨道声音恢复 */
     const btn=$("recBtn"); btn.classList.remove("recording"); btn.textContent="⏺ 录音";
     btn.title="录音：调用电脑麦克风，结束后自动加入音频轨";
 }
@@ -1660,6 +2202,7 @@ function setupChannels(){
 
 /* ---------- 工程保存 / 恢复 / 导出 ---------- */
 function projectPayload(){
+    state.clips.forEach(fxOf);      /* 旧工程 / 演示工程的片段统一补齐变换字段再存档 */
     return {v:2,date:state.date,zoom:state.zoom,playhead:0,
         tracks:state.tracks, subTrack:state.subTrack,
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
@@ -1676,6 +2219,7 @@ function saveProject(silent){
 function autoSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>saveProject(true),700); }
 function migrateClip(c){
     const o=Object.assign({},c);
+    if(!o.fx||typeof o.fx!=="object") o.fx=defaultFx();
     if(LEGACY_TRACK[c.track]){
         o.track=LEGACY_TRACK[c.track];
         if(LEGACY_SUB[c.track]&&!o.subKind) o.subKind=LEGACY_SUB[c.track];
@@ -1712,7 +2256,7 @@ async function loadProject(date){
         }
         state.selected=null; state.multi=[]; state.selectedAsset=null; state.playhead=0;
         historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key="";
-        pause(); renderAll(); toast("已打开 "+date+" 的工程","ok");
+        pause(); renderAll(); applyAspect(); toast("已打开 "+date+" 的工程","ok");
         return true;
     }catch(e){ toast("工程读取失败："+e.message,"err"); return false; }
 }
@@ -1810,19 +2354,17 @@ async function loadDemoProject(){
         {id:uid(),track:"tk_text1",assetId:"",start:17.6,duration:2.6,offset:0,text:"（这一别，或许就是一生。）",name:"内心独白",subKind:"inner"}
     ];
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
-    renderAll(); autoSave(); syncMedia();
+    renderAll(); autoSave(); syncMedia(); applyAspect();
     $("aiState").className="ai-state";
     $("aiState").textContent="演示工程已就绪：字幕 / 图片 / 视频 / 音频四条轨，3 段主画面 + 1 段画中画 + 2 段音乐 + 6 条字幕。可拖素材到轨道自动加层，点「🅰 AI字幕」体验自动识别。";
 }
 /* ---------- 事件绑定 ---------- */
 function wire(){
     /* 顶栏 */
-    $("topImport").onclick=()=>$("fileInput").click();
-    $("topUrl").onclick=()=>{$("urlModal").classList.add("show"); $("urlText").focus();};
     $("topSave").onclick=()=>saveProject(false);
     $("topOpen").onclick=()=>{ listProjects(); $("projModal").classList.add("show"); };
     $("topSrt").onclick=exportSRT;
-    $("resetLayout").onclick=resetLayout;
+    $("resetLayout").onclick=()=>{ resetLayout(); applyAspect(); };
     $("topDemo").onclick=()=>{ if(confirm("重置为内置演示工程？当前轨道与素材会被替换（已保存的其它日期工程不受影响）。")) loadDemoProject(); };
     $("topHelp").onclick=()=>$("helpModal").classList.add("show");
     /* 三页已同处一个站点目录：返回创作台 / 返回画布一律走同目录相对地址 */
@@ -1892,10 +2434,45 @@ function wire(){
     /* AI 配置 / 三个新按钮 */
     $("aiSrc").onchange=()=>{ $("aiCustom").style.display=$("aiSrc").value==="custom"?"block":"none"; saveAiCfg(); };
     ["aiEndpoint","aiKey","aiModel","aiFrames"].forEach(id=>$(id).addEventListener("change",saveAiCfg));
-    $("aiCutBtn").onclick=runAiEdit;
+    $("aiCutBtn").onclick=openAiIdea;
     $("aiSubBtn").onclick=runASR;
     $("recBtn").onclick=toggleRecord;
     $("aiPlanApply").onclick=applyAiPlan;
+    /* 算力总控三档：点选即切换，本页独立保存，同页多标签同步 */
+    $("edModeRow").addEventListener("change",e=>{
+        const r=e.target.closest('input[name="edComputeMode"]');
+        if(r) applyCompute(r.value);
+    });
+    /* 同一网页的多个标签页：靠 storage 事件同步档位（storage 不会回送给写入方自己） */
+    window.addEventListener("storage",e=>{
+        if(e.key===ED_COMPUTE_KEY && e.newValue && ED_COMPUTE_LABEL[e.newValue] && e.newValue!==state.compute) applyCompute(e.newValue,true,true);
+    });
+    /* AI 剪辑弹窗：模型下拉 / 手填 / 开始 / 切档 */
+    $("aiIdeaStart").onclick=startAiIdea;
+    $("aiIdeaModel").onchange=()=>{ $("aiIdeaModelCustom").value=""; };
+    $("aiIdeaGoCompute").onclick=()=>{
+        $("aiIdeaModal").classList.remove("show");
+        const c=$("computeCard");
+        try{ c.scrollIntoView({block:"nearest"}); }catch(e){}
+        c.style.outline="2px solid var(--cyan)";
+        setTimeout(()=>{ c.style.outline=""; },1800);
+        toast("请在左上「算力总控」点选本机算力或第三方API","ok");
+    };
+    /* 右栏两个并列标签 */
+    $("propTabs").addEventListener("click",e=>{
+        const b=e.target.closest(".prop-tab"); if(b) showPropTab(b.dataset.ptab);
+    });
+    /* 预览画幅比例 */
+    $("aspectRow").addEventListener("click",e=>{
+        const b=e.target.closest(".asp-btn"); if(!b) return;
+        state.aspect=b.dataset.asp;
+        safeStorage.set("manflows_ai_editor_aspect",state.aspect);
+        applyAspect();
+        toast("预览画幅已切换为「"+b.textContent.trim()+"」","ok");
+    });
+    /* 镜像 / 倒放 */
+    $("mirrorBtn").onclick=toggleMirror;
+    $("reverseBtn").onclick=toggleReverse;
     $("aiGoIndex").onclick=()=>window.open("./index.html","_blank","noopener");
     $("aiGoLocal").onclick=()=>window.open("./canvas.html","_blank","noopener");
     $("asrEngine").onchange=()=>{ $("asrCfg").style.display=$("asrEngine").value==="remote"?"block":"none"; };
@@ -1955,7 +2532,7 @@ function wire(){
     $("btnStart").onclick=()=>seek(0);
     $("btnEnd").onclick=()=>seek(totalDuration());
     $("seekRange").oninput=e=>seek(Number(e.target.value));
-    $("volRange").oninput=e=>{ const v=Number(e.target.value); vEl.volume=v; audioPool.forEach(o=>{o.el.volume=v;}); };
+    $("volRange").oninput=e=>{ const v=Number(e.target.value); vEl.volume=recordMuted?0:v; audioPool.forEach(o=>{o.el.volume=recordMuted?0:v;}); };
     vEl.volume=0.8;
 
     /* 时间轴工具条 */
@@ -1982,6 +2559,7 @@ function wire(){
     /* 时间轴点击 / 拖动 / 裁切 / 拖入素材 */
     const sc=$("tlScroll");
     sc.addEventListener("click",e=>{
+        if(suppressLaneClick){ suppressLaneClick=false; return; }
         const add=e.target.closest("[data-tkadd]");
         if(add){
             const t=trackById(add.dataset.tkadd);
@@ -2018,6 +2596,7 @@ function wire(){
         }
         state.selected=c.id; state.multi=[]; state.selectedAsset=null;
         renderProps(); renderSubList(); renderAssets(); renderTimeline();
+        if(!(state.playhead>=c.start && state.playhead<c.start+c.duration)) seek(Math.max(0,c.start+Math.min(0.1,c.duration/2)));
         const fresh=document.querySelector('.clip[data-id="'+c.id+'"]'); if(!fresh)return;
         const resize=!!e.target.closest("[data-handle]");
         const x0=e.clientX, start0=c.start, dur0=c.duration, zoom=state.zoom;
@@ -2093,6 +2672,8 @@ function wire(){
         else if(e.key==="End"){ e.preventDefault(); seek(totalDuration()); }
         else if(e.key==="+"||e.key==="="){ e.preventDefault(); state.zoom=clamp(state.zoom+12,12,120); renderTimeline(); }
         else if(e.key==="-"||e.key==="_"){ e.preventDefault(); state.zoom=clamp(state.zoom-12,12,120); renderTimeline(); }
+        else if(k==="m"){ e.preventDefault(); toggleMirror(); }
+        else if(k==="r"){ e.preventDefault(); toggleReverse(); }
     });
     window.addEventListener("beforeunload",()=>saveProject(true));
 }
@@ -2102,6 +2683,11 @@ async function init(){
     applyLayout(loadLayout());
     wireSplitters();
     wire(); setupChannels(); loadAiCfg();
+    state.aspect=String(safeStorage.get("manflows_ai_editor_aspect")||"auto").trim();
+    applyCompute(loadCompute(),true);
+    showPropTab("basic");
+    wireMarquee(); wireFxBox();
+    window.addEventListener("resize",()=>applyAspect());
     const saved=safeStorage.get(PROJECT_PREFIX+todayStr());
     if(saved){
         try{ await loadProject(todayStr()); }
@@ -2110,6 +2696,7 @@ async function init(){
     }else await loadDemoProject();
     await drainInbox();
     scanCanvasHistory();
+    applyAspect();
     saveProject(true);
 }
 init().catch(e=>{ console.error("初始化失败",e); toast("初始化失败："+e.message,"err"); });

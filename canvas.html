@@ -105,7 +105,7 @@
     .node-actions button.act-run{background:var(--green);}
     .node-actions button.act-split{width:auto;padding:0 6px;background:#4338ca;}
     .node-body .act-row{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0;}
-    .node-body .act-row button{flex:1;min-width:0;border:none;border-radius:6px;background:var(--blue);color:#fff;font-size:11px;height:27px;cursor:pointer;padding:0 4px;font-family:inherit;white-space:nowrap;overflow:hidden;}
+    .node-body .act-row button{flex:1 1 130px;min-width:0;border:none;border-radius:6px;background:var(--blue);color:#fff;font-size:11px;min-height:27px;cursor:pointer;padding:4px 5px;font-family:inherit;white-space:normal;line-height:1.25;overflow:hidden;}
     .node-body .act-row button:hover{background:#1d4ed8;}
     .node-body .act-row button:disabled{opacity:.55;cursor:not-allowed;}
     /* 三个提示词按钮的运行状态：直接显示在节点里，避免「点了没反应」 */
@@ -346,7 +346,7 @@
                     <summary>⚙ 接入工具：本机大模型 / 补充模型清单 / API 配置</summary>
                     <div class="cv-tools-body">
                         <div class="api-box" id="apiInfo">读取中…</div>
-                        <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点的智能拆分 / 图片提示词 / SD / H3 用）</label></div>
+                        <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点自动拆分遇到识别困难时的兜底用）</label></div>
                         <div class="row"><button class="mini-btn green" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
                         <div class="hint" style="margin:4px 0 0">与创作台共用同一份本机地址：创作台【算力总控 → ⚡ 自动接通】扫到的 llama / Ollama / LM Studio 等，画布页直接复用；也可以在这里再点一次，独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
                         <div class="row" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:8px"><label>补充模型清单（可选 · 创作台模型已自动并入下拉）</label></div>
@@ -468,7 +468,7 @@
         <p>左侧最上方【算力总控】是全局三档开关：<b>漫流算力</b>（占位，暂不可运行）/ <b>本机算力</b>（本机 ComfyUI 工作流）/ <b>第三方API</b>。切换后<b>当前画布上所有「生成」节点的生成引擎一起变</b>，之后新建的生成节点也默认跟随；单个生成节点里仍可单独改引擎（不会回写总控）。现在<b>三个网页的算力档位各自独立</b>：创作台、导演画布、AI 剪辑台可以同时选用不同算力并行工作，在本页切档不会改动另外两个网页（同一网页的多个标签页仍同步）；本页内部<b>两处联动</b>：本栏与生成节点里的「生成引擎」任意一处切换，另一处立即跟随。从本栏切换时，当前画布已有生成节点会一起切（正在生成中的节点不打断，跑完后再由用户切换）；在生成节点里单独改引擎只改那一个节点、其它节点仍可各自保留，新建生成节点默认跟随本栏。<b>创作台的「上下文窗口 token」只对「本机算力」生效</b>，漫流算力 / 第三方API 会自动改为「上下文长度：跟随所选模型（自适应）」且不再发送 max_tokens。画布加载旧画布时不会擅自改动已存好的节点。下方折叠的「⚙ 接入工具」保留原来的实用功能：<b>⚡ 自动接通本机大模型</b>（提示词节点智能拆分 / SD / H3 用）、<b>补充模型清单</b>的手填 / 从服务商拉取 / 删除，以及创作台 API 配置的只读展示。原「② API 配置 / 模型清单」与「③ 三类接入方式」两栏已精简：长篇纯文字说明移除，功能全部并入这里，<b>功能一个不少</b>。</p>
         <h2>画布怎么用</h2>
         <ul>
-            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 生视频提示词、Midjourney / GPT Image 生图提示词，底部三个处理按钮：<br>· <b>「图片提示词」</b>＝把全集 / 全剧美术资产提示词<b>按条拆开：一条资产 = 一个节点</b>。人物 7 条就是 7 个节点，人物四视图有几条就几个节点，场景 6 条、道具 5 条同样逐条独立；<b>绝不把同一类资产合并成一个大节点</b>。优先在本机直接解析（不调模型、不改原文），识别不出逐条结构时才自动调用大语言模型补标记（本地 llama / Ollama 优先，其次创作台 API）。拆前会显示各类条数供确认，原文逐字保留，原节点被替换。<b>拆出来的多个新节点一律不与画布上现有工作流自动连线，也不彼此串线，请自己从右侧圆点拉线</b>。<br>· <b>「SD提示词」</b>＝调「导演分镜助手 V5（生视频提示词）」技能，按 Seedance 生视频标准调整并拆分成镜头节点；<b>「H3提示词」</b>＝调「导演分镜助手 V5 MiniMaxH3」技能，按 MiniMax H3 标准调整并拆分。两者都<b>不改剧本与台词本意</b>，新节点生成在原节点右侧、原文保留，<b>新节点同样不自动连线，请自己拉线</b>，大语言模型同样本地优先。</li>
+            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 等生视频提示词、Midjourney / GPT Image 生图提示词，底部两个拆分按钮（顶部还有「AI提示词」负责把非标提示词改写成<b>单条</b>模型专用提示词，两者不冲突）：<br>· <b>「多条图片提示词分拆」</b>＝把导入的<b>两条以上文生图提示词</b>自动按「单条」拆开，一条提示词一个节点；<b>「多组视频提示词分拆」</b>＝把导入的<b>两组以上多参生视频提示词</b>自动按「组」拆开，一组一个节点。生视频要按组拆，是因为<b>一组里常含不同秒数的多个子分镜（如 0-3 秒 / 3-6 秒 / 6-10 秒），这些子分镜必须整组保留，不能拆散</b>。<br>· 两个按钮都<b>只做自动解析文字拆分</b>：优先在本机直接识别 ▌ 标记、第N组 / 视频N / 镜头组N 标题、编号与空行分块，<b>原文逐字保留、不改写、不调技能</b>；只有确实识别困难时才询问你是否调用大语言模型（本机 llama / Ollama 优先，其次创作台 API）来<b>识别并补分组标记</b>，模型也不改正文。<b>识别出原文只有单条 / 单组时不进行拆分</b>，原文保持不变。<br>· 拆出来的两个以上新提示词节点会<b>替换原节点</b>，一律<b>不与画布上现有工作流自动连线，也不彼此串线</b>，请自己从右侧圆点拉线；拆前会显示条数 / 组数供确认。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。本地 ComfyUI：<b>MiniMax H3 工作流不用预先接声音节点</b>——画布会自动注入 LoadAudio 并接到 H3 的 <code>ref_audios</code>（上限 3 段）；含 LoadAudio 的其它工作流则直接写入载入节点。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
@@ -846,7 +846,7 @@ function setStatus(text,kind){
 }
 /* ===== 页面内确认弹窗 =====
    原生 window.confirm 在 iframe 预览 / 沙箱 / 浏览器抑制对话框时会静默返回 false，
-   提示词节点「图片提示词 / SD提示词 / H3提示词」的多道确认就会让按钮表现为「点了没反应」。
+   提示词节点「多条图片提示词分拆 / 多组视频提示词分拆」的确认就会让按钮表现为「点了没反应」。
    改成页面内弹窗后，任何运行环境都能正常交互。 */
 let cvConfirmResolve=null;
 function cvConfirm(msg,title){
@@ -1218,17 +1218,16 @@ function buildPromptBody(body,n){
     body.appendChild(ta);
     const line = document.createElement("div"); line.className="mini-line";
     const cnt = document.createElement("span"); const tip = document.createElement("span");
-    tip.textContent = "点「图片提示词」按条拆：一条资产 = 一个节点"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
-    /* 三个处理按钮：图片提示词（拆文生图） / SD提示词（Seedance 标准） / H3提示词（MiniMax H3 标准） */
+    tip.textContent = "两个按钮只做拆分：多条 / 多组才拆，单条 / 单组不拆"; line.appendChild(cnt); line.appendChild(tip); body.appendChild(line);
+    /* 两个拆分按钮：只做「自动解析文字 → 拆成多个提示词节点」，识别困难时才求助大模型；原文逐字保留 */
     const actRow=document.createElement("div"); actRow.className="act-row";
     const mkAct=(act,label,title)=>{
         const b=document.createElement("button"); b.type="button"; b.dataset.act=act;
         b.textContent=label; b.title=title; actRow.appendChild(b);
         return b;
     };
-    mkAct("split","图片提示词","把全剧美术资产按条拆开：人物 / 人物四视图 / 场景 / 道具各按条数生成独立节点，一条资产一个节点");
-    mkAct("sd","SD提示词","调「导演分镜助手 V5」按 Seedance 生视频标准调整并拆分镜头，不改剧本本意");
-    mkAct("h3","H3提示词","调「导演分镜助手 V5 MiniMaxH3」按 MiniMax H3 标准调整并拆分镜头，不改剧本本意");
+    mkAct("split","多条图片提示词分拆","自动识别两条以上文生图提示词，按单条拆成多个提示词节点；识别为单条则不拆。纯文字解析，识别不出结构才调大模型补标记，不改写原文");
+    mkAct("vgroup","多组视频提示词分拆","自动识别两组以上多参生视频提示词，按「组」拆成多个提示词节点；一组内不同秒数的多个子分镜整组保留不拆开，只有单组则不拆。纯文字解析，识别困难才调大模型补标记，不改写原文");
     body.appendChild(actRow);
     /* 三按钮的运行状态 / 失败原因，直接显示在节点里 */
     const note=document.createElement("div"); note.className="llm-note";
@@ -2331,9 +2330,8 @@ function handleNodeAction(act,n){
     try{
         if(act==="del"){ removeNode(n.id); }
         else if(act==="run"){ runGenerate(n); }
-        else if(act==="split"){ splitAction(n).catch(e=>onErr("图片提示词",e)); }
-        else if(act==="sd"){ skillRefineLLM(n,"b","SD提示词").catch(e=>onErr("SD提示词",e)); }
-        else if(act==="h3"){ skillRefineLLM(n,"d","H3提示词").catch(e=>onErr("H3提示词",e)); }
+        else if(act==="split"){ splitAction(n).catch(e=>onErr("多条图片提示词分拆",e)); }
+        else if(act==="vgroup"){ splitVideoGroupsAction(n).catch(e=>onErr("多组视频提示词分拆",e)); }
         else if(act==="ai"){ aiPromptRefine(n).catch(e=>onErr("AI提示词",e)); }
     }catch(e){ onErr("按钮操作",e); }
 }
@@ -2484,12 +2482,12 @@ async function splitAction(n){
     if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候（若已卡住，点本行重置）","busy"); return; }
     const probe=cvParseAssetItems(text);
     if(probe && probe.length>=2){
-        setLlmNote(n,"⏳ 已识别 "+probe.length+" 条资产，等待确认拆分…","busy");
+        setLlmNote(n,"⏳ 已自动识别 "+probe.length+" 条文生图提示词，等待确认拆分…","busy");
         try{ await splitPrompt(n); }finally{ setLlmNote(n); }
         return;
     }
-    setLlmNote(n,"⏳ 未识别到逐条资产标记，等待确认是否调用大模型…","busy");
-    const go=await cvConfirm("文本里没有可逐条识别的美术资产标记。\n要用大语言模型按「一条资产＝一个节点」自动拆分吗？\n（优先本机已接通的 llama / Ollama 等，其次创作台的云端 API）","智能拆分美术资产");
+    setLlmNote(n,"⏳ 未识别到可逐条切分的标记，等待确认是否调用大模型…","busy");
+    const go=await cvConfirm("文本里没有可自动识别的多条文生图提示词标记。\n要用大语言模型按「一条提示词＝一个节点」识别并拆分吗？\n（识别出来只有单条的话会自动放弃拆分、原文不变；优先本机已接通的 llama / Ollama 等，其次创作台的云端 API）","智能拆分文生图提示词");
     if(!go){ setLlmNote(n); return; }
     setLlmNote(n,"⏳ 正在调用大模型按条拆分…","busy");
     await smartSplitLLM(n);
@@ -2515,21 +2513,21 @@ async function smartSplitLLM(n){
         const cleaned=String(r.text||"").replace(/```[a-z]*\n?/gi,"").trim();
         const parsed=cvParseAssetItems(cleaned);
         if(!parsed || parsed.length<2){
-            setStatus("「"+r.via+"」没有按条拆出资产，拆分已取消","err");
-            setLlmNote(n,"❌ 「"+r.via+"」没有按「一条资产一段 ▌」返回，已取消（可换个模型或稍后重试）","err");
+            setStatus("「"+r.via+"」识别为单条或未按条切开，拆分已取消","err");
+            setLlmNote(n,"❌ 「"+r.via+"」识别出来原文只有单条 / 没能按条切开，按「单条不拆」规则已取消，原文保持不变","err");
             return;
         }
-        const ok=await cvConfirm("已用「"+r.via+"」按条拆出 "+parsed.length+" 条（"+cvAssetSummary(parsed)+"），将替换原文本并生成节点。继续？","确认拆分结果");
+        const ok=await cvConfirm("已用「"+r.via+"」拆出 "+parsed.length+" 条文生图提示词（"+cvAssetSummary(parsed)+"），将替换原节点并生成 "+parsed.length+" 个提示词节点，原文逐字保留、不自动连线。继续？","确认拆分结果");
         if(!ok){ setStatus("已取消拆分","busy"); setLlmNote(n,"已取消，原文保持不变","busy"); return; }
         n.data.text=cleaned;
         await splitPrompt(n,true);
         setLlmNote(n);
-        setStatus("已用「"+r.via+"」按条拆成 "+parsed.length+" 条","ok");
+        setStatus("已用「"+r.via+"」按条拆成 "+parsed.length+" 个提示词节点","ok");
     }finally{
         n.data.splitting=false;
         cvBusyAt.delete(n.id);
         const b2=document.querySelector('.node[data-id="'+n.id+'"] .act-row button[data-act="split"]')||btn;
-        if(b2){ b2.disabled=false; b2.textContent="图片提示词"; }
+        if(b2){ b2.disabled=false; b2.textContent="多条图片提示词分拆"; }
     }
 }
 /* ==================================================================
@@ -2705,10 +2703,10 @@ function llmChatUrl(ep){
     if(/\/v1$/i.test(s)) return s+"/chat/completions";
     return s+"/v1/chat/completions";
 }
-/* 「图片提示词」的大模型兜底：只负责在原文里给每条资产补 ▌ 标记，绝不改写提示词正文。
+/* 「多条图片提示词分拆」的大模型兜底：只负责在原文里给每条提示词补 ▌ 标记，绝不改写正文。
    以前的剧本文/15 秒分镜规则会把 7 个人物合并成 1 个「人物」大块，这里必须按条切。 */
 const SPLIT_SYSTEM_PROMPT=[
-    "你是漫流画布的「美术资产提示词逐条拆分」助手。输入是全集 / 全剧的美术资产提示词（人物、人物四视图、场景、道具等）。",
+    "你是漫流画布的「多条文生图提示词逐条拆分」助手。输入是两条以上拼在一起的文生图提示词（人物、人物四视图、场景、道具等美术资产）。",
     "任务：只在每条资产的起始位置插入一行「▌」标记，把原文按条切开；其余文字逐字保留，不改写、不总结、不删减、不新增、不合并。",
     "规则：",
     "1. 一条资产＝一段：每条人物提示词、每条人物四视图提示词（原文有才拆）、每条场景提示词、每条道具提示词各自成为一段。",
@@ -2736,7 +2734,7 @@ function cvResetBusy(n,silent){
     const node=document.querySelector('.node[data-id="'+n.id+'"]');
     if(node) node.querySelectorAll('.act-row button[data-act]').forEach(b=>{
         b.disabled=false;
-        const labels={split:"图片提示词",sd:"SD提示词",h3:"H3提示词"};
+        const labels={split:"多条图片提示词分拆",vgroup:"多组视频提示词分拆"};
         if(labels[b.dataset.act]) b.textContent=labels[b.dataset.act];
     });
     const aiBtn=node&&node.querySelector('button[data-act="ai"]');
@@ -3377,7 +3375,7 @@ async function splitPrompt(n,skipConfirm){
     if(!items || items.length<2){ setStatus("没有识别到可逐条拆分的美术资产","err"); return false; }
     const sum=cvAssetSummary(items);
     if(!skipConfirm){
-        const go=await cvConfirm("已按「一条资产＝一个节点」拆出 "+items.length+" 条（"+sum+"）。\n每条资产一个提示词节点，原节点会被替换，原文逐字保留；新节点不自动连线，请自己拉线。继续？","确认拆分");
+        const go=await cvConfirm("已自动识别出 "+items.length+" 条文生图提示词（"+sum+"）。\n每条提示词一个节点，原节点会被替换，原文逐字保留；新节点不自动连线，请自己拉线。继续？","确认拆分");
         if(!go) return false;
     }
     const counts={}, running={};
@@ -3391,8 +3389,150 @@ async function splitPrompt(n,skipConfirm){
             {text:it.text,sourceId:n.data.sourceId||"",assetKind:it.cat});
         q.title=(it.cat+" "+no+" · "+it.label).slice(0,36);
     });
-    renderAll(); scheduleSave(); setStatus("已拆成 "+items.length+" 条（"+sum+"），新节点请自行拉线","ok");
+    renderAll(); scheduleSave(); setStatus("已拆成 "+items.length+" 个提示词节点（"+sum+"），新节点请自行拉线","ok");
     return true;
+}
+
+/* ==================================================================
+   「多组视频提示词分拆」：一组 = 一条完整的多参生视频提示词。
+   一组内部常含「0-3秒 / 3-6秒 / 6-10秒」等多个不同秒数的子分镜，
+   这些子分镜必须整组保留，绝不拆开。
+   只按「组级」标记切：▌ 行、markdown 小标题、第N组 / 视频N / 组N / 镜头组N、
+   以及连续空行分隔的大块。识别不出 >=2 组时返回 null，交给大模型补 ▌ 组标记
+   （模型只补标记、不改正文）。原文逐字保留。
+   ================================================================== */
+function cvVideoGroupHeader(line){
+    const t=String(line||"").trim();
+    if(!t || t.length>60) return false;
+    /* 子分镜行（0-3秒 / 00:00-00:05 / 3s~6s）不是组界，必须先排除 */
+    if(/^[▌>*#\-\s]*(?:\d{1,3}\s*(?:[-~～]\s*\d{1,3})?\s*(?:秒|s\b)|\d{1,2}:\d{2}\s*[-~～])/i.test(t)) return false;
+    const s=t.replace(/^[\s▌>*#\-•=【\[（(]+/,"").replace(/\*\*/g,"").replace(/[】\]）)]+$/,"").trim();
+    if(/^▌/.test(t)) return true;                                   /* 技能标准：一个 ▌ = 一组 */
+    if(/^#{1,6}\s+/.test(t)) return true;                          /* markdown 小标题当组界 */
+    /* 中文标题后面没有 \w 边界，不能用 \b：改用「后面不接字母数字」判定 */
+    if(/^(?:第\s*)?\d{1,3}\s*(?:组|条视频|个视频|段视频|条提示词|组提示词)(?![a-z0-9])/i.test(s)) return true;
+    if(/^(?:视频|镜头组|分镜组|提示词组|生视频|多参)\s*\d{1,3}(?![a-z0-9])/i.test(s)) return true;
+    if(/^组\s*\d{1,3}(?![a-z0-9])/i.test(s)) return true;
+    if(/^第\s*[一二三四五六七八九十百]+\s*组/.test(s)) return true;
+    if(/^(?:视频|镜头组|分镜组|第?\s*\d{1,3}\s*组)\s*[：:]/.test(s)) return true;
+    return false;
+}
+function cvParseVideoGroups(text){
+    const lines=String(text||"").replace(/\r\n?/g,"\n").split("\n").map(l=>/^\s*```/.test(l)?"":l);
+    const marks=[];
+    lines.forEach((l,i)=>{ if(cvVideoGroupHeader(l)) marks.push(i); });
+    let bounds=marks;
+    if(bounds.length<2){
+        /* 没有显式组标记：按「连续 >=2 空行」分块，且每块都要像一组完整视频提示词 */
+        const blocks=[]; let cur=[], blank=0;
+        lines.forEach((l,i)=>{
+            if(!String(l).trim()){ blank++; return; }
+            if(blank>=2 && cur.length){ blocks.push(cur); cur=[]; }
+            blank=0; cur.push(i);
+        });
+        if(cur.length) blocks.push(cur);
+        const looks=arr=>{
+            const body=arr.map(i=>lines[i]).join("\n");
+            return body.length>=40 && /(?:秒|镜头|画面|分镜|运镜|对白|台词|参考图|prompt)/i.test(body);
+        };
+        if(blocks.length>=2 && blocks.every(looks)) bounds=blocks.map(a=>a[0]);
+    }
+    bounds=bounds.filter((v,i,a)=>i===0||v!==a[i-1]).sort((a,b)=>a-b);
+    if(bounds.length<2) return null;
+    const items=[];
+    bounds.forEach((from,bi)=>{
+        const to=bi+1<bounds.length?bounds[bi+1]:lines.length;
+        const arr=lines.slice(from,to);
+        while(arr.length && !String(arr[arr.length-1]).trim()) arr.pop();
+        const body=arr.join("\n").trim();
+        if(!body) return;
+        const first=lines[from]||"";
+        const label=String(first).trim().replace(/^[\s▌>*#\-•=【\[（(]+/,"").replace(/\*\*/g,"")
+                        .replace(/[】\]）)]+$/,"").split(/[｜|：:\n]/)[0].trim().slice(0,24)||("第 "+(bi+1)+" 组");
+        items.push({label:label,text:body});
+    });
+    if(items.length<2) return null;
+    const pre=lines.slice(0,bounds[0]).join("\n").trim();
+    if(pre) items[0].text=pre+"\n\n"+items[0].text;      /* 开头的总说明并进第一组，不丢字 */
+    return items;
+}
+const VGROUP_SYSTEM_PROMPT=[
+    "你是漫流导演画布的「多组生视频提示词分拆」助手。输入是两段以上拼在一起的多参生视频提示词。",
+    "一组＝一条完整的生视频提示词；一组内部常含多个不同秒数的子分镜（例如 0-3 秒、3-6 秒、6-10 秒），这些子分镜必须整组保留，绝对不能拆开、不能单独当成一组。",
+    "任务：只在【每一组的起始位置】插入一行「▌」标记，把原文按组切开；其余文字逐字保留，不改写、不总结、不删减、不新增、不合并、不调整顺序。",
+    "规则：1. 只在组与组之间加 ▌，组内的子分镜行前面不要加 ▌。2. 每段第一行以「▌」开头，后接该组原本的标题行；该组全部正文原样跟在后面。3. 如果原文其实只有一组（哪怕里面有多个子分镜），就不要加任何 ▌，原样返回。4. 不要输出解释、开场白、统计、代码块或 ▌ 之外的任何额外内容。"
+].join("\n");
+async function splitVideoGroupsAction(n){
+    const text=String(n.data.text||"").trim();
+    if(!text){ setStatus("提示词是空的，先填入多组生视频提示词","err"); setLlmNote(n,"❌ 提示词是空的，先填入多组生视频提示词","err"); return; }
+    if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候（若已卡住，点本行重置）","busy"); return; }
+    const groups=cvParseVideoGroups(text);
+    if(groups && groups.length>=2){
+        setLlmNote(n,"⏳ 已自动识别 "+groups.length+" 组视频提示词，等待确认拆分…","busy");
+        try{ await splitVideoGroups(n); }finally{ setLlmNote(n); }
+        return;
+    }
+    setLlmNote(n,"⏳ 未识别到可靠的「组」分界，等待确认是否调用大模型…","busy");
+    const go=await cvConfirm("文本里没有可自动识别的多组生视频提示词分界。\n要用大语言模型识别并按「组」拆分吗？\n（一组内多个不同秒数的子分镜会整组保留；识别出来只有单组则不拆、原文不变。优先本机 llama / Ollama，其次创作台云端 API）","智能识别视频提示词组");
+    if(!go){ setLlmNote(n); return; }
+    setLlmNote(n,"⏳ 正在调用大模型识别分组…","busy");
+    await smartVideoGroupLLM(n);
+}
+async function splitVideoGroups(n,skipConfirm){
+    const items=cvParseVideoGroups(n.data.text||"");
+    if(!items || items.length<2){ setStatus("原文只有单组或无法可靠分组，按「单组不拆」规则保留原文","busy"); return false; }
+    if(!skipConfirm){
+        const go=await cvConfirm("已自动识别出 "+items.length+" 组多参生视频提示词。\n每组一个提示词节点（组内不同秒数的多个子分镜整组保留），原节点会被替换，原文逐字保留；新节点不自动连线，请自己拉线。继续？","确认按组拆分");
+        if(!go) return false;
+    }
+    canvas.nodes=canvas.nodes.filter(x=>x.id!==n.id);
+    canvas.edges=canvas.edges.filter(e=>e.from!==n.id&&e.to!==n.id);
+    items.forEach((it,i)=>{
+        const no=String(i+1).padStart(2,"0")+"/"+String(items.length).padStart(2,"0");
+        const q=newNode("prompt",n.x+(i%2)*310,n.y+Math.floor(i/2)*250,
+            {text:it.text,sourceId:n.data.sourceId||"",groupKind:"video"});
+        q.title=("视频 "+no+" · "+it.label).slice(0,36);
+    });
+    renderAll(); scheduleSave();
+    setStatus("已按组拆成 "+items.length+" 个提示词节点（组内子分镜整组保留），新节点请自行拉线","ok");
+    return true;
+}
+async function smartVideoGroupLLM(n){
+    if(n.data.splitting) return;
+    n.data.splitting=true;
+    cvBusyAt.set(n.id,Date.now());
+    const sel='.node[data-id="'+n.id+'"] .act-row button[data-act="vgroup"]';
+    const btn=document.querySelector(sel);
+    if(btn){ btn.disabled=true; btn.textContent="识别中…"; }
+    setStatus("正在用大语言模型识别视频提示词组…","busy");
+    setLlmNote(n,"⏳ 正在调用大模型识别分组（只补 ▌ 组标记，不改写原文）…","busy");
+    try{
+        const r=await llmSplitText(String(n.data.text||"").trim(),VGROUP_SYSTEM_PROMPT);
+        if(!r.ok){
+            const why=(r.tried||[]).slice(0,2).join("；")||"没有可用模型";
+            setStatus("分组识别失败：本机与云端大模型都没连上（原因见节点内提示）","err");
+            setLlmNote(n,"❌ 分组识别失败："+why+"\n排查：① 模型软件保持运行；② 左侧【算力总控 → ⚙ 接入工具】点「⚡ 自动接通」；③ HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面","err");
+            return;
+        }
+        const cleaned=String(r.text||"").replace(/```[a-z]*\n?/gi,"").trim();
+        const groups=cvParseVideoGroups(cleaned);
+        if(!groups || groups.length<2){
+            setStatus("「"+r.via+"」判断原文只有单组（或分组无法可靠识别），按「单组不拆」规则保留原文","busy");
+            setLlmNote(n,"❌ 识别结果：原文只有单组 / 无法可靠分组，已按规则放弃拆分，原文保持不变","busy");
+            return;
+        }
+        const ok=await cvConfirm("已用「"+r.via+"」识别出 "+groups.length+" 组多参生视频提示词（每组内不同秒数的多个子分镜会整组保留）。\n将替换原节点并生成 "+groups.length+" 个提示词节点，原文逐字保留、不自动连线。继续？","确认分组结果");
+        if(!ok){ setStatus("已取消分组拆分","busy"); setLlmNote(n,"已取消，原文保持不变","busy"); return; }
+        n.data.text=cleaned;
+        await splitVideoGroups(n,true);
+        setLlmNote(n);
+        setStatus("已按组拆成 "+groups.length+" 个提示词节点（原文逐字保留）","ok");
+    }finally{
+        n.data.splitting=false;
+        cvBusyAt.delete(n.id);
+        const b2=document.querySelector(sel)||btn;
+        if(b2){ b2.disabled=false; b2.textContent="多组视频提示词分拆"; }
+    }
 }
 function reuseAsImage(url){
     const n=spawn("image");
