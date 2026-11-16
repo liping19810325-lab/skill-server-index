@@ -355,6 +355,7 @@
                     <label><input type="radio" name="computeMode" value="local"> 本机算力</label>
                     <label><input type="radio" name="computeMode" value="api"> 第三方API</label>
                 </div>
+                <div class="local-hint" style="display:block">ℹ️ <b>本页档位独立保存</b>：切换不会影响导演画布 / AI 剪辑台，三个网页可以同时用不同算力并行工作（同一网页的多个标签页仍同步）。</div>
                 <div class="local-hint" id="manflowHint" style="display:none">
                     <span>ℹ️ <b>漫流算力（默认）正在接入中</b>：预置模型、扫码充值、积分与扣费系统即将开放，开放后不用配置、扫码充值即可直接使用。当前请切换到「本机算力」或「第三方API」。</span>
                 </div>
@@ -589,7 +590,10 @@ let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
 
 /* 三种算力：manflow=漫流算力（默认占位）、local=本机算力、api=第三方API。
    已保存过 local / api 的老用户保持原选择，只有从未保存过（或值无效）才默认漫流算力。 */
-let computeMode = safeStorage.get("computeMode");
+/* 三个网页的算力档位各自独立：创作台 computeMode_index / 画布 computeMode_canvas /
+   AI 剪辑台用自己的「识别引擎」。旧版两页共用的 computeMode 仅作首次迁移初值，不再回写。 */
+const MF_COMPUTE_KEY = "computeMode_index";
+let computeMode = safeStorage.get(MF_COMPUTE_KEY) || safeStorage.get("computeMode");
 if(computeMode !== "local" && computeMode !== "api") computeMode = "manflow";
 let apiProfiles = [];
 let currentProfileId = null;
@@ -693,7 +697,7 @@ const HELP_HTML = `
 <h2>三、通用使用流程</h2>
 <ol>
 <li>点击上方按钮加载对应的创作技能模板；<b>吐字窗口里已经有生成的文字时，点任一技能（含导入的本地技能）会先弹出选择框，让你选「用哪个技能处理这段文字」；选定后会新开一个干净的创作台网页，自动带上这段文字、所选技能和你在底部输入框里写的额外要求，在新网页里自动加载技能并直接开始生成，避免剧本、生图提示词、生视频提示词混在同一个窗口。当前页面的吐字窗口完全不变</b>；不想处理点「取消 / 关闭」即可，不会打开新网页、也不会改动窗口内容；</li>
-<li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；<b>创作台【算力总控】、导演画布左侧【算力总控】、画布生成节点里的「生成引擎」三处实时同步</b>：任意一处切换，另外两处（含另一页已打开的标签页）立即跟随。画布总控或创作台切档时，会把当前画布已有生成节点一起切（生成中的节点不打断，跑完后再由用户切换）；在生成节点里单独改引擎只改那一个节点、其它节点仍可各自保留，新建生成节点默认跟随总控。<b>上下文窗口 token（32K / 64K / 128K / 256K / 1M）只对「本机算力」生效</b>；选「漫流算力」或「第三方API」时该栏自动改为「上下文长度：跟随所选模型（自适应）」，不再发送 max_tokens，由模型与服务商按自身上限决定（这类模型上下文普遍 256K 以上甚至 1M），切回本机算力会恢复并保留你上次设定的数字；</li>
+<li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；<b>三个网页的算力档位各自独立</b>：创作台、导演画布、AI 剪辑台可以同时选用不同算力并行工作，在任一网页切档位都不会改动另外两个网页（同一网页的多个标签页仍同步）。导演画布内部仍是<b>两处联动</b>：画布左侧【算力总控】与生成节点里的「生成引擎」任意一处切换，另一处立即跟随；画布切总控时会把当前画布已有生成节点一起切（生成中的节点不打断，跑完后再由用户切换），在生成节点里单独改引擎只改那一个节点、新建生成节点默认跟随画布总控。<b>上下文窗口 token（32K / 64K / 128K / 256K / 1M）只对「本机算力」生效</b>；选「漫流算力」或「第三方API」时该栏自动改为「上下文长度：跟随所选模型（自适应）」，不再发送 max_tokens，由模型与服务商按自身上限决定（这类模型上下文普遍 256K 以上甚至 1M），切回本机算力会恢复并保留你上次设定的数字；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
@@ -858,11 +862,11 @@ function initComputeModeUI(){
     if(inpLocalModel) inpLocalModel.value = localModelName;
     applyComputeModePanels();
 }
-/* ===== 三处算力档位实时同步 =====
-   共用 localStorage 键 computeMode：创作台【算力总控】/ 画布左侧【算力总控】/
-   画布生成节点「生成引擎」任意一处切换，另两处立即跟随（跨标签页实时生效）。
-   storage 事件负责常规同步，BroadcastChannel 用于本机存储被禁用时的兜底；
-   外部来的档位只改本页变量与界面，绝不回写 storage，避免两页来回触发。 */
+/* ===== 算力档位：创作台独立保存，仅同一网页的其它标签页之间同步 =====
+   三个网页各用各的档位，互不干扰，可同时用不同算力并行工作；
+   storage 只认本页的键 computeMode_index，BroadcastChannel 只认 from:"index" 的消息，
+   画布（from:"canvas"）与其它网页发来的档位一律忽略；
+   外部来的档位只改本页变量与界面，绝不回写 storage，避免来回触发。 */
 const MF_COMPUTE_SYNC_CHANNEL = "manflows_compute_sync";
 const MF_COMPUTE_MODES = ["manflow","local","api"];
 let mfComputeSyncChannel = null;
@@ -881,21 +885,22 @@ function mfApplyExternalComputeMode(mode){
 }
 function mfInitComputeSync(){
     window.addEventListener("storage", ev=>{
-        if(ev.key === "computeMode" && ev.newValue) mfApplyExternalComputeMode(ev.newValue);
+        if(ev.key === MF_COMPUTE_KEY && ev.newValue) mfApplyExternalComputeMode(ev.newValue);
     });
     try{
         if("BroadcastChannel" in window){
             if(!mfComputeSyncChannel) mfComputeSyncChannel = new BroadcastChannel(MF_COMPUTE_SYNC_CHANNEL);
             mfComputeSyncChannel.onmessage = ev=>{
-                const m = ev && ev.data && ev.data.mode;
-                if(m) mfApplyExternalComputeMode(m);
+                const d = ev && ev.data;
+                /* 只接受本页（创作台）自己发的档位；画布 / AI 剪辑台的消息一律忽略 */
+                if(d && d.from === "index" && d.mode) mfApplyExternalComputeMode(d.mode);
             };
         }
     }catch(e){ console.warn("算力档位同步通道不可用：", e); }
 }
 function saveComputeMode(){
     computeMode = document.querySelector('input[name="computeMode"]:checked').value;
-    safeStorage.set("computeMode", computeMode);
+    safeStorage.set(MF_COMPUTE_KEY, computeMode);
     mfBroadcastComputeMode(computeMode);
     applyComputeModePanels();
     if(computeMode === "api" && apiProfiles.length === 0){
