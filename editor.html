@@ -719,7 +719,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <ul>
                 <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材信息、视频抽帧与你的思路，返回可预览的剪辑方案，确认后才写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b></li>
                 <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
-                <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因；<b>删除区间在导出成片时由本机 FFmpeg 真实裁剪重编码</b>，不是只做预览隐藏。</li>
+                <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因。<b>删除后视频 / 音频 / 字幕 / LUT 会按同一批区间物理切成多个独立片段</b>，没剪好的段落可继续手动裁剪、变速、倒放；<b>导出成片仍是完整一条</b>，由本机 FFmpeg 按各片段真实源范围拼接重编码，不是只做预览隐藏。</li>
                 <li><b>🎨 时间轴 LUT 轨</b>：视频轨上方新增独立的 LUT 轨。在右侧「调整 · 调色 LUT」面板加载 <code>.cube / .3dl / .lut</code> 文件，可保存多个预制反复调用；LUT 自带强度 / 亮度 / 对比度 / 饱和度 / 色温参数，拖动滑块实时改变画面。LUT 片段可裁剪、可移动，只影响它覆盖时间段内下方的视频；导出时由本机 FFmpeg 的 <code>lut3d</code> 滤镜真实烘焙进成片，预览与成品一致。</li>
                 <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏的「磁吸」可开/关，拖动片段时自动吸附到其他片段边缘、播放头与 0 点；每个片段头尾都有可拖动手柄，按住前后拖即可裁掉开头或结尾；预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点预览标题栏「◇ 变换框」常显。</li>
                 <li><b>🎬🔊 复合音视频轨 / 波形</b>：带声音的视频片段在时间轴上高度加倍，上半是画面、下半是音频波形；所有音频轨片段也自带波形（由浏览器 WebAudio 解码生成，不上传任何数据）。右键这类视频片段可选「拆分视频和音频轨道」，音频会下移到新音轨并与画面严格对齐，之后可单独剪辑或删除。</li>
@@ -1556,8 +1556,9 @@ function drawAllWaves(){
         if(a) drawWave(cv,c,a);
     });
 }
-/* 智能剪口播删除区间的源时间表示：cutRanges 是素材自身时间轴上的区间。
-   导出时 /api/render 会按「原始源跨度 - cutRanges」重新解码拼接，是真裁剪，不是预览隐藏。 */
+/* 时间轴 ↔ 源时间映射。
+   旧工程可能带 cutRanges（源区间，导出时按「原始源跨度 - cutRanges」真裁剪）；
+   新版智能剪口播会把片段物理切成多段，新片段不带 cutRanges，offset + 时长 × 倍率即其真实源范围。 */
 function clipSpeed(c){
     const f=fxOf(c);
     return Math.max(0.25,Math.min(5,Number(f.speed)||1));
@@ -1594,7 +1595,9 @@ function sourceKeptRanges(c){
 }
 function timelineToSource(c,t){
     const kept=sourceKeptRanges(c), total=kept.reduce((a,r)=>a+(r.end-r.start),0);
-    let pos=clamp((Number(t)||0)-(Number(c.start)||0),0,Math.max(0,total));
+    const sp=Math.max(0.01,clipSpeed(c));
+    /* 时间轴 1 秒对应源 sp 秒；倒放时从保留区间末尾往回取，保证 offset 取到源跨度低端 */
+    let pos=clamp(((Number(t)||0)-(Number(c.start)||0))*sp,0,Math.max(0,total));
     if(fxOf(c).reverse) pos=Math.max(0,total-pos);
     for(const r of kept){
         const len=r.end-r.start;
@@ -3352,7 +3355,9 @@ async function openSmartCutModal(){
         }else scLogSetState("轨道上没有已加载完成的音视频素材");
     }else scLogSetState("已载入上次检测结果，可点「重新检测静音」刷新");
 }
-/* 轨道级波纹删除：删掉区间，并把后续片段整体前移；片段跨越删除区时裁短 */
+/* 轨道级波纹删除：删掉区间、后续片段整体前移；跨越删除区的片段按同一批区间
+   物理切成多个独立小片段（视频/音频/字幕/LUT 全部一致），方便用户逐段手动微调。
+   每段重新计算 offset/时长并清空 cutRanges；导出时这些片段仍会拼成完整一条成片。 */
 function rippleDeleteRanges(ranges){
     const rs=ranges.slice().sort((a,b)=>a.start-b.start).reduce((acc,r)=>{
         const last=acc[acc.length-1];
@@ -3360,50 +3365,64 @@ function rippleDeleteRanges(ranges){
         else acc.push({start:Number(r.start),end:Number(r.end)});
         return acc;
     },[]).filter(r=>r.end>r.start+0.05);
-    if(!rs.length) return {cuts:0,removed:0,cutByClip:[]};
+    if(!rs.length) return {cuts:0,removed:0,pieces:0,cutByClip:[]};
+    /* 某时间点之前被删掉的总时长，用于前移 */
     const shift=t=>rs.reduce((a,r)=>a+(t>=r.end?(r.end-r.start):0),0);
-    const inner=(s,e)=>rs.reduce((a,r)=>a+Math.max(0,Math.min(e,r.end)-Math.max(s,r.start)),0);
-    const before=state.clips.length, cutByClip=[];
-    state.clips=state.clips.map(c=>{
+    const before=state.clips.length, out=[], cutByClip=[];
+    let pieces=0;
+    for(const c of state.clips){
         const s=Number(c.start)||0, e=s+(Number(c.duration)||0);
-        /* 删除区间换算到素材自身时间（倒放片段同样按反向映射），导出时按此真裁剪 */
-        const added=[];
+        /* [s,e] 减去删除区间，得到该片段真正保留的时间轴区间 */
+        let segs=[{s:s,e:e}];
         for(const r of rs){
-            const x=Math.max(s,r.start), y=Math.min(e,r.end);
-            if(y<=x+0.02) continue;
-            const p=timelineToSource(c,x), q=timelineToSource(c,y);
-            const cs=Math.min(p.t,q.t), ce=Math.max(p.t,q.t);
-            if(ce>cs+0.02) added.push({start:+cs.toFixed(4),end:+ce.toFixed(4)});
+            const next=[];
+            for(const g of segs){
+                if(r.end<=g.s+1e-6 || r.start>=g.e-1e-6){ next.push(g); continue; }
+                if(r.start>g.s+1e-6) next.push({s:g.s,e:Math.min(g.e,r.start)});
+                if(r.end<g.e-1e-6) next.push({s:Math.max(g.s,r.end),e:g.e});
+            }
+            segs=next;
         }
-        let cuts=mergedCutRanges(c);
-        if(added.length){
-            cuts=cuts.concat(added).sort((a,b)=>a.start-b.start).reduce((acc,r)=>{
-                const last=acc[acc.length-1];
-                if(last&&r.start<=last.end+0.001) last.end=Math.max(last.end,r.end);
-                else acc.push({start:r.start,end:r.end});
-                return acc;
-            },[]);
-            cutByClip.push({id:c.id,ranges:cuts});
+        segs=segs.filter(g=>g.e-g.s>0.08);
+        if(!segs.length) continue;                       /* 整段被删掉 */
+        const unchanged=segs.length===1 && Math.abs(segs[0].s-s)<1e-6 && Math.abs(segs[0].e-e)<1e-6;
+        if(unchanged){                                    /* 没碰到删除区：只前移，原样保留 */
+            out.push(Object.assign({},c,{start:Math.max(0,s-shift(s))}));
+            continue;
         }
-        const kept=(e-s)-inner(s,e);
-        if(kept<=0.08) return null;
-        return Object.assign({},c,{start:Math.max(0,s-shift(s)),duration:kept,cutRanges:cuts});
-    }).filter(Boolean);
+        segs.forEach((g,i)=>{
+            /* 用原片段的映射取出该保留区间对应的源时间；正放取低端、倒放同样取低端作为 offset */
+            const sa=timelineToSource(c,g.s).t, sb=timelineToSource(c,Math.min(g.e,e)).t;
+            const off=Math.max(0,Math.min(sa,sb));
+            out.push(Object.assign({},c,{
+                id:uid(),
+                start:Math.max(0,g.s-shift(g.s)),
+                duration:+(g.e-g.s).toFixed(4),
+                offset:+off.toFixed(4),
+                cutRanges:[],                             /* 已物理切开，不再需要内部裁剪标记 */
+                name:String(c.name||"素材")+(segs.length>1?(" · "+(i+1)):"")
+            }));
+            pieces++;
+        });
+        cutByClip.push({id:c.id,pieces:segs.length});
+    }
+    state.clips=out;
     state.selected=null; state.multi=[]; state.selectedAsset=null;
-    return {cuts:rs.length,removed:before-state.clips.length,cutByClip:cutByClip};
+    return {cuts:rs.length,removed:before-state.clips.length,pieces:pieces,cutByClip:cutByClip};
 }
 function applySmartCut(){
     const picks=smartCutCandidates.filter(x=>x.on).map(x=>({start:x.start,end:x.end}));
     if(!picks.length){ toast("没有勾选任何区间","err"); return; }
-    if(!confirm("确定删除 "+picks.length+" 处停顿 / 语气词区间？后续片段会自动前移，可用 Ctrl+Z 撤销。")) return;
+    if(!confirm("确定删除 "+picks.length+" 处停顿 / 语气词区间？后续片段会自动前移，并按删除点切成多段供你继续手动微调，可用 Ctrl+Z 撤销。")) return;
     pushHistory();
     const r=rippleDeleteRanges(picks);
-    scLogPush("已确认删除 "+picks.length+" 处区间；导出成片时这些区间会由本机 FFmpeg 真实裁剪重编码");
+    scLogPush("已确认删除 "+picks.length+" 处区间；视频/音频/字幕/LUT 按同一批区间物理切分，成片仍导出为完整一条");
     $("smartCutModal").classList.remove("show");
     renderAll(); syncMedia(); autoSave();
-    scLogPush("波纹删除 "+r.cuts+" 处 / 移除 "+r.removed+" 个片段；受影响的 "
-        +(r.cutByClip||[]).length+" 个素材已记录源时间裁剪区间，导出时由 FFmpeg 真实重处理");
-    toast("智能剪口播完成：波纹删除 "+r.cuts+" 处区间，移除 "+r.removed+" 个片段（导出时会真实重渲染，可 Ctrl+Z 撤销）","ok");
+    const splitMsg=r.pieces?("；受影响片段已切成 "+r.pieces+" 个可独立调整的小片段（每段可继续裁剪、变速、倒放，导出仍拼成完整一条）"):"";
+    scLogPush("波纹删除 "+r.cuts+" 处 / 移除 "+r.removed+" 个片段"+splitMsg);
+    toast("智能剪口播完成：删除 "+r.cuts+" 处区间"+(r.pieces?("，切成 "+r.pieces+" 个可独立调整的片段"):"")
+        +"（导出仍是完整一条，可 Ctrl+Z 撤销）","ok");
 }
 
 /* ---------- AI 剪辑：复用站点已保存的大模型配置 ---------- */
