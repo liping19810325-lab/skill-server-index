@@ -15,6 +15,10 @@
      片段首尾还会加 30ms 淡入淡出，避免剪口播切段拼接处爆音；
   5）【新】导出时用 FFmpeg libass/subtitles 滤镜把字幕真正烧进画面像素
      （硬字幕，支持中文），不再依赖播放器的外挂字幕文件。
+  6）【新】给「🤖 对话剪辑」做大模型代理：浏览器把你在「算力总控」里
+     已配置好的接口地址 / 模型 / Key 随请求传给本机，由本机转发给
+     Claude / GPT 等模型（含 tool 工具调用），绕开浏览器 CORS，
+     Key 也不会暴露给第三方页面。OpenAI 与 Anthropic 两种接口都支持。
 
 服务本身只用 Python 3 标准库，零第三方依赖，不需要联网安装任何 pip 包。
 （AI 字幕若要走「本机 faster-whisper」这一档，才需要另外装一次，见下文。）
@@ -168,6 +172,15 @@ AI 字幕会用 FFmpeg 把任意视频抽成 16kHz / 单声道 / 16bit 的 WAV�
 
 ----------------------------------------------------------
 【常见故障】
+· 「🤖 对话剪辑」报「未配置接口地址或模型名」：先在剪辑台左上「算力总控」
+  切到「本机算力」或「第三方API」，并在面板的模型下拉里选一个 Claude /
+  GPT 等大语言模型；「漫流算力」是占位档，暂不可运行。
+· 「🤖 对话剪辑」报「模型接口返回 HTTP 401/403」：第三方接口的 Key 填错或
+  过期，去创作台 / 画布的「第三方API」配置里更新；本机算力不需要 Key。
+· 「🤖 对话剪辑」报「调用模型接口失败 / 超时」：确认本机网络能访问该接口
+  （Claude / GPT 需要代理时先开代理），或把模型换成响应更快的一档。
+· 对话里 AI 一直说建议却不动手：说明模型太弱、没稳定输出 tool_calls。
+  换 Claude Sonnet/Opus、GPT-4o/4.1 这类强模型再试。
 · 启动时提示「端口被占用」：8788 已被别的程序（很可能是另一个本服务
   实例）占用，先关掉旧的终端窗口再重新启动。
 · 浏览器里「探测不到本机服务」：确认终端窗口还开着、没被安全软件拦截、
@@ -225,4 +238,12 @@ AI 字幕的音频切片：走「本机 faster-whisper」时完全不出本机�
                             可选参数 fadeMs=30：片段首尾 30ms afade 淡入淡出防爆音（仅导出生效）
   GET  /api/render/status   查渲染进度与结果（?jobId=...）
   POST /api/burn-subtitles  把 SRT 字幕用 libass 真正烧进画面（入参 dataBase64 / srt / filename，回传 dataBase64）
+  POST /api/ai/chat         大模型代理：浏览器传入 endpoint/model/key/messages/tools，
+                            本机转发给 OpenAI 兼容或 Anthropic 接口并统一回传
+                            {ok, content, tool_calls:[{id,type,function:{name,arguments}}],
+                             stop_reason, style, model, usage}；自动把 OpenAI 格式
+                             messages 转换成 Anthropic 格式（system 拆出、
+                             role=tool → tool_result、图片 → base64 image、
+                             assistant.tool_calls → tool_use）。
+                             「🤖 对话剪辑」的多轮工具调用循环走这个接口。
 ==========================================================

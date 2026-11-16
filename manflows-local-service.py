@@ -15,6 +15,9 @@
   POST /api/silences        独立静音检测：Whisper 失败时仍可列出可删区间
   POST /api/render          逐片段真渲染：分段变速/倒放/删除区间后重编码（异步任务）
   GET  /api/render/status   查询渲染进度与结果
+  POST /api/burn-subtitles  字幕硬烧录到成片像素
+  POST /api/ai/chat         LLM 代理：转发 Claude/GPT 等模型请求（含 tools 工具调用），
+                            浏览器把已有算力配置随请求传入，由本机转发以绕开 CORS 并避免 Key 暴露
 
 所有响应都带 CORS 与 Chrome Private Network Access 头；错误一律返回 JSON，
 不向外抛裸异常。被代理目标做基本 SSRF 防护。
@@ -49,13 +52,14 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
 TIMEOUT_MEDIA = 30        # 媒体流式代理
 TIMEOUT_TRANSCODE = 600   # 转码 10 分钟
 TIMEOUT_ASR = 180         # 单段语音转写
+TIMEOUT_AI = 180          # LLM 单次工具循环请求
 TIMEOUT_ASR_PROBE = 1.2   # 探测本机 faster-whisper
 ASR_LOCAL_BASE = "http://127.0.0.1:9000"
 ASR_CHUNK_SEC = 60        # 每段 60 秒（16k/mono WAV ≈ 1.9MB，远低于模型 20MB 上限）
@@ -545,12 +549,18 @@ def api_guide():
             "why": "倒放(reverse+areverse)与变速(setpts+atempo 保音调)必须真正写进文件，"
                    "不能用 video.playbackRate 冒充成品效果。",
             "chunk": "每段最长 %g 秒，reverse 只缓存单段帧，长视频峰值内存恒定。" % RENDER_CHUNK_SEC,
-            "fade": "导出时每个片段首尾各加 30ms afade 淡入淡出，避免智能剪口播切段拼接处爆音；预览不受影响。",
+            "fade": "导出时在整条成片的首尾各加 30ms afade 淡入淡出，避免开头/结尾爆音；预览不受影响。（渲染按 2 秒内部小段进行，逐段加淡入淡出会每 2 秒产生音量凹陷，故只在成片首尾加。）",
         },
         "burn": {
             "what": "POST /api/burn-subtitles 把 SRT 字幕用 FFmpeg libass/subtitles 滤镜真正烧进画面（硬字幕）。",
             "why": "浏览器只能录屏合成，无法把文字写进画面像素；烧录在导出阶段由本机 FFmpeg 完成，任何播放器都能看到。",
             "input": "dataBase64=已合成视频，srt=SRT 文本，filename=导出文件名；返回 dataBase64。",
+        },
+        "ai": {
+            "what": "POST /api/ai/chat 是真正 AI 剪辑的模型代理：浏览器把「算力总控」里已配置的 endpoint/model/key 随请求交给本机，由本机转发给 Claude / GPT 等模型，绕开浏览器 CORS 且 Key 不暴露在网页。",
+            "why": "AI 剪辑需要模型通过 tools 工具调用真实修改时间轴。浏览器直连会被 CORS 拦截且 Key 暴露在页面里；本机代理同时兼容 OpenAI 兼容接口与 Anthropic /v1/messages。",
+            "input": "endpoint/model/key/messages 必填，tools 选填（用 OpenAI 格式，Anthropic 自动转换）；返回统一 {ok, content, tool_calls:[{id,type,function:{name,arguments}}], stop_reason, usage}。",
+            "flow": "网页发一轮 → 模型返回 tool_calls → 网页执行工具并回注结果 → 再发一轮，直到模型给出最终答复。所有编辑只生成提案，用户确认后才落时间轴，可 Ctrl+Z 撤销。",
         },
         "transcribe": {
             "what": "AI字幕 / 智能剪口播 的语音识别：网页把素材交给本服务，本服务用 FFmpeg 抽成 16kHz 单声道 WAV、按 60 秒切片，再逐段转发给转写接口并合并时间码。",
@@ -1994,6 +2004,216 @@ def api_burn_subtitles(body):
             pass
 
 
+def _ai_style(endpoint):
+    e = (endpoint or "").lower()
+    if "anthropic.com" in e or "/v1/messages" in e:
+        return "anthropic"
+    return "openai"
+
+
+def _anthropic_msgs(messages):
+    """把 OpenAI 风格 messages 转成 Anthropic /v1/messages 风格：
+       system 拆出；assistant.tool_calls → tool_use 块；role=tool → user.tool_result；
+       image_url(data:...) → image/source.base64。合并连续同角色消息以符合接口约束。"""
+    system = ""
+    msgs = []
+
+    def to_blocks(content):
+        if isinstance(content, str):
+            return [{"type": "text", "text": content}] if content else []
+        out = []
+        if not isinstance(content, list):
+            return out
+        for b in content:
+            if not isinstance(b, dict):
+                continue
+            t = b.get("type")
+            if t == "text":
+                out.append({"type": "text", "text": str(b.get("text") or "")})
+            elif t in ("image_url", "image"):
+                iu = b.get("image_url") if t == "image_url" else b.get("source")
+                url = iu.get("url") if isinstance(iu, dict) else (iu if isinstance(iu, str) else "")
+                if isinstance(url, str) and url.startswith("data:"):
+                    try:
+                        head, data = url.split(",", 1)
+                        mt = "image/jpeg"
+                        if ";" in head:
+                            mt = head.split(":", 1)[1].split(";")[0] or mt
+                        out.append({"type": "image", "source": {
+                            "type": "base64", "media_type": mt, "data": data}})
+                    except Exception:
+                        pass
+        return out
+
+    pending_tr = []
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        if role == "system":
+            c = m.get("content")
+            system += (c if isinstance(c, str) else json.dumps(c, ensure_ascii=False)) + "\n"
+            continue
+        if role == "tool":
+            tr_content = m.get("content")
+            pending_tr.append({
+                "type": "tool_result",
+                "tool_call_id": str(m.get("tool_call_id") or ""),
+                "content": tr_content if isinstance(tr_content, str) else json.dumps(tr_content, ensure_ascii=False),
+            })
+            continue
+        blocks = to_blocks(m.get("content"))
+        if role == "assistant":
+            for tc in (m.get("tool_calls") or []):
+                if not isinstance(tc, dict):
+                    continue
+                fn = tc.get("function") or {}
+                arg = fn.get("arguments") or "{}"
+                try:
+                    inp = json.loads(arg) if isinstance(arg, str) else arg
+                except Exception:
+                    inp = {}
+                blocks.append({"type": "tool_use", "id": str(tc.get("id") or uuid.uuid4().hex),
+                               "name": str(fn.get("name") or ""), "input": inp})
+        if pending_tr:
+            msgs.append({"role": "user", "content": pending_tr})
+            pending_tr = []
+        msgs.append({"role": role, "content": blocks})
+    if pending_tr:
+        msgs.append({"role": "user", "content": pending_tr})
+
+    merged = []
+    for m in msgs:
+        if merged and merged[-1].get("role") == m.get("role") == "user":
+            merged[-1]["content"] = merged[-1]["content"] + m["content"]
+        else:
+            merged.append(m)
+    return system.strip(), merged
+
+
+def api_ai_chat(body):
+    """LLM 代理：浏览器把「算力总控」里已配置的 endpoint/model/key 随请求传给本机，
+       由本机转发给 Claude / GPT 等模型，解决浏览器 CORS 并避免 Key 暴露给第三方页面。
+
+       统一接收 OpenAI 格式的 tools/messages，自动适配 Anthropic /v1/messages；
+       返回统一结构 {ok, content, tool_calls:[{id,type,function:{name,arguments}}], ...}，
+       前端 Agent 循环只处理这一种格式。"""
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return _fail("请求体不是合法 JSON：%s" % _short(e))
+    if not isinstance(data, dict):
+        return _fail("请求体格式不正确")
+
+    endpoint = str(data.get("endpoint") or "").strip()
+    model = str(data.get("model") or "").strip()
+    key = str(data.get("key") or "").strip()
+    messages = data.get("messages")
+    tools = data.get("tools") or []
+    if not endpoint or not model:
+        return _fail("缺少接口地址或模型名", "请先在剪辑台「算力总控」配置接口地址与模型名")
+    if not isinstance(messages, list) or not messages:
+        return _fail("缺少 messages 数组")
+    u = urlparse(endpoint)
+    if u.scheme not in ("http", "https") or not u.netloc:
+        return _fail("接口地址不是合法的 http(s) URL：%s" % endpoint[:120])
+    if tools and not isinstance(tools, list):
+        return _fail("tools 必须是数组")
+
+    try:
+        timeout = max(10, min(600, int(data.get("timeout") or TIMEOUT_AI)))
+    except Exception:
+        timeout = TIMEOUT_AI
+    try:
+        temp = float(data.get("temperature")) if data.get("temperature") is not None else 0.3
+    except Exception:
+        temp = 0.3
+    try:
+        max_tokens = int(data.get("maxTokens") or 4096)
+    except Exception:
+        max_tokens = 4096
+
+    style = _ai_style(endpoint)
+    if style == "anthropic":
+        system, msgs = _anthropic_msgs(messages)
+        payload = {"model": model, "messages": msgs,
+                   "max_tokens": max_tokens, "temperature": temp}
+        if system:
+            payload["system"] = system
+        at = []
+        for t in tools:
+            if not isinstance(t, dict):
+                continue
+            fn = t.get("function") if t.get("type") == "function" else t
+            if not isinstance(fn, dict) or not fn.get("name"):
+                continue
+            at.append({"name": fn.get("name"), "description": fn.get("description") or "",
+                       "input_schema": fn.get("parameters") or {"type": "object", "properties": {}}})
+        if at:
+            payload["tools"] = at
+        headers = {"Content-Type": "application/json", "x-api-key": key,
+                   "anthropic-version": "2023-06-01"}
+    else:
+        payload = {"model": model, "messages": messages, "temperature": temp}
+        if tools:
+            payload["tools"] = tools
+        payload[str(data.get("maxTokensField") or "max_tokens")] = max_tokens
+        headers = {"Content-Type": "application/json"}
+        if key:
+            headers["Authorization"] = "Bearer " + key
+
+    try:
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", "replace")
+        j = json.loads(raw)
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")[:1200]
+        return _fail("模型接口返回 HTTP %s：%s" % (e.code, detail[:600]))
+    except Exception as e:
+        return _fail("调用模型接口失败：%s" % _short(e),
+                     "请检查接口地址、模型名与 Key 是否正确，并确认本机网络可访问该地址")
+
+    content = ""
+    tool_calls = []
+    stop = ""
+    if style == "anthropic":
+        for b in (j.get("content") or []):
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "text":
+                content += str(b.get("text") or "")
+            elif b.get("type") == "tool_use":
+                tool_calls.append({
+                    "id": b.get("id") or uuid.uuid4().hex, "type": "function",
+                    "function": {"name": b.get("name") or "",
+                                 "arguments": json.dumps(b.get("input") or {}, ensure_ascii=False)}})
+        stop = j.get("stop_reason") or ""
+    else:
+        ch = (j.get("choices") or [{}])[0] if isinstance(j.get("choices"), list) else {}
+        msg = ch.get("message") or ch.get("delta") or {}
+        c = msg.get("content")
+        if isinstance(c, list):
+            content = "".join(str(x.get("text") or "") if isinstance(x, dict) else str(x) for x in c)
+        else:
+            content = str(c or "")
+        if not content:
+            content = str(j.get("output_text") or j.get("text") or "")
+        for tc in (msg.get("tool_calls") or []):
+            fn = tc.get("function") or {} if isinstance(tc, dict) else {}
+            tool_calls.append({
+                "id": tc.get("id") or uuid.uuid4().hex, "type": "function",
+                "function": {"name": fn.get("name") or "", "arguments": fn.get("arguments") or "{}"}})
+        stop = ch.get("finish_reason") or ""
+
+    return {"ok": True, "content": content, "tool_calls": tool_calls,
+            "stop_reason": stop, "style": style, "model": model,
+            "usage": j.get("usage") or {}}
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "ManflowsLocal/%s" % VERSION
@@ -2161,7 +2381,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用接口：/api/ping、/api/guide、/api/ffmpeg-install、"
                                       "/api/resolve、/api/media、/api/export、/api/probe、"
-                                      "/api/transcribe、/api/silences、/api/render、/api/render/status"))
+                                      "/api/transcribe、/api/silences、/api/render、/api/render/status、"
+                                      "/api/burn-subtitles、/api/ai/chat"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
@@ -2195,10 +2416,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_render(body))
             elif path == "/api/burn-subtitles":
                 self._send_json(api_burn_subtitles(body))
+            elif path == "/api/ai/chat":
+                self._send_json(api_ai_chat(body))
             else:
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用的 POST 接口：/api/resolve、/api/export、/api/probe、"
-                                      "/api/transcribe、/api/silences、/api/render、/api/burn-subtitles"))
+                                      "/api/transcribe、/api/silences、/api/render、/api/burn-subtitles、"
+                                      "/api/ai/chat"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
