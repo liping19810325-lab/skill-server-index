@@ -10,8 +10,10 @@
   GET/POST /api/resolve     把分享链接/直链解析成可播放地址
   GET  /api/media?u=...     流式代理媒体（Range / 防盗链 Referer）
   POST /api/export          FFmpeg 转码导出 / 抽音频 / 生成 GIF
+  POST /api/probe           探测素材时长 / 音视频流（无 ffprobe 也能用）
   POST /api/transcribe      抽音轨 + 分段 + 本机/第三方转写（绕开浏览器 CORS）
-  POST /api/render          逐片段真渲染：分段变速/倒放后重编码（异步任务）
+  POST /api/silences        独立静音检测：Whisper 失败时仍可列出可删区间
+  POST /api/render          逐片段真渲染：分段变速/倒放/删除区间后重编码（异步任务）
   GET  /api/render/status   查询渲染进度与结果
 
 所有响应都带 CORS 与 Chrome Private Network Access 头；错误一律返回 JSON，
@@ -47,7 +49,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -1126,6 +1128,185 @@ def _detect_silences(ff, wav_path):
     return out[:600]
 
 
+
+def _media_to_file(data, td):
+    """把前端提交的素材（dataBase64 或公网直链）落到临时文件，供探测/静音/转写共用。"""
+    b64 = str(data.get("dataBase64") or "")
+    if "," in b64 and b64.strip().lower().startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    url = str(data.get("url") or "").strip()
+    fname = _safe_stem(str(data.get("filename") or "audio.wav"))
+    ext = ".mp4"
+    m = re.search(r"\.([a-z0-9]{1,5})(?:\?|$)", url.lower())
+    if m:
+        ext = "." + m.group(1)
+    if "." in os.path.basename(fname):
+        e2 = "." + os.path.basename(fname).rsplit(".", 1)[-1].lower()
+        if re.fullmatch(r"\.[a-z0-9]{1,5}", e2):
+            ext = e2
+    path = os.path.join(td, "input" + ext)
+    if b64:
+        raw = base64.b64decode(b64, validate=False)
+        if not raw:
+            raise RuntimeError("dataBase64 为空，没有可识别的音视频数据")
+        with open(path, "wb") as f:
+            f.write(raw)
+    elif url:
+        ok, why = is_allowed_target(url)
+        if not ok:
+            raise RuntimeError("素材地址不被允许：" + why)
+        with _open_url(url, headers={"User-Agent": UA_DESKTOP,
+                                     "Referer": _referer_for(url)},
+                       timeout=TIMEOUT_MEDIA) as r, open(path, "wb") as f:
+            shutil.copyfileobj(r, f, CHUNK)
+        if os.path.getsize(path) < 16:
+            raise RuntimeError("在线素材下载为空")
+    else:
+        raise RuntimeError("缺少素材：请提供 dataBase64 或 url")
+    return path, ext
+
+
+def _probe_media_text(ff, path):
+    """静态 ffmpeg 包常不带 ffprobe；解析 ffmpeg -i 的 stderr 得到时长与流信息。"""
+    p = subprocess.run([ff, "-hide_banner", "-i", path],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    txt = (p.stderr or b"").decode("utf-8", "replace")
+    duration = 0.0
+    m = re.search(r"Duration:\s*(\d+):(\d+):([\d.]+)", txt)
+    if m:
+        try:
+            duration = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+        except Exception:
+            duration = 0.0
+    width = height = 0
+    fps = 0.0
+    m = re.search(r"Video:[^\n]*?(\d{2,5})x(\d{2,5})", txt)
+    if m:
+        width, height = int(m.group(1)), int(m.group(2))
+    m = re.search(r"(\d+(?:\.\d+)?)\s+fps", txt)
+    if m:
+        fps = float(m.group(1))
+    return {"duration": round(duration, 3), "durationMs": int(round(duration * 1000)),
+            "hasVideo": "Video:" in txt, "hasAudio": "Audio:" in txt,
+            "width": width, "height": height, "fps": fps}
+
+
+def api_probe(body):
+    """浏览器 media 元素读不到时长（大 MOV / moov 在尾部）时用本机 FFmpeg 兜底。"""
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return _fail("请求体不是合法 JSON：%s" % _short(e))
+    if not isinstance(data, dict):
+        return _fail("请求体必须是 JSON 对象")
+    info = detect_ffmpeg()
+    if not info["found"]:
+        return {"ok": False, "reason": "本机未找到 FFmpeg，无法探测素材时长",
+                "guide": FFMPEG_GUIDE, "hint": FFMPEG_GUIDE.get(_plat(), "")}
+    with tempfile.TemporaryDirectory(prefix="manflows-probe-") as td:
+        try:
+            path, _ext = _media_to_file(data, td)
+            meta = _probe_media_text(info["path"], path)
+        except Exception as e:
+            return _fail("探测素材失败：%s" % _short(e),
+                         "请确认素材可播放；在线直链可能需要本机服务代理。")
+    meta["ok"] = True
+    meta["engine"] = "本机 FFmpeg %s" % (info.get("version") or "")
+    meta["log"] = ["已用本机 FFmpeg 读取容器元数据",
+                   "时长 %s 秒 · 视频 %s · 音频 %s" %
+                   (meta["duration"], "有" if meta["hasVideo"] else "无",
+                    "有" if meta["hasAudio"] else "无")]
+    return meta
+
+
+def _silence_params(data):
+    """静音检测参数：默认 -35dB、停顿 >= 0.5s、切口留白 0.12s。"""
+    def num(key, default, lo, hi):
+        try:
+            v = float(data.get(key, default))
+        except Exception:
+            v = default
+        return max(lo, min(hi, v))
+    return {"db": num("silenceDb", -35.0, -80.0, 0.0),
+            "minSec": num("silenceMin", 0.5, 0.1, 10.0),
+            "pad": num("keepPad", 0.12, 0.0, 2.0)}
+
+
+def _detect_silences_ex(ff, wav_path, params=None):
+    """FFmpeg silencedetect 找出气口；返回可删区间 + 原始事件，供日志面板展示。"""
+    pa = params or _silence_params({})
+    db, minsec, pad = pa["db"], pa["minSec"], pa["pad"]
+    cmd = [ff, "-hide_banner", "-i", wav_path,
+           "-af", "silencedetect=noise=%.1fdB:d=%.3f" % (db, minsec),
+           "-f", "null", "-"]
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=TIMEOUT_TRANSCODE)
+        txt = (proc.stderr or b"").decode("utf-8", "replace")
+    except Exception as e:
+        return {"silences": [], "raw": {"events": [], "error": _short(e),
+                "filter": cmd[5], "noiseDb": db, "minSec": minsec}}
+    starts = [float(x) for x in re.findall(r"silence_start:\s*([\d.]+)", txt)]
+    ends = []
+    for x in re.findall(r"silence_end:\s*([\d.]+)\s*\|\s*silence_duration:\s*([\d.]+)", txt):
+        ends.append((float(x[0]), float(x[1])))
+    if not ends:
+        ends = [(float(x), 0.0) for x in re.findall(r"silence_end:\s*([\d.]+)", txt)]
+    events = [{"type": "start", "t": round(v, 3)} for v in starts]
+    events += [{"type": "end", "t": round(t, 3), "duration": round(d, 3)} for t, d in ends]
+    out = []
+    for i, st in enumerate(starts):
+        en, dur = ends[i] if i < len(ends) else (st + minsec, minsec)
+        if dur <= 0:
+            dur = en - st
+        if en <= st or dur < minsec:
+            continue
+        cs, ce = st + pad, en - pad
+        out.append({"start": round(st, 3), "end": round(en, 3),
+                    "startMs": int(round(st * 1000)), "endMs": int(round(en * 1000)),
+                    "duration": round(dur, 3),
+                    "cutStart": round(cs, 3), "cutEnd": round(ce, 3),
+                    "keepPad": pad, "canCut": ce > cs + 0.15})
+    out = out[:600]
+    return {"silences": out,
+            "raw": {"events": events[:1200], "filter": cmd[5],
+                    "noiseDb": db, "minSec": minsec, "keepPad": pad,
+                    "detected": len(out), "stderrTail": _scrub(txt, ff)[-500:]}}
+
+
+def api_silences(body):
+    """独立静音检测：不依赖 Whisper / 任何转写接口，素材有声音即可用。"""
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return _fail("请求体不是合法 JSON：%s" % _short(e))
+    if not isinstance(data, dict):
+        return _fail("请求体必须是 JSON 对象")
+    info = detect_ffmpeg()
+    if not info["found"]:
+        return {"ok": False, "reason": "本机未找到 FFmpeg，无法分析音量",
+                "guide": FFMPEG_GUIDE, "hint": FFMPEG_GUIDE.get(_plat(), "")}
+    pa = _silence_params(data)
+    with tempfile.TemporaryDirectory(prefix="manflows-sil-") as td:
+        try:
+            path, _ext = _media_to_file(data, td)
+            wav = _extract_mono_wav(info["path"], path, td,
+                                    data.get("clipStart", 0), data.get("clipDuration", 0))
+            det = _detect_silences_ex(info["path"], wav, pa)
+        except subprocess.TimeoutExpired:
+            return _fail("抽取音轨超时（超过 10 分钟）", "请换短一点的素材再试。")
+        except Exception as e:
+            return _fail(_short(e), "请确认素材含有声音轨、且 ffmpeg 可读取该格式。")
+    det["ok"] = True
+    det["engine"] = "本机 FFmpeg silencedetect"
+    det["log"] = ["静音检测参数：%g dB / 最短 %.2f 秒 / 切口留白 %.2f 秒" %
+                  (pa["db"], pa["minSec"], pa["pad"]),
+                  "检测到 %d 段静音（其中 %d 段可删）" %
+                  (len(det["silences"]), sum(1 for z in det["silences"] if z.get("canCut")))]
+    det["hint"] = "本结果不依赖语音转写；即使 Whisper 失败也能作为智能剪口播候选。"
+    return det
+
+
 def _split_wav(wav_path, td, chunk_sec=ASR_CHUNK_SEC):
     """纯标准库按固定秒数切 16k/mono WAV，不依赖任何额外编码器。"""
     with wave.open(wav_path, "rb") as w:
@@ -1209,6 +1390,7 @@ def _post_asr(ep, key, model, language, chunk_path):
 
 
 def api_transcribe(body):
+    """抽音轨 → 静音检测（必做）→ 转写（尽力而为）；转写失败也返回静音数据。"""
     try:
         data = json.loads(body.decode("utf-8")) if body else {}
     except Exception as e:
@@ -1223,86 +1405,70 @@ def api_transcribe(body):
                 "hint": "请安装 FFmpeg（%s）后重启本服务；点一次『导出成片』也会自动尝试安装。" %
                         FFMPEG_GUIDE.get(_plat(), "")}
     ff = info["path"]
+    log = ["本机 FFmpeg：%s" % (info.get("version") or "已就绪")]
 
-    # 选后端：① 本机 faster-whisper ② 第三方 OpenAI 兼容转写接口 ③ 明确安装指引
+    # 选后端：① 本机 faster-whisper ② 第三方 OpenAI 兼容转写接口；都失败也继续做静音检测
     local_ok = _asr_probe_local()
     third = str(data.get("endpoint") or "").strip()
+    ep, key, model, engine, asr_error = None, "", "whisper-1", "none", ""
     if local_ok:
         ep = ASR_LOCAL_BASE + "/v1/audio/transcriptions"
-        key = ""
-        model = "whisper-1"
         engine = "本机 faster-whisper（127.0.0.1:9000）"
+        log.append("转写后端：本机 faster-whisper（探测成功）")
     elif third and _asr_endpoint_ok(third):
         ep = third
         key = str(data.get("key") or "").strip()
-        model = str(data.get("model") or "whisper-1").strip()
+        model = str(data.get("model") or "whisper-1").strip() or "whisper-1"
         engine = "第三方 OpenAI 兼容转写接口（本机服务转发）"
-    elif third and not _asr_endpoint_ok(third):
-        return _fail("转写接口地址不被允许：%s" % third[:120],
-                     "只允许公网 https/http 地址或本机 127.0.0.1:9000；禁止内网/元数据地址。")
+        log.append("转写后端：第三方接口 " + third[:100])
+    elif third:
+        asr_error = "转写接口地址不被允许：%s" % third[:120]
+        log.append("转写后端不可用：" + asr_error + "（仅影响字幕，静音检测继续）")
     else:
-        return {"ok": False, "reason": "没有可用的语音转写后端",
-                "hint": ASR_INSTALL_GUIDE,
-                "engine": "none", "segments": [], "silences": []}
+        asr_error = ASR_INSTALL_GUIDE
+        log.append("未发现可用转写后端（仅影响字幕，静音检测继续）")
 
-    # 取素材字节：本地 Blob 的 base64，或公网直链（由本服务下载）
-    b64 = str(data.get("dataBase64") or "")
-    if "," in b64 and b64.strip().lower().startswith("data:"):
-        b64 = b64.split(",", 1)[1]
-    url = str(data.get("url") or "").strip()
-    fname = _safe_stem(str(data.get("filename") or "audio.wav"))
+    pa = _silence_params(data)
     clip_start = max(0.0, float(data.get("clipStart") or 0))
     clip_duration = max(0.0, float(data.get("clipDuration") or 0))
+    log.append("静音参数：%g dB / 最短 %.2f 秒 / 切口留白 %.2f 秒" %
+               (pa["db"], pa["minSec"], pa["pad"]))
 
     with tempfile.TemporaryDirectory(prefix="manflows-asr-") as td:
-        in_path = os.path.join(td, "input" + (fname and ("." + (fname.rsplit(".", 1)[-1] if "." in fname else "mp4")) or ".mp4"))
-        if b64:
-            try:
-                raw = base64.b64decode(b64, validate=False)
-            except Exception as e:
-                return _fail("dataBase64 解码失败：%s" % _short(e))
-            if not raw:
-                return _fail("dataBase64 为空，没有可识别的音视频数据")
-            with open(in_path, "wb") as f:
-                f.write(raw)
-        elif url:
-            ok, why = is_allowed_target(url)
-            if not ok:
-                return _fail("素材地址不被允许：%s" % why)
-            try:
-                resp = _open_url(url, headers={"User-Agent": UA_DESKTOP,
-                                               "Referer": _referer_for(url)},
-                                 timeout=TIMEOUT_MEDIA)
-                with open(in_path, "wb") as f:
-                    while True:
-                        buf = resp.read(CHUNK)
-                        if not buf:
-                            break
-                        f.write(buf)
-            except Exception as e:
-                return _fail("下载素材失败：%s" % _short(e),
-                             "请改用本地导入的素材，或确认直链可访问。")
-        else:
-            return _fail("缺少素材：请提供 dataBase64 或 url",
-                         "本地导入的素材会由网页把 Blob 转成 base64 交给本服务。")
-
         try:
+            in_path, _ext = _media_to_file(data, td)
             wav = _extract_mono_wav(ff, in_path, td, clip_start, clip_duration)
             chunks, duration = _split_wav(wav, td)
-            silences = _detect_silences(ff, wav)
+            det = _detect_silences_ex(ff, wav, pa)
         except subprocess.TimeoutExpired:
             return _fail("抽取音轨超时（超过 10 分钟）", "请换短一点的素材再试。")
         except Exception as e:
             return _fail(_short(e), "请确认素材含有声音轨、且 ffmpeg 可读取该格式。")
 
-        segments = []
-        errors = []
+    silences = []
+    for z in det["silences"]:
+        st = round(z["start"] + clip_start, 3)
+        en = round(z["end"] + clip_start, 3)
+        cs = round(z.get("cutStart", z["start"]) + clip_start, 3)
+        ce = round(z.get("cutEnd", z["end"]) + clip_start, 3)
+        silences.append({"start": st, "end": en, "startMs": int(round(st * 1000)),
+                         "endMs": int(round(en * 1000)), "duration": z["duration"],
+                         "cutStart": cs, "cutEnd": ce, "keepPad": z.get("keepPad", pa["pad"]),
+                         "canCut": ce > cs + 0.15})
+    log.append("静音检测事件 %d 个 → 区间 %d 段" %
+               (len(det["raw"].get("events") or []), len(silences)))
+
+    segments, errors = [], []
+    if ep and chunks:
         for i, c in enumerate(chunks):
             try:
                 got = _post_asr(ep, key, model,
                                 str(data.get("language") or "zh"), c["path"])
+                log.append("第 %d/%d 段转写成功，返回 %d 句" % (i + 1, len(chunks), len(got)))
             except Exception as e:
-                errors.append("第 %d 段：%s" % (i + 1, _short(e)))
+                msg = "第 %d 段：%s" % (i + 1, _short(e))
+                errors.append(msg)
+                log.append(msg + "（仅影响字幕，静音检测已保留）")
                 if i == 0:
                     break
                 continue
@@ -1312,22 +1478,26 @@ def api_transcribe(body):
                 if en <= st:
                     en = st + max(1.0, len(str(g.get("text") or "")) * 0.18)
                 segments.append({"start": round(st, 3), "end": round(en, 3),
+                                 "startMs": int(round(st * 1000)),
+                                 "endMs": int(round(en * 1000)),
                                  "text": str(g.get("text") or "").strip()})
         if errors and not segments:
-            return {"ok": False, "reason": "语音转写失败：" + errors[0],
-                    "engine": engine, "hint": ASR_INSTALL_GUIDE,
-                    "segments": [], "silences": []}
+            asr_error = "语音转写失败：" + errors[0]
+    elif not ep:
+        asr_error = asr_error or "没有可用的语音转写后端"
+    segments.sort(key=lambda x: x["start"])
 
-        for z in silences:
-            z["start"] = round(z["start"] + clip_start, 3)
-            z["end"] = round(z["end"] + clip_start, 3)
-        segments.sort(key=lambda x: x["start"])
-        return {"ok": True, "engine": engine, "chunks": len(chunks),
-                "duration": round(duration, 2),
-                "segments": segments[:2000], "silences": silences,
-                "partialErrors": errors[:5],
-                "hint": ("已由本机服务抽成 16k 单声道音频并分 %d 段识别，"
-                         "时间码已合并；未调用任何云端 VIP 功能。" % len(chunks))}
+    hint = ("已由本机服务抽成 16k 单声道音频并分 %d 段识别，时间码已合并；"
+            "未调用任何云端 VIP 功能。" % len(chunks)) if segments else ""
+    if asr_error:
+        hint = ("字幕转写未成功（%s），但静音/气口检测已独立完成，智能剪口播仍可使用。" %
+                asr_error[:160])
+    return {"ok": True, "engine": engine, "asrOk": bool(segments),
+            "asrError": str(asr_error)[:600], "chunks": len(chunks),
+            "duration": round(duration, 2),
+            "segments": segments[:2000], "silences": silences,
+            "silencesRaw": det["raw"], "log": log,
+            "partialErrors": errors[:5], "hint": hint}
 
 
 
@@ -1849,8 +2019,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用接口：/api/ping、/api/guide、/api/ffmpeg-install、"
-                                      "/api/resolve、/api/media、/api/export、/api/transcribe、"
-                                      "/api/render、/api/render/status"))
+                                      "/api/resolve、/api/media、/api/export、/api/probe、"
+                                      "/api/transcribe、/api/silences、/api/render、/api/render/status"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
@@ -1876,12 +2046,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_export(body))
             elif path == "/api/transcribe":
                 self._send_json(api_transcribe(body))
+            elif path == "/api/silences":
+                self._send_json(api_silences(body))
+            elif path == "/api/probe":
+                self._send_json(api_probe(body))
             elif path == "/api/render":
                 self._send_json(api_render(body))
             else:
                 self._send_json(_fail("未知接口：%s" % path,
-                                      "可用的 POST 接口：/api/resolve、/api/export、"
-                                      "/api/transcribe、/api/render"))
+                                      "可用的 POST 接口：/api/resolve、/api/export、/api/probe、"
+                                      "/api/transcribe、/api/silences、/api/render"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),

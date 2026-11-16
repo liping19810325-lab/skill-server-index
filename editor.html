@@ -136,6 +136,15 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .sc-text{flex:1;color:#fff;min-width:0;word-break:break-all;}
 .sc-why{flex:0 0 116px;color:var(--muted);font-size:10px;}
 .sc-empty{color:var(--muted);text-align:center;padding:24px 10px;line-height:1.9;font-size:12px;}
+.sc-params{display:flex;flex-wrap:wrap;align-items:center;gap:9px;background:var(--card);border:1px solid var(--border2);border-radius:9px;padding:9px 11px;margin:9px 0;font-size:11.5px;color:var(--muted);}
+.sc-params label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.sc-params input{width:66px;padding:4px 6px;border:1px solid var(--border2);border-radius:6px;background:var(--panel);color:#fff;font-size:11.5px;}
+.sc-hint{min-height:0;font-size:11px;line-height:1.7;}
+.sc-hint:empty{display:none;}
+.sc-log-box{margin-top:10px;border:1px solid var(--border2);border-radius:9px;background:var(--card);font-size:11px;}
+.sc-log-box summary{cursor:pointer;padding:8px 11px;color:#93c5fd;user-select:none;}
+.sc-log-box pre{margin:0;padding:0 11px 11px;max-height:190px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:#cbd5e1;font-size:10.5px;line-height:1.65;}
+.sc-cut{color:#86efac;font-size:10px;}
 .hist-item{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:9px 11px;margin-bottom:7px;}
 .hist-item.cur{border-color:var(--cyan);}
 .hist-item .hi-main{flex:1;min-width:0;}
@@ -669,8 +678,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <h2>④ 四个 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
                 <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材信息、视频抽帧与你的思路，返回可预览的剪辑方案，确认后才写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b></li>
-                <li><b>🅰 AI字幕</b>：<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并、对齐到片段在轨道上的位置写进字幕轨。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
-                <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。用 AI字幕拿到的音频气口（静音）区间，加上字幕文本里的语气词（额 / 呃 / 啊 / 那个 / 然后 …）与相邻重复赘述，列出候选区间，弹窗里逐条勾选后一键<b>波纹删除</b>（后续片段自动前移，<code>Ctrl+Z</code> 可撤销），不改动原始素材文件。建议先跑一次 AI字幕取得精确气口；没跑过也仍可按字幕文本找语气词。</li>
+                <li><b>🅰 AI字幕</b>：<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
+                <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因；<b>删除区间在导出成片时由本机 FFmpeg 真实裁剪重编码</b>，不是只做预览隐藏。</li>
                 <li><b>⏺ 录音</b>：调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
                 <li><b>两栏状态彻底分开</b>：左上「算力总控」下方现在有独立的「✨ AI 剪辑」与「🅰 AI 字幕」两块状态栏，各自显示自己的进度条与报错；点其中一个按钮只清空自己那一栏，<b>不会再看到另一个任务残留的旧报错</b>。AI 剪辑的弹窗进度与左栏同步。</li>
             </ul>
@@ -858,9 +867,18 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="modal-box" style="width:min(780px,100%)">
         <div class="modal-head">✂ 智能剪口播 · 无效片段检测<button class="mh-close" data-close="smartCutModal">×</button></div>
         <div class="modal-body">
-            <div class="ws-hint">对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」的<b>本地实现</b>：用「🅰 AI字幕」拿到的音频气口（静音）区间，加上字幕文本里的语气词 / 重复赘述，列出可删除片段。<b>纯本机、不调用任何云端 VIP，也不依赖火山引擎</b>。删除是轨道级波纹裁剪、可 <code>Ctrl+Z</code> 撤销，不改动原始素材文件。<br>先跑一次「🅰 AI字幕」能取得精确气口；没跑过也仍可按字幕文本找语气词与重复句。</div>
+            <div class="ws-hint">对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」的<b>本地实现</b>：静音检测<b>独立于 Whisper</b>（Whisper 失败也能列出气口），再加上字幕文本里的句内语气词 / 相似重复句。<b>纯本机、不调用任何云端 VIP</b>。删除是轨道级波纹裁剪、可 <code>Ctrl+Z</code> 撤销；导出成片时会对删除区间做真实媒体重处理，不是只做预览隐藏。</div>
+            <div id="scReadyHint" class="sc-hint"></div>
+            <div class="sc-params">
+                <label>静音阈值 <input type="number" id="scDb" step="1" min="-80" max="0" value="-35"> dB</label>
+                <label>最短停顿 <input type="number" id="scMin" step="0.1" min="0.1" max="10" value="0.5"> 秒</label>
+                <label>切口留白 <input type="number" id="scPad" step="0.02" min="0" max="2" value="0.12"> 秒</label>
+                <button class="mini-btn" id="scDetect">↻ 重新检测静音</button>
+                <span class="hint" id="scDetectState" style="margin:0"></span>
+            </div>
             <div class="row" style="margin:9px 0"><button class="mini-btn" id="scAll">全选</button><button class="mini-btn" id="scNone">全不选</button><span class="hint" id="scSummary" style="margin:0 0 0 8px"></span></div>
             <div id="scList" class="sc-list"></div>
+            <details class="sc-log-box" id="scLogBox"><summary>🔧 检测日志：Whisper API 调用状态 / 静音检测原始数据</summary><pre id="scLog">尚未运行检测。</pre></details>
         </div>
         <div class="modal-foot"><button class="mini-btn gray" data-close="smartCutModal">取消</button><button class="mini-btn green" id="scApply">🗑 删除选中区间（波纹）</button></div>
     </div>
@@ -1372,16 +1390,64 @@ function localSpeed(c){
 /* ---------- 逐片段真渲染：预览可模拟，导出必须重新解码/重排帧/重编码 ---------- */
 let renderOverrides=new Map();      /* clipId -> {url,blob,kind}，仅导出期间存在 */
 function renderedClip(c){ return c?renderOverrides.get(c.id)||null:null; }
+/* 智能剪口播删除区间的源时间表示：cutRanges 是素材自身时间轴上的区间。
+   导出时 /api/render 会按「原始源跨度 - cutRanges」重新解码拼接，是真裁剪，不是预览隐藏。 */
+function clipSpeed(c){
+    const f=fxOf(c);
+    return Math.max(0.25,Math.min(5,Number(f.speed)||1));
+}
+function mergedCutRanges(c){
+    return (Array.isArray(c&&c.cutRanges)?c.cutRanges:[]).slice()
+        .filter(r=>r&&Number.isFinite(Number(r.start))&&Number.isFinite(Number(r.end)))
+        .map(r=>({start:Math.max(0,Number(r.start)),end:Math.max(0,Number(r.end))}))
+        .filter(r=>r.end>r.start+0.01)
+        .sort((a,b)=>a.start-b.start)
+        .reduce((acc,r)=>{
+            const last=acc[acc.length-1];
+            if(last&&r.start<=last.end+0.001) last.end=Math.max(last.end,r.end);
+            else acc.push({start:r.start,end:r.end});
+            return acc;
+        },[]);
+}
+function sourceSpan(c){
+    const off=Math.max(0,Number(c.offset)||0), sp=clipSpeed(c);
+    const cuts=mergedCutRanges(c);
+    const cutSrc=cuts.reduce((a,r)=>a+(r.end-r.start),0);
+    const outLen=Math.max(0.1,Number(c.duration)||0.1)+cutSrc/sp;
+    return {off:off,sp:sp,end:off+outLen*sp,cuts:cuts};
+}
+function sourceKeptRanges(c){
+    const s=sourceSpan(c), kept=[]; let cur=s.off;
+    for(const r of s.cuts){
+        const a=Math.max(cur,Math.min(s.end,r.start)), b=Math.max(cur,Math.min(s.end,r.end));
+        if(a>cur+0.01) kept.push({start:cur,end:a});
+        cur=Math.max(cur,b);
+    }
+    if(s.end>cur+0.01) kept.push({start:cur,end:s.end});
+    return kept;
+}
+function timelineToSource(c,t){
+    const kept=sourceKeptRanges(c), total=kept.reduce((a,r)=>a+(r.end-r.start),0);
+    let pos=clamp((Number(t)||0)-(Number(c.start)||0),0,Math.max(0,total));
+    if(fxOf(c).reverse) pos=Math.max(0,total-pos);
+    for(const r of kept){
+        const len=r.end-r.start;
+        if(pos<=len+1e-6) return {t:r.start+clamp(pos,0,len)};
+        pos-=len;
+    }
+    return {t:kept.length?kept[0].start:(Number(c.offset)||0)};
+}
 function needsRender(c){
     if(!c||!c.assetId) return false;
     const k=trackKind(c.track); if(k!=="video"&&k!=="audio") return false;
     const f=fxOf(c);
-    return !!f.reverse || f.speedMode==="curve" || Math.abs((Number(f.speed)||1)-1)>0.001;
+    return !!f.reverse || f.speedMode==="curve"
+        || Math.abs((Number(f.speed)||1)-1)>0.001 || mergedCutRanges(c).length>0;
 }
 /* 输出时间轴上的速度分段：[[outStart,outLen,speed],...] */
-function speedProfile(c){
+function speedProfile(c, outLenOverride){
     const f=fxOf(c), base=clamp(Number(f.speed)||1,0.25,MAX_SPEED);
-    const D=Math.max(0.1,Number(c.duration)||1);
+    const D=Math.max(0.1,Number(outLenOverride)||Number(c.duration)||1);
     if(f.speedMode==="curve"&&CURVE_PRESETS[f.curve])
         return CURVE_PRESETS[f.curve].segs.map(z=>[z[0]*D,(z[1]-z[0])*D,clamp(base*z[2],0.1,8)]);
     return [[0,D,base]];
@@ -1390,9 +1456,13 @@ function speedProfile(c){
    倒放时整表逆序 + 段内 reverse，等价于「画面帧完整反转顺序」；
    每段 srcLen=outLen×倍率，atempo 负责音频时间拉伸并保持音调。 */
 function buildRenderSegments(c){
-    const f=fxOf(c), rev=!!f.reverse, off=Math.max(0,Number(c.offset)||0);
-    const pieces=[]; let cursor=off;
-    for(const z of speedProfile(c)){
+    const f=fxOf(c), rev=!!f.reverse;
+    const cuts=mergedCutRanges(c);
+    const cutSrc=cuts.reduce((a,r)=>a+(r.end-r.start),0);
+    /* 删除后 c.duration 变短；这里先按「删除前」的源跨度铺段，再按 cutRanges 扣掉删掉的部分 */
+    const origOut=Math.max(0.05,Number(c.duration)||0.05)+cutSrc/Math.max(0.25,clipSpeed(c));
+    const pieces=[]; let cursor=Math.max(0,Number(c.offset)||0);
+    for(const z of speedProfile(c,origOut)){
         const outLen=Math.max(0.02,z[1]), sp=Math.max(0.1,z[2]);
         const n=Math.max(1,Math.ceil(outLen/RENDER_CHUNK_SEC)), step=outLen/n;
         for(let i=0;i<n;i++){
@@ -1403,8 +1473,27 @@ function buildRenderSegments(c){
             cursor+=srcLen;
         }
     }
-    if(rev) pieces.reverse();
-    return pieces;
+    const kept=[];
+    for(const p of pieces){
+        let ranges=[{s:p.srcStart,e:p.srcStart+p.srcLen}];
+        for(const r of cuts){
+            const next=[];
+            for(const g of ranges){
+                if(r.end<=g.s+0.0001||r.start>=g.e-0.0001){ next.push(g); continue; }
+                if(r.start>g.s+0.0001) next.push({s:g.s,e:Math.min(g.e,r.start)});
+                if(r.end<g.e-0.0001) next.push({s:Math.max(g.s,r.end),e:g.e});
+            }
+            ranges=next;
+        }
+        for(const g of ranges){
+            const len=g.e-g.s;
+            if(len<0.04) continue;
+            kept.push(Object.assign({},p,{srcStart:+g.s.toFixed(4),srcLen:+len.toFixed(4),
+                outLen:+(len/p.speed).toFixed(4)}));
+        }
+    }
+    if(rev) kept.reverse();
+    return kept;
 }
 function cleanupRenderOverrides(){
     renderOverrides.forEach(o=>{ try{ URL.revokeObjectURL(o.url); }catch(e){} });
@@ -1900,19 +1989,65 @@ function guessType(name, forced){
 function typeIcon(t){ return {video:"🎬",image:"🖼",audio:"🎵",text:"📄"}[t]||"📦"; }
 function typeLabel(t){ return {video:"视频",image:"图片",audio:"声音",text:"文本"}[t]||"文件"; }
 
-async function mediaDuration(url, type){
+/* 素材时长：大 MOV / moov 在尾部 / HEVC 等容器 2.5 秒常常读不出来，
+   这里延长到 12 秒并监听多个事件；仍读不到再交给本机 FFmpeg /api/probe 兜底。 */
+const MEDIA_META_WAIT=12000;
+let probeMetaCache=new Map();   /* url -> {duration,hasAudio,hasVideo,width,height,fps} */
+async function serviceProbeMedia(blob, name, url){
+    try{
+        if(!svcOnline) await pingService(2800);
+        if(!svcOnline) return null;
+        const payload={filename:String(name||"media"),dataBase64:"",url:""};
+        if(url && /^https?:\/\//i.test(url)) payload.url=String(url);
+        else if(blob){
+            if(Number(blob.size||0)>120*1024*1024) return null; /* 超大文件不塞 base64，避免撑爆请求体 */
+            payload.dataBase64=await blobToBase64(blob);
+        }else return null;
+        const r=await fetch(LOCAL_SERVICE+"/api/probe",{method:"POST",
+            headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+        const j=await r.json();
+        return j&&j.ok&&Number(j.duration)>0?j:null;
+    }catch(e){ return null; }
+}
+async function mediaDuration(url, type, name){
     if(type==="image") return 0;
-    return new Promise(res=>{
+    const d=await new Promise(res=>{
         try{
             const el=document.createElement(type==="audio"?"audio":"video");
-            el.preload="metadata"; let done=false;
-            const fin=v=>{ if(done)return; done=true; res(Number.isFinite(v)&&v>0?v:0); };
-            el.onloadedmetadata=()=>fin(el.duration);
+            el.preload="auto"; el.muted=true; let done=false;
+            const fin=v=>{ if(done)return; done=true;
+                try{ el.removeAttribute("src"); el.load(); }catch(e){} res(Number.isFinite(v)&&v>0?v:0); };
+            const read=()=>{
+                const v=el.duration;
+                if(v===Infinity && el.seekable && el.seekable.length){
+                    try{ el.currentTime=1e101; }catch(e){}
+                }
+                if(Number.isFinite(v)&&v>0) fin(v);
+            };
+            el.onloadedmetadata=read; el.ondurationchange=read;
+            el.onloadeddata=read; el.oncanplay=read;
+            el.onseeked=()=>{ if(Number.isFinite(el.duration)&&el.duration>0) fin(el.duration); };
             el.onerror=()=>fin(0);
             el.src=url;
-            setTimeout(()=>fin(el.duration||0),2500);
+            setTimeout(()=>{
+                const v=el.duration;
+                if(Number.isFinite(v)&&v>0) fin(v); else fin(0);
+            },MEDIA_META_WAIT);
         }catch(e){ res(0); }
     });
+    if(d>0) return d;
+    /* 浏览器读不到 → 用本机 FFmpeg 探测容器元数据（在线素材直接给 URL，本地文件给 Blob） */
+    let p=null;
+    if(url && /^https?:\/\//i.test(url)) p=await serviceProbeMedia(null,name,url);
+    else if(url && /^blob:/.test(url)){
+        try{ p=await serviceProbeMedia(await fetch(url).then(r=>r.blob()),name); }catch(e){}
+    }
+    if(p){
+        probeMetaCache.set(url,{duration:p.duration,hasAudio:!!p.hasAudio,hasVideo:!!p.hasVideo,
+            width:p.width||0,height:p.height||0,fps:p.fps||0});
+        return Number(p.duration);
+    }
+    return 0;
 }
 function readAsText(file){
     return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(String(fr.result||"")); fr.onerror=()=>rej(fr.error); fr.readAsText(file,"utf-8"); });
@@ -1929,6 +2064,7 @@ async function addAsset(o){
     if(a.type==="video"||a.type==="image"){ probeAssetRatio(a); applyAspect(); }
     renderAssets(); renderProjInfo(); autoSave();
     if(state.zoomAuto!==false) fitZoom();
+    updateSmartCutAvailability();
     return a;
 }
 async function addFiles(files){
@@ -1941,7 +2077,7 @@ async function addFiles(files){
         }else{
             const blobUrl=URL.createObjectURL(f);
             a.url=blobUrl; a.urlKind="blob"; a.blob=f; a.blobId=uid();
-            a.duration=await mediaDuration(blobUrl,type);
+            a.duration=await mediaDuration(blobUrl,type,f.name);
         }
         await addAsset(a); n++;
     }
@@ -1985,7 +2121,7 @@ async function addUrls(raw, forced){
         if(type==="text"){
             try{ const r=await fetch(line,{mode:"cors"}); if(!r.ok) throw new Error("HTTP "+r.status); a.text=await r.text(); }
             catch(e){ a.text=""; report.push("⚠️ "+esc(name)+" · 文本读取失败（对方未开跨域），可改用「上传本地文件」"); }
-        }else a.duration=await mediaDuration(url,type);
+        }else a.duration=await mediaDuration(url,type,name);
         await addAsset(a); n++;
     }
     const box=$("urlReport");
@@ -2008,10 +2144,14 @@ function renderAssets(){
     const list=$("assetList");
     const arr=state.assets.filter(a=>state.tab==="all"||a.type===state.tab);
     $("assetCount").textContent=state.assets.length+" 个素材";
+    updateSmartCutAvailability();
     if(!arr.length){ list.innerHTML='<div class="empty-line">这个分类还没有素材<br>上传本地文件或粘贴在线 URL</div>'; return; }
     list.innerHTML=arr.map(a=>{
-        const meta=(a.type==="text" ? (a.text?a.text.length+" 字":"在线文本（未读取）") : (a.duration?fmt(a.duration):"—"))
-            +" · "+typeLabel(a.type)+(a.size?" · "+fmtSize(a.size):"");
+        const pm=probeMetaCache.get(a.url)||null;
+        const durTxt=a.duration?fmt(a.duration):"时长读取中 / 0.00";
+        const meta=(a.type==="text" ? (a.text?a.text.length+" 字":"在线文本（未读取）") : durTxt)
+            +" · "+typeLabel(a.type)+(a.size?" · "+fmtSize(a.size):"")
+            +((a.type==="video"||a.type==="audio")&&pm&&pm.hasAudio?" · 独立音轨 ✓":"");
         return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+(assetPreviewId===a.id?" previewing":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="单击立即在预览窗口预览（不自动入轨）；拖到下方轨道开始剪辑；双击自动加入；Delete 删除">'
           +'<div class="asset-thumb">'+assetThumbHtml(a)+'</div>'
           +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+'</div>'
@@ -2019,6 +2159,24 @@ function renderAssets(){
           +'<div class="asset-drag-tip">拖到轨道 · 双击加入</div></div></div>';
     }).join("");
 }
+/* 素材未读完时长（0.00）时禁用「剪口播」，避免再次出现 0 候选却找不到原因 */
+function mediaReadyClips(){
+    return state.clips.filter(c=>{
+        const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
+        return (k==="video"||k==="audio")&&a&&(a.type==="video"||a.type==="audio")&&Number(a.duration)>0;
+    });
+}
+function updateSmartCutAvailability(){
+    const btn=$("smartCutBtn"); if(!btn) return;
+    const ready=mediaReadyClips().length>0;
+    btn.disabled=!ready;
+    btn.title=ready
+      ? "智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）"
+      : "智能剪口播：轨道上还没有读完时长的音视频素材（显示 0.00）。请先把素材拖到轨道，等素材卡片出现真实时长后再点；本机 FFmpeg 也会自动兜底探测。";
+    const hint=$("scReadyHint");
+    if(hint) hint.innerHTML=ready?"":'<span style="color:#fcd34d">⚠ 轨道上还没有读完时长的音视频素材（0.00）。请等素材卡片显示真实时长，或双击「启动本机服务.command」(Mac) / 「启动本机服务.bat」(Windows) 后用 FFmpeg 兜底探测。</span>';
+}
+
 function removeAsset(id){
     const a=assetById(id); if(!a) return;
     state.assets=state.assets.filter(x=>x.id!==id);
@@ -2294,7 +2452,7 @@ function syncMedia(){
             const want=(vc.offset||0)+Math.max(0,vc.duration-(state.playhead-vc.start));
             if(vEl.readyState>0 && Math.abs(vEl.currentTime-want)>0.05){ try{ vEl.currentTime=want; }catch(e){} }
         }else{
-            const wt=(vc.offset||0)+(state.playhead-vc.start);
+            const wt=(ov?0:(vc.offset||0))+(state.playhead-vc.start);
             if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>0.32 && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
             if(playing && vEl.paused) vEl.play().catch(()=>{});
             if(!playing && !vEl.paused) vEl.pause();
@@ -2321,7 +2479,7 @@ function tick(ts){
     let t;
     if(rev) t=state.playhead+Math.min(dt,0.25);
     else if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
-        t=vc.start+(vEl.currentTime-(vc.offset||0));
+        t=vc.start+(ov?vEl.currentTime:(vEl.currentTime-(vc.offset||0)));
     }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
     syncMedia(); renderPlayhead();
@@ -2399,7 +2557,7 @@ function renderProjInfo(){
     $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
     $("dateChip").textContent="当天工程 "+state.date;
 }
-function renderAll(){ renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); }
+function renderAll(){ updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
 function snapshot(){ state.clips.forEach(fxOf); return JSON.stringify({clips:state.clips,tracks:state.tracks}); }
@@ -2483,6 +2641,123 @@ async function assetBlob(a){
 }
 /* 本机服务转写：抽音轨 → 16k 单声道 → 60s 分段 → 本机/第三方接口转发（无 CORS） */
 let lastSilences=[];                 /* 服务返回的静音区间，供「智能剪口播」使用 */
+/* 智能剪口播：参数 / 日志 / 静音缓存 / 纯浏览器兜底 */
+let scLogLines=[], silenceCache=new Map();
+function scConfig(){
+    const g=id=>{ const e=$(id); return e?Number(e.value):NaN; };
+    const n=(v,d,lo,hi)=>Number.isFinite(v)?Math.max(lo,Math.min(hi,v)):d;
+    return {db:n(g("scDb"),-35,-80,0),min:n(g("scMin"),0.5,0.1,10),pad:n(g("scPad"),0.12,0,2)};
+}
+function scLogSetState(text){ const e=$("scDetectState"); if(e) e.textContent=text||""; }
+function scLogPush(line){
+    const s="["+new Date().toLocaleTimeString("zh-CN",{hour12:false})+"] "+String(line);
+    scLogLines.push(s); if(scLogLines.length>300) scLogLines.shift();
+    const el=$("scLog"); if(el){ el.textContent=scLogLines.join("\n"); el.scrollTop=el.scrollHeight; }
+}
+function silenceKey(c,cfg){
+    cfg=cfg||scConfig();
+    return [c.id,c.assetId,c.offset,c.duration,cfg.db,cfg.min,cfg.pad].join("|");
+}
+function addSilences(list){
+    for(const z of (list||[])){
+        if(!z||!Number.isFinite(Number(z.start))) continue;
+        if(lastSilences.some(x=>Math.abs(Number(x.start)-Number(z.start))<0.05
+            &&Math.abs(Number(x.end)-Number(z.end))<0.05)) continue;
+        lastSilences.push(z);
+    }
+}
+function mapSilences(list, c, off){
+    const cs=Number(c.start)||0;
+    return (list||[]).map(z=>({
+        start:cs+(Number(z.start)||0-off), end:cs+(Number(z.end)||0-off),
+        startMs:Number(z.startMs)||0, endMs:Number(z.endMs)||0,
+        duration:Number(z.duration)||0,
+        cutStart:cs+(Number.isFinite(Number(z.cutStart))?Number(z.cutStart):(Number(z.start)||0-off)+scConfig().pad),
+        cutEnd:cs+(Number.isFinite(Number(z.cutEnd))?Number(z.cutEnd):(Number(z.end)||0-off)-scConfig().pad),
+        keepPad:Number(z.keepPad)||scConfig().pad, canCut:z.canCut!==false,
+        source:z.source||"本机 FFmpeg"}));
+}
+/* 服务离线 / 转写失败时的纯浏览器兜底：20ms 窗口 RMS → 分贝 → 连续低能量区间 */
+async function browserSilenceDetect(blob, cfg, label){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) throw new Error("当前浏览器不支持 WebAudio");
+    const ctx=new AC();
+    try{
+        const buf=await ctx.decodeAudioData(await blob.arrayBuffer());
+        const ch=buf.getChannelData(0), rate=buf.sampleRate;
+        const win=Math.max(1,Math.floor(rate*0.02)), series=[];
+        for(let i=0;i<ch.length;i+=win){
+            const end=Math.min(ch.length,i+win); let sum=0;
+            for(let j=i;j<end;j++) sum+=ch[j]*ch[j];
+            series.push(20*Math.log10(Math.max(1e-7,Math.sqrt(sum/Math.max(1,end-i)))));
+        }
+        const out=[]; let st=-1;
+        for(let i=0;i<=series.length;i++){
+            const low=i<series.length && series[i]<cfg.db;
+            if(low&&st<0) st=i;
+            if((!low||i===series.length)&&st>=0){
+                const a=st*win/rate, b=i*win/rate, dur=b-a;
+                if(dur>=cfg.min) out.push({start:+a.toFixed(3),end:+b.toFixed(3),
+                    startMs:Math.round(a*1000),endMs:Math.round(b*1000),duration:+dur.toFixed(3),
+                    cutStart:+(a+cfg.pad).toFixed(3),cutEnd:+(b-cfg.pad).toFixed(3),
+                    keepPad:cfg.pad,canCut:b-cfg.pad>a+cfg.pad+0.15,source:"浏览器 WebAudio"});
+                st=-1;
+            }
+        }
+        scLogPush("浏览器 WebAudio 兜底「"+label+"」：解码 "+buf.duration.toFixed(2)+" 秒 / "+series.length+" 个窗口 → "+out.length+" 段静音");
+        return {silences:out,raw:{events:series.map((db,i)=>({t:+(i*0.02).toFixed(2),db:+db.toFixed(1)})).filter((_,i)=>i%10===0).slice(0,600),
+            noiseDb:cfg.db,minSec:cfg.min,keepPad:cfg.pad,detected:out.length,source:"浏览器 WebAudio"},
+            engine:"浏览器 WebAudio 本地音量分析"};
+    } finally { try{ await ctx.close(); }catch(e){} }
+}
+/* 对单段轨道素材做静音检测；优先本机 FFmpeg，失败再退回浏览器 */
+async function detectClipSilences(a,c,cfg){
+    cfg=cfg||scConfig();
+    const key=silenceKey(c,cfg);
+    if(silenceCache.has(key)) return silenceCache.get(key);
+    const off=Number(c.offset)||0;
+    const f=fxOf(c), sp=Math.max(0.25,Math.min(5,Number(f.speed)||1));
+    const srcLen=Math.max(0.2,Number(c.duration)||1)*sp;
+    let res=null;
+    try{
+        if(!svcOnline) await pingService(2800);
+        if(svcOnline){
+            const payload={filename:String(a.name||"media"),dataBase64:"",url:"",
+                clipStart:off,clipDuration:srcLen,
+                silenceDb:cfg.db,silenceMin:cfg.min,keepPad:cfg.pad};
+            const isRemote=/^https?:\/\//i.test(String(a.url||""));
+            if(isRemote) payload.url=String(a.url);
+            else{
+                const blob=await assetBlob(a);
+                if(Number(blob.size||0)>120*1024*1024) throw new Error("素材超过 120MB，跳过 base64 上传（浏览器本地分析兜底）");
+                payload.dataBase64=await blobToBase64(blob);
+            }
+            const r=await fetch(LOCAL_SERVICE+"/api/silences",{method:"POST",
+                headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+            const j=await r.json();
+            if(!j||!j.ok) throw new Error((j&&j.reason)||"本机静音检测失败");
+            res={silences:mapSilences(j.silences,c,off),raw:j.silencesRaw||j.raw||null,engine:j.engine||"本机 FFmpeg"};
+            (j.log||[]).forEach(x=>scLogPush("本机静音检测 · "+x));
+            scLogPush("原始静音数据「"+a.name+"」："+JSON.stringify((j.silencesRaw||j.raw||{}).events||[]).slice(0,900));
+        }
+    }catch(e){
+        scLogPush("本机静音检测「"+a.name+"」不可用："+((e&&e.message)||e)+" → 尝试浏览器本地分析");
+    }
+    if(!res){
+        try{
+            const blob=await assetBlob(a);
+            const br=await browserSilenceDetect(blob,cfg,a.name);
+            res={silences:mapSilences(br.silences,c,0),raw:br.raw,engine:br.engine};
+        }catch(e){
+            scLogPush("浏览器兜底也失败「"+a.name+"」："+((e&&e.message)||e));
+            res={silences:[],raw:null,engine:"none"};
+        }
+    }
+    silenceCache.set(key,res);
+    addSilences(res.silences);
+    return res;
+}
+
 function blobToBase64(blob){
     return new Promise((res,rej)=>{
         const fr=new FileReader();
@@ -2498,10 +2773,12 @@ async function serviceTranscribe(a,cfg,clip){
     let b64="", url="";
     if(isRemote) url=String(a.url);
     else b64=await blobToBase64(await assetBlob(a));
+    const pc=scConfig();
     const payload={filename:String(a.name||"audio.wav"),dataBase64:b64,url:url,
         endpoint:String(cfg.endpoint||""),key:String(cfg.key||""),
         model:String(cfg.model||"whisper-1"),language:String(cfg.language||"zh"),
-        clipStart:Number(clip&&clip.offset)||0,clipDuration:Number(clip&&clip.duration)||0};
+        clipStart:Number(clip&&clip.offset)||0,clipDuration:Number(clip&&clip.duration)||0,
+        silenceDb:pc.db,silenceMin:pc.min,keepPad:pc.pad};
     const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),600000);
     let j;
     try{
@@ -2511,13 +2788,27 @@ async function serviceTranscribe(a,cfg,clip){
     }catch(e){ throw new Error("调用本机转写接口失败："+(e.name==="AbortError"?"超时（超过 10 分钟）":e.message)); }
     finally{ clearTimeout(tm); }
     if(!j||!j.ok) throw new Error(String(j&&j.reason||"转写失败")+(j&&j.hint?"｜"+j.hint:""));
-    const off=Number(clip&&clip.offset)||0, cs=Number(clip&&clip.start)||0;
+    (Array.isArray(j.log)?j.log:[]).forEach(x=>scLogPush("Whisper 链路 · "+x));
+    scLogPush("Whisper API 状态「"+a.name+"」："+(j.engine||"未知后端")
+        +" · 转写"+((j.asrOk===false)?"失败":"成功")+(j.asrError?"｜"+String(j.asrError).slice(0,180):"")
+        +" · 分段 "+String(j.chunks||0)+" · 静音 "+String((j.silences||[]).length));
+    const off=Number(clip&&clip.offset)||0, cs=Number(clip&&clip.start)||0, pc2=scConfig();
     const silences=(Array.isArray(j.silences)?j.silences:[]).map(z=>({
         start:cs+(Number(z.start)||0-off),end:cs+(Number(z.end)||0-off),
-        duration:Number(z.duration)||0}));
-    return {segments:(j.segments||[]).map(x=>({start:Number(x.start)||0,end:Number(x.end)||0,
+        startMs:Number(z.startMs)||0,endMs:Number(z.endMs)||0,
+        duration:Number(z.duration)||0,
+        cutStart:cs+(Number.isFinite(Number(z.cutStart))?Number(z.cutStart):(Number(z.start)||0-off)+pc2.pad),
+        cutEnd:cs+(Number.isFinite(Number(z.cutEnd))?Number(z.cutEnd):(Number(z.end)||0-off)-pc2.pad),
+        keepPad:Number(z.keepPad)||pc2.pad,canCut:z.canCut!==false,source:"本机 FFmpeg"}));
+    const got={segments:(j.segments||[]).map(x=>({start:Number(x.start)||0,end:Number(x.end)||0,
+                startMs:Number(x.startMs)||0,endMs:Number(x.endMs)||0,
                 text:String(x.text||"").trim(),kind:guessSubKind(x.text)})).filter(x=>x.text),
-            engine:j.engine||"本机服务",chunks:j.chunks||0,silences:silences};
+            engine:j.engine||"本机服务",chunks:j.chunks||0,silences:silences,
+            asrOk:j.asrOk!==false,asrError:j.asrError||"",
+            silencesRaw:j.silencesRaw||j.raw||null,log:j.log||[]};
+    if(silences.length) silenceCache.set(silenceKey(clip||{id:a.id,assetId:a.id,offset:off,duration:0}),
+        {silences:silences,raw:got.silencesRaw,engine:got.engine});
+    return got;
 }
 /* 浏览器直连回退：仅在本机服务不可用时尝试；明确区分 CORS / 404 / 连接失败 */
 async function remoteASR(a,cfg){
@@ -2613,13 +2904,22 @@ async function runASR(){
         setEdState("「漫流算力」是占位档，暂不可运行 AI 字幕。请在左上「算力总控」切到「本机算力」或「第三方API」。","err");
         toast("请先切到本机算力或第三方API","err"); return;
     }
-    const cfg=asrConfigForMode();
+    scLogLines=[];
+    let cfg=asrConfigForMode();
     if(!cfg.endpoint){
-        showAiSetup(aiConfig());
-        setEdState("还没有可用的转写接口：请到创作台 / 画布「算力总控 → 第三方API」填好接口地址，或接通本机 faster-whisper（默认 9000 端口）。","err");
-        return;
+        /* 没填第三方接口也别直接拦住：本机服务会自己探测 9000 端口的 faster-whisper，
+           而且静音检测不依赖任何转写后端，仍应为「剪口播」返回气口数据。 */
+        if(!svcOnline) await pingService(2800);
+        if(!svcOnline){
+            showAiSetup(aiConfig());
+            setEdState("还没有可用的转写接口：请到创作台 / 画布「算力总控 → 第三方API」填好接口地址，或双击启动本机服务后接通本机 faster-whisper（默认 9000 端口）。","err");
+            return;
+        }
+        cfg=Object.assign({},cfg,{endpoint:"",model:"whisper-1"});
+        scLogPush("未配置第三方转写地址，但本机服务在线：交给服务自动探测 faster-whisper；静音检测照常独立运行");
     }
-    resetAiPanel("sub"); lastSilences=[];
+    resetAiPanel("sub"); lastSilences=[]; silenceCache.clear();
+    scLogPush("开始 AI 字幕 · 算力档位 "+cfg.label+" · 接口 "+(cfg.endpoint||"未配置（本机服务自动探测）"));
     const list=state.clips.filter(c=>{
         const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
         return (k==="video"||k==="audio") && a && (a.type==="video"||a.type==="audio");
@@ -2641,8 +2941,11 @@ async function runASR(){
             try{
                 const r=await serviceTranscribe(a,cfg,c);
                 segs=r.segments;
-                if(Array.isArray(r.silences)) lastSilences=lastSilences.concat(r.silences);
-                setEdProgress(2,"第 "+(i+1)+" 段已由「"+r.engine+"」分 "+r.chunks+" 段识别完成");
+                addSilences(r.silences);
+                scLogPush("第 "+(i+1)+" 段「"+a.name+"」："+r.engine+" · 转写"
+                    +(r.asrOk?"成功":"失败")+(r.asrError?"｜"+String(r.asrError).slice(0,140):"")
+                    +" · 毫秒级分段 "+segs.length+" · 静音 "+(r.silences||[]).length+" 段");
+                setEdProgress(2,"第 "+(i+1)+" 段 "+(r.asrOk?"识别完成":"转写失败，但静音/气口已独立检测")+"（"+r.engine+"）");
             }catch(e1){
                 setEdProgress(2,"本机服务转写不可用（"+((e1&&e1.message)||e1)+"），尝试浏览器直连…");
                 try{ segs=await remoteASR(a,cfg); }
@@ -2653,6 +2956,9 @@ async function runASR(){
                         +"；直连 "+(e.message||e)+"；多模态音频降级也失败："+(e2.message||e2)); }
                 }
             }
+            /* 静音检测独立于转写：即使上面整段识别失败，也要拿到气口数据 */
+            try{ await detectClipSilences(a,c,cfg); }
+            catch(e){ scLogPush("补跑静音检测失败「"+a.name+"」："+((e&&e.message)||e)); }
             const off=Number(c.offset||0);
             for(const sg of segs){
                 const st=Math.max(c.start,c.start+(sg.start-off));
@@ -2689,32 +2995,70 @@ function scTime(t){
     const m=Math.floor(t/60), sec=t-m*60;
     return String(m).padStart(2,"0")+":"+sec.toFixed(1).padStart(4,"0");
 }
+const FILLER_TOKENS="额|呃|嗯|啊|唉|哦|噢|诶|那个|这个|然后|就是|所以说|对吧|是吧|的话|其实|那么|接下来|好吧|你知道";
+const FILLER_IN_RE=new RegExp("("+FILLER_TOKENS+")[，,。、！？!?~\\s]*","g");
+function normText(s){ return String(s||"").replace(/[^\u4e00-\u9fffA-Za-z0-9]/g,"").toLowerCase(); }
+function tooSimilar(a,b){
+    if(!a||!b) return false;
+    if(a===b) return true;
+    if(a.length>=5&&b.length>=5&&(a.indexOf(b)>=0||b.indexOf(a)>=0)) return true;
+    const set=x=>{ const s=new Set(); for(let i=0;i<x.length-1;i++) s.add(x.slice(i,i+2)); return s; };
+    const A=set(a), B=set(b); if(!A.size||!B.size) return false;
+    let hit=0; A.forEach(v=>{ if(B.has(v)) hit++; });
+    return hit/Math.min(A.size,B.size)>0.72;
+}
 function buildSmartCutCandidates(){
-    const out=[];
+    const cfg=scConfig(), out=[];
+    /* ① 静音 / 气口：Whisper 失败也用这份数据；切口两侧按「留白」保留 */
     for(const z of lastSilences){
-        if(!(z.duration>=0.6)) continue;
-        const st=Number(z.start)+0.12, en=Number(z.end)-0.12;
-        if(en>st+0.2) out.push({type:"停顿",start:st,end:en,
-            text:"（静音 "+Number(z.duration).toFixed(1)+" 秒）",reason:"长停顿 / 气口",on:true});
+        const rawStart=Number(z.start), rawEnd=Number(z.end);
+        if(!Number.isFinite(rawStart)||!Number.isFinite(rawEnd)) continue;
+        const dur=Number(z.duration)>0?Number(z.duration):(rawEnd-rawStart);
+        if(dur < cfg.min-0.001) continue;
+        const st=Number.isFinite(Number(z.cutStart))?Number(z.cutStart):rawStart+cfg.pad;
+        const en=Number.isFinite(Number(z.cutEnd))?Number(z.cutEnd):rawEnd-cfg.pad;
+        if(en>st+0.15) out.push({type:"停顿",start:st,end:en,
+            text:"（静音 "+dur.toFixed(1)+" 秒 · 留白 "+cfg.pad.toFixed(2)+" 秒）",
+            reason:"长停顿 / 气口",on:true});
     }
+    /* ② 字幕文本：句内语气词按字符位置换算到时间；相邻相似句视为重复赘述 */
     const subs=state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim())
         .sort((a,b)=>a.start-b.start);
-    let prev="";
+    let prevKey="", key2="";
     for(const c of subs){
-        const t=String(c.text).trim(), key=t.replace(/[^\u4e00-\u9fffA-Za-z0-9]/g,"");
-        if(FILLER_RE.test(t))
-            out.push({type:"语气词",start:c.start,end:c.start+c.duration,text:t,reason:"语气词 / 口头禅",on:true});
-        else if(key && key===prev)
-            out.push({type:"重复",start:c.start,end:c.start+c.duration,text:t,reason:"与上一条重复赘述",on:false});
-        prev=key;
+        const t=String(c.text).trim(), key=normText(t);
+        const dur=Math.max(0.2,Number(c.duration)||0.2);
+        FILLER_IN_RE.lastIndex=0;
+        let m, hits=[];
+        while((m=FILLER_IN_RE.exec(t))!==null){
+            hits.push({word:m[1],s:m.index,e:m.index+m[0].length});
+            if(m[0].length===0) FILLER_IN_RE.lastIndex++;
+        }
+        for(const h of hits){
+            const base=Math.max(1,t.length);
+            let s=c.start+dur*(h.s/base)+0.02, e=c.start+dur*(h.e/base)-0.02;
+            if(e<=s+0.08) e=Math.min(c.start+c.duration,s+0.2);
+            out.push({type:"语气词",start:s,end:e,text:h.word,reason:"句内语气词 / 口头禅",on:true});
+        }
+        if(key && (tooSimilar(key,prevKey)||tooSimilar(key,key2)))
+            out.push({type:"重复",start:c.start,end:c.start+c.duration,text:t,
+                reason:"与上一条重复赘述",on:false});
+        key2=prevKey; prevKey=key;
     }
     out.sort((a,b)=>a.start-b.start);
-    /* 合并完全重叠的静音与语气词，避免同一处删两次 */
+    /* 合并重叠候选：同一处不重复删两次；留白已体现在 start/end 上 */
     const merged=[];
     for(const x of out){
         const last=merged[merged.length-1];
-        if(last && x.start<last.end-0.02 && x.type===last.type){
-            last.end=Math.max(last.end,x.end); continue;
+        if(last && x.start<last.end+0.02){
+            last.end=Math.max(last.end,x.end);
+            if(x.type!==last.type){
+                last.also=last.also||[];
+                [last.type,x.type].forEach(t=>{ if(last.also.indexOf(t)<0) last.also.push(t); });
+                last.reason=last.reason+" / "+x.reason;
+            }
+            last.on=last.on||x.on;
+            continue;
         }
         merged.push(x);
     }
@@ -2728,22 +3072,40 @@ function renderSmartCutSummary(){
 function renderSmartCutList(){
     const box=$("scList"); if(!box) return;
     if(!smartCutCandidates.length){
+        const pc=scConfig();
         box.innerHTML='<div class="sc-empty">暂未识别到停顿 / 语气词 / 重复片段。<br>'
-          +'可先点「🅰 AI字幕」让本机服务分析出音频气口，或先在字幕轨里写入口播文本再试。</div>';
+          +'当前参数：'+pc.db+' dB / 最短停顿 '+pc.min+' 秒 / 切口留白 '+pc.pad+' 秒。<br>'
+          +'可点「↻ 重新检测静音」独立分析音量（不需要 Whisper），或在字幕轨里写入口播文本后再打开本面板。</div>';
         renderSmartCutSummary(); return;
     }
     box.innerHTML=smartCutCandidates.map((x,i)=>'<label class="sc-item">'
         +'<input type="checkbox" data-sc="'+i+'"'+(x.on?" checked":"")+'>'
-        +'<span class="sc-type">'+esc(x.type)+'</span>'
+        +'<span class="sc-type">'+esc(x.type+(x.also?"+"+x.also.join("+"):""))+'</span>'
         +'<span class="sc-time">'+scTime(x.start)+' – '+scTime(x.end)+'</span>'
         +'<span class="sc-text">'+esc(x.text||"（无字幕）")+'</span>'
+        +'<span class="sc-cut">可删 '+(Number(x.end)-Number(x.start)).toFixed(2)+'s</span>'
         +'<span class="sc-why">'+esc(x.reason)+'</span></label>').join("");
     renderSmartCutSummary();
 }
-function openSmartCutModal(){
+async function openSmartCutModal(){
+    updateSmartCutAvailability();
+    scLogPush("打开智能剪口播面板 · 参数 "+JSON.stringify(scConfig())+" · 已有静音区间 "
+        +lastSilences.length+" 段 · 字幕片段 "+state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim()).length+" 条");
     smartCutCandidates=buildSmartCutCandidates();
     renderSmartCutList();
     $("smartCutModal").classList.add("show");
+    if(lastSilences.length===0){
+        const ready=mediaReadyClips();
+        if(ready.length){
+            scLogSetState("正在独立检测静音…");
+            for(const c of ready){
+                const a=assetById(c.assetId);
+                if(a) try{ await detectClipSilences(a,c,scConfig()); }catch(e){}
+            }
+            smartCutCandidates=buildSmartCutCandidates(); renderSmartCutList();
+            scLogSetState("静音检测完成，已刷新候选");
+        }else scLogSetState("轨道上没有已加载完成的音视频素材");
+    }else scLogSetState("已载入上次检测结果，可点「重新检测静音」刷新");
 }
 /* 轨道级波纹删除：删掉区间，并把后续片段整体前移；片段跨越删除区时裁短 */
 function rippleDeleteRanges(ranges){
@@ -2753,18 +3115,37 @@ function rippleDeleteRanges(ranges){
         else acc.push({start:Number(r.start),end:Number(r.end)});
         return acc;
     },[]).filter(r=>r.end>r.start+0.05);
-    if(!rs.length) return {cuts:0,removed:0};
+    if(!rs.length) return {cuts:0,removed:0,cutByClip:[]};
     const shift=t=>rs.reduce((a,r)=>a+(t>=r.end?(r.end-r.start):0),0);
     const inner=(s,e)=>rs.reduce((a,r)=>a+Math.max(0,Math.min(e,r.end)-Math.max(s,r.start)),0);
-    const before=state.clips.length;
+    const before=state.clips.length, cutByClip=[];
     state.clips=state.clips.map(c=>{
         const s=Number(c.start)||0, e=s+(Number(c.duration)||0);
+        /* 删除区间换算到素材自身时间（倒放片段同样按反向映射），导出时按此真裁剪 */
+        const added=[];
+        for(const r of rs){
+            const x=Math.max(s,r.start), y=Math.min(e,r.end);
+            if(y<=x+0.02) continue;
+            const p=timelineToSource(c,x), q=timelineToSource(c,y);
+            const cs=Math.min(p.t,q.t), ce=Math.max(p.t,q.t);
+            if(ce>cs+0.02) added.push({start:+cs.toFixed(4),end:+ce.toFixed(4)});
+        }
+        let cuts=mergedCutRanges(c);
+        if(added.length){
+            cuts=cuts.concat(added).sort((a,b)=>a.start-b.start).reduce((acc,r)=>{
+                const last=acc[acc.length-1];
+                if(last&&r.start<=last.end+0.001) last.end=Math.max(last.end,r.end);
+                else acc.push({start:r.start,end:r.end});
+                return acc;
+            },[]);
+            cutByClip.push({id:c.id,ranges:cuts});
+        }
         const kept=(e-s)-inner(s,e);
         if(kept<=0.08) return null;
-        return Object.assign({},c,{start:Math.max(0,s-shift(s)),duration:kept});
+        return Object.assign({},c,{start:Math.max(0,s-shift(s)),duration:kept,cutRanges:cuts});
     }).filter(Boolean);
     state.selected=null; state.multi=[]; state.selectedAsset=null;
-    return {cuts:rs.length,removed:before-state.clips.length};
+    return {cuts:rs.length,removed:before-state.clips.length,cutByClip:cutByClip};
 }
 function applySmartCut(){
     const picks=smartCutCandidates.filter(x=>x.on).map(x=>({start:x.start,end:x.end}));
@@ -2772,9 +3153,12 @@ function applySmartCut(){
     if(!confirm("确定删除 "+picks.length+" 处停顿 / 语气词区间？后续片段会自动前移，可用 Ctrl+Z 撤销。")) return;
     pushHistory();
     const r=rippleDeleteRanges(picks);
+    scLogPush("已确认删除 "+picks.length+" 处区间；导出成片时这些区间会由本机 FFmpeg 真实裁剪重编码");
     $("smartCutModal").classList.remove("show");
     renderAll(); syncMedia(); autoSave();
-    toast("智能剪口播完成：波纹删除 "+r.cuts+" 处区间，移除 "+r.removed+" 个片段（可 Ctrl+Z 撤销）","ok");
+    scLogPush("波纹删除 "+r.cuts+" 处 / 移除 "+r.removed+" 个片段；受影响的 "
+        +(r.cutByClip||[]).length+" 个素材已记录源时间裁剪区间，导出时由 FFmpeg 真实重处理");
+    toast("智能剪口播完成：波纹删除 "+r.cuts+" 处区间，移除 "+r.removed+" 个片段（导出时会真实重渲染，可 Ctrl+Z 撤销）","ok");
 }
 
 /* ---------- AI 剪辑：复用站点已保存的大模型配置 ---------- */
@@ -3388,6 +3772,23 @@ function wire(){
     $("aiCutBtn").onclick=openAiIdea;
     $("aiSubBtn").onclick=runASR;
     $("smartCutBtn").onclick=openSmartCutModal;
+    $("scDetect").onclick=async()=>{
+        const ready=mediaReadyClips();
+        if(!ready.length){ toast("轨道上没有已加载完成的音视频素材（时长 0.00）","err"); return; }
+        const btn=$("scDetect"); btn.disabled=true;
+        silenceCache.clear(); lastSilences=[];
+        scLogSetState("正在检测静音…"); scLogPush("重新检测静音：参数 "+JSON.stringify(scConfig()));
+        try{
+            for(const c of ready){
+                const a=assetById(c.assetId);
+                if(a) await detectClipSilences(a,c,scConfig());
+            }
+            smartCutCandidates=buildSmartCutCandidates(); renderSmartCutList();
+            scLogSetState("完成：静音 "+lastSilences.length+" 段，候选 "+smartCutCandidates.length+" 处");
+            toast("静音检测完成："+lastSilences.length+" 段气口 / "+smartCutCandidates.length+" 处候选","ok");
+        }catch(e){ scLogSetState("检测失败："+((e&&e.message)||e)); }
+        finally{ btn.disabled=false; }
+    };
     $("scAll").onclick=()=>{ smartCutCandidates.forEach(x=>x.on=true); renderSmartCutList(); };
     $("scNone").onclick=()=>{ smartCutCandidates.forEach(x=>x.on=false); renderSmartCutList(); };
     $("scList").addEventListener("change",e=>{
@@ -3930,15 +4331,18 @@ async function prepareRenderOverrides(onProgress){
     if(!svcOnline||!ffmpegReady()) throw new Error(
         "本工程含倒放 / 变速片段，导出必须由本机 FFmpeg 重新解码并重编码；"
         +"请双击「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows)，"
-        +"并按导出弹窗里的指引安装 FFmpeg。预览可以临时模拟，导出绝不会用 playbackRate 冒充成品。");
+        +"并按导出弹窗里的指引安装 FFmpeg。预览可以临时模拟，导出绝不会用 playbackRate 冒充成品；"
+        +"智能剪口播删除的区间也必须由 FFmpeg 真实裁剪。");
     let done=0;
     for(const c of list){
         const a=assetById(c.assetId);
         if(!a){ done++; continue; }
         const k=trackKind(c.track), sz=exportSize();
+        const segs=buildRenderSegments(c);
+        if(!segs.length){ done++; continue; }
         const payload={filename:String(a.name||("clip."+(k==="audio"?"m4a":"mp4"))),
             kind:k,width:sz.w,height:sz.h,fps:Number($("expFps").value)||30,
-            segments:buildRenderSegments(c)};
+            segments:segs};
         const u=String(a.url||"");
         if(/^https?:\/\//i.test(u)&&u.indexOf(LOCAL_SERVICE)!==0) payload.url=u;
         else payload.dataBase64=await blobToBase64(await assetBlob(a));
