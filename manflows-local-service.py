@@ -10,6 +10,7 @@
   GET/POST /api/resolve     把分享链接/直链解析成可播放地址
   GET  /api/media?u=...     流式代理媒体（Range / 防盗链 Referer）
   POST /api/export          FFmpeg 转码导出 / 抽音频 / 生成 GIF
+  POST /api/transcribe      抽音轨 + 分段 + 本机/第三方转写（绕开浏览器 CORS）
 
 所有响应都带 CORS 与 Chrome Private Network Access 头；错误一律返回 JSON，
 不向外抛裸异常。被代理目标做基本 SSRF 防护。
@@ -30,6 +31,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+import wave
 import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -46,6 +48,10 @@ TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
 TIMEOUT_MEDIA = 30        # 媒体流式代理
 TIMEOUT_TRANSCODE = 600   # 转码 10 分钟
+TIMEOUT_ASR = 180         # 单段语音转写
+TIMEOUT_ASR_PROBE = 1.2   # 探测本机 faster-whisper
+ASR_LOCAL_BASE = "http://127.0.0.1:9000"
+ASR_CHUNK_SEC = 60        # 每段 60 秒（16k/mono WAV ≈ 1.9MB，远低于模型 20MB 上限）
 CHUNK = 64 * 1024
 MAX_BODY = 300 * 1024 * 1024  # 300MB 请求体上限
 
@@ -59,6 +65,15 @@ FFMPEG_GUIDE = {
     "windows": "https://www.gyan.dev/ffmpeg/builds/",
     "linux": "sudo apt install ffmpeg",
 }
+
+ASR_INSTALL_GUIDE = (
+    "本机没检测到 faster-whisper，也没有可用的第三方转写接口。"
+    "最省事的做法是在本机终端执行一次：pip install faster-whisper-server "
+    "（或 pip install faster-whisper && pip install uvicorn），"
+    "再用默认 9000 端口启动 OpenAI 兼容的 /v1/audio/transcriptions；"
+    "也可以改用提供 whisper-1 / gpt-4o-transcribe 通道的第三方 API，"
+    "在创作台/画布「算力总控 → 第三方API」里填好地址与密钥即可（由本服务转发，不受浏览器跨域限制）。"
+)
 
 COMMON_FFMPEG = [
     "/opt/homebrew/bin/ffmpeg",
@@ -457,7 +472,8 @@ def api_ping():
         hint = "未检测到 FFmpeg：点『导出成片』时会自动尝试安装，也可手动安装后重启本服务。"
     return {"ok": True, "port": PORT, "platform": _plat(), "arch": _arch(),
             "python": _python_ver(), "version": VERSION,
-            "ffmpeg": info, "guide": FFMPEG_GUIDE, "hint": hint}
+            "ffmpeg": info, "guide": FFMPEG_GUIDE, "hint": hint,
+            "asrLocal": _asr_probe_local(), "asrGuide": ASR_INSTALL_GUIDE}
 
 
 def api_guide():
@@ -486,7 +502,16 @@ def api_guide():
             "bilibili": "粘贴含 BV 号的视频页链接或 b23.tv 短链，服务通过 B站公开接口取 cid 与播放直链，并带 Referer 通过防盗链。",
             "howto": "如何获取直链：浏览器打开视频 → F12 开发者工具 → 网络(Network) → 筛选 media → 复制该请求 URL 粘贴到输入框。",
         },
-        "privacy": "本服务只监听 127.0.0.1（本机回环地址），不对局域网/公网开放，不会上传任何媒体内容或个人信息；解析/播放时代理会访问对应的公网视频服务器，导出转码全程由本机 FFmpeg 在本机完成，临时文件用完自动清理。",
+        "transcribe": {
+            "what": "AI字幕 / 智能剪口播 的语音识别：网页把素材交给本服务，本服务用 FFmpeg 抽成 16kHz 单声道 WAV、按 60 秒切片，再逐段转发给转写接口并合并时间码。",
+            "why": "浏览器直连第三方 API 会被 CORS 拦截（Failed to fetch），且整段 mp4 太大无法塞给模型；由本机服务转发与切片后这两个问题都不存在。",
+            "engines": ["① 本机 faster-whisper（默认 127.0.0.1:9000，纯本地免费）",
+                        "② 创作台/画布里填的第三方 OpenAI 兼容 /v1/audio/transcriptions（需 whisper-1 / gpt-4o-transcribe 通道）",
+                        "③ 两者都没有时给出安装指引，绝不生成假字幕"],
+            "install": ASR_INSTALL_GUIDE,
+            "note": "Claude / 普通 GPT 对话模型不是语音转写模型，走的是 /v1/chat/completions；它们能跑 AI剪辑，但不能直接用来做 AI字幕。",
+        },
+        "privacy": "本服务只监听 127.0.0.1（本机回环地址），不对局域网/公网开放，不会上传任何媒体内容或个人信息；解析/播放时代理会访问对应的公网视频服务器，导出转码全程由本机 FFmpeg 在本机完成，AI字幕的音频也会在你选择第三方转写接口时才发往该接口，临时文件用完自动清理。",
         "errors": {
             "端口被占用": "8788 已被其它程序（很可能是另一个本服务实例）占用，先关闭旧窗口再启动。",
             "探测不到服务": "确认终端窗口还开着、浏览器是 https://www.manflows.com 的剪辑台页面、且未被安全软件拦截本机回环请求。",
@@ -974,6 +999,295 @@ def _run_gif(ff, td, in_path, data, stem):
     return _ok_file(out_path, stem + ".gif", _scrub_cmd(cmd, ff, td), [])
 
 
+
+# ----------------------------------------------------------------------------
+# /api/transcribe —— 音视频转字幕（含 VAD 静音区间，供「智能剪口播」使用）
+# ----------------------------------------------------------------------------
+_ASR_PROBE_CACHE = {"ts": 0, "ok": False}
+
+
+def _asr_probe_local():
+    """探测本机 faster-whisper / OpenAI 兼容转写服务（默认 9000），结果缓存 60 秒。"""
+    import time
+    now = time.time()
+    if now - _ASR_PROBE_CACHE["ts"] < 60:
+        return _ASR_PROBE_CACHE["ok"]
+    ok = False
+    for path in ("/v1/models", "/docs", "/"):
+        try:
+            req = urllib.request.Request(ASR_LOCAL_BASE + path,
+                                         headers={"User-Agent": "manflows-local/1.0"})
+            with urllib.request.urlopen(req, timeout=TIMEOUT_ASR_PROBE) as r:
+                if getattr(r, "status", 200) < 500:
+                    ok = True
+                    break
+        except Exception:
+            continue
+    _ASR_PROBE_CACHE["ts"] = now
+    _ASR_PROBE_CACHE["ok"] = ok
+    return ok
+
+
+def _asr_endpoint_ok(ep):
+    """转写接口白名单：仅允许本机 9000 与公网地址，避免把本机服务当 SSRF 跳板。"""
+    try:
+        u = urlparse(str(ep or ""))
+        host = (u.hostname or "").lower()
+        if u.scheme not in ("http", "https") or not host:
+            return False
+        if host in ("127.0.0.1", "localhost", "::1"):
+            return (u.port or 80) == 9000
+        ok, _why = is_allowed_target(str(ep))
+        return ok
+    except Exception:
+        return False
+
+
+def _extract_mono_wav(ff, in_path, td, clip_start, clip_duration):
+    """从任意音视频里抽出 16kHz / 单声道 / s16le WAV，可只取片段对应的区间。"""
+    out = os.path.join(td, "mono.wav")
+    cmd = [ff, "-y", "-hide_banner", "-loglevel", "error"]
+    cs = max(0.0, float(clip_start or 0))
+    cd = max(0.0, float(clip_duration or 0))
+    if cs > 0.02:
+        cmd += ["-ss", "%.3f" % cs]
+    cmd += ["-i", in_path]
+    if cd > 0.05:
+        cmd += ["-t", "%.3f" % cd]
+    cmd += ["-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", out]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          timeout=TIMEOUT_TRANSCODE)
+    if proc.returncode != 0 or not os.path.exists(out) or os.path.getsize(out) < 44:
+        err = _scrub((proc.stderr or b"").decode("utf-8", "replace"), ff, td)[-400:]
+        raise RuntimeError("FFmpeg 抽取音轨失败：%s" % (err or "素材可能没有声音轨"))
+    return out
+
+
+def _detect_silences(ff, wav_path):
+    """FFmpeg silencedetect 找出气口 / 长停顿，返回相对该音频开头的秒数区间。"""
+    cmd = [ff, "-hide_banner", "-i", wav_path,
+           "-af", "silencedetect=noise=-35dB:d=0.45", "-f", "null", "-"]
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=TIMEOUT_TRANSCODE)
+        txt = (proc.stderr or b"").decode("utf-8", "replace")
+    except Exception:
+        return []
+    starts = [float(x) for x in re.findall(r"silence_start:\s*([\d.]+)", txt)]
+    ends = [float(x) for x in re.findall(r"silence_end:\s*([\d.]+)", txt)]
+    out = []
+    for i, st in enumerate(starts):
+        en = ends[i] if i < len(ends) else (st + 0.5)
+        if en > st:
+            out.append({"start": round(st, 3), "end": round(en, 3),
+                        "duration": round(en - st, 3)})
+    return out[:600]
+
+
+def _split_wav(wav_path, td, chunk_sec=ASR_CHUNK_SEC):
+    """纯标准库按固定秒数切 16k/mono WAV，不依赖任何额外编码器。"""
+    with wave.open(wav_path, "rb") as w:
+        rate, width, ch = w.getframerate(), w.getsampwidth(), w.getnchannels()
+        total = w.getnframes()
+        raw = w.readframes(total)
+    size = rate * width * ch
+    per = max(1, int(rate * chunk_sec)) * (width * ch)
+    out = []
+    idx = 0
+    for off in range(0, len(raw), per):
+        piece = raw[off:off + per]
+        if not piece:
+            break
+        p = os.path.join(td, "chunk_%03d.wav" % idx)
+        with wave.open(p, "wb") as o:
+            o.setnchannels(ch); o.setsampwidth(width); o.setframerate(rate)
+            o.writeframes(piece)
+        out.append({"path": p, "start": off / float(size),
+                    "duration": len(piece) / float(size)})
+        idx += 1
+    return out, total / float(rate or 16000)
+
+
+def _post_asr(ep, key, model, language, chunk_path):
+    """multipart/form-data 上传到 OpenAI 兼容 /v1/audio/transcriptions。"""
+    boundary = "----ManflowsASR" + os.urandom(8).hex()
+    parts = []
+    for k, v in (("model", model or "whisper-1"),
+                 ("response_format", "verbose_json"),
+                 ("language", language or "zh")):
+        if not v:
+            continue
+        parts.append(("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n"
+                      % (boundary, k, v)).encode("utf-8"))
+    with open(chunk_path, "rb") as f:
+        filedata = f.read()
+    parts.append(("--%s\r\nContent-Disposition: form-data; name=\"file\"; "
+                  "filename=\"chunk.wav\"\r\nContent-Type: audio/wav\r\n\r\n"
+                  % boundary).encode("utf-8") + filedata + b"\r\n")
+    parts.append(("--%s--\r\n" % boundary).encode("utf-8"))
+    body = b"".join(parts)
+    headers = {"Content-Type": "multipart/form-data; boundary=" + boundary,
+               "User-Agent": "manflows-local/1.0"}
+    if key:
+        headers["Authorization"] = "Bearer " + str(key)
+    req = urllib.request.Request(ep, data=body, headers=headers, method="POST")
+    try:
+        with _build_opener(unverified=True).open(req, timeout=TIMEOUT_ASR) as r:
+            raw = r.read()
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read(300).decode("utf-8", "replace")
+        except Exception:
+            detail = ""
+        raise RuntimeError("转写接口 HTTP %d：%s" % (e.code, detail.strip()[:200]))
+    except Exception as e:
+        raise RuntimeError("连接转写接口失败：%s" % _short(e))
+    try:
+        j = json.loads(raw.decode("utf-8", "replace"))
+    except Exception:
+        raise RuntimeError("转写接口返回的不是 JSON：%s" % raw[:120].decode("utf-8", "replace"))
+    segs = j.get("segments")
+    if not isinstance(segs, list) or not segs:
+        segs = ((j.get("result") or {}).get("segments")
+                if isinstance(j.get("result"), dict) else None)
+    if not isinstance(segs, list) or not segs:
+        txt = str(j.get("text") or "").strip()
+        return [{"start": 0.0, "end": 0.0, "text": txt}] if txt else []
+    out = []
+    for x in segs:
+        if not isinstance(x, dict):
+            continue
+        t = str(x.get("text") or "").strip()
+        if not t:
+            continue
+        st = float(x.get("start") or 0)
+        en = float(x.get("end") or (st + 2))
+        out.append({"start": st, "end": en, "text": t})
+    return out
+
+
+def api_transcribe(body):
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return _fail("请求体不是合法 JSON：%s" % _short(e))
+    if not isinstance(data, dict):
+        return _fail("请求体必须是 JSON 对象")
+
+    info = detect_ffmpeg()
+    if not info["found"]:
+        return {"ok": False, "reason": "本机未找到 FFmpeg，无法从视频里抽取音轨",
+                "guide": FFMPEG_GUIDE,
+                "hint": "请安装 FFmpeg（%s）后重启本服务；点一次『导出成片』也会自动尝试安装。" %
+                        FFMPEG_GUIDE.get(_plat(), "")}
+    ff = info["path"]
+
+    # 选后端：① 本机 faster-whisper ② 第三方 OpenAI 兼容转写接口 ③ 明确安装指引
+    local_ok = _asr_probe_local()
+    third = str(data.get("endpoint") or "").strip()
+    if local_ok:
+        ep = ASR_LOCAL_BASE + "/v1/audio/transcriptions"
+        key = ""
+        model = "whisper-1"
+        engine = "本机 faster-whisper（127.0.0.1:9000）"
+    elif third and _asr_endpoint_ok(third):
+        ep = third
+        key = str(data.get("key") or "").strip()
+        model = str(data.get("model") or "whisper-1").strip()
+        engine = "第三方 OpenAI 兼容转写接口（本机服务转发）"
+    elif third and not _asr_endpoint_ok(third):
+        return _fail("转写接口地址不被允许：%s" % third[:120],
+                     "只允许公网 https/http 地址或本机 127.0.0.1:9000；禁止内网/元数据地址。")
+    else:
+        return {"ok": False, "reason": "没有可用的语音转写后端",
+                "hint": ASR_INSTALL_GUIDE,
+                "engine": "none", "segments": [], "silences": []}
+
+    # 取素材字节：本地 Blob 的 base64，或公网直链（由本服务下载）
+    b64 = str(data.get("dataBase64") or "")
+    if "," in b64 and b64.strip().lower().startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    url = str(data.get("url") or "").strip()
+    fname = _safe_stem(str(data.get("filename") or "audio.wav"))
+    clip_start = max(0.0, float(data.get("clipStart") or 0))
+    clip_duration = max(0.0, float(data.get("clipDuration") or 0))
+
+    with tempfile.TemporaryDirectory(prefix="manflows-asr-") as td:
+        in_path = os.path.join(td, "input" + (fname and ("." + (fname.rsplit(".", 1)[-1] if "." in fname else "mp4")) or ".mp4"))
+        if b64:
+            try:
+                raw = base64.b64decode(b64, validate=False)
+            except Exception as e:
+                return _fail("dataBase64 解码失败：%s" % _short(e))
+            if not raw:
+                return _fail("dataBase64 为空，没有可识别的音视频数据")
+            with open(in_path, "wb") as f:
+                f.write(raw)
+        elif url:
+            ok, why = is_allowed_target(url)
+            if not ok:
+                return _fail("素材地址不被允许：%s" % why)
+            try:
+                resp = _open_url(url, headers={"User-Agent": UA_DESKTOP,
+                                               "Referer": _referer_for(url)},
+                                 timeout=TIMEOUT_MEDIA)
+                with open(in_path, "wb") as f:
+                    while True:
+                        buf = resp.read(CHUNK)
+                        if not buf:
+                            break
+                        f.write(buf)
+            except Exception as e:
+                return _fail("下载素材失败：%s" % _short(e),
+                             "请改用本地导入的素材，或确认直链可访问。")
+        else:
+            return _fail("缺少素材：请提供 dataBase64 或 url",
+                         "本地导入的素材会由网页把 Blob 转成 base64 交给本服务。")
+
+        try:
+            wav = _extract_mono_wav(ff, in_path, td, clip_start, clip_duration)
+            chunks, duration = _split_wav(wav, td)
+            silences = _detect_silences(ff, wav)
+        except subprocess.TimeoutExpired:
+            return _fail("抽取音轨超时（超过 10 分钟）", "请换短一点的素材再试。")
+        except Exception as e:
+            return _fail(_short(e), "请确认素材含有声音轨、且 ffmpeg 可读取该格式。")
+
+        segments = []
+        errors = []
+        for i, c in enumerate(chunks):
+            try:
+                got = _post_asr(ep, key, model,
+                                str(data.get("language") or "zh"), c["path"])
+            except Exception as e:
+                errors.append("第 %d 段：%s" % (i + 1, _short(e)))
+                if i == 0:
+                    break
+                continue
+            for g in got:
+                st = c["start"] + float(g.get("start") or 0) + clip_start
+                en = c["start"] + float(g.get("end") or 0) + clip_start
+                if en <= st:
+                    en = st + max(1.0, len(str(g.get("text") or "")) * 0.18)
+                segments.append({"start": round(st, 3), "end": round(en, 3),
+                                 "text": str(g.get("text") or "").strip()})
+        if errors and not segments:
+            return {"ok": False, "reason": "语音转写失败：" + errors[0],
+                    "engine": engine, "hint": ASR_INSTALL_GUIDE,
+                    "segments": [], "silences": []}
+
+        for z in silences:
+            z["start"] = round(z["start"] + clip_start, 3)
+            z["end"] = round(z["end"] + clip_start, 3)
+        segments.sort(key=lambda x: x["start"])
+        return {"ok": True, "engine": engine, "chunks": len(chunks),
+                "duration": round(duration, 2),
+                "segments": segments[:2000], "silences": silences,
+                "partialErrors": errors[:5],
+                "hint": ("已由本机服务抽成 16k 单声道音频并分 %d 段识别，"
+                         "时间码已合并；未调用任何云端 VIP 功能。" % len(chunks))}
+
+
 def api_export(body):
     try:
         data = json.loads(body.decode("utf-8")) if body else {}
@@ -1195,7 +1509,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用接口：/api/ping、/api/guide、/api/ffmpeg-install、"
-                                      "/api/resolve、/api/media、/api/export"))
+                                      "/api/resolve、/api/media、/api/export、/api/transcribe"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
@@ -1219,9 +1533,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_resolve(url))
             elif path == "/api/export":
                 self._send_json(api_export(body))
+            elif path == "/api/transcribe":
+                self._send_json(api_transcribe(body))
             else:
                 self._send_json(_fail("未知接口：%s" % path,
-                                      "可用的 POST 接口：/api/resolve、/api/export"))
+                                      "可用的 POST 接口：/api/resolve、/api/export、/api/transcribe"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),

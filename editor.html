@@ -124,6 +124,26 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .pip-item{position:absolute;right:14px;width:20%;max-height:20%;object-fit:contain;border:2px solid rgba(255,255,255,.7);border-radius:8px;background:#000;box-shadow:0 6px 20px rgba(0,0,0,.6);transform-origin:center center;}
 .stage-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#6b7280;font-size:12px;line-height:1.8;text-align:center;pointer-events:none;}
 .stage-empty b{color:#cbd5e1;font-size:14px;}
+/* 暗角 / 颗粒等无法用 CSS filter 表达的效果：预览叠加层 + 导出画布同步绘制 */
+.fx-color-overlay{position:absolute;inset:0;pointer-events:none;}
+/* 历史工作区：本工作区跨日期工程列表 */
+/* 智能剪口播候选列表 */
+.sc-list{max-height:340px;overflow:auto;}
+.sc-item{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:7px 9px;margin-bottom:6px;font-size:11.5px;}
+.sc-item input[type=checkbox]{flex:0 0 auto;accent-color:var(--cyan);}
+.sc-type{flex:0 0 54px;color:#93c5fd;font-size:10.5px;}
+.sc-time{flex:0 0 104px;color:var(--muted);font-size:10.5px;}
+.sc-text{flex:1;color:#fff;min-width:0;word-break:break-all;}
+.sc-why{flex:0 0 116px;color:var(--muted);font-size:10px;}
+.sc-empty{color:var(--muted);text-align:center;padding:24px 10px;line-height:1.9;font-size:12px;}
+.hist-item{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:9px 11px;margin-bottom:7px;}
+.hist-item.cur{border-color:var(--cyan);}
+.hist-item .hi-main{flex:1;min-width:0;}
+.hist-item .hi-name{color:#fff;font-size:12.5px;font-weight:600;word-break:break-all;}
+.hist-item .hi-meta{color:var(--muted);font-size:10.5px;margin-top:3px;line-height:1.55;}
+.hist-item button{padding:4px 9px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:10.5px;white-space:nowrap;}
+.hist-item button:hover{background:var(--hover);}
+.hist-empty{color:var(--muted);font-size:12px;text-align:center;padding:26px 10px;line-height:1.9;}
 .subtitle-overlay{position:absolute;left:0;right:0;bottom:7%;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;padding:0 24px;}
 .sub-line{font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:92%;word-break:break-word;transform-origin:center center;}
 .sub-line.dialogue{color:#fff;background:rgba(0,0,0,.42);}
@@ -251,6 +271,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ai-progress{height:8px;border-radius:5px;background:var(--panel);border:1px solid var(--border2);overflow:hidden;margin:9px 0 6px;}
 .ai-progress[hidden]{display:none;}
 .ai-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#2563eb,#0891b2);transition:width .32s ease;}
+/* AI 剪辑 / AI 字幕 两栏状态彻底分开，互不覆盖 */
+.ai-panel{border:1px solid var(--border2);border-radius:9px;padding:8px 9px;margin-top:8px;background:var(--card);}
+.ai-panel-title{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#cbd5e1;font-weight:600;margin-bottom:6px;}
+.ai-panel-tag{margin-left:auto;font-size:9.5px;color:var(--muted);font-weight:400;}
+.ai-panel .ai-state{margin-bottom:4px;}
+.ai-panel .ai-steps{max-height:132px;overflow:auto;}
 .ai-steps{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(--muted);}
 .ai-step{display:flex;align-items:center;gap:6px;padding:2px 0;line-height:1.5;}
 .ai-step .dot{width:8px;height:8px;border-radius:50%;background:var(--border2);flex:0 0 8px;}
@@ -405,6 +431,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <button class="tb-btn" id="resetLayout" title="把三栏宽度与时间轴高度恢复为初始尺寸">↺ 恢复初始化布局</button>
         <button class="tb-btn" id="topHelp">📖 使用帮助</button>
         <button class="tb-btn ws-btn" id="wsBtn" title="切换用户工作区：各用户工程互不串">👤 <span id="wsName">我的工作区</span></button>
+        <button class="tb-btn hist-btn" id="histBtn" title="历史工作区：本工作区做过的全部剪辑工程，点开即可切回去继续剪">🕘 历史工作区</button>
         <span class="spacer"></span>
         <button class="tb-btn export-btn" id="topExport" title="导出成片：视频 / 音频 / GIF / 字幕">⬆ 导出成片</button>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
@@ -420,10 +447,19 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <label data-mode="local"><input type="radio" name="edComputeMode" value="local"> 本机算力</label>
                     <label data-mode="third_party"><input type="radio" name="edComputeMode" value="third_party"> 第三方API</label>
                 </div>
-                <div class="hint" id="edComputeHint">AI剪辑 / AI字幕 共用此档位：本机算力＝本机模型 + faster-whisper；第三方API＝创作台 / 画布已存配置。本页档位独立。</div>
-                <div class="ai-state" id="edState">当前：第三方API</div>
-                <div class="ai-progress" id="edProgress" hidden><div class="ai-progress-fill" id="edProgressFill"></div></div>
-                <div class="ai-steps" id="edSteps"></div>
+                <div class="hint" id="edComputeHint">AI剪辑走对话模型（/v1/chat/completions），AI字幕走转写接口（本机服务转发，不受跨域限制）；两栏状态彻底分开、互不覆盖。本页档位独立。</div>
+                <div class="ai-panel" id="edEditPanel">
+                    <div class="ai-panel-title">✨ AI 剪辑 <span class="ai-panel-tag">/v1/chat/completions</span></div>
+                    <div class="ai-state" id="edEditState">尚未运行</div>
+                    <div class="ai-progress" id="edEditProgress" hidden><div class="ai-progress-fill" id="edEditProgressFill"></div></div>
+                    <div class="ai-steps" id="edEditSteps"></div>
+                </div>
+                <div class="ai-panel" id="edSubPanel">
+                    <div class="ai-panel-title">🅰 AI 字幕 <span class="ai-panel-tag">/v1/audio/transcriptions</span></div>
+                    <div class="ai-state" id="edState">尚未运行</div>
+                    <div class="ai-progress" id="edProgress" hidden><div class="ai-progress-fill" id="edProgressFill"></div></div>
+                    <div class="ai-steps" id="edSteps"></div>
+                </div>
             </div>
 
             <div class="card">
@@ -488,6 +524,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <video id="previewVideo" playsinline preload="auto"></video>
                     <img id="previewImage" alt="画面">
                     <div id="pipLayer"></div>
+                    <div class="fx-color-overlay" id="fxColorOverlay"></div>
                     <div class="stage-empty" id="stageEmpty"><b>把素材库的文件拖到下方轨道</b>或直接导入一个本地视频<br>导入后可播放、剪断、加字幕</div>
                     <div class="fx-box" id="fxBox" hidden>
                         <span class="fx-badge" id="fxBadge">拖动移动 · 四角缩放 · 顶部圆点旋转 · 滚轮缩放</span>
@@ -571,6 +608,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：自动分析轨道素材并完成剪辑（需 Claude / GPT 等强多模态大模型）">✨ AI剪辑</button>
                 <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
                 <button class="tb-btn ai-rec" id="recBtn" title="录音：调用电脑麦克风，结束后自动加入音频轨">⏺ 录音</button>
+                <button class="tb-btn ai-sub" id="smartCutBtn" title="智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ 剪口播</button>
             </div>
             <div class="tl-tools right">
                 <button class="tb-btn" id="zoomOut" title="缩小时间轴 (-)">−</button>
@@ -628,11 +666,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li>层级固定为<b>最上层字幕（文本）→ 图片 → 视频 → 最下层音轨</b>，新轨道自动插在所属分组里。<b>字幕层不再区分对白 / 旁白 / 内心独白</b>，全部由你自己决定放哪条字幕轨、写什么内容；单条字幕只保留一个可选「类型标签」用于颜色与 SRT 标注。</li>
                 <li>轨道名右侧的 <b>＋</b> 新建一条同类型轨道、<b>×</b> 删除该空轨道（有片段时先删片段）；工具条「＋ 轨道」可直接选类型新建。旧工程里原来的对白 / 旁白 / 内心独白三条字幕轨会自动合并成一条字幕轨，片段不丢失。</li>
             </ul>
-            <h2>④ 三个 AI 按钮（剪辑轨道上方居中）</h2>
+            <h2>④ 四个 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
-                <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>（如 claude-sonnet-4 / gpt-4o），下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后窗口里会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型会拿到整条时间轴结构、素材信息、视频抽帧与你的思路，返回可预览的剪辑方案，确认后才写入轨道（<code>Ctrl+Z</code> 可撤销）。强多模态模型才能稳定输出可执行方案；带图请求失败会自动降级为纯轨道数据分析。</li>
-                <li><b>🅰 AI字幕</b>：<b>真实分析轨道上的视频 / 音频素材</b>，不再给演示假字幕。按左上「算力总控」的档位自动取接口：本机算力＝本机 faster-whisper（默认 9000 端口）/ 本机模型；第三方API＝创作台 / 画布已保存的接口推导出的 OpenAI 兼容 <code>/v1/audio/transcriptions</code>。会遍历轨道上每一段真实音视频，把音轨发给模型识别，拿到分段时间码后<b>对齐到该片段在轨道上的位置</b>再写进字幕轨；左栏有分阶段进度条（模型已调用 → 轨道素材分析中 → 音视频真实转写中 → 时间码对齐 → 字幕写入轨道）。标准转写接口不可用时会自动降级用支持音频的多模态模型直接听音频。没配好接口、素材没有对白或识别失败都会<b>明确报错，绝不生成假字幕</b>。识别出的对白 / 旁白 / 内心独白只作可选类型标签，可逐条改文字与时间。</li>
+                <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材信息、视频抽帧与你的思路，返回可预览的剪辑方案，确认后才写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b></li>
+                <li><b>🅰 AI字幕</b>：<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并、对齐到片段在轨道上的位置写进字幕轨。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
+                <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。用 AI字幕拿到的音频气口（静音）区间，加上字幕文本里的语气词（额 / 呃 / 啊 / 那个 / 然后 …）与相邻重复赘述，列出候选区间，弹窗里逐条勾选后一键<b>波纹删除</b>（后续片段自动前移，<code>Ctrl+Z</code> 可撤销），不改动原始素材文件。建议先跑一次 AI字幕取得精确气口；没跑过也仍可按字幕文本找语气词。</li>
                 <li><b>⏺ 录音</b>：调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
+                <li><b>两栏状态彻底分开</b>：左上「算力总控」下方现在有独立的「✨ AI 剪辑」与「🅰 AI 字幕」两块状态栏，各自显示自己的进度条与报错；点其中一个按钮只清空自己那一栏，<b>不会再看到另一个任务残留的旧报错</b>。AI 剪辑的弹窗进度与左栏同步。</li>
             </ul>
             <h2>⑤ 剪映风格按钮与快捷键</h2>
             <p>剪辑工具条按剪映的排布重排（导入 / 分割 / 删除 / 复制 / 粘贴 / 撤销 / 重做 / 新建轨道 + 缩放），每个按钮悬停可看快捷键。</p>
@@ -666,10 +706,19 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
                 <li><b>单击素材即预览</b>：点素材库里任一素材，预览窗口立即预览——视频 / 声音自动播放，图片 / 文字只显示画面，<b>都不自动加入轨道</b>；要剪辑请自己用鼠标把素材拖到时间轴对应轨道（双击加入仍保留给习惯用它的用户）。</li>
                 <li><b>时间轴缩放</b>：工具条右侧有缩放滑块、＋/−、以及「适应」按钮；<b>默认按导入素材的总时长自动适配</b>宽度，手动拖过滑块后不再自动改，点「适应」可随时回到自适应。</li>
-                <li><b>调整栏（右栏 5 个并列标签）</b>：由原「选中片段属性」改名为「调整」，内含「基础调整 | 动画 | 变速 | 调色LUT | 字幕」。基础调整＝位置 / 缩放 / 旋转 / 镜像 / 倒放（以预览窗口中心为 (0,0)，与窗口内鼠标操作双向同步）；动画＝入场 / 出场 / 循环预设与时长；变速＝0.25x–4x 并自动重算片段时长；调色LUT＝亮度 / 对比度 / 饱和度 / 色温 / 模糊与 8 组滤镜预设，预览实时生效；字幕＝选中字幕的文字 / 字号 / 颜色 / 描边 / 位置 / 对齐，并保留整条字幕轨的列表管理。所有参数写进工程存档、可 <code>Ctrl+Z</code> 撤销、导出时一并生效。</li>
+                <li><b>调整栏（右栏 5 个并列标签）</b>：由原「选中片段属性」改名为「调整」。本轮对照剪映 6.0.1 的普通功能面板（不含任何需登录 / 火山云的 VIP 项）补齐参数，<b>全部真实生效并写进工程存档</b>：<br>
+                    · <b>基础调整</b>＝位置 X/Y、缩放、旋转、镜像、倒放，另补<b>不透明度</b>、<b>画布背景色</b>与「顺 / 逆时针 90°」快捷旋转；预览窗口内鼠标操作与数值双向同步。<br>
+                    · <b>动画</b>＝入场 / 出场 / 循环 / 组合动画预设、<b>入场方向 / 出场方向（8 向）</b>、<b>动画快慢（线性 / 缓入 / 缓出 / 缓入缓出）</b>、动画时长。<br>
+                    · <b>变速</b>＝常规变速 0.25x–4x（自动重算片段时长）、<b>曲线变速</b> 6 组预设（蒙太奇 / 英雄时刻 / 子弹时间 / 跳接 / 闪进 / 闪出）、<b>声音变调开关</b>；曲线变速按片段内进度分段调速，预览与导出同步。<br>
+                    · <b>调色LUT</b>＝亮度 / 对比度 / 饱和度 / 曝光 / 光感 / 高光 / 阴影 / 色温 / 色调 / 锐化 / 褪色 / 模糊 / 暗角 / 颗粒，共 14 项滑块 + 12 组滤镜预设；前 12 项走浏览器 CSS/canvas 滤镜链，<b>暗角与颗粒</b>用预览叠加层与导出画布同步绘制。说明：浏览器滤镜是<b>视觉近似模拟</b>，与剪映的自研调色算法不等价；锐化为对比度微增近似。<br>
+                    · <b>字幕</b>＝文字 / 字号 / 颜色 / 描边 / 位置 / 对齐 / 字体 / 加粗，另补<b>不透明度、斜体、文字阴影、字幕背景色与背景不透明度、字间距、行高</b>，并保留整条字幕轨的列表管理。所有参数可 <code>Ctrl+Z</code> 撤销、导出时一并生效。</li>
+                <li><b>🕘 历史工作区</b>：顶栏「👤 用户工作区」右边新增。点开按保存时间倒序列出<b>本工作区跨所有日期做过的剪辑工程</b>，显示片段数、素材数与保存时间，点「打开」直接切回去继续剪（切换前自动保存当前工程）。严格只列本工作区，不会串到别人那里。</li>
+                <li><b>首次打开是空白工程</b>：素材库与所有轨道都不再自动塞入演示图片、演示音频和演示字幕，导入你自己的文件再开始剪；已有自动保存的工程完全不受影响，仍会自动恢复。</li>
+                <li><b>对照剪映 6.0.1 补齐基础参数</b>：解析剪映绿色版安装包里的 <code>zh-Hans.po</code>（11,071 条中文 UI 文案）与 <code>DefaultAdjustBundle</code>（33 个调色模块），只借鉴普通功能面板，排除全部需登录 / 火山云的 VIP 项。调整栏五个面板补到：基础调整加不透明度 / 画布背景 / 90° 快捷旋转；动画加组合动画 / 8 向方向 / 缓动快慢；变速加常规-曲线切换与 6 组曲线预设 / 声音变调；调色 LUT 加到 16 项滑块与 12 组预设；字幕加不透明度 / 斜体 / 阴影 / 背景 / 字间距 / 行高。全部真实生效、写进工程存档、可撤销、导出同步。</li>
+                <li><b>AI 字幕改走本机服务</b>：解决了浏览器直连第三方接口被 CORS 拦截的 <code>Failed to fetch</code>、以及大视频无法整体塞给多模态模型的问题；详见第 ④ 节。</li>
             </ul>
             <h2>⑨ 当天工程与自动保存</h2>
-            <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道、字幕与素材自动存在本机；「💾 保存工程」手动存，「📂 打开工程」可切到其它日期（只列当前工作区），「⬇ 导出工程 JSON」可备份。<b>没点保存直接关网页也不会丢</b>：关页 / 切到后台 / 刷新都会立即自动写盘一次，配合原有的编辑后 0.7 秒自动保存。</p>
+            <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道、字幕与素材自动存在本机；「💾 保存工程」手动存，「📂 打开工程」可切到其它日期（只列当前工作区），「🕘 历史工作区」能看到每份工程的片段数与保存时间并直接打开，「⬇ 导出工程 JSON」可备份。<b>没点保存直接关网页也不会丢</b>：关页 / 切到后台 / 刷新都会立即自动写盘一次，配合原有的编辑后 0.7 秒自动保存。</p>
             <h2>⑩ 之前一轮的功能（仍在）</h2>
             <ul>
                 <li><b>算力总控（素材库上方）</b>：跟导演画布同款的三档单选「漫流算力 / 本机算力 / 第三方API」，点一下即切换；原来的「AI 剪辑·模型配置」「AI 字幕·语音识别」两栏已全部合并进来，只剩这三个选项。档位<b>本页独立</b>，配置数据仍与创作台 / 画布共用。漫流算力目前是占位档。</li>
@@ -766,6 +815,19 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     </div>
 </div>
 
+<!-- 历史工作区：只列当前工作区做过的工程 -->
+<div class="modal-overlay" id="histModal">
+    <div class="modal-box" style="width:min(620px,100%)">
+        <div class="modal-head">🕘 历史工作区 · <span id="histWsName" style="color:var(--muted);font-size:12px"></span><button class="mh-close" data-close="histModal">×</button></div>
+        <div class="modal-body">
+            <div class="ws-hint">这里按<b>保存时间倒序</b>列出<b>当前工作区做过的全部剪辑工程</b>（跨所有日期），点「打开」就能切回那一份继续剪。切换前会自动保存当前工程。<br><b>只显示本工作区</b>，不会看到其它工作区或别人的工程；要换人请点左边的「👤 用户工作区」。</div>
+            <div id="histList"></div>
+            <div class="row" style="margin-top:10px"><button class="mini-btn gray" id="histRefresh">↻ 刷新列表</button><span class="hint" style="margin:0 0 0 8px">首次打开是<b>空白工程</b>：素材库与时间轴都不带任何自带素材，导入你自己的文件即可开始。</span></div>
+        </div>
+        <div class="modal-foot"><button class="mini-btn gray" data-close="histModal">关闭</button></div>
+    </div>
+</div>
+
 <!-- 粘贴在线 URL -->
 <div class="modal-overlay" id="urlModal">
     <div class="modal-box" style="width:min(620px,100%)">
@@ -788,6 +850,19 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="modal-box" style="width:min(460px,100%)">
         <div class="modal-head">📂 打开当天工程<button class="mh-close" data-close="projModal">×</button></div>
         <div class="modal-body"><div class="proj-list" id="projList"></div></div>
+    </div>
+</div>
+
+<!-- 智能剪口播：本地气口 + 字幕文本规则，非 VIP -->
+<div class="modal-overlay" id="smartCutModal">
+    <div class="modal-box" style="width:min(780px,100%)">
+        <div class="modal-head">✂ 智能剪口播 · 无效片段检测<button class="mh-close" data-close="smartCutModal">×</button></div>
+        <div class="modal-body">
+            <div class="ws-hint">对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」的<b>本地实现</b>：用「🅰 AI字幕」拿到的音频气口（静音）区间，加上字幕文本里的语气词 / 重复赘述，列出可删除片段。<b>纯本机、不调用任何云端 VIP，也不依赖火山引擎</b>。删除是轨道级波纹裁剪、可 <code>Ctrl+Z</code> 撤销，不改动原始素材文件。<br>先跑一次「🅰 AI字幕」能取得精确气口；没跑过也仍可按字幕文本找语气词与重复句。</div>
+            <div class="row" style="margin:9px 0"><button class="mini-btn" id="scAll">全选</button><button class="mini-btn" id="scNone">全不选</button><span class="hint" id="scSummary" style="margin:0 0 0 8px"></span></div>
+            <div id="scList" class="sc-list"></div>
+        </div>
+        <div class="modal-foot"><button class="mini-btn gray" data-close="smartCutModal">取消</button><button class="mini-btn green" id="scApply">🗑 删除选中区间（波纹）</button></div>
     </div>
 </div>
 
@@ -1086,19 +1161,38 @@ function asrConfigForMode(){
     const pr=computeProfile();
     if(!pr) return {endpoint:"",key:"",model:"",chatModel:"",language:"zh",label:"尚未配置接口（到创作台 / 画布填）"};
     const chosen=String(state.aiModel||"").trim();
-    return {endpoint:asrEndpointFromBase(String(pr.endpoint||"")),key:String(pr.key||"").trim(),
+    const manual=String(safeStorage.get("manflows_ai_editor_asr_endpoint")||"").trim();
+    return {endpoint:manual||asrEndpointFromBase(String(pr.endpoint||"")),key:String(pr.key||"").trim(),
         model:asrModelFor(chosen||pr.model),chatModel:chosen||String(pr.model||"").trim(),language:"zh",
-        label:String(pr.name||pr.model||"未命名")};
+        label:(manual?"自定义转写接口":String(pr.name||pr.model||"未命名"))};
 }
 function setEdState(text,kind){
     const el=$("edState"); if(el){ el.className="ai-state"+(kind?" "+kind:""); el.textContent=text; }
 }
 function setEdProgress(step,text,err){
+    /* 只写 AI 字幕栏，绝不再覆盖 AI 剪辑栏 */
     const box=$("edProgress"), fill=$("edProgressFill"), steps=$("edSteps");
     if(box) box.hidden=false;
     if(fill) fill.style.width=Math.min(100,Math.round(step/(ASR_STEPS.length-1)*100))+"%";
     if(steps) steps.innerHTML=ASR_STEPS.map((t,i)=>'<div class="ai-step '+(i<step?"done":(i===step?(err?"err":"active"):""))+'"><span class="dot"></span>'+esc(i===step&&text?(t+" · "+text):t)+'</div>').join("");
     setEdState(text||ASR_STEPS[step]||"",err?"err":(step>=ASR_STEPS.length-1?"ok":""));
+}
+function setAiEditPanel(step,text,err){
+    /* 只写 AI 剪辑栏 */
+    const box=$("edEditProgress"), fill=$("edEditProgressFill"), steps=$("edEditSteps"), st=$("edEditState");
+    if(box) box.hidden=false;
+    if(fill) fill.style.width=Math.min(100,Math.round(step/(AI_STEPS.length-1)*100))+"%";
+    if(steps) steps.innerHTML=AI_STEPS.map((t,i)=>'<div class="ai-step '+(i<step?"done":(i===step?(err?"err":"active"):""))+'"><span class="dot"></span>'+esc(i===step&&text?(t+" · "+text):t)+'</div>').join("");
+    if(st){ st.className="ai-state"+(err?" err":(step>=AI_STEPS.length-1?" ok":"")); st.textContent=text||AI_STEPS[step]||""; }
+}
+function resetAiPanel(which){
+    const pfx=which==="edit"?"edEdit":"ed";
+    const stateEl=$(which==="edit"?"edEditState":"edState");
+    const box=$(pfx+"Progress"), fill=$(pfx+"ProgressFill"), steps=$(which==="edit"?"edEditSteps":"edSteps");
+    if(stateEl){ stateEl.className="ai-state"; stateEl.textContent="尚未运行"; }
+    if(box) box.hidden=true;
+    if(fill) fill.style.width="0%";
+    if(steps) steps.innerHTML="";
 }
 function setAiProgress(step,text,err){
     const box=$("aiProgress"), fill=$("aiProgressFill"), steps=$("aiSteps");
@@ -1106,6 +1200,7 @@ function setAiProgress(step,text,err){
     if(fill) fill.style.width=Math.min(100,Math.round(step/(AI_STEPS.length-1)*100))+"%";
     if(steps) steps.innerHTML=AI_STEPS.map((t,i)=>'<div class="ai-step '+(i<step?"done":(i===step?(err?"err":"active"):""))+'"><span class="dot"></span>'+esc(i===step&&text?(t+" · "+text):t)+'</div>').join("");
     const st=$("aiIdeaState"); if(st){ st.className="ai-state"+(err?" err":""); st.textContent=text||AI_STEPS[step]||""; }
+    setAiEditPanel(step,text,err);
 }
 function applyCompute(mode,silent,skipSave){
     const m=ED_COMPUTE_LABEL[mode]?mode:"third_party";
@@ -1186,9 +1281,16 @@ async function startAiIdea(){
    ================================================================== */
 function defaultFx(){
     return {x:0,y:0,scale:1,rotate:0,mirror:false,reverse:false,
-        speed:1, animIn:"", animOut:"", animLoop:"", animDur:0.5,
-        color:{brightness:100,contrast:100,saturate:100,sepia:0,hue:0,blur:0,preset:""},
-        sub:{size:28,color:"#ffffff",stroke:"#000000",strokeW:2,align:"center",pos:"bottom",bold:true,font:"Microsoft YaHei"}};
+        opacity:100, bg:"#000000",
+        speed:1, speedMode:"normal", curve:"", pitchShift:false,
+        animIn:"", animOut:"", animLoop:"", animDur:0.5,
+        animDirIn:"", animDirOut:"", animEase:"linear",
+        color:{brightness:100,contrast:100,saturate:100,sepia:0,hue:0,blur:0,
+            exposure:0,light:0,highlight:0,shadow:0,temperature:0,tint:0,
+            sharpen:0,fade:0,vignette:0,grain:0,preset:""},
+        sub:{size:28,color:"#ffffff",stroke:"#000000",strokeW:2,align:"center",pos:"bottom",
+            bold:true,italic:false,font:"Microsoft YaHei",opacity:100,
+            shadow:0,shadowColor:"#000000",bg:"",bgOpacity:0,spacing:0,lineHeight:1.2}};
 }
 function fxOf(c){
     if(!c) return defaultFx();
@@ -1203,7 +1305,18 @@ function fxOf(c){
     }
     return c.fx;
 }
-function animT(name,k){
+/* 剪映「入场方向 / 出场方向」8 向：只作用于滑动类动画 */
+const ANIM_DIR_VEC={L:[-1,0],R:[1,0],U:[0,-1],D:[0,1],LU:[-0.75,-0.75],RU:[0.75,-0.75],LD:[-0.75,0.75],RD:[0.75,0.75]};
+function easeK(k,mode){
+    k=clamp(k,0,1);
+    if(mode==="easeIn") return k*k;
+    if(mode==="easeOut") return 1-(1-k)*(1-k);
+    if(mode==="easeInOut") return k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    return k;
+}
+function animT(name,k,dir){
+    const v=ANIM_DIR_VEC[dir||""];
+    if(/^slide/.test(name) && v) return " translate("+(-v[0]*92*k).toFixed(1)+"px,"+(-v[1]*82*k).toFixed(1)+"px)";
     if(name==="slideL") return " translateX("+(-80*k)+"px)";
     if(name==="slideR") return " translateX("+(80*k)+"px)";
     if(name==="slideU") return " translateY("+(70*k)+"px)";
@@ -1217,9 +1330,10 @@ function animExtra(c){
     const f=fxOf(c);
     if(!f.animIn && !f.animOut && !f.animLoop) return "";
     const t=state.playhead-c.start, d=Math.max(0.15,Number(f.animDur)||0.5), dur=Math.max(0.3,c.duration||1);
+    const ez=f.animEase||"linear";
     let x="";
-    if(f.animIn && t<d) x+=animT(f.animIn,1-clamp(t/d,0,1));
-    if(f.animOut && t>dur-d) x+=animT(f.animOut,1-clamp((dur-t)/d,0,1));
+    if(f.animIn && t<d) x+=animT(f.animIn,1-easeK(clamp(t/d,0,1),ez),f.animDirIn);
+    if(f.animOut && t>dur-d) x+=animT(f.animOut,1-easeK(clamp((dur-t)/d,0,1),ez),f.animDirOut);
     if(f.animLoop==="breath") x+=" scale("+(1+0.035*Math.sin(t*4))+")";
     else if(f.animLoop==="shake") x+=" translateX("+(3*Math.sin(t*14))+"px)";
     else if(f.animLoop==="slowzoom") x+=" scale("+(1+0.10*clamp(t/dur,0,1))+")";
@@ -1227,38 +1341,115 @@ function animExtra(c){
 }
 function animOpacity(c){
     const f=fxOf(c);
-    if(!f.animIn && !f.animOut) return 1;
+    const base=clamp(f.opacity===undefined?100:Number(f.opacity),0,100)/100;
+    if(!f.animIn && !f.animOut) return base;
     const t=state.playhead-c.start, d=Math.max(0.15,Number(f.animDur)||0.5), dur=Math.max(0.3,c.duration||1);
-    if(f.animIn==="fade" && t<d) return clamp(t/d,0.05,1);
-    if(f.animOut==="fade" && t>dur-d) return clamp((dur-t)/d,0.05,1);
-    return 1;
+    if(f.animIn==="fade" && t<d) return base*clamp(t/d,0.05,1);
+    if(f.animOut==="fade" && t>dur-d) return base*clamp((dur-t)/d,0.05,1);
+    return base;
+}
+const CURVE_PRESETS={
+    "montage":{name:"蒙太奇",segs:[[0,0.25,0.5],[0.25,0.5,2],[0.5,0.75,0.5],[0.75,1,2]]},
+    "hero"   :{name:"英雄时刻",segs:[[0,0.3,1],[0.3,0.7,0.35],[0.7,1,1.5]]},
+    "bullet" :{name:"子弹时间",segs:[[0,0.2,2],[0.2,0.8,0.25],[0.8,1,2]]},
+    "jump"   :{name:"跳接",segs:[[0,0.33,3],[0.33,0.66,0.5],[0.66,1,3]]},
+    "flashIn":{name:"闪进",segs:[[0,0.15,3.5],[0.15,1,1]]},
+    "flashOut":{name:"闪出",segs:[[0,0.85,1],[0.85,1,3.5]]}
+};
+const CURVE_LABELS=Object.keys(CURVE_PRESETS).map(k=>[k,CURVE_PRESETS[k].name]);
+/* 按播放头在片段内的进度取分段速度；常规变速时恒等于 f.speed */
+function localSpeed(c){
+    if(!c) return 1;
+    const f=fxOf(c), base=clamp(Number(f.speed)||1,0.25,4);
+    if(f.speedMode!=="curve"||!f.curve||!CURVE_PRESETS[f.curve]) return base;
+    const dur=Math.max(0.2,Number(c.duration)||1), p=clamp((state.playhead-c.start)/dur,0,0.999);
+    const segs=CURVE_PRESETS[f.curve].segs;
+    const seg=segs.find(z=>p>=z[0]&&p<z[1])||segs[segs.length-1];
+    return clamp(base*seg[2],0.1,8);
 }
 function fxTransform(c){
     const f=fxOf(c), sc=Number(f.scale)||1;
     return "translate("+Number(f.x||0)+"px,"+Number(f.y||0)+"px) rotate("+Number(f.rotate||0)+"deg) scale("+((f.mirror?-1:1)*sc)+","+sc+")"+animExtra(c);
 }
 function fxFilter(c){
-    const q=fxOf(c).color||{}, out=["brightness("+(Number(q.brightness)||100)+"%)",
-        "contrast("+(Number(q.contrast)||100)+"%)","saturate("+(Number(q.saturate)||100)+"%)"];
-    if(Number(q.sepia)) out.push("sepia("+Number(q.sepia)+"%)");
-    if(Number(q.hue)) out.push("hue-rotate("+Number(q.hue)+"deg)");
-    if(Number(q.blur)) out.push("blur("+Number(q.blur)+"px)");
+    const q=fxOf(c).color||{};
+    const n=k=>{ const v=Number(q[k]); return Number.isFinite(v)?v:0; };
+    const d=(k,v)=>q[k]===undefined?v:n(k);
+    /* 剪映 14 项调色 → 浏览器 CSS / canvas 同款 filter 链（视觉近似，见使用帮助） */
+    const bright=clamp(d("brightness",100)+n("exposure")*0.55+n("light")*0.40+n("shadow")*0.30+n("highlight")*0.12+n("fade")*0.10,0,300);
+    const contrast=clamp(d("contrast",100)+n("highlight")*0.22+n("sharpen")*0.12+n("light")*0.10-n("fade")*0.22,0,300);
+    const sat=clamp(d("saturate",100)-n("fade")*0.55+n("sharpen")*0.08,0,300);
+    const sepia=clamp(d("sepia",0)+Math.max(0,n("temperature"))*0.65,0,100);
+    const hue=d("hue",0)+n("tint")*0.55+n("temperature")*0.22;
+    const blur=Math.max(0,d("blur",0));
+    const out=["brightness("+bright.toFixed(1)+"%)","contrast("+contrast.toFixed(1)+"%)","saturate("+sat.toFixed(1)+"%)"];
+    if(sepia>0.01) out.push("sepia("+sepia.toFixed(1)+"%)");
+    if(Math.abs(hue)>0.01) out.push("hue-rotate("+hue.toFixed(1)+"deg)");
+    if(blur>0.01) out.push("blur("+blur.toFixed(1)+"px)");
     return out.join(" ");
+}
+const GRAIN_SVG="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E";
+let fxOverlayKey="__init__";
+/* 暗角 / 颗粒无法用 CSS filter 表达：预览用绝对定位叠加层，导出画布同步绘制 */
+function applyFxOverlay(){
+    const el=$("fxColorOverlay"); if(!el) return;
+    const vc=mainVisualClip(), q=vc?fxOf(vc).color:null;
+    const v=q?clamp(Number(q.vignette)||0,0,100):0, g=q?clamp(Number(q.grain)||0,0,100):0;
+    const key=v+"|"+g;
+    if(key===fxOverlayKey) return;
+    fxOverlayKey=key;
+    el.innerHTML="";
+    /* 用 CSSOM 赋值而不是拼 style="..." 字符串：data URI 里的引号不会再截断 HTML 属性 */
+    if(v>0){
+        const d=document.createElement("div");
+        d.style.cssText="position:absolute;inset:0;";
+        d.style.background="radial-gradient(ellipse at center,rgba(0,0,0,0) "
+            +Math.max(6,72-v*0.58).toFixed(0)+"%,rgba(0,0,0,"+(v/100*0.92).toFixed(3)+") 100%)";
+        el.appendChild(d);
+    }
+    if(g>0){
+        const d=document.createElement("div");
+        d.style.cssText="position:absolute;inset:0;";
+        d.style.background='url("'+GRAIN_SVG+'") repeat';
+        d.style.opacity=(g/100*0.5).toFixed(3);
+        d.style.mixBlendMode="overlay";
+        el.appendChild(d);
+    }
 }
 function subStyleOf(c){
     const q=fxOf(c).sub||{}, st=$("stage"), H=st?st.clientHeight:360;
     const off=q.pos==="top"?-Math.round(H*0.34):(q.pos==="middle"?-Math.round(H*0.15):0);
+    const op=clamp(q.opacity===undefined?100:Number(q.opacity),0,100)/100;
+    const sh=Number(q.shadow)||0, bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
+    /* 未点过颜色选择器时按剪映习惯回退黑底，否则只拖「背景透明」滑块会毫无效果 */
+    const bg=(bgA>0)?hexToRgba(q.bg||"#000000",bgA):"transparent";
     return "font-size:"+(Number(q.size)||28)+"px;color:"+(q.color||"#fff")
+        +";opacity:"+op.toFixed(3)
         +";font-weight:"+(q.bold===false?"400":"700")
+        +";font-style:"+(q.italic?"italic":"normal")
+        +";letter-spacing:"+(Number(q.spacing)||0)+"px"
+        +";line-height:"+(Number(q.lineHeight)||1.2)
+        +";text-shadow:"+(sh>0?("0 "+(sh/2).toFixed(0)+"px "+sh.toFixed(0)+"px "+(q.shadowColor||"#000")):"none")
+        +";background:"+bg
         +";-webkit-text-stroke:"+(Number(q.strokeW)||0)+"px "+(q.stroke||"#000")
         +";text-align:"+(q.align||"center")+";font-family:'"+(q.font||"Microsoft YaHei")+"',sans-serif"
         +";translate:0 "+off+"px;";
+}
+function hexToRgba(hex,a){
+    const m=/^#?([0-9a-f]{6})$/i.exec(String(hex||""));
+    if(!m) return String(hex||"transparent");
+    const v=parseInt(m[1],16);
+    return "rgba("+((v>>16)&255)+","+((v>>8)&255)+","+(v&255)+","+clamp(a,0,1).toFixed(3)+")";
 }
 function applyClipTransforms(){
     const vc=mainVisualClip(), tr=vc?fxTransform(vc):"", fl=vc?fxFilter(vc):"none", op=vc?animOpacity(vc):1;
     vEl.style.transform=tr; imgEl.style.transform=tr;
     vEl.style.filter=fl; imgEl.style.filter=fl;
     vEl.style.opacity=op; imgEl.style.opacity=op;
+    const bg=vc?String(fxOf(vc).bg||"#000000"):"#000000", st=$("stage");
+    if(st && st.style.background!==bg) st.style.background=bg;
+    const pitch=!!(vc&&fxOf(vc).pitchShift);
+    if(vEl.preservesPitch!==!pitch) try{ vEl.preservesPitch=!pitch; }catch(e){}
     pipLayer.querySelectorAll(".pip-item").forEach(el=>{
         const c=clipById(el.dataset.clip);
         el.style.transform=c?fxTransform(c):""; el.style.filter=c?fxFilter(c):"none"; el.style.opacity=c?animOpacity(c):1;
@@ -1267,6 +1458,7 @@ function applyClipTransforms(){
         const c=clipById(el.dataset.clip);
         el.style.transform=c?fxTransform(c):""; el.style.opacity=c?animOpacity(c):1;
     });
+    applyFxOverlay();
     updateFxBox();
 }
 function updateFxBox(){
@@ -1298,6 +1490,9 @@ function renderBasicBox(){
       +'<div class="prop-row"><label>位置 X / Y</label><input type="number" id="fxX" step="1" value="'+Math.round(f.x||0)+'"><input type="number" id="fxY" step="1" value="'+Math.round(f.y||0)+'"></div>'
       +'<div class="prop-row"><label>缩放</label><input type="number" id="fxScale" step="0.05" min="0.1" max="5" value="'+Number(f.scale||1).toFixed(2)+'"></div>'
       +'<div class="prop-row"><label>旋转 (°)</label><input type="number" id="fxRotate" step="1" min="-360" max="360" value="'+Math.round(f.rotate||0)+'"></div>'
+      +'<div class="row" style="gap:5px;margin:4px 0"><button class="mini-btn" id="fxRotCW" style="flex:1">↻ 顺时针 90°</button><button class="mini-btn" id="fxRotCCW" style="flex:1">↺ 逆时针 90°</button></div>'
+      +'<div class="range-row"><span style="flex:0 0 52px">不透明度</span><input type="range" id="fxOpacity" min="0" max="100" step="1" value="'+clamp(f.opacity===undefined?100:Number(f.opacity),0,100)+'"><b id="fxOpacityV">'+Math.round(clamp(f.opacity===undefined?100:Number(f.opacity),0,100))+'%</b></div>'
+      +'<div class="prop-row"><label>画布背景</label><input type="color" id="fxBg" value="'+esc(String(f.bg||"#000000"))+'"><button class="mini-btn" id="fxBgReset">黑</button></div>'
       +'<div class="prop-row"><label style="flex:0 0 66px">画面</label><div class="fx-switches">'
         +'<label><input type="checkbox" id="fxMirror"'+(f.mirror?" checked":"")+'> ⇋ 镜像</label>'
         +'<label><input type="checkbox" id="fxReverse"'+(f.reverse?" checked":"")+'> ◀ 倒放</label></div></div>'
@@ -1306,6 +1501,8 @@ function renderBasicBox(){
         f.x=Number($("fxX").value)||0; f.y=Number($("fxY").value)||0;
         f.scale=clamp(Number($("fxScale").value)||1,0.1,5);
         f.rotate=clamp(Number($("fxRotate").value)||0,-360,360);
+        f.opacity=Number($("fxOpacity").value);
+        f.bg=$("fxBg").value;
         f.mirror=$("fxMirror").checked; f.reverse=$("fxReverse").checked;
         applyClipTransforms(); renderTimeline(); autoSave();
     };
@@ -1313,8 +1510,14 @@ function renderBasicBox(){
         $(id).addEventListener("focus",()=>pushHistory());
         $(id).addEventListener("input",apply);
     });
+    $("fxOpacity").oninput=e=>{ f.opacity=Number(e.target.value); $("fxOpacityV").textContent=f.opacity+"%"; applyClipTransforms(); autoSave(); };
+    $("fxBg").oninput=e=>{ f.bg=e.target.value; applyClipTransforms(); autoSave(); };
+    $("fxBgReset").onclick=()=>{ pushHistory(); f.bg="#000000"; $("fxBg").value="#000000"; apply(); };
+    ["fxRotCW","fxRotCCW"].forEach(id=>$(id).onclick=()=>{
+        pushHistory(); f.rotate=((Math.round(f.rotate||0)+(id==="fxRotCW"?90:-90))%360+360)%360;
+        $("fxRotate").value=f.rotate; apply(); });
     ["fxMirror","fxReverse"].forEach(id=>$(id).addEventListener("change",()=>{ pushHistory(); apply(); }));
-    $("fxReset").onclick=()=>{ pushHistory(); const d=defaultFx(); ["x","y","scale","rotate","mirror","reverse"].forEach(k=>f[k]=d[k]); renderAll(); autoSave(); toast("已重置该片段的基础调整","ok"); };
+    $("fxReset").onclick=()=>{ pushHistory(); const d=defaultFx(); ["x","y","scale","rotate","mirror","reverse","opacity","bg"].forEach(k=>f[k]=d[k]); renderAll(); autoSave(); toast("已重置该片段的基础调整","ok"); };
 }
 function showPropTab(name){
     const ok=["basic","anim","speed","color","sub"];
@@ -2006,8 +2209,9 @@ function syncAudioPool(){
             document.body.appendChild(el); o={el:el,aid:""}; audioPool.set(x.c.id,o);
         }
         if(o.aid!==x.a.id){ o.el.src=x.a.url; o.aid=x.a.id; }
-        const asp=clamp(Number(fxOf(x.c).speed)||1,0.25,4);
+        const asp=localSpeed(x.c);
         if(o.el.playbackRate!==asp) o.el.playbackRate=asp;
+        if(o.el.preservesPitch!==!(!!fxOf(x.c).pitchShift)) try{ o.el.preservesPitch=!fxOf(x.c).pitchShift; }catch(e){}
         const wt=(x.c.offset||0)+(state.playhead-x.c.start);
         if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>0.32 && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
         o.el.muted=recordMuted; o.el.volume=recordMuted?0:vol;
@@ -2032,7 +2236,7 @@ function syncMedia(){
     let showVideo=false, showImage=false;
     if(va && va.type==="video" && va.url){
         if(vEl.dataset.aid!==va.id){ vEl.src=va.url; vEl.dataset.aid=va.id; }
-        const spd=clamp(Number(fxOf(vc).speed)||1,0.25,4);
+        const spd=localSpeed(vc);
         if(vEl.playbackRate!==spd) vEl.playbackRate=spd;
         const rev=!!fxOf(vc).reverse;
         if(rev){
@@ -2068,7 +2272,7 @@ function tick(ts){
     if(rev) t=state.playhead+Math.min(dt,0.25);
     else if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
         t=vc.start+(vEl.currentTime-(vc.offset||0));
-    }else t=state.playhead+Math.min(dt,0.25);
+    }else t=state.playhead+Math.min(dt,0.25)*(vc?localSpeed(vc):1);
     state.playhead=clamp(t,0,totalDuration());
     syncMedia(); renderPlayhead();
     if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
@@ -2227,6 +2431,45 @@ async function assetBlob(a){
     if(a.url){ const r=await fetch(a.url); if(!r.ok) throw new Error("读取素材失败 HTTP "+r.status); return await r.blob(); }
     throw new Error("这个素材没有可上传的音视频文件");
 }
+/* 本机服务转写：抽音轨 → 16k 单声道 → 60s 分段 → 本机/第三方接口转发（无 CORS） */
+let lastSilences=[];                 /* 服务返回的静音区间，供「智能剪口播」使用 */
+function blobToBase64(blob){
+    return new Promise((res,rej)=>{
+        const fr=new FileReader();
+        fr.onload=()=>res(String(fr.result||"").split(",")[1]||"");
+        fr.onerror=()=>rej(new Error("读取素材字节失败"));
+        fr.readAsDataURL(blob);
+    });
+}
+async function serviceTranscribe(a,cfg,clip){
+    if(!svcOnline) await pingService(2800);
+    if(!svcOnline) throw new Error("本机服务未启动（127.0.0.1:8788）：双击「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows)");
+    const isRemote=/^https?:\/\//i.test(String(a.url||""));
+    let b64="", url="";
+    if(isRemote) url=String(a.url);
+    else b64=await blobToBase64(await assetBlob(a));
+    const payload={filename:String(a.name||"audio.wav"),dataBase64:b64,url:url,
+        endpoint:String(cfg.endpoint||""),key:String(cfg.key||""),
+        model:String(cfg.model||"whisper-1"),language:String(cfg.language||"zh"),
+        clipStart:Number(clip&&clip.offset)||0,clipDuration:Number(clip&&clip.duration)||0};
+    const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),600000);
+    let j;
+    try{
+        const r=await fetch(LOCAL_SERVICE+"/api/transcribe",{method:"POST",
+            headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal:ctl.signal});
+        j=await r.json();
+    }catch(e){ throw new Error("调用本机转写接口失败："+(e.name==="AbortError"?"超时（超过 10 分钟）":e.message)); }
+    finally{ clearTimeout(tm); }
+    if(!j||!j.ok) throw new Error(String(j&&j.reason||"转写失败")+(j&&j.hint?"｜"+j.hint:""));
+    const off=Number(clip&&clip.offset)||0, cs=Number(clip&&clip.start)||0;
+    const silences=(Array.isArray(j.silences)?j.silences:[]).map(z=>({
+        start:cs+(Number(z.start)||0-off),end:cs+(Number(z.end)||0-off),
+        duration:Number(z.duration)||0}));
+    return {segments:(j.segments||[]).map(x=>({start:Number(x.start)||0,end:Number(x.end)||0,
+                text:String(x.text||"").trim(),kind:guessSubKind(x.text)})).filter(x=>x.text),
+            engine:j.engine||"本机服务",chunks:j.chunks||0,silences:silences};
+}
+/* 浏览器直连回退：仅在本机服务不可用时尝试；明确区分 CORS / 404 / 连接失败 */
 async function remoteASR(a,cfg){
     const blob=await assetBlob(a);
     const fd=new FormData();
@@ -2235,13 +2478,21 @@ async function remoteASR(a,cfg){
     fd.append("response_format","verbose_json");
     if(cfg.language) fd.append("language",cfg.language);
     const headers={}; if(cfg.key) headers.Authorization="Bearer "+cfg.key;
-    const r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:fd});
+    let r;
+    try{ r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:fd}); }
+    catch(e){
+        throw new Error("Failed to fetch（浏览器跨域 CORS 拦截或接口不通）。"
+            +"直连第三方 API 几乎都会被 CORS 拦截，请启动本机服务由它转发；"
+            +"或在创作台/画布把接口换成支持 /v1/audio/transcriptions 的地址。");
+    }
+    if(r.status===404||r.status===405) throw new Error("转写接口 HTTP "+r.status
+        +"：该服务商没有 /v1/audio/transcriptions 通道。Claude / 普通 GPT 对话模型不是语音转写模型，"
+        +"请换 whisper-1 / gpt-4o-transcribe，或接通本机 faster-whisper。");
     if(!r.ok) throw new Error("转写接口 HTTP "+r.status+"："+(await r.text()).slice(0,160));
     const j=await r.json();
     const arr=Array.isArray(j.segments)?j.segments:(j.result&&Array.isArray(j.result.segments)?j.result.segments:[]);
     if(!arr.length){
         const txt=(j.text||"").trim();
-        /* 没有分段时间码时，用素材真实时长作为这一整句的范围，不再凭空造 3 秒 */
         if(txt) return [{start:0,end:Math.max(1,Number(a.duration)||8),text:txt,kind:guessSubKind(txt)}];
         throw new Error("接口既没有返回 segments 也没有返回 text，请确认使用 verbose_json 格式");
     }
@@ -2273,7 +2524,12 @@ function micASR(){
 /* 多模态大模型音频输入降级：转写接口不可用时，用支持音频的对话模型听音频 */
 async function chatAudioASR(a,cfg){
     const blob=await assetBlob(a);
-    if(blob.size>20*1024*1024) throw new Error("音频文件超过 20MB，多模态音频输入不适合，请改用转写接口");
+    const m=String(cfg.chatModel||"").toLowerCase();
+    if(/claude|haiku|sonnet|opus|haku|qwen|deepseek|gemini/.test(m))
+        throw new Error("当前模型「"+(cfg.chatModel||"未指定")+"」不支持 input_audio 音频输入；"
+            +"这类文本/视觉模型能跑 AI剪辑，但不能做 AI字幕。请用转写接口（whisper-1 / gpt-4o-transcribe）或接通本机 faster-whisper。");
+    if(blob.size>20*1024*1024) throw new Error("音频文件超过 20MB，不适合整体塞给多模态模型；"
+        +"请启动本机服务（会自动抽音轨并切成 60 秒小段再识别）");
     const buf=await blob.arrayBuffer(), bytes=new Uint8Array(buf);
     let bin=""; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
     const ext=String(a.ext||a.name||"").toLowerCase();
@@ -2313,6 +2569,7 @@ async function runASR(){
         setEdState("还没有可用的转写接口：请到创作台 / 画布「算力总控 → 第三方API」填好接口地址，或接通本机 faster-whisper（默认 9000 端口）。","err");
         return;
     }
+    resetAiPanel("sub"); lastSilences=[];
     const list=state.clips.filter(c=>{
         const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
         return (k==="video"||k==="audio") && a && (a.type==="video"||a.type==="audio");
@@ -2331,11 +2588,20 @@ async function runASR(){
             const c=list[i], a=assetById(c.assetId);
             setEdProgress(2,"正在把第 "+(i+1)+"/"+list.length+" 段「"+a.name+"」的音轨发给模型识别…");
             let segs;
-            try{ segs=await remoteASR(a,cfg); }
-            catch(e){
-                setEdProgress(2,"标准转写接口不可用，正在改用多模态大模型直接听第 "+(i+1)+" 段音频…");
-                try{ segs=await chatAudioASR(a,cfg); }
-                catch(e2){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败："+(e.message||e)+"；多模态音频降级也失败："+(e2.message||e2)); }
+            try{
+                const r=await serviceTranscribe(a,cfg,c);
+                segs=r.segments;
+                if(Array.isArray(r.silences)) lastSilences=lastSilences.concat(r.silences);
+                setEdProgress(2,"第 "+(i+1)+" 段已由「"+r.engine+"」分 "+r.chunks+" 段识别完成");
+            }catch(e1){
+                setEdProgress(2,"本机服务转写不可用（"+((e1&&e1.message)||e1)+"），尝试浏览器直连…");
+                try{ segs=await remoteASR(a,cfg); }
+                catch(e){
+                    setEdProgress(2,"直连转写也失败，尝试多模态大模型降级…");
+                    try{ segs=await chatAudioASR(a,cfg); }
+                    catch(e2){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+(e1.message||e1)
+                        +"；直连 "+(e.message||e)+"；多模态音频降级也失败："+(e2.message||e2)); }
+                }
             }
             const off=Number(c.offset||0);
             for(const sg of segs){
@@ -2353,12 +2619,112 @@ async function runASR(){
         setEdProgress(4,"已把 "+n+" 条真实字幕写入字幕轨（分析 "+list.length+" 段音视频素材）");
         toast("AI 字幕完成：真实识别 "+list.length+" 段素材，生成 "+n+" 条字幕","ok");
     }catch(e){
-        setEdProgress(2,"识别失败："+((e&&e.message)||e)+"。请确认转写接口可用（faster-whisper / OpenAI 兼容 /v1/audio/transcriptions），跨域未放行时改用本机服务；本次不会生成任何演示字幕。",true);
+        setEdProgress(2,"识别失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（本机 faster-whisper 或第三方转写接口都由它转发，不受浏览器跨域限制）；② 确认服务商提供 whisper-1 / gpt-4o-transcribe 转写通道。本次不会生成任何演示字幕。",true);
         toast("AI 字幕失败，请看左侧状态说明","err");
     }finally{
         asrBusy=false; btn.disabled=false;
         const b=$("asrRun"); if(b){ b.textContent="🎙 识别语音并生成字幕"; b.dataset.mic=""; }
     }
+}
+
+
+/* ==================================================================
+   智能剪口播：本地 VAD 气口 + 字幕文本规则（剪映同思路，非云端 VIP）
+   候选区间只会列出、由用户勾选，确认后做轨道级波纹删除，可撤销
+   ================================================================== */
+let smartCutCandidates=[];
+const FILLER_RE=/^(额|呃|嗯|啊|唉|哦|噢|诶|那个|这个|然后|就是|所以说|对吧|是吧|的话|其实|那么|接下来|好吧|你知道|对|好|来)[，,。、！？!?~\s]*$/;
+function scTime(t){
+    t=Math.max(0,Number(t)||0);
+    const m=Math.floor(t/60), sec=t-m*60;
+    return String(m).padStart(2,"0")+":"+sec.toFixed(1).padStart(4,"0");
+}
+function buildSmartCutCandidates(){
+    const out=[];
+    for(const z of lastSilences){
+        if(!(z.duration>=0.6)) continue;
+        const st=Number(z.start)+0.12, en=Number(z.end)-0.12;
+        if(en>st+0.2) out.push({type:"停顿",start:st,end:en,
+            text:"（静音 "+Number(z.duration).toFixed(1)+" 秒）",reason:"长停顿 / 气口",on:true});
+    }
+    const subs=state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim())
+        .sort((a,b)=>a.start-b.start);
+    let prev="";
+    for(const c of subs){
+        const t=String(c.text).trim(), key=t.replace(/[^\u4e00-\u9fffA-Za-z0-9]/g,"");
+        if(FILLER_RE.test(t))
+            out.push({type:"语气词",start:c.start,end:c.start+c.duration,text:t,reason:"语气词 / 口头禅",on:true});
+        else if(key && key===prev)
+            out.push({type:"重复",start:c.start,end:c.start+c.duration,text:t,reason:"与上一条重复赘述",on:false});
+        prev=key;
+    }
+    out.sort((a,b)=>a.start-b.start);
+    /* 合并完全重叠的静音与语气词，避免同一处删两次 */
+    const merged=[];
+    for(const x of out){
+        const last=merged[merged.length-1];
+        if(last && x.start<last.end-0.02 && x.type===last.type){
+            last.end=Math.max(last.end,x.end); continue;
+        }
+        merged.push(x);
+    }
+    return merged;
+}
+function renderSmartCutSummary(){
+    const box=$("scSummary"); if(!box) return;
+    const n=smartCutCandidates.filter(x=>x.on).length;
+    box.textContent="共 "+smartCutCandidates.length+" 处候选，已勾选 "+n+" 处";
+}
+function renderSmartCutList(){
+    const box=$("scList"); if(!box) return;
+    if(!smartCutCandidates.length){
+        box.innerHTML='<div class="sc-empty">暂未识别到停顿 / 语气词 / 重复片段。<br>'
+          +'可先点「🅰 AI字幕」让本机服务分析出音频气口，或先在字幕轨里写入口播文本再试。</div>';
+        renderSmartCutSummary(); return;
+    }
+    box.innerHTML=smartCutCandidates.map((x,i)=>'<label class="sc-item">'
+        +'<input type="checkbox" data-sc="'+i+'"'+(x.on?" checked":"")+'>'
+        +'<span class="sc-type">'+esc(x.type)+'</span>'
+        +'<span class="sc-time">'+scTime(x.start)+' – '+scTime(x.end)+'</span>'
+        +'<span class="sc-text">'+esc(x.text||"（无字幕）")+'</span>'
+        +'<span class="sc-why">'+esc(x.reason)+'</span></label>').join("");
+    renderSmartCutSummary();
+}
+function openSmartCutModal(){
+    smartCutCandidates=buildSmartCutCandidates();
+    renderSmartCutList();
+    $("smartCutModal").classList.add("show");
+}
+/* 轨道级波纹删除：删掉区间，并把后续片段整体前移；片段跨越删除区时裁短 */
+function rippleDeleteRanges(ranges){
+    const rs=ranges.slice().sort((a,b)=>a.start-b.start).reduce((acc,r)=>{
+        const last=acc[acc.length-1];
+        if(last && r.start<=last.end+0.001) last.end=Math.max(last.end,r.end);
+        else acc.push({start:Number(r.start),end:Number(r.end)});
+        return acc;
+    },[]).filter(r=>r.end>r.start+0.05);
+    if(!rs.length) return {cuts:0,removed:0};
+    const shift=t=>rs.reduce((a,r)=>a+(t>=r.end?(r.end-r.start):0),0);
+    const inner=(s,e)=>rs.reduce((a,r)=>a+Math.max(0,Math.min(e,r.end)-Math.max(s,r.start)),0);
+    const before=state.clips.length;
+    state.clips=state.clips.map(c=>{
+        const s=Number(c.start)||0, e=s+(Number(c.duration)||0);
+        const kept=(e-s)-inner(s,e);
+        if(kept<=0.08) return null;
+        return Object.assign({},c,{start:Math.max(0,s-shift(s)),duration:kept});
+    }).filter(Boolean);
+    state.selected=null; state.multi=[]; state.selectedAsset=null;
+    return {cuts:rs.length,removed:before-state.clips.length};
+}
+function applySmartCut(){
+    const picks=smartCutCandidates.filter(x=>x.on).map(x=>({start:x.start,end:x.end}));
+    if(!picks.length){ toast("没有勾选任何区间","err"); return; }
+    if(!confirm("确定删除 "+picks.length+" 处停顿 / 语气词区间？后续片段会自动前移，可用 Ctrl+Z 撤销。")) return;
+    pushHistory();
+    const r=rippleDeleteRanges(picks);
+    $("smartCutModal").classList.remove("show");
+    renderAll(); syncMedia(); autoSave();
+    toast("智能剪口播完成：波纹删除 "+r.cuts+" 处区间，移除 "+r.removed+" 个片段（可 Ctrl+Z 撤销）","ok");
 }
 
 /* ---------- AI 剪辑：复用站点已保存的大模型配置 ---------- */
@@ -2520,7 +2886,7 @@ function showAiSetup(cfg){
       +'<h2>怎么配置</h2><ul>'
       +'<li>左上<b>「算力总控」</b>三档点选切换：<b>本机算力</b>＝本机 llama / Ollama 与 faster-whisper；<b>第三方API</b>＝创作台 / 画布已填好的接口配置（共用键 <code>manflows_api_profiles</code>）；<b>漫流算力</b>为占位档暂未开放。</li>'
       +'<li>点「✨ AI剪辑」后，在弹窗的<b>「选择模型」</b>里挑一个你已经部署好的大语言模型，<b>建议只选 Claude 或 GPT 系列之一</b>；下拉没有就手填模型名。</li>'
-      +'<li>AI 字幕需要 OpenAI 兼容的 <code>/v1/audio/transcriptions</code> 转写接口（本机 faster-whisper 默认 9000 端口）；若服务商只提供多模态对话，会自动降级用支持音频的模型直接听音频。</li></ul>'
+      +'<li>AI 字幕由本机服务转发转写（本机 faster-whisper 9000 端口，或第三方 whisper-1 / gpt-4o-transcribe 通道）；Claude 与普通 GPT 对话模型不是转写模型，能跑 AI剪辑但不能做 AI字幕。</li></ul>'
       +'<p class="hint">配置好后再点一次「✨ AI剪辑」即可；带图请求失败时会自动降级为纯轨道数据分析。</p>';
     $("aiSetupModal").classList.add("show");
 }
@@ -2560,6 +2926,7 @@ function applyAiPlan(){
     renderAll(); autoSave(); toast("AI 剪辑方案已应用（Ctrl+Z 可撤销）","ok");
 }
 async function runAiEdit(idea,overrideModel){
+    resetAiPanel("edit");
     const cfg=aiConfig(overrideModel);
     const st=$("aiIdeaState");
     if(state.compute==="manflow"){
@@ -2604,10 +2971,8 @@ async function runAiEdit(idea,overrideModel){
         pendingPlan=plan; renderAiPlan(plan,cfg,frames.length);
         $("aiIdeaModal").classList.remove("show");
         $("aiPlanModal").classList.add("show");
-        setEdState("AI 剪辑方案已生成，确认后写入轨道（可 Ctrl+Z 撤销）","ok");
     }catch(e){
         setAiProgress(3,"AI 剪辑失败："+((e&&e.message)||e)+"。请确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
-        setEdState("AI 剪辑失败："+((e&&e.message)||e),"err");
         toast("AI 剪辑失败，请看弹窗里的状态说明","err");
     }finally{ btn.disabled=false; }
 }
@@ -2707,7 +3072,7 @@ function setupChannels(){
 
 /* ---------- 工程保存 / 恢复 / 导出 ---------- */
 function projectPayload(){
-    state.clips.forEach(fxOf);      /* 旧工程 / 演示工程的片段统一补齐变换字段再存档 */
+    state.clips.forEach(fxOf);      /* 旧工程的片段统一补齐变换字段再存档 */
     return {v:2,date:state.date,zoom:state.zoom,playhead:0,
         tracks:state.tracks, subTrack:state.subTrack,
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
@@ -2804,62 +3169,78 @@ function demoScene(title,sub,c1,c2){
     x.fillText("漫流 AI 剪辑台 · 演示画面",320,325);
     return cv.toDataURL("image/jpeg",0.82);
 }
-function demoWav(seconds,base,chord){
-    const rate=16000, n=Math.floor(rate*seconds), buf=new ArrayBuffer(44+n*2), v=new DataView(buf);
-    const str=(o,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); };
-    str(0,"RIFF"); v.setUint32(4,36+n*2,true); str(8,"WAVE"); str(12,"fmt ");
-    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-    v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
-    str(36,"data"); v.setUint32(40,n*2,true);
-    for(let i=0;i<n;i++){
-        const t=i/rate, env=Math.min(1,t*3)*Math.min(1,(seconds-t)*3);
-        let s=0; for(let k=0;k<chord.length;k++){
-            const f=base*chord[k];
-            s+=Math.sin(2*Math.PI*f*t)*0.16*(1+0.28*Math.sin(2*Math.PI*0.7*t+k));
-        }
-        v.setInt16(44+i*2,Math.round(clamp(s*env,-1,1)*22000),true);
-    }
-    return new Blob([buf],{type:"audio/wav"});
+/* ==================================================================
+   空白工程：首次打开 / 新工作区 / 无存档时，素材库与所有轨道都不带自带素材
+   ================================================================== */
+function setEmptyHint(){
+    $("aiState").className="ai-state";
+    $("aiState").textContent="空白工程已就绪：点左侧「＋ 导入素材」或「🔗 粘贴在线 URL」添加你自己的文件，再拖到下方轨道开始剪辑。想回到以前做过的工程，点顶栏「🕘 历史工作区」。";
 }
-async function loadDemoProject(){
+async function loadEmptyProject(){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
     state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all";
-    state.tracks=defaultTracks(); state.subTrack="tk_text1";
-    historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key="";
-    const scenes=[
-        ["长安 · 夜雨","镜头一 · 空镜","#0b1d33","#254b63"],
-        ["城门 · 送别","镜头二 · 双人","#2a1633","#6b3050"],
-        ["雨中 · 回望","镜头三 · 特写","#101c22","#2f5661"]
-    ];
-    const imgs=[]; scenes.forEach(s=>imgs.push(demoScene(s[0],s[1],s[2],s[3])));
-    const wavs=[demoWav(10,220,[1,1.5,2]),demoWav(10,146.83,[1,1.25,1.5])];
-    const imgAssets=[], audioAssets=[];
-    for(let i=0;i<3;i++) imgAssets.push({id:uid(),name:scenes[i][0]+" · "+scenes[i][1]+".jpg",type:"image",url:imgs[i],urlKind:"data",
-        duration:0,size:0,source:"demo",ext:"jpg",blobId:"",text:"",ts:Date.now()});
-    wavs.forEach((w,i)=>audioAssets.push({id:uid(),name:(i?"离别 · 低音铺底":"夜雨 · 氛围音")+".wav",type:"audio",
-        url:URL.createObjectURL(w),urlKind:"blob",duration:10,size:w.size,source:"demo",ext:"wav",
-        blobId:"",text:"",ts:Date.now(),blob:w}));
-    for(const a of audioAssets){ try{ await dbPut("assets",a.id,a.blob); a.blobId="stored"; }catch(e){} delete a.blob; }
-    state.assets=imgAssets.concat(audioAssets);
-    state.clips=[
-        {id:uid(),track:"tk_video1",assetId:imgAssets[0].id,start:0,duration:7,offset:0,text:"",name:"长安 · 夜雨"},
-        {id:uid(),track:"tk_video1",assetId:imgAssets[1].id,start:7,duration:7,offset:0,text:"",name:"城门 · 送别"},
-        {id:uid(),track:"tk_video1",assetId:imgAssets[2].id,start:14,duration:7,offset:0,text:"",name:"雨中 · 回望"},
-        {id:uid(),track:"tk_image1",assetId:imgAssets[2].id,start:2.5,duration:3,offset:0,text:"",name:"画中画"},
-        {id:uid(),track:"tk_audio1",assetId:audioAssets[0].id,start:0,duration:10,offset:0,text:"",name:"夜雨 · 氛围音"},
-        {id:uid(),track:"tk_audio1",assetId:audioAssets[1].id,start:10,duration:10,offset:0,text:"",name:"离别 · 低音铺底"},
-        {id:uid(),track:"tk_text1",assetId:"",start:0.8,duration:3.2,offset:0,text:"夜色压下来，长安城的灯一盏盏灭了。",name:"旁白",subKind:"narration"},
-        {id:uid(),track:"tk_text1",assetId:"",start:4.4,duration:2.6,offset:0,text:"「你真的要走？」",name:"对白",subKind:"dialogue"},
-        {id:uid(),track:"tk_text1",assetId:"",start:7.4,duration:3.4,offset:0,text:"「我若不走，这满城的人都要替我死。」",name:"对白",subKind:"dialogue"},
-        {id:uid(),track:"tk_text1",assetId:"",start:11.2,duration:3.2,offset:0,text:"（其实我怕的不是死，是再也见不到她。）",name:"内心独白",subKind:"inner"},
-        {id:uid(),track:"tk_text1",assetId:"",start:14.8,duration:2.6,offset:0,text:"风穿过长街，卷起一地未说完的话。",name:"旁白",subKind:"narration"},
-        {id:uid(),track:"tk_text1",assetId:"",start:17.6,duration:2.6,offset:0,text:"（这一别，或许就是一生。）",name:"内心独白",subKind:"inner"}
-    ];
+    state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=todayStr();
+    historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key=""; fxOverlayKey="";
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
     renderAll(); autoSave(); syncMedia(); applyAspect();
-    $("aiState").className="ai-state";
-    $("aiState").textContent="演示工程已就绪：字幕 / 图片 / 视频 / 音频四条轨，3 段主画面 + 1 段画中画 + 2 段音乐 + 6 条字幕。可拖素材到轨道自动加层，点「🅰 AI字幕」体验自动识别。";
+    setEmptyHint();
 }
+
+/* ==================================================================
+   历史工作区：只列当前工作区跨所有日期做过的剪辑工程
+   safeStorage.keys() 已按工作区过滤，越不过 mfws_<id>_ 前缀
+   ================================================================== */
+function histProjects(){
+    const out=[];
+    for(const k of safeStorage.keys()){
+        if(String(k).indexOf(PROJECT_PREFIX)!==0) continue;
+        const date=String(k).slice(PROJECT_PREFIX.length);
+        let clips=0, assets=0, savedAt=0;
+        try{
+            const p=JSON.parse(safeStorage.get(k)||"{}");
+            clips=Array.isArray(p.clips)?p.clips.length:0;
+            assets=Array.isArray(p.assets)?p.assets.length:0;
+            savedAt=Number(p.savedAt)||0;
+        }catch(e){}
+        out.push({date:date,clips:clips,assets:assets,savedAt:savedAt});
+    }
+    out.sort((a,b)=>(b.savedAt-a.savedAt)||String(b.date).localeCompare(String(a.date)));
+    return out;
+}
+function renderHistList(){
+    const box=$("histList"); if(!box) return;
+    const wn=$("histWsName"); if(wn) wn.textContent=wsName();
+    const arr=histProjects(), cur=state.date||todayStr();
+    if(!arr.length){
+        box.innerHTML='<div class="hist-empty">这个工作区还没有保存过剪辑工程。<br>导入素材、拖到轨道后会自动保存一份，之后随时可以从这里切回来。</div>';
+        return;
+    }
+    box.innerHTML=arr.map(p=>{
+        const dt=p.savedAt?new Date(p.savedAt).toLocaleString("zh-CN",{hour12:false}):"时间未知";
+        return '<div class="hist-item'+(p.date===cur?" cur":"")+'">'
+          +'<div class="hi-main"><div class="hi-name">📅 '+esc(p.date)
+            +(p.date===cur?' <span style="color:#67e8f9;font-size:10.5px">（正在编辑）</span>':"")
+            +(p.date===todayStr()?' <span style="color:#86efac;font-size:10.5px">今天</span>':"")+'</div>'
+          +'<div class="hi-meta">'+p.clips+' 个片段 · '+p.assets+' 个素材 · 保存于 '+esc(dt)+'</div></div>'
+          +(p.date===cur?'<button disabled style="opacity:.55">当前</button>':'<button data-hist="open" data-date="'+esc(p.date)+'">打开</button>')
+          +'<button data-hist="export" data-date="'+esc(p.date)+'" title="把这份工程导出成 JSON 备份">备份</button>'
+          +'</div>';
+    }).join("");
+}
+function openHistModal(){ renderHistList(); $("histModal").classList.add("show"); }
+async function histOpen(date){
+    if(date===(state.date||todayStr())){ toast("这就是当前正在编辑的工程","ok"); return; }
+    try{ saveProject(true); }catch(e){}          /* 切换前先落盘，避免当前改动丢失 */
+    const ok=await loadProject(date);
+    if(ok){ $("histModal").classList.remove("show"); fitZoom(); renderHistList(); saveProject(true); }
+}
+function histExport(date){
+    const raw=safeStorage.get(PROJECT_PREFIX+date);
+    if(!raw){ toast("没有找到 "+date+" 的工程","err"); return; }
+    download("manflows_"+date+"_工程备份.json",raw,"application/json");
+    toast("已备份 "+date+" 的工程 JSON","ok");
+}
+
 /* ---------- 事件绑定 ---------- */
 function wire(){
     /* 顶栏 */
@@ -2867,6 +3248,13 @@ function wire(){
     $("topOpen").onclick=()=>{ listProjects(); $("projModal").classList.add("show"); };
     $("topExport").onclick=()=>openExport();
     $("wsBtn").onclick=openWsModal;
+    $("histBtn").onclick=openHistModal;
+    $("histRefresh").onclick=()=>{ renderHistList(); toast("历史工作区列表已刷新","ok"); };
+    $("histList").addEventListener("click",e=>{
+        const b=e.target.closest("[data-hist]"); if(!b) return;
+        if(b.dataset.hist==="open") histOpen(b.dataset.date);
+        else if(b.dataset.hist==="export") histExport(b.dataset.date);
+    });
     $("resetLayout").onclick=()=>{ resetLayout(); applyAspect(); };
     $("topHelp").onclick=()=>$("helpModal").classList.add("show");
     /* 三页已同处一个站点目录：返回创作台 / 返回画布一律走同目录相对地址 */
@@ -2949,6 +3337,16 @@ function wire(){
     ["aiEndpoint","aiKey","aiModel","aiFrames"].forEach(id=>$(id).addEventListener("change",saveAiCfg));
     $("aiCutBtn").onclick=openAiIdea;
     $("aiSubBtn").onclick=runASR;
+    $("smartCutBtn").onclick=openSmartCutModal;
+    $("scAll").onclick=()=>{ smartCutCandidates.forEach(x=>x.on=true); renderSmartCutList(); };
+    $("scNone").onclick=()=>{ smartCutCandidates.forEach(x=>x.on=false); renderSmartCutList(); };
+    $("scList").addEventListener("change",e=>{
+        const el=e.target.closest("[data-sc]"); if(!el) return;
+        const i=Number(el.dataset.sc);
+        if(smartCutCandidates[i]) smartCutCandidates[i].on=el.checked;
+        renderSmartCutSummary();
+    });
+    $("scApply").onclick=applySmartCut;
     $("recBtn").onclick=toggleRecord;
     $("aiPlanApply").onclick=applyAiPlan;
     /* 算力总控三档：点选即切换，本页独立保存，同页多标签同步 */
@@ -3207,25 +3605,50 @@ function wire(){
    调整栏：动画 / 变速 / 调色 LUT / 字幕样式
    全部写入 clip.fx，工程存档与撤销天然包含；预览与导出同步生效
    ================================================================== */
-const ANIM_IN_OPTS=[["","无"],["fade","淡入"],["slideL","左滑入"],["slideR","右滑入"],["slideU","上滑入"],
-                    ["slideD","下滑入"],["zoomIn","放大进入"],["zoomOut","缩小进入"],["rotateIn","旋转进入"]];
-const ANIM_OUT_OPTS=[["","无"],["fade","淡出"],["slideL","左滑出"],["slideR","右滑出"],
+const ANIM_IN_OPTS=[["","无"],["fade","渐显（淡入）"],["slideL","滑动进入"],["slideR","滑动进入"],["slideU","滑动进入"],
+                    ["slideD","滑动进入"],["zoomIn","放大进入"],["zoomOut","缩小进入"],["rotateIn","旋转进入"]];
+const ANIM_OUT_OPTS=[["","无"],["fade","渐隐（淡出）"],["slideL","滑动退出"],["slideR","滑动退出"],
                      ["zoomIn","缩小退出"],["zoomOut","放大退出"]];
 const ANIM_LOOP_OPTS=[["","无"],["breath","呼吸"],["shake","轻微摇晃"],["slowzoom","缓慢放大"]];
+/* 剪映「入场方向 / 出场方向」：8 向，作用于滑动类动画 */
+const ANIM_DIR_OPTS=[["","默认方向"],["L","从左"],["R","从右"],["U","从上"],["D","从下"],
+                     ["LU","左上"],["RU","右上"],["LD","左下"],["RD","右下"]];
+/* 剪映「动画快慢」：缓动曲线 */
+const ANIM_EASE_OPTS=[["linear","匀速 · 线性"],["easeIn","缓入 · 慢→快"],["easeOut","缓出 · 快→慢"],["easeInOut","缓入缓出"]];
+/* 剪映「组合动画」：一键套用入场 / 出场 / 循环 / 时长 / 缓动 */
+const ANIM_COMBO_OPTS=[
+    ["fadeFade","渐显 + 渐隐","fade","fade","",0.5,"linear"],
+    ["slideIO","左滑入 + 右滑出","slideL","slideR","",0.6,"easeOut"],
+    ["zoomIO","放大进 + 缩小出","zoomIn","zoomOut","",0.6,"easeInOut"],
+    ["rotateIn","旋转进入","rotateIn","","",0.6,"easeOut"],
+    ["breath","循环呼吸","","","breath",0.5,"linear"],
+    ["clear","清除动画","","","",0.5,"linear"]
+];
 const COLOR_PRESETS={
-    ""     :{brightness:100,contrast:100,saturate:100,sepia:0,hue:0,blur:0},
-    "film" :{brightness:104,contrast:112,saturate:88,sepia:16,hue:0,blur:0},
-    "cool" :{brightness:100,contrast:108,saturate:92,sepia:0,hue:-14,blur:0},
-    "warm" :{brightness:104,contrast:104,saturate:110,sepia:12,hue:8,blur:0},
-    "mono" :{brightness:102,contrast:116,saturate:0,sepia:0,hue:0,blur:0},
-    "vivid":{brightness:102,contrast:116,saturate:148,sepia:0,hue:0,blur:0},
-    "japan":{brightness:110,contrast:92,saturate:88,sepia:6,hue:0,blur:0},
-    "cyber":{brightness:96,contrast:124,saturate:132,sepia:0,hue:22,blur:0}
+    ""      :{},
+    "film"  :{brightness:104,contrast:112,saturate:88,sepia:16,fade:12},
+    "cool"  :{brightness:100,contrast:108,saturate:92,temperature:-38,tint:-12},
+    "warm"  :{brightness:104,contrast:104,saturate:110,temperature:36,sepia:10},
+    "mono"  :{brightness:102,contrast:116,saturate:0},
+    "vivid" :{brightness:102,contrast:116,saturate:148,sharpen:18},
+    "japan" :{brightness:110,contrast:92,saturate:88,light:14,fade:16},
+    "cyber" :{brightness:96,contrast:124,saturate:132,tint:28,highlight:12},
+    "retro" :{brightness:100,contrast:104,saturate:78,sepia:34,fade:26,grain:18},
+    "cinema":{brightness:96,contrast:118,saturate:90,shadow:-12,highlight:14,vignette:32},
+    "fresh" :{brightness:108,contrast:98,saturate:112,light:18,exposure:10},
+    "noir"  :{brightness:92,contrast:132,saturate:0,shadow:-18,vignette:46,grain:12}
 };
 const COLOR_LABELS=[["","原片"],["film","胶片"],["cool","冷调"],["warm","暖调"],
-                    ["mono","黑白"],["vivid","高饱和"],["japan","日系"],["cyber","赛博"]];
-const COLOR_ROWS=[["brightness","亮度",40,180],["contrast","对比度",40,200],["saturate","饱和度",0,220],
-                  ["sepia","色温",0,100],["hue","色相",-60,60],["blur","模糊",0,8]];
+                    ["mono","黑白"],["vivid","高饱和"],["japan","日系"],["cyber","赛博"],
+                    ["retro","复古"],["cinema","电影感"],["fresh","清新"],["noir","暗黑"]];
+/* 剪映「调节」面板参数：前 3 项为绝对值(默认100)，其余为增量(默认0)；暗角/颗粒走叠加层 */
+const COLOR_ROWS=[
+    ["brightness","亮度",40,180,100],["contrast","对比度",40,200,100],["saturate","饱和度",0,220,100],
+    ["exposure","曝光",-100,100,0],["light","光感",-100,100,0],["highlight","高光",-100,100,0],
+    ["shadow","阴影",-100,100,0],["temperature","色温",-100,100,0],["tint","色调",-100,100,0],
+    ["sharpen","锐化",0,100,0],["fade","褪色",0,100,0],["sepia","复古",0,100,0],
+    ["hue","色相",-60,60,0],["blur","模糊",0,8,0],["vignette","暗角",0,100,0],["grain","颗粒",0,100,0]
+];
 function opts(list,cur){ return list.map(o=>'<option value="'+o[0]+'"'+(String(cur)===String(o[0])?" selected":"")+'>'+o[1]+'</option>').join(""); }
 function adjNote(txt){ return '<div class="fx-note">'+txt+'</div>'; }
 function adjCommit(msg){ renderAll(); autoSave(); if(msg) toast(msg,"ok"); }
@@ -3240,99 +3663,140 @@ function renderAdjustPanels(){
         if(aBox) aBox.innerHTML=adjNote(tip);
         if(sBox) sBox.innerHTML=adjNote(tip);
         if(oBox) oBox.innerHTML=adjNote(tip);
-        if(uBox) uBox.innerHTML=adjNote("点选一条字幕片段后，这里可改字号 / 颜色 / 描边 / 位置；下方仍是整条字幕轨的列表。");
+        if(uBox) uBox.innerHTML=adjNote("点选一条字幕片段后，这里可改字号 / 颜色 / 描边 / 阴影 / 背景 / 位置 / 对齐；下方仍是整条字幕轨的列表。");
         return;
     }
     const f=fxOf(c);
-    /* ---- 动画 ---- */
+
+    /* ================= 动画：组合 / 入场 / 出场 / 循环 / 方向 / 快慢 / 时长 ================= */
     if(aBox){
-        aBox.innerHTML='<div class="fx-sec">入场动画</div><div class="prop-row"><select id="adjAnimIn">'+opts(ANIM_IN_OPTS,f.animIn)+'</select></div>'
-          +'<div class="fx-sec">出场动画</div><div class="prop-row"><select id="adjAnimOut">'+opts(ANIM_OUT_OPTS,f.animOut)+'</select></div>'
+        aBox.innerHTML='<div class="fx-sec">组合动画（一键套用）</div>'
+          +'<div class="preset-grid" id="adjAnimCombo">'+ANIM_COMBO_OPTS.map(o=>'<button class="preset-btn" data-ac="'+o[0]+'" title="一键套用 '+esc(o[1])+'">'+esc(o[1])+'</button>').join("")+'</div>'
+          +'<div class="fx-sec">入场动画 / 方向</div>'
+          +'<div class="prop-row"><select id="adjAnimIn">'+opts(ANIM_IN_OPTS,f.animIn)+'</select><select id="adjAnimDirIn">'+opts(ANIM_DIR_OPTS,f.animDirIn)+'</select></div>'
+          +'<div class="fx-sec">出场动画 / 方向</div>'
+          +'<div class="prop-row"><select id="adjAnimOut">'+opts(ANIM_OUT_OPTS,f.animOut)+'</select><select id="adjAnimDirOut">'+opts(ANIM_DIR_OPTS,f.animDirOut)+'</select></div>'
           +'<div class="fx-sec">循环动画</div><div class="prop-row"><select id="adjAnimLoop">'+opts(ANIM_LOOP_OPTS,f.animLoop)+'</select></div>'
+          +'<div class="fx-sec">动画快慢</div><div class="prop-row"><select id="adjAnimEase">'+opts(ANIM_EASE_OPTS,f.animEase)+'</select></div>'
           +'<div class="fx-sec">动画时长 <b id="adjAnimDurVal">'+Number(f.animDur||0.5).toFixed(1)+' s</b></div>'
           +'<div class="range-row"><input type="range" id="adjAnimDur" min="0.2" max="2" step="0.1" value="'+Number(f.animDur||0.5)+'"></div>'
-          +adjNote("动画按播放头在片段内的进度实时计算，暂停后拖动播放头也能看到；导出录制时同样生效。动画叠加在基础调整之上。")
+          +adjNote("按播放头在片段内的进度实时计算，暂停后拖动播放头也能看到；方向只对滑动类动画生效，动画快慢是缓动曲线。导出录制时同样生效，且叠加在基础调整之上。")
           +'<div class="row"><button class="mini-btn gray" id="adjAnimReset" style="flex:1">↺ 清除该片段动画</button></div>';
         const fire=()=>{ applyClipTransforms(); autoSave(); };
-        $("adjAnimIn").onchange=e=>{ pushHistory(); f.animIn=e.target.value; fire(); };
-        $("adjAnimOut").onchange=e=>{ pushHistory(); f.animOut=e.target.value; fire(); };
-        $("adjAnimLoop").onchange=e=>{ pushHistory(); f.animLoop=e.target.value; fire(); };
+        $("adjAnimCombo").onclick=e=>{
+            const b=e.target.closest("[data-ac]"); if(!b) return;
+            const o=ANIM_COMBO_OPTS.find(x=>x[0]===b.dataset.ac); if(!o) return;
+            pushHistory(); f.animIn=o[2]; f.animOut=o[3]; f.animLoop=o[4]; f.animDur=o[5]; f.animEase=o[6];
+            renderAll(); autoSave(); toast("已套用「"+o[1]+"」","ok");
+        };
+        [["adjAnimIn","animIn"],["adjAnimDirIn","animDirIn"],["adjAnimOut","animOut"],
+         ["adjAnimDirOut","animDirOut"],["adjAnimLoop","animLoop"],["adjAnimEase","animEase"]].forEach(p=>{
+            $(p[0]).onchange=e=>{ pushHistory(); f[p[1]]=e.target.value; fire(); }; });
         $("adjAnimDur").oninput=e=>{ f.animDur=Number(e.target.value); $("adjAnimDurVal").textContent=f.animDur.toFixed(1)+" s"; fire(); };
-        $("adjAnimReset").onclick=()=>{ pushHistory(); f.animIn=""; f.animOut=""; f.animLoop=""; f.animDur=0.5;
-            renderAll(); autoSave(); toast("已清除该片段的动画","ok"); };
+        $("adjAnimReset").onclick=()=>{ pushHistory();
+            ["animIn","animOut","animLoop","animDirIn","animDirOut"].forEach(k=>f[k]="");
+            f.animEase="linear"; f.animDur=0.5; renderAll(); autoSave(); toast("已清除该片段的动画","ok"); };
     }
-    /* ---- 变速 ---- */
+
+    /* ================= 变速：常规 / 曲线 / 分段预设 / 变调 ================= */
     if(sBox){
-        const sp=clamp(Number(f.speed)||1,0.25,4);
-        sBox.innerHTML='<div class="fx-sec">播放速度 <b id="adjSpeedVal">'+sp.toFixed(2)+' x</b></div>'
+        const sp=clamp(Number(f.speed)||1,0.25,4), isCurve=f.speedMode==="curve";
+        sBox.innerHTML='<div class="fx-sec">变速方式</div><div class="prop-row"><select id="adjSpeedMode">'
+          +opts([["normal","常规变速（整段匀速）"],["curve","曲线变速（分段变速）"]],f.speedMode||"normal")+'</select></div>'
+          +'<div class="fx-sec">基准播放速度 <b id="adjSpeedVal">'+sp.toFixed(2)+' x</b></div>'
           +'<div class="range-row"><input type="range" id="adjSpeed" min="0.25" max="4" step="0.05" value="'+sp+'"></div>'
           +'<div class="preset-grid" id="adjSpeedPresets">'
           +[0.5,0.75,1,1.5,2,3].map(v=>'<button class="preset-btn'+(Math.abs(sp-v)<0.001?" active":"")+'" data-sp="'+v+'">'+v+' x</button>').join("")+'</div>'
-          +adjNote("调速会按「原时长 × 原速度 ÷ 新速度」自动重算片段长度，并同步到预览播放与导出。倒放片段以倒放优先，变速不叠加；音轨同样变速。")
-          +'<div class="row"><button class="mini-btn gray" id="adjSpeedReset" style="flex:1">↺ 恢复 1.00 x</button></div>';
+          +(isCurve?'<div class="fx-sec">曲线变速预设 · 当前段 <b id="adjCurveNow">'+localSpeed(c).toFixed(2)+' x</b></div>'
+              +'<div class="preset-grid" id="adjCurvePresets">'+CURVE_LABELS.map(z=>'<button class="preset-btn'+((f.curve||"")===z[0]?" active":"")+'" data-cv="'+z[0]+'">'+esc(z[1])+'</button>').join("")+'</div>':"")
+          +'<div class="prop-row"><label style="flex:0 0 96px">声音变调</label><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="adjPitch"'+(f.pitchShift?" checked":"")+'> 变速时让声音跟着变调（默认保持原音调）</label></div>'
+          +adjNote("常规变速会按「原时长 × 原速度 ÷ 新速度」重算片段长度；曲线变速把片段按进度分段，各段速度＝基准速度 × 预设系数，预览播放与导出混音同步取段速。倒放片段以倒放优先，变速不叠加。")
+          +'<div class="row"><button class="mini-btn gray" id="adjSpeedReset" style="flex:1">↺ 恢复 1.00 x / 常规变速</button></div>';
         const applySp=v=>{
             v=clamp(Number(v)||1,0.25,4); const old=Number(f.speed)||1;
-            if(Math.abs(old-v)<0.001) return;
-            pushHistory();
-            c.duration=clamp(c.duration*old/v,0.2,3600);
-            f.speed=v; $("adjSpeedVal").textContent=v.toFixed(2)+" x";
+            if(Math.abs(old-v)>0.001){ pushHistory(); c.duration=clamp(c.duration*old/v,0.2,3600); f.speed=v; }
+            $("adjSpeedVal").textContent=v.toFixed(2)+" x";
             document.querySelectorAll("#adjSpeedPresets .preset-btn").forEach(b=>b.classList.toggle("active",Math.abs(Number(b.dataset.sp)-v)<0.001));
             adjCommit("速度已设为 "+v.toFixed(2)+" x，片段时长同步重算");
         };
         $("adjSpeed").oninput=e=>{ $("adjSpeedVal").textContent=Number(e.target.value).toFixed(2)+" x"; };
         $("adjSpeed").onchange=e=>applySp(e.target.value);
         $("adjSpeedPresets").onclick=e=>{ const b=e.target.closest("[data-sp]"); if(b){ $("adjSpeed").value=b.dataset.sp; applySp(b.dataset.sp); } };
-        $("adjSpeedReset").onclick=()=>{ $("adjSpeed").value=1; applySp(1); };
+        $("adjSpeedMode").onchange=e=>{ pushHistory(); f.speedMode=e.target.value;
+            if(f.speedMode==="curve"&&!f.curve) f.curve="montage";
+            renderAll(); autoSave(); toast(f.speedMode==="curve"?"已开启曲线变速，可在下方选预设":"已切回常规变速","ok"); };
+        const cp=$("adjCurvePresets");
+        if(cp) cp.onclick=e=>{ const b=e.target.closest("[data-cv]"); if(!b) return;
+            pushHistory(); f.curve=b.dataset.cv; renderAll(); autoSave(); toast("曲线变速：「"+(CURVE_PRESETS[f.curve]||{}).name+"」","ok"); };
+        $("adjPitch").onchange=e=>{ pushHistory(); f.pitchShift=e.target.checked; applyClipTransforms(); syncAudioPool(); autoSave(); };
+        $("adjSpeedReset").onclick=()=>{ $("adjSpeed").value=1;
+            pushHistory(); f.speedMode="normal"; f.curve=""; f.pitchShift=false; applySp(1); };
     }
-    /* ---- 调色 LUT ---- */
+
+    /* ================= 调色 LUT：12 组预设 + 16 项滑块 ================= */
     if(oBox){
         const q=f.color||{};
-        oBox.innerHTML='<div class="fx-sec">滤镜预设</div><div class="preset-grid" id="adjColorPresets">'
+        oBox.innerHTML='<div class="fx-sec">滤镜预设（12 组）</div><div class="preset-grid" id="adjColorPresets">'
           +COLOR_LABELS.map(x=>'<button class="preset-btn'+((q.preset||"")===x[0]?" active":"")+'" data-cp="'+x[0]+'">'+x[1]+'</button>').join("")+'</div>'
-          +'<div class="fx-sec">手动调色</div>'
+          +'<div class="fx-sec">手动调色（剪映「调节」面板参数）</div>'
           +COLOR_ROWS.map(r=>'<div class="range-row"><span style="flex:0 0 52px">'+r[1]+'</span>'
-              +'<input type="range" id="adjC_'+r[0]+'" data-ck="'+r[0]+'" min="'+r[2]+'" max="'+r[3]+'" step="1" value="'+Number(q[r[0]]!==undefined?q[r[0]]:(r[0]==="hue"||r[0]==="blur"||r[0]==="sepia"?0:100))+'">'
-              +'<b id="adjV_'+r[0]+'">'+Number(q[r[0]]!==undefined?q[r[0]]:0)+'</b></div>').join("")
-          +adjNote("调色用 CSS filter 实时叠加到预览画面，导出录制时用 canvas filter 同步应用；不影响字幕层。")
+              +'<input type="range" id="adjC_'+r[0]+'" data-ck="'+r[0]+'" min="'+r[2]+'" max="'+r[3]+'" step="1" value="'+(q[r[0]]!==undefined?Number(q[r[0]]):r[4])+'">'
+              +'<b id="adjV_'+r[0]+'">'+(q[r[0]]!==undefined?Number(q[r[0]]):r[4])+'</b></div>').join("")
+          +adjNote("亮度 / 对比度 / 饱和度 / 曝光 / 光感 / 高光 / 阴影 / 色温 / 色调 / 锐化 / 褪色 / 复古 / 色相 / 模糊走 CSS + canvas 同款滤镜链；暗角与颗粒用预览叠加层与导出画布同步绘制。浏览器滤镜是视觉近似，不等价于剪映自研调色算法。")
           +'<div class="row"><button class="mini-btn gray" id="adjColorReset" style="flex:1">↺ 恢复原片</button></div>';
         const paint=()=>{ applyClipTransforms(); autoSave(); };
         $("adjColorPresets").onclick=e=>{
             const b=e.target.closest("[data-cp]"); if(!b) return;
-            pushHistory(); const p=COLOR_PRESETS[b.dataset.cp]||COLOR_PRESETS[""];
-            Object.assign(f.color,p); f.color.preset=b.dataset.cp;
+            pushHistory();
+            f.color=Object.assign({},defaultFx().color,COLOR_PRESETS[b.dataset.cp]||{},{preset:b.dataset.cp});
             renderAll(); autoSave(); toast("已应用「"+b.textContent+"」滤镜","ok");
         };
         COLOR_ROWS.forEach(r=>{
             const el=$("adjC_"+r[0]); if(!el) return;
             el.oninput=e2=>{ const v=Number(e2.target.value); f.color[r[0]]=v; f.color.preset="";
-                $("adjV_"+r[0]).textContent=v; document.querySelectorAll("#adjColorPresets .preset-btn").forEach(b=>b.classList.remove("active")); paint(); };
+                $("adjV_"+r[0]).textContent=v; document.querySelectorAll("#adjColorPresets .preset-btn").forEach(b=>b.classList.remove("active"));
+                fxOverlayKey=""; paint(); };
         });
-        $("adjColorReset").onclick=()=>{ pushHistory(); f.color=Object.assign({},COLOR_PRESETS[""],{preset:""});
+        $("adjColorReset").onclick=()=>{ pushHistory(); f.color=Object.assign({},defaultFx().color,{preset:""});
             renderAll(); autoSave(); toast("调色已恢复原片","ok"); };
     }
-    /* ---- 字幕样式 ---- */
+
+    /* ================= 字幕样式 ================= */
     if(uBox){
         const isText=trackKind(c.track)==="text", q=f.sub||{};
         if(!isText){
-            uBox.innerHTML=adjNote("当前选中的不是字幕片段。点选时间轴上一条字幕后，这里可改字号 / 颜色 / 描边 / 位置 / 对齐；下方列表仍管理整条字幕轨。");
+            uBox.innerHTML=adjNote("当前选中的不是字幕片段。点选时间轴上一条字幕后，这里可改字号 / 颜色 / 描边 / 阴影 / 背景 / 不透明度 / 位置 / 对齐 / 字间距；下方列表仍管理整条字幕轨。");
         }else{
+            const V=(k,d)=>q[k]!==undefined?Number(q[k]):d;
             uBox.innerHTML='<div class="fx-sec">选中字幕：'+esc(String(c.text||"").slice(0,14))+'</div>'
-              +'<div class="range-row"><span style="flex:0 0 52px">字号</span><input type="range" id="adjSubSize" min="12" max="72" step="1" value="'+Number(q.size||28)+'"><b id="adjSubSizeV">'+Number(q.size||28)+'</b></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">字号</span><input type="range" id="adjSubSize" min="12" max="72" step="1" value="'+V("size",28)+'"><b id="adjSubSizeV">'+V("size",28)+'</b></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">不透明度</span><input type="range" id="adjSubOpacity" min="0" max="100" step="1" value="'+V("opacity",100)+'"><b id="adjSubOpacityV">'+V("opacity",100)+'%</b></div>'
               +'<div class="prop-row"><label>文字颜色</label><input type="color" id="adjSubColor" value="'+esc(q.color||"#ffffff")+'"></div>'
               +'<div class="prop-row"><label>描边颜色</label><input type="color" id="adjSubStroke" value="'+esc(q.stroke||"#000000")+'"></div>'
-              +'<div class="range-row"><span style="flex:0 0 52px">描边</span><input type="range" id="adjSubStrokeW" min="0" max="6" step="0.5" value="'+Number(q.strokeW||0)+'"><b id="adjSubStrokeWV">'+Number(q.strokeW||0)+'</b></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">描边</span><input type="range" id="adjSubStrokeW" min="0" max="6" step="0.5" value="'+V("strokeW",0)+'"><b id="adjSubStrokeWV">'+V("strokeW",0)+'</b></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">文字阴影</span><input type="range" id="adjSubShadow" min="0" max="12" step="1" value="'+V("shadow",0)+'"><b id="adjSubShadowV">'+V("shadow",0)+'</b></div>'
+              +'<div class="prop-row"><label>阴影颜色</label><input type="color" id="adjSubShadowColor" value="'+esc(q.shadowColor||"#000000")+'"></div>'
+              +'<div class="prop-row"><label>字幕背景</label><input type="color" id="adjSubBg" value="'+esc(q.bg||"#000000")+'"></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">背景透明</span><input type="range" id="adjSubBgOpacity" min="0" max="100" step="1" value="'+V("bgOpacity",0)+'"><b id="adjSubBgOpacityV">'+V("bgOpacity",0)+'%</b></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">字间距</span><input type="range" id="adjSubSpacing" min="-2" max="12" step="0.5" value="'+V("spacing",0)+'"><b id="adjSubSpacingV">'+V("spacing",0)+'</b></div>'
+              +'<div class="range-row"><span style="flex:0 0 52px">行高</span><input type="range" id="adjSubLine" min="0.8" max="2.4" step="0.1" value="'+V("lineHeight",1.2)+'"><b id="adjSubLineV">'+V("lineHeight",1.2)+'</b></div>'
               +'<div class="prop-row"><label>位置</label><select id="adjSubPos">'+opts([["bottom","底部"],["middle","居中"],["top","顶部"]],q.pos)+'</select></div>'
               +'<div class="prop-row"><label>对齐</label><select id="adjSubAlign">'+opts([["center","居中"],["left","左对齐"],["right","右对齐"]],q.align)+'</select></div>'
               +'<div class="prop-row"><label>字体</label><select id="adjSubFont">'+opts([["Microsoft YaHei","微软雅黑"],["SimHei","黑体"],["KaiTi","楷体"],["Arial","Arial"]],q.font)+'</select></div>'
-              +'<div class="prop-row"><label style="flex:0 0 66px">加粗</label><label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="adjSubBold"'+((q.bold===false)?"":" checked")+'> 粗体</label></div>'
-              +adjNote("样式按片段保存，每条字幕可以不同；预览与导出都按这里的设置绘制。");
+              +'<div class="prop-row"><label style="flex:0 0 66px">字形</label><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="adjSubBold"'+((q.bold===false)?"":" checked")+'> 粗体</label>'
+                +'<label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="adjSubItalic"'+(q.italic?" checked":"")+'> 斜体</label></div>'
+              +adjNote("样式按片段保存，每条字幕可以不同；预览与导出都按这里的设置绘制（含阴影、背景、字间距与不透明度）。");
             const fire=()=>{ subCache=""; renderSubtitleOverlay(); applyClipTransforms(); autoSave(); };
-            $("adjSubSize").oninput=e=>{ f.sub.size=Number(e.target.value); $("adjSubSizeV").textContent=e.target.value; fire(); };
-            $("adjSubStrokeW").oninput=e=>{ f.sub.strokeW=Number(e.target.value); $("adjSubStrokeWV").textContent=e.target.value; fire(); };
-            ["adjSubColor","adjSubStroke"].forEach(id=>$(id).oninput=e=>{ f.sub[id==="adjSubColor"?"color":"stroke"]=e.target.value; fire(); });
+            const rng=(id,key,val,suffix)=>{ $(id).oninput=e=>{ f.sub[key]=Number(e.target.value); $(val).textContent=e.target.value+(suffix||""); fire(); }; };
+            rng("adjSubSize","size","adjSubSizeV"); rng("adjSubOpacity","opacity","adjSubOpacityV","%");
+            rng("adjSubStrokeW","strokeW","adjSubStrokeWV"); rng("adjSubShadow","shadow","adjSubShadowV");
+            rng("adjSubBgOpacity","bgOpacity","adjSubBgOpacityV","%"); rng("adjSubSpacing","spacing","adjSubSpacingV");
+            rng("adjSubLine","lineHeight","adjSubLineV");
+            [["adjSubColor","color"],["adjSubStroke","stroke"],["adjSubShadowColor","shadowColor"],["adjSubBg","bg"]].forEach(p=>$(p[0]).oninput=e=>{ f.sub[p[1]]=e.target.value; fire(); });
             ["adjSubPos","adjSubAlign","adjSubFont"].forEach(id=>$(id).onchange=e=>{
                 f.sub[({adjSubPos:"pos",adjSubAlign:"align",adjSubFont:"font"})[id]]=e.target.value; fire(); });
             $("adjSubBold").onchange=e=>{ f.sub.bold=e.target.checked; fire(); };
+            $("adjSubItalic").onchange=e=>{ f.sub.italic=e.target.checked; fire(); };
         }
     }
 }
@@ -3443,7 +3907,7 @@ async function renderTimelineAudio(){
         try{
             const r=await fetch(a.url); if(!r.ok) throw new Error("HTTP "+r.status);
             const audio=await ctx.decodeAudioData(await r.arrayBuffer());
-            const sp=clamp(Number(fxOf(c).speed)||1,0.25,4), off=Math.max(0,Number(c.offset)||0);
+            const sp=localSpeed(c), off=Math.max(0,Number(c.offset)||0);
             const len=Math.min(Math.max(0.05,c.duration*sp),Math.max(0,audio.duration-off));
             if(len<=0) continue;
             const src=ctx.createBufferSource(); src.buffer=audio; src.playbackRate.value=sp;
@@ -3479,8 +3943,8 @@ function previewAudioTrack(){
 }
 function drawStageFrame(x,W,H){
     x.save(); x.filter="none"; x.globalAlpha=1;
-    x.fillStyle="#000"; x.fillRect(0,0,W,H);
     const vc=mainVisualClip(), f=vc?fxOf(vc):null;
+    x.fillStyle=(f&&f.bg)?String(f.bg):"#000"; x.fillRect(0,0,W,H);
     if(f){
         x.translate(W/2+Number(f.x||0),H/2+Number(f.y||0));
         x.rotate(Number(f.rotate||0)*Math.PI/180);
@@ -3495,19 +3959,55 @@ function drawStageFrame(x,W,H){
     pipLayer.querySelectorAll(".pip-item").forEach(el=>{
         try{ if(el.complete) x.drawImage(el,W*0.06,H*0.62,W*0.28,H*0.28); }catch(e){}
     });
+    /* 暗角 / 颗粒：与预览叠加层同一套数值，导出画布同步绘制 */
+    if(f && f.color){
+        const vg=clamp(Number(f.color.vignette)||0,0,100), gr=clamp(Number(f.color.grain)||0,0,100);
+        if(vg>0){
+            const rg=x.createRadialGradient(W/2,H/2,Math.min(W,H)*0.16,W/2,H/2,Math.max(W,H)*0.72);
+            rg.addColorStop(0,"rgba(0,0,0,0)"); rg.addColorStop(1,"rgba(0,0,0,"+(vg/100*0.92).toFixed(3)+")");
+            x.save(); x.fillStyle=rg; x.fillRect(0,0,W,H); x.restore();
+        }
+        if(gr>0){
+            const tile=grainTile();
+            x.save(); x.globalAlpha=gr/100*0.5; x.globalCompositeOperation="overlay";
+            const pt=x.createPattern(tile,"repeat"); if(pt){ x.fillStyle=pt; x.fillRect(0,0,W,H); }
+            x.restore();
+        }
+    }
     $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
         const c=clipById(el.dataset.clip), q=c?fxOf(c).sub:null, size=Math.max(12,Math.round((q?Number(q.size)||28:28)*W/640));
-        x.font=(q&&q.bold===false?"":"bold ")+size+"px '"+(q?q.font:"Microsoft YaHei")+"',sans-serif";
+        const op=q?(clamp(q.opacity===undefined?100:Number(q.opacity),0,100)/100):1;
+        x.save(); x.globalAlpha=op;
+        x.font=(q&&q.italic?"italic ":"")+(q&&q.bold===false?"":"bold ")+size+"px '"+(q?q.font:"Microsoft YaHei")+"',sans-serif";
+        try{ x.letterSpacing=(q?Number(q.spacing)||0:0)+"px"; }catch(e){}
         x.textAlign=q?(q.align||"center"):"center"; x.textBaseline="bottom";
         const px=x.textAlign==="left"?12:(x.textAlign==="right"?W-12:W/2);
         const pos=q?q.pos:"bottom";
         const py=pos==="top"?H*0.16:(pos==="middle"?H*0.55:H*0.92);
+        const sh=q?Number(q.shadow)||0:0;
+        if(sh>0){ x.shadowColor=q.shadowColor||"#000"; x.shadowBlur=sh*W/640; x.shadowOffsetY=sh/2*W/640; }
+        const bgA=q?clamp(Number(q.bgOpacity)||0,0,100)/100:0;
+        if(q&&bgA>0){
+            const w=x.measureText(el.textContent).width+24;
+            x.fillStyle=hexToRgba(q.bg||"#000000",bgA);
+            x.fillRect((x.textAlign==="left"?px:x.textAlign==="right"?px-w:px-w/2)-8,py-size*1.25,w+16,size*1.45);
+        }
         x.lineWidth=Math.max(0,(q?Number(q.strokeW)||0:2))*W/640; x.strokeStyle=q?(q.stroke||"#000"):"#000";
         x.fillStyle=q?(q.color||"#fff"):"#fff";
         if(x.lineWidth>0) x.strokeText(el.textContent,px,py);
         x.fillText(el.textContent,px,py);
+        x.restore();
     });
 }
+let _grainTile=null;
+function grainTile(){
+    if(_grainTile) return _grainTile;
+    const c=document.createElement("canvas"); c.width=c.height=96;
+    const g=c.getContext("2d"), d=g.createImageData(96,96);
+    for(let i=0;i<d.data.length;i+=4){ const v=Math.random()*255; d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255; }
+    g.putImageData(d,0,0); _grainTile=c; return c;
+}
+async function recordCanvas(dur,opts,onProgress){}
 async function recordCanvas(dur,opts,onProgress){
     const size=opts.size, W=size.w, H=size.h, fps=Number(opts.fps)||30;
     const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
@@ -3703,13 +4203,14 @@ async function init(){
     const saved=safeStorage.get(PROJECT_PREFIX+todayStr());
     if(saved){
         try{ await loadProject(todayStr()); }
-        catch(e){ await loadDemoProject(); }
+        catch(e){ await loadEmptyProject(); }
         toast("已自动恢复今天的剪辑工程","ok");
-    }else await loadDemoProject();
+    }else await loadEmptyProject();
     await drainInbox();
     scanCanvasHistory();
     applyAspect();
     fitZoom();
+    if(!state.assets.length && !state.clips.length && !$("aiState").textContent) setEmptyHint();
     saveProject(true);
 }
 init().catch(e=>{ console.error("初始化失败",e); toast("初始化失败："+e.message,"err"); });
