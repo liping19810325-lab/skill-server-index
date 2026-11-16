@@ -8,7 +8,9 @@
   1）解析抖音/B站分享链接、代理播放网络媒体（解决跨域与防盗链）；
   2）调用本机 FFmpeg 把浏览器录制好的中间文件转码/导出成片、抽音频、生成 GIF；
   3）【新】给「🅰 AI字幕」和「✂ 剪口播」做语音转写：把视频抽成
-     16kHz 单声道 WAV、按 60 秒切片，再转发给转写接口并合并时间码。
+     16kHz 单声道 WAV、按 60 秒切片，再转发给转写接口并合并时间码；
+  4）【新】给「◀ 倒放」「变速」做真正的重渲染：分段重新解码、重排帧、
+     重算时间戳、对音频做时间拉伸，再重编码成中间片交给剪辑台合成。
 
 服务本身只用 Python 3 标准库，零第三方依赖，不需要联网安装任何 pip 包。
 （AI 字幕若要走「本机 faster-whisper」这一档，才需要另外装一次，见下文。）
@@ -32,19 +34,62 @@ Linux：    终端执行  python3 manflows-local-service.py
       只绑定 127.0.0.1（本机回环），不对局域网/公网开放。
 
 ----------------------------------------------------------
-【FFmpeg（导出成片 与 AI字幕 都需要）】
-如果本机没有 FFmpeg，第一次点「导出成片」时服务会尝试自动下载静态
-FFmpeg 到 ~/.manflows/bin/；若自动下载失败，请手动安装后重启本服务。
+【FFmpeg（导出成片 / 倒放变速 / AI字幕 都需要）】
+★ 这是「每个用户各自在自己电脑上」装一次，不是网站服务器装。
+   Mac / Windows / Linux 三种电脑都支持，服务会自动识别平台。★
 
-官方下载 / 安装方式：
-  Mac     https://brew.sh/            （装好 Homebrew 后执行 brew install ffmpeg）
-          https://evermeet.cx/ffmpeg/ （静态版，解压把 ffmpeg 放进 PATH）
-  Windows https://www.gyan.dev/ffmpeg/builds/
-  Linux   sudo apt install ffmpeg   （或 yum / dnf / pacman 对应命令）
-  Python  https://www.python.org/downloads/
+如果本机没有 FFmpeg，第一次点「导出成片」时服务会尝试自动下载静态
+FFmpeg 到 ~/.manflows/bin/（Windows 是 %USERPROFILE%\.manflows\bin\ffmpeg.exe）；
+若自动下载失败，请按下面手动安装后重启本服务。导出弹窗里也会直接显示
+可点击的下载地址。
+
+官方下载 / 安装方式（三个平台都给出）：
+  macOS
+    Homebrew   https://brew.sh/          装好后执行：brew install ffmpeg
+    静态版     https://evermeet.cx/ffmpeg/
+    Apple Silicon 也可用 https://www.osxexperts.net/
+  Windows
+    构建包     https://www.gyan.dev/ffmpeg/builds/
+    直链       https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip
+    备用       https://github.com/BtbN/FFmpeg-Builds/releases
+    命令安装   winget install --id Gyan.FFmpeg
+    手动做法   解压 zip，把 bin\ffmpeg.exe 放到 C:\ffmpeg\bin\，
+               并把这个目录加进系统 PATH；或直接放进
+               %USERPROFILE%\.manflows\bin\ 让服务自动找到。
+  Linux
+    Debian/Ubuntu  sudo apt install ffmpeg
+    Fedora         sudo dnf install ffmpeg
+    其他发行版     https://ffmpeg.org/download.html
+  Python（运行本服务用）https://www.python.org/downloads/
 
 AI 字幕会用 FFmpeg 把任意视频抽成 16kHz / 单声道 / 16bit 的 WAV，
 每 60 秒约 1.9MB（远低于大模型 20MB 的音频上限），所以再长的片子也能识别。
+
+----------------------------------------------------------
+【倒放 / 变速导出：为什么必须装本机 FFmpeg】
+网页预览里倒放是反向拨播放头、变速是临时改 video.playbackRate，
+这些只是「看着像」，并没有写进文件。导出成片时如果只靠录屏改倍率，
+拿到的成品时长、帧序、音画都会不对。
+
+现在导出前会先把每个带倒放 / 变速的片段交给本机 FFmpeg：
+  · 画面：setpts 重算每帧 PTS；reverse 完整反转帧顺序；
+  · 音频：atempo 时间拉伸并保持音调（0.25x / 5x 会自动串联多段
+          atempo）；areverse 把音频采样整段反向；
+  · 长视频按每 2 秒一段处理，reverse 只缓存单段帧，
+    不会把整部片子的帧一次性读进内存，避免浏览器/电脑内存溢出；
+  · 每段重新编码后按输出顺序拼接，支持 0.25x～5x，
+    倒放与变速可叠加（先变速、再倒放）；
+  · 全程在后台线程跑，页面不卡，导出弹窗进度条会显示到第几段。
+
+如果没装 FFmpeg / 没启动本机服务，剪辑台会明确报错并给出安装指引，
+绝不会偷偷用 playbackRate 假效果代替成品。
+
+仓库里的 render_verify.py 是 10 秒短视频验证用例：
+  python3 render_verify.py
+它会现场生成一段 10 秒测试片（画面亮度随时间由暗到亮 + 440Hz 音频），
+自动跑倒放、0.25x / 0.5x / 2x / 5x 变速、倒放+2x 叠加，并逐个检查
+导出文件的时长、帧数、音轨以及「首末帧亮度方向」（倒放后必须由亮到暗）。
+测试片和导出结果都放系统临时目录，不占用仓库空间。
 
 ----------------------------------------------------------
 【AI 字幕 / 智能剪口播：为什么会报 Failed to fetch】
@@ -118,6 +163,12 @@ AI 字幕会用 FFmpeg 把任意视频抽成 16kHz / 单声道 / 16bit 的 WAV�
 · 解析失败：抖音/B站改版或风控，改用 .mp4 直链。
 · 转码失败：降低分辨率/码率，或换 H.264 + MP4，并确认录制的中间文件
   本身能正常播放。
+· 导出含倒放/变速的片段时提示「需要本机 FFmpeg 真渲染」：按上面章节
+  启动本机服务并安装 FFmpeg；仅启动服务但没装 FFmpeg 也一样会提示。
+· 真渲染某一段失败：多半是素材比「片段时长 × 倍率」短（素材不够长），
+  把片段缩短或调低倍率；也可先把素材下载到本地再导入。
+· 倒放后声音听不懂：这是正常的，剪映式倒放就是把音频采样整段反向；
+  若不想要倒放音，可把该片段的音频单独静音或改用音频轨处理。
 · Mac 双击 .command 无反应：在终端执行 chmod +x 启动本机服务.command。
 · Windows 窗口里中文乱码：不影响服务，忽略即可。
 
@@ -140,4 +191,6 @@ AI 字幕的音频切片：走「本机 faster-whisper」时完全不出本机�
   GET  /api/media?u=...     流式代理媒体（支持 Range、防盗链 Referer）
   POST /api/export          转码导出 / 抽音频 / 生成 GIF
   POST /api/transcribe      抽音轨 + 60 秒分段 + 转写 + 时间码合并 + 静音检测
+  POST /api/render          倒放 / 变速逐片段真渲染（后台线程，立即返回 jobId）
+  GET  /api/render/status   查渲染进度与结果（?jobId=...）
 ==========================================================

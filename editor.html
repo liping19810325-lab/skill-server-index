@@ -701,8 +701,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <h2>⑧ 本轮新增：工作区 / 导出成片 / 调整栏 / 素材预览 / 缩放 / URL 解析</h2>
             <ul>
                 <li><b>用户工作区（互不串工程）</b>：顶栏「👤 工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「打开工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。不同电脑、不同浏览器配置文件本来就天然互不相通。注意：静态站点没有账号体系，这是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
-                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。视频区块含一键超清、分辨率、补分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。</li>
-                <li><b>本机小服务（Mac / Windows 通用，可选）</b>：仓库里的 <code>启动本机服务.command</code>（Mac 双击）或 <code>启动本机服务.bat</code>（Windows 双击）会在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。</li>
+                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。视频区块含一键超清、分辨率、补分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。</li>
+                <li><b>本机小服务（Mac / Windows 通用，可选）</b>：仓库里的 <code>启动本机服务.command</code>（Mac 双击）或 <code>启动本机服务.bat</code>（Windows 双击）会在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。<br><b>每位用户用自己电脑上的 FFmpeg</b>：Windows 可 <code>winget install --id Gyan.FFmpeg</code> 或下载 <code>https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip</code>，Mac 用 <code>brew install ffmpeg</code>，Linux 用 <code>sudo apt install ffmpeg</code>；服务也会按需自动下载静态版到 <code>~/.manflows/bin/</code>。仓库里的 <code>render_verify.py</code> 是 10 秒短视频验证用例，可直接跑出倒放与各档变速的实测结果。</li>
                 <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
                 <li><b>单击素材即预览</b>：点素材库里任一素材，预览窗口立即预览——视频 / 声音自动播放，图片 / 文字只显示画面，<b>都不自动加入轨道</b>；要剪辑请自己用鼠标把素材拖到时间轴对应轨道（双击加入仍保留给习惯用它的用户）。</li>
                 <li><b>时间轴缩放</b>：工具条右侧有缩放滑块、＋/−、以及「适应」按钮；<b>默认按导入素材的总时长自动适配</b>宽度，手动拖过滑块后不再自动改，点「适应」可随时回到自适应。</li>
@@ -1357,15 +1357,58 @@ const CURVE_PRESETS={
     "flashOut":{name:"闪出",segs:[[0,0.85,1],[0.85,1,3.5]]}
 };
 const CURVE_LABELS=Object.keys(CURVE_PRESETS).map(k=>[k,CURVE_PRESETS[k].name]);
-/* 按播放头在片段内的进度取分段速度；常规变速时恒等于 f.speed */
+/* 按播放头在片段内的进度取分段速度；常规变速时恒等于 f.speed。
+   上限 5x 与服务端 setpts/atempo 段保持一致；倒放与变速允许叠加（导出时先变速再倒放）。 */
+const MAX_SPEED=5, RENDER_CHUNK_SEC=2;
 function localSpeed(c){
     if(!c) return 1;
-    const f=fxOf(c), base=clamp(Number(f.speed)||1,0.25,4);
+    const f=fxOf(c), base=clamp(Number(f.speed)||1,0.25,MAX_SPEED);
     if(f.speedMode!=="curve"||!f.curve||!CURVE_PRESETS[f.curve]) return base;
     const dur=Math.max(0.2,Number(c.duration)||1), p=clamp((state.playhead-c.start)/dur,0,0.999);
     const segs=CURVE_PRESETS[f.curve].segs;
     const seg=segs.find(z=>p>=z[0]&&p<z[1])||segs[segs.length-1];
     return clamp(base*seg[2],0.1,8);
+}
+/* ---------- 逐片段真渲染：预览可模拟，导出必须重新解码/重排帧/重编码 ---------- */
+let renderOverrides=new Map();      /* clipId -> {url,blob,kind}，仅导出期间存在 */
+function renderedClip(c){ return c?renderOverrides.get(c.id)||null:null; }
+function needsRender(c){
+    if(!c||!c.assetId) return false;
+    const k=trackKind(c.track); if(k!=="video"&&k!=="audio") return false;
+    const f=fxOf(c);
+    return !!f.reverse || f.speedMode==="curve" || Math.abs((Number(f.speed)||1)-1)>0.001;
+}
+/* 输出时间轴上的速度分段：[[outStart,outLen,speed],...] */
+function speedProfile(c){
+    const f=fxOf(c), base=clamp(Number(f.speed)||1,0.25,MAX_SPEED);
+    const D=Math.max(0.1,Number(c.duration)||1);
+    if(f.speedMode==="curve"&&CURVE_PRESETS[f.curve])
+        return CURVE_PRESETS[f.curve].segs.map(z=>[z[0]*D,(z[1]-z[0])*D,clamp(base*z[2],0.1,8)]);
+    return [[0,D,base]];
+}
+/* 生成服务端 /api/render 的分段表：每段 ≤2 秒，reverse 只缓存单段帧。
+   倒放时整表逆序 + 段内 reverse，等价于「画面帧完整反转顺序」；
+   每段 srcLen=outLen×倍率，atempo 负责音频时间拉伸并保持音调。 */
+function buildRenderSegments(c){
+    const f=fxOf(c), rev=!!f.reverse, off=Math.max(0,Number(c.offset)||0);
+    const pieces=[]; let cursor=off;
+    for(const z of speedProfile(c)){
+        const outLen=Math.max(0.02,z[1]), sp=Math.max(0.1,z[2]);
+        const n=Math.max(1,Math.ceil(outLen/RENDER_CHUNK_SEC)), step=outLen/n;
+        for(let i=0;i<n;i++){
+            const srcLen=step*sp;
+            pieces.push({srcStart:+cursor.toFixed(4),srcLen:+srcLen.toFixed(4),
+                outLen:+step.toFixed(4),speed:+sp.toFixed(4),
+                reverse:rev,pitch:!!f.pitchShift});
+            cursor+=srcLen;
+        }
+    }
+    if(rev) pieces.reverse();
+    return pieces;
+}
+function cleanupRenderOverrides(){
+    renderOverrides.forEach(o=>{ try{ URL.revokeObjectURL(o.url); }catch(e){} });
+    renderOverrides.clear();
 }
 function fxTransform(c){
     const f=fxOf(c), sc=Number(f.scale)||1;
@@ -2203,16 +2246,20 @@ function syncAudioPool(){
     audioPool.forEach((o,id)=>{ if(!want.has(id)){ try{ o.el.pause(); }catch(e){} o.el.remove(); audioPool.delete(id); } });
     const vol=Number($("volRange").value)||0.8;
     for(const x of list){
+        const ov=renderedClip(x.c);
         let o=audioPool.get(x.c.id);
         if(!o){
             const el=document.createElement("audio"); el.preload="auto"; el.style.display="none";
             document.body.appendChild(el); o={el:el,aid:""}; audioPool.set(x.c.id,o);
         }
-        if(o.aid!==x.a.id){ o.el.src=x.a.url; o.aid=x.a.id; }
-        const asp=localSpeed(x.c);
+        const aid=x.a.id+(ov?"#rendered":"");
+        if(o.aid!==aid){ o.el.src=ov?ov.url:x.a.url; o.aid=aid; }
+        /* 中间片已经是真变速/真倒放后的成品，播放倍率必须回到 1，避免二次变速 */
+        const asp=ov?1:localSpeed(x.c);
         if(o.el.playbackRate!==asp) o.el.playbackRate=asp;
-        if(o.el.preservesPitch!==!(!!fxOf(x.c).pitchShift)) try{ o.el.preservesPitch=!fxOf(x.c).pitchShift; }catch(e){}
-        const wt=(x.c.offset||0)+(state.playhead-x.c.start);
+        const pp=ov?true:!fxOf(x.c).pitchShift;
+        if(o.el.preservesPitch!==pp) try{ o.el.preservesPitch=pp; }catch(e){}
+        const wt=(ov?0:(x.c.offset||0))+(state.playhead-x.c.start);
         if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>0.32 && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
         o.el.muted=recordMuted; o.el.volume=recordMuted?0:vol;
         if(playing && o.el.paused) o.el.play().catch(()=>{});
@@ -2235,10 +2282,12 @@ function syncMedia(){
     const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
     let showVideo=false, showImage=false;
     if(va && va.type==="video" && va.url){
-        if(vEl.dataset.aid!==va.id){ vEl.src=va.url; vEl.dataset.aid=va.id; }
-        const spd=localSpeed(vc);
+        const ov=renderedClip(vc), aid=va.id+(ov?"#rendered":"");
+        if(vEl.dataset.aid!==aid){ vEl.src=ov?ov.url:va.url; vEl.dataset.aid=aid; }
+        /* 预览可以临时模拟；导出期间换成 FFmpeg 真渲染中间片，禁止再改 playbackRate */
+        const spd=ov?1:localSpeed(vc);
         if(vEl.playbackRate!==spd) vEl.playbackRate=spd;
-        const rev=!!fxOf(vc).reverse;
+        const rev=ov?false:!!fxOf(vc).reverse;
         if(rev){
             /* 预览级倒放：暂停视频自身播放，由播放头反向映射 currentTime */
             if(!vEl.paused) vEl.pause();
@@ -2267,12 +2316,13 @@ function tick(ts){
     if(!lastTs) lastTs=ts;
     const dt=(ts-lastTs)/1000; lastTs=ts;
     const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
-    const rev=!!(vc && fxOf(vc).reverse);
+    const ov=renderedClip(vc);
+    const rev=ov?false:!!(vc && fxOf(vc).reverse);
     let t;
     if(rev) t=state.playhead+Math.min(dt,0.25);
     else if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
         t=vc.start+(vEl.currentTime-(vc.offset||0));
-    }else t=state.playhead+Math.min(dt,0.25)*(vc?localSpeed(vc):1);
+    }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
     syncMedia(); renderPlayhead();
     if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
@@ -3700,20 +3750,20 @@ function renderAdjustPanels(){
 
     /* ================= 变速：常规 / 曲线 / 分段预设 / 变调 ================= */
     if(sBox){
-        const sp=clamp(Number(f.speed)||1,0.25,4), isCurve=f.speedMode==="curve";
+        const sp=clamp(Number(f.speed)||1,0.25,MAX_SPEED), isCurve=f.speedMode==="curve";
         sBox.innerHTML='<div class="fx-sec">变速方式</div><div class="prop-row"><select id="adjSpeedMode">'
           +opts([["normal","常规变速（整段匀速）"],["curve","曲线变速（分段变速）"]],f.speedMode||"normal")+'</select></div>'
           +'<div class="fx-sec">基准播放速度 <b id="adjSpeedVal">'+sp.toFixed(2)+' x</b></div>'
-          +'<div class="range-row"><input type="range" id="adjSpeed" min="0.25" max="4" step="0.05" value="'+sp+'"></div>'
+          +'<div class="range-row"><input type="range" id="adjSpeed" min="0.25" max="5" step="0.05" value="'+sp+'"></div>'
           +'<div class="preset-grid" id="adjSpeedPresets">'
-          +[0.5,0.75,1,1.5,2,3].map(v=>'<button class="preset-btn'+(Math.abs(sp-v)<0.001?" active":"")+'" data-sp="'+v+'">'+v+' x</button>').join("")+'</div>'
+          +[0.25,0.5,0.75,1,1.5,2,3,5].map(v=>'<button class="preset-btn'+(Math.abs(sp-v)<0.001?" active":"")+'" data-sp="'+v+'">'+v+' x</button>').join("")+'</div>'
           +(isCurve?'<div class="fx-sec">曲线变速预设 · 当前段 <b id="adjCurveNow">'+localSpeed(c).toFixed(2)+' x</b></div>'
               +'<div class="preset-grid" id="adjCurvePresets">'+CURVE_LABELS.map(z=>'<button class="preset-btn'+((f.curve||"")===z[0]?" active":"")+'" data-cv="'+z[0]+'">'+esc(z[1])+'</button>').join("")+'</div>':"")
           +'<div class="prop-row"><label style="flex:0 0 96px">声音变调</label><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="adjPitch"'+(f.pitchShift?" checked":"")+'> 变速时让声音跟着变调（默认保持原音调）</label></div>'
-          +adjNote("常规变速会按「原时长 × 原速度 ÷ 新速度」重算片段长度；曲线变速把片段按进度分段，各段速度＝基准速度 × 预设系数，预览播放与导出混音同步取段速。倒放片段以倒放优先，变速不叠加。")
+          +adjNote("常规变速会按「原时长 × 原速度 ÷ 新速度」重算片段长度；曲线变速把片段按进度分段，各段速度＝基准速度 × 预设系数。倒放与变速允许叠加：导出时先变速、再倒放，由本机 FFmpeg 逐段重新解码并重编码，预览只做临时模拟。")
           +'<div class="row"><button class="mini-btn gray" id="adjSpeedReset" style="flex:1">↺ 恢复 1.00 x / 常规变速</button></div>';
         const applySp=v=>{
-            v=clamp(Number(v)||1,0.25,4); const old=Number(f.speed)||1;
+            v=clamp(Number(v)||1,0.25,MAX_SPEED); const old=Number(f.speed)||1;
             if(Math.abs(old-v)>0.001){ pushHistory(); c.duration=clamp(c.duration*old/v,0.2,3600); f.speed=v; }
             $("adjSpeedVal").textContent=v.toFixed(2)+" x";
             document.querySelectorAll("#adjSpeedPresets .preset-btn").forEach(b=>b.classList.toggle("active",Math.abs(Number(b.dataset.sp)-v)<0.001));
@@ -3850,6 +3900,59 @@ async function serviceExport(payload){
     if(!j||!j.ok) throw new Error(j?(j.reason||"本机转码失败"):"本机服务返回异常");
     return j;
 }
+/* ---------- 逐片段真渲染：把倒放 / 变速交给用户自己电脑上的 FFmpeg ----------
+   浏览器预览可以临时模拟；导出前先把每个带效果的片段重新解码、重排帧、
+   重算 PTS、时间拉伸音频再重编码成中间片，之后才进入现有录屏合成。 */
+async function serviceRender(payload){
+    const r=await fetch(LOCAL_SERVICE+"/api/render",{method:"POST",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const j=await r.json();
+    if(!j||!j.ok) throw new Error(j?(j.reason||"提交真渲染失败"):"本机服务返回异常");
+    return j;
+}
+async function pollRender(jobId,onStep){
+    const t0=Date.now();
+    while(Date.now()-t0<1200000){
+        const r=await fetch(LOCAL_SERVICE+"/api/render/status?jobId="+encodeURIComponent(jobId));
+        const j=await r.json();
+        if(j&&j.state==="done") return j;
+        if(j&&j.state==="error") throw new Error("真渲染失败："+(j.reason||"未知错误"));
+        if(onStep) onStep(Number(j&&j.progress)||0,(j&&j.stage)||"渲染中");
+        await new Promise(res=>setTimeout(res,350));
+    }
+    throw new Error("真渲染超时（20 分钟），请缩短片段或降低分辨率后重试");
+}
+async function prepareRenderOverrides(onProgress){
+    cleanupRenderOverrides();
+    const list=state.clips.filter(c=>needsRender(c)&&c.assetId);
+    if(!list.length) return 0;
+    if(!svcOnline) await pingService(2800);
+    if(!svcOnline||!ffmpegReady()) throw new Error(
+        "本工程含倒放 / 变速片段，导出必须由本机 FFmpeg 重新解码并重编码；"
+        +"请双击「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows)，"
+        +"并按导出弹窗里的指引安装 FFmpeg。预览可以临时模拟，导出绝不会用 playbackRate 冒充成品。");
+    let done=0;
+    for(const c of list){
+        const a=assetById(c.assetId);
+        if(!a){ done++; continue; }
+        const k=trackKind(c.track), sz=exportSize();
+        const payload={filename:String(a.name||("clip."+(k==="audio"?"m4a":"mp4"))),
+            kind:k,width:sz.w,height:sz.h,fps:Number($("expFps").value)||30,
+            segments:buildRenderSegments(c)};
+        const u=String(a.url||"");
+        if(/^https?:\/\//i.test(u)&&u.indexOf(LOCAL_SERVICE)!==0) payload.url=u;
+        else payload.dataBase64=await blobToBase64(await assetBlob(a));
+        const nm=String(c.name||a.name||"片段");
+        if(onProgress) onProgress(done/list.length,"正在真渲染「"+nm+"」（"+(done+1)+"/"+list.length+"）…");
+        const j=await serviceRender(payload);
+        const r=await pollRender(j.jobId,(p,st)=>{ if(onProgress) onProgress((done+p)/list.length,st); });
+        const blob=base64ToBlob(r.dataBase64,k==="audio"?"audio/mp4":"video/mp4");
+        renderOverrides.set(c.id,{url:URL.createObjectURL(blob),blob:blob,kind:k});
+        done++;
+        if(onProgress) onProgress(done/list.length,"已完成 "+done+"/"+list.length+" 个片段真渲染");
+    }
+    return done;
+}
 async function saveBlob(blob,name){
     if(exportDirHandle){
         try{
@@ -3905,9 +4008,11 @@ async function renderTimelineAudio(){
         const k=trackKind(c.track); if(k!=="audio"&&k!=="video") continue;
         const a=c.assetId?assetById(c.assetId):null; if(!a||!a.url) continue;
         try{
-            const r=await fetch(a.url); if(!r.ok) throw new Error("HTTP "+r.status);
+            const ov=renderedClip(c);
+            const r=await fetch(ov?ov.url:a.url); if(!r.ok) throw new Error("HTTP "+r.status);
             const audio=await ctx.decodeAudioData(await r.arrayBuffer());
-            const sp=localSpeed(c), off=Math.max(0,Number(c.offset)||0);
+            /* 中间片已由 FFmpeg atempo 做过时间拉伸并保持音调，这里不能再改 playbackRate */
+            const sp=ov?1:localSpeed(c), off=ov?0:Math.max(0,Number(c.offset)||0);
             const len=Math.min(Math.max(0.05,c.duration*sp),Math.max(0,audio.duration-off));
             if(len<=0) continue;
             const src=ctx.createBufferSource(); src.buffer=audio; src.playbackRate.value=sp;
@@ -4007,7 +4112,6 @@ function grainTile(){
     for(let i=0;i<d.data.length;i+=4){ const v=Math.random()*255; d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255; }
     g.putImageData(d,0,0); _grainTile=c; return c;
 }
-async function recordCanvas(dur,opts,onProgress){}
 async function recordCanvas(dur,opts,onProgress){
     const size=opts.size, W=size.w, H=size.h, fps=Number(opts.fps)||30;
     const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
@@ -4025,6 +4129,12 @@ async function recordCanvas(dur,opts,onProgress){
     const before=state.playhead;
     rec.start(250);
     state.playhead=0; seek(0); play();
+    /* 中间片是 Blob URL，等首帧解码完再开始画，避免录进黑帧 */
+    if(renderOverrides.size) await new Promise(res=>{
+        let n=0; const tm=setInterval(()=>{
+            if((vEl.readyState>=2&&vEl.videoWidth>0)||++n>40){ clearInterval(tm); res(); }
+        },100);
+    });
     await new Promise(resolve=>{
         const t0=performance.now();
         function frame(){
@@ -4071,19 +4181,34 @@ function updateExportEstimate(){
     if($("expChkSub").checked) mb+=0.01;
     const el=$("exportEst"); if(el) el.textContent="时长："+d.toFixed(1)+" 秒 | 大小："+(mb<1?mb.toFixed(2):mb.toFixed(1))+" MB（估计）";
 }
+function ffmpegGuidesHtml(){
+    const g=svcInfo&&svcInfo.ffmpegInstall;
+    if(!g) return 'Mac：<a href="https://brew.sh/" target="_blank" rel="noopener">brew.sh</a> 后 <code>brew install ffmpeg</code>'
+        +' / <a href="https://evermeet.cx/ffmpeg/" target="_blank" rel="noopener">evermeet.cx</a>；'
+        +'Windows：<a href="https://www.gyan.dev/ffmpeg/builds/" target="_blank" rel="noopener">gyan.dev</a>；'
+        +'Linux：<code>sudo apt install ffmpeg</code>';
+    return ["mac","windows","linux"].map(k=>{
+        const x=g[k]; if(!x) return "";
+        const links=(x.urls||[]).map(u=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(u)+'</a>').join(" / ");
+        return "<b>"+esc(x.title)+"</b>：<code>"+esc(x.cmd||"")+"</code> · "+links;
+    }).filter(Boolean).join("<br>");
+}
 function updateExportStatus(){
     const el=$("exportStatus"); if(!el) return;
-    const guides='Mac：<code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows：<code>https://www.gyan.dev/ffmpeg/builds/</code>';
+    const guides=ffmpegGuidesHtml();
+    const renderNote="<br>✂ 倒放 / 变速导出会调用<b>本机 FFmpeg 重新解码、重排帧并重编码</b>（分段进行，长视频不爆内存），不是改播放倍率冒充成品；每个用户用自己电脑上的 FFmpeg。";
     if(svcOnline){
         const ff=svcInfo&&svcInfo.ffmpeg?svcInfo.ffmpeg:{};
         el.className="export-status";
         el.innerHTML="✅ 已连接本机服务（"+esc((svcInfo&&svcInfo.platform)||"本机")+"）· ffmpeg："+(ff.found?"已就绪 "+esc(ff.version||""):"未安装")
-          +"<br>可导出 MP4 / MOV、H.264 / HEVC / Apple ProRes / AV1、MP3 / M4A、GIF；抖音等分享链接也会自动解析。"
-          +(ff.found?"":"<br><b>要启用全格式请安装 ffmpeg</b>："+guides+"（装完重启本机服务）");
+          +"<br>可导出 MP4 / MOV、H.264 / HEVC / Apple ProRes / AV1、MP3 / M4A、GIF；抖音等分享链接也会自动解析。"+renderNote
+          +(ff.found
+              ?"<br>其它电脑首次使用需安装 FFmpeg："+guides
+              :"<br><b>要启用全格式与倒放/变速真渲染，请安装 ffmpeg</b>："+guides+"（装完重启本机服务）");
     }else{
         el.className="export-status off";
         el.innerHTML="⚠️ 未检测到本机服务：当前可导出 <b>MP4 / WebM（H.264 / VP9）、WAV、SRT / VTT</b>；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 暂不可用，会自动置灰。"
-          +"<br>启用全格式：双击仓库里的「启动本机服务.command」(Mac) / 「启动本机服务.bat」(Windows)。ffmpeg 下载："+guides;
+          +"<br>启用全格式：双击仓库里的「启动本机服务.command」(Mac) / 「启动本机服务.bat」(Windows)。"+renderNote+"<br>ffmpeg 下载："+guides;
     }
     const off=!ffmpegReady();
     const codec=$("expCodec"), fmt=$("expFormat"), af=$("expAudioFmt");
@@ -4136,7 +4261,7 @@ async function startExport(){
     exportBusy=true; $("exportDo").disabled=true;
     const fill=$("exportProgFill"), steps=$("exportSteps"), prog=$("exportProg");
     prog.classList.add("show");
-    let recorded=null;
+    let recorded=null, renderedCount=0;
     const getRecorded=async()=>{
         if(!recorded) recorded=await recordCanvas(Math.max(0.5,totalDuration()),
             {size:exportSize(),fps:Number($("expFps").value)||30},
@@ -4145,9 +4270,18 @@ async function startExport(){
     };
     const label={sub:"生成字幕文件",audio:"混音并导出音频",gif:"生成 GIF 动图",video:"录制并编码综合视频"};
     try{
+        /* 先做真渲染（占进度 0~55%），再走原有合成录制；中途每段都会回报进度 */
+        renderedCount=await prepareRenderOverrides((p,msg)=>{
+            fill.style.width=Math.round(p*55)+"%"; steps.textContent="⚙ "+msg;
+        });
+        if(renderedCount){
+            fill.style.width="55%";
+            steps.textContent="⚙ "+renderedCount+" 个片段已完成真渲染，开始合成…";
+        }
+        const base=renderedCount?55:0;
         for(let i=0;i<jobs.length;i++){
             const j=jobs[i];
-            fill.style.width=Math.round((i/jobs.length)*100)+"%";
+            fill.style.width=Math.round(base+(i/jobs.length)*(100-base))+"%";
             steps.textContent="["+(i+1)+"/"+jobs.length+"] "+label[j]+"…";
             if(j==="sub") await exportSubtitleFile();
             else if(j==="audio"){ const failed=await exportAudioFile(); if(failed) steps.textContent+="（"+failed+" 段在线素材因跨域跳过）"; }
@@ -4160,7 +4294,7 @@ async function startExport(){
     }catch(e){
         steps.textContent="❌ 导出中断："+esc(e.message||String(e));
         toast("导出失败："+(e.message||e),"err");
-    }finally{ exportBusy=false; $("exportDo").disabled=false; }
+    }finally{ cleanupRenderOverrides(); syncMedia(); exportBusy=false; $("exportDo").disabled=false; }
 }
 function wireExport(){
     $("exportDo").onclick=startExport;

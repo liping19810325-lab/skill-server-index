@@ -11,6 +11,8 @@
   GET  /api/media?u=...     流式代理媒体（Range / 防盗链 Referer）
   POST /api/export          FFmpeg 转码导出 / 抽音频 / 生成 GIF
   POST /api/transcribe      抽音轨 + 分段 + 本机/第三方转写（绕开浏览器 CORS）
+  POST /api/render          逐片段真渲染：分段变速/倒放后重编码（异步任务）
+  GET  /api/render/status   查询渲染进度与结果
 
 所有响应都带 CORS 与 Chrome Private Network Access 头；错误一律返回 JSON，
 不向外抛裸异常。被代理目标做基本 SSRF 防护。
@@ -29,6 +31,9 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import threading
+import time
+import uuid
 import urllib.error
 import urllib.request
 import wave
@@ -42,7 +47,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -52,6 +57,10 @@ TIMEOUT_ASR = 180         # 单段语音转写
 TIMEOUT_ASR_PROBE = 1.2   # 探测本机 faster-whisper
 ASR_LOCAL_BASE = "http://127.0.0.1:9000"
 ASR_CHUNK_SEC = 60        # 每段 60 秒（16k/mono WAV ≈ 1.9MB，远低于模型 20MB 上限）
+RENDER_CHUNK_SEC = 2.0    # 真渲染每段最长 2 秒：reverse 只缓存单段帧，长视频不爆内存
+RENDER_MAX_SEGMENTS = 600 # 单个渲染任务最多段数（约 20 分钟）
+RENDER_TIMEOUT_SEG = 180  # 单段 FFmpeg 超时
+RENDER_JOB_TTL = 1800     # 渲染结果保留 30 分钟
 CHUNK = 64 * 1024
 MAX_BODY = 300 * 1024 * 1024  # 300MB 请求体上限
 
@@ -64,6 +73,31 @@ FFMPEG_GUIDE = {
     "mac": "https://brew.sh/ 与 https://evermeet.cx/ffmpeg/",
     "windows": "https://www.gyan.dev/ffmpeg/builds/",
     "linux": "sudo apt install ffmpeg",
+}
+
+# 给导出弹窗用的「可点开」三平台安装指引：每个用户用自己电脑上的 FFmpeg，
+# 不依赖开发者机器；服务启动时也会自动准备静态版到 ~/.manflows/bin/。
+FFMPEG_INSTALL_GUIDE = {
+    "mac": {
+        "title": "macOS",
+        "urls": ["https://brew.sh/", "https://evermeet.cx/ffmpeg/"],
+        "cmd": "brew install ffmpeg",
+        "note": "装完重开「启动本机服务.command」；或点导出弹窗里的自动安装。Apple Silicon 可用 evermeet 静态版。"
+    },
+    "windows": {
+        "title": "Windows",
+        "urls": ["https://www.gyan.dev/ffmpeg/builds/",
+                 "https://github.com/BtbN/FFmpeg-Builds/releases"],
+        "cmd": "winget install --id Gyan.FFmpeg",
+        "note": "或下载 ffmpeg-release-essentials.zip 解压，把 bin\\ffmpeg.exe 放到 C:\\ffmpeg\\bin\\ 并加入 PATH；"
+                "也可直接点自动安装，服务会下载到用户目录 ~/.manflows/bin/ffmpeg.exe。"
+    },
+    "linux": {
+        "title": "Linux",
+        "urls": ["https://ffmpeg.org/download.html"],
+        "cmd": "sudo apt install ffmpeg",
+        "note": "Fedora 用 sudo dnf install ffmpeg；装完重启本机服务。"
+    }
 }
 
 ASR_INSTALL_GUIDE = (
@@ -473,6 +507,7 @@ def api_ping():
     return {"ok": True, "port": PORT, "platform": _plat(), "arch": _arch(),
             "python": _python_ver(), "version": VERSION,
             "ffmpeg": info, "guide": FFMPEG_GUIDE, "hint": hint,
+        "ffmpegInstall": FFMPEG_INSTALL_GUIDE, "render": True,
             "asrLocal": _asr_probe_local(), "asrGuide": ASR_INSTALL_GUIDE}
 
 
@@ -501,6 +536,13 @@ def api_guide():
             "douyin": "粘贴 v.douyin.com 短链、www.iesdouyin.com/share/video/... 或 www.douyin.com/video/... 分享链接，服务尝试从页面解析视频直链；抖音改版频繁，可能失效。",
             "bilibili": "粘贴含 BV 号的视频页链接或 b23.tv 短链，服务通过 B站公开接口取 cid 与播放直链，并带 Referer 通过防盗链。",
             "howto": "如何获取直链：浏览器打开视频 → F12 开发者工具 → 网络(Network) → 筛选 media → 复制该请求 URL 粘贴到输入框。",
+        },
+        "render": {
+            "what": "POST /api/render 提交分段表，后台线程用本机 FFmpeg 逐段解码 / 重排帧 / 重编码；"
+                    "GET /api/render/status?jobId=... 查进度与结果。",
+            "why": "倒放(reverse+areverse)与变速(setpts+atempo 保音调)必须真正写进文件，"
+                   "不能用 video.playbackRate 冒充成品效果。",
+            "chunk": "每段最长 %g 秒，reverse 只缓存单段帧，长视频峰值内存恒定。" % RENDER_CHUNK_SEC,
         },
         "transcribe": {
             "what": "AI字幕 / 智能剪口播 的语音识别：网页把素材交给本服务，本服务用 FFmpeg 抽成 16kHz 单声道 WAV、按 60 秒切片，再逐段转发给转写接口并合并时间码。",
@@ -1288,6 +1330,302 @@ def api_transcribe(body):
                          "时间码已合并；未调用任何云端 VIP 功能。" % len(chunks))}
 
 
+
+# ----------------------------------------------------------------------------
+# /api/render —— 逐片段真渲染
+#
+# 浏览器只负责「合成预览」：倒放 / 变速不允许用 video.playbackRate 冒充成品。
+# 这里由用户自己电脑上的 FFmpeg 重新解码 → 重排帧 / 重算 PTS → 重编码：
+#   · 视频：setpts=(PTS-STARTPTS)/speed 重算每帧时间戳；reverse 完整反转帧顺序
+#   · 音频：atempo 链时间拉伸保音调；areverse 整段采样反向；可选 asetrate 变调
+#   · 长视频按 RENDER_CHUNK_SEC 分段，每段只缓存 2 秒帧，峰值内存恒定
+#   · 分段结果按「输出时间顺序」concat；倒放时前端把段顺序整体反转
+# 全程在后台线程执行，前端 fetch 后立即拿 jobId，再轮询进度，页面不阻塞。
+# ----------------------------------------------------------------------------
+_RENDER_JOBS = {}
+_RENDER_LOCK = threading.Lock()
+
+
+def _render_set_job(jid, **kw):
+    with _RENDER_LOCK:
+        job = _RENDER_JOBS.get(jid)
+        if job:
+            job.update(kw)
+
+
+def _render_cleanup():
+    now = time.time()
+    with _RENDER_LOCK:
+        for k in [k for k, v in _RENDER_JOBS.items()
+                  if now - v.get("touched", now) > RENDER_JOB_TTL]:
+            _RENDER_JOBS.pop(k, None)
+
+
+def _atempo_expr(speed, pitch):
+    """atempo 只接受 0.5~2.0，超出范围自动串联；pitch=True 时按剪映式变调。"""
+    s = max(0.1, min(8.0, float(speed)))
+    if pitch:
+        # 先统一到 48k，再改采样率实现「变速同时变调」，最后重采样回 48k
+        return "aresample=48000,asetrate=%d,aresample=48000" % int(round(48000 * s))
+    parts, v = [], s
+    while v > 2.0 + 1e-6:
+        parts.append("atempo=2.0")
+        v /= 2.0
+    while v < 0.5 - 1e-6:
+        parts.append("atempo=0.5")
+        v /= 0.5
+    parts.append("atempo=%.6f" % v)
+    return ",".join(parts)
+
+
+def _video_filter(seg, w, h, fps):
+    s = max(0.1, min(8.0, float(seg["speed"])))
+    flt = "setpts=(PTS-STARTPTS)/%.6f" % s
+    if seg.get("reverse"):
+        # reverse 反转帧顺序但保留旧 PTS，必须再重排一次时间戳
+        flt += ",reverse,setpts=PTS-STARTPTS"
+    flt += ",fps=%s" % _fps(fps)
+    if w and h:
+        flt += (",scale=%d:%d:force_original_aspect_ratio=decrease:flags=lanczos,"
+                "pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1" % (w, h, w, h))
+    flt += ",format=yuv420p"
+    return flt
+
+
+def _audio_filter(seg, pitch):
+    flt = _atempo_expr(seg["speed"], pitch)
+    if seg.get("reverse"):
+        flt += ",areverse,asetpts=PTS-STARTPTS"
+    return flt + ",aresample=48000"
+
+
+def _probe_streams(ff, path):
+    """静态 ffmpeg 包常不带 ffprobe；用 ffmpeg -i 的 stderr 判断有无视频/音频流。"""
+    try:
+        p = subprocess.run([ff, "-hide_banner", "-i", path],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        txt = (p.stderr or b"").decode("utf-8", "replace")
+        return "Video:" in txt, "Audio:" in txt
+    except Exception:
+        return None, None
+
+
+def _render_segments(ff, td, in_path, segs, opt, jid):
+    """逐段渲染并 concat；返回最终文件路径。"""
+    kind = opt["kind"]
+    w, h = opt["width"], opt["height"]
+    fps = opt["fps"]
+    has_video, has_audio = _probe_streams(ff, in_path)
+    if has_audio is None:
+        has_audio = _probe_has_audio(ff, in_path)
+    if has_audio is None:
+        has_audio = True
+    pure_audio = (kind == "audio")
+    if pure_audio and has_audio is False:
+        raise RuntimeError("该素材没有音轨，无法作为音频片段渲染")
+    if not pure_audio and has_video is False:
+        raise RuntimeError("该素材没有视频轨，无法作为画面片段渲染")
+    seg_dir = os.path.join(td, "segs")
+    os.makedirs(seg_dir, exist_ok=True)
+    made = []
+
+    for i, seg in enumerate(segs):
+        pitch = bool(seg.get("pitch"))
+        out_len = max(0.04, float(seg["outLen"]))
+        seg_path = os.path.join(seg_dir, "seg_%04d.mp4" % i)
+        cmd = [ff, "-y", "-hide_banner", "-loglevel", "error",
+               "-ss", "%.6f" % float(seg["srcStart"]),
+               "-t", "%.6f" % float(seg["srcLen"]), "-i", in_path]
+        if pure_audio:
+            cmd += ["-vn", "-af", _audio_filter(seg, pitch),
+                    "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
+        else:
+            cmd += ["-vf", _video_filter(seg, w, h, fps)]
+            if has_audio:
+                cmd += ["-af", _audio_filter(seg, pitch),
+                        "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
+            else:
+                cmd += ["-an"]
+            cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                    "-pix_fmt", "yuv420p", "-r", _fps(fps)]
+        cmd += ["-t", "%.6f" % out_len, "-movflags", "+faststart", seg_path]
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                           timeout=RENDER_TIMEOUT_SEG)
+        if p.returncode != 0 or not os.path.isfile(seg_path) or os.path.getsize(seg_path) < 128:
+            err = _scrub((p.stderr or b"").decode("utf-8", "replace"), ff, td)[-420:]
+            raise RuntimeError("第 %d/%d 段渲染失败：%s" % (i + 1, len(segs), err or "未生成输出"))
+        made.append(seg_path)
+        _render_set_job(jid, progress=(i + 1) / float(len(segs)) * 0.92,
+                        stage="重排帧并重新编码 %d/%d 段" % (i + 1, len(segs)),
+                        touched=time.time())
+
+    if not made:
+        raise RuntimeError("没有生成任何渲染分段")
+    if len(made) == 1:
+        return made[0]
+
+    list_path = os.path.join(td, "concat.txt")
+    with open(list_path, "w", encoding="utf-8") as f:
+        for p in made:
+            f.write("file '%s'\n" % p.replace("\\", "/").replace("'", "'\\''"))
+    out_path = os.path.join(td, "rendered.mp4")
+    base = [ff, "-y", "-hide_banner", "-loglevel", "error",
+            "-f", "concat", "-safe", "0", "-i", list_path]
+    # 先尝试无损拼接；个别编码参数不一致时回退到一次轻量的重新编码
+    for extra in (["-c", "copy"],
+                  ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                   "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"]):
+        cmd = base + extra + ["-movflags", "+faststart", out_path]
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                           timeout=TIMEOUT_TRANSCODE)
+        if p.returncode == 0 and os.path.isfile(out_path) and os.path.getsize(out_path) > 128:
+            _render_set_job(jid, progress=0.98, stage="拼接分段", touched=time.time())
+            return out_path
+    err = _scrub((p.stderr or b"").decode("utf-8", "replace"), ff, td)[-420:]
+    raise RuntimeError("分段拼接失败：%s" % (err or "未生成输出"))
+
+
+def _render_worker(jid, td, in_path, data, opt, segs):
+    try:
+        info = detect_ffmpeg()
+        ff = info["path"]
+        _render_set_job(jid, state="running", stage="正在解码素材", touched=time.time())
+        out = _render_segments(ff, td, in_path, segs, opt, jid)
+        ext = ".m4a" if opt["kind"] == "audio" else ".mp4"
+        res = _ok_file(out, _safe_stem(data.get("filename") or "rendered") + ext,
+                       "ffmpeg 分段真渲染（%d 段）" % len(segs),
+                       ["每段 %g 秒，逐段解码/重排帧/重编码后按输出顺序拼接" % RENDER_CHUNK_SEC])
+        res["engine"] = "本机 FFmpeg %s（逐片段真渲染）" % (info.get("version") or "")
+        _render_set_job(jid, state="done", progress=1.0, stage="渲染完成",
+                        result=res, touched=time.time())
+    except Exception as e:
+        _render_set_job(jid, state="error", reason=_short(e),
+                        hint="请确认素材可播放、已安装 FFmpeg，或降低导出分辨率后重试",
+                        touched=time.time())
+    finally:
+        try:
+            shutil.rmtree(td, ignore_errors=True)
+        except Exception:
+            pass
+
+
+def _render_opt(data):
+    segs = data.get("segments")
+    if not isinstance(segs, list) or not (1 <= len(segs) <= RENDER_MAX_SEGMENTS):
+        raise ValueError("segments 必须是 1~%d 段的分段表" % RENDER_MAX_SEGMENTS)
+    out = []
+    for z in segs:
+        if not isinstance(z, dict):
+            raise ValueError("分段表格式不正确")
+        try:
+            item = {
+                "srcStart": max(0.0, min(86400.0, float(z.get("srcStart") or 0))),
+                "srcLen": max(0.02, min(120.0, float(z.get("srcLen") or 0))),
+                "outLen": max(0.02, min(120.0, float(z.get("outLen") or 0))),
+                "speed": max(0.1, min(8.0, float(z.get("speed") or 1))),
+                "reverse": bool(z.get("reverse")),
+                "pitch": bool(z.get("pitch")),
+            }
+        except Exception:
+            raise ValueError("分段表里有非数字参数")
+        out.append(item)
+    kind = str(data.get("kind") or "video").lower()
+    if kind not in ("video", "audio"):
+        kind = "video"
+    w = _even(data.get("width"), None)
+    h = _even(data.get("height"), None)
+    return out, {"kind": kind, "width": w, "height": h,
+                 "fps": _fps(data.get("fps"), 30)}
+
+
+def api_render(body):
+    """立即返回 jobId；大素材先落临时文件，渲染放后台线程。"""
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return _fail("请求体不是合法 JSON：%s" % _short(e))
+    if not isinstance(data, dict):
+        data = {}
+    info = detect_ffmpeg()
+    if not info["found"]:
+        return {"ok": False, "reason": "本机未找到 FFmpeg，无法做逐片段真渲染",
+                "ffmpegInstall": FFMPEG_INSTALL_GUIDE,
+                "guide": FFMPEG_GUIDE,
+                "hint": "点击导出弹窗里的「自动安装 FFmpeg」，或按平台指引安装后重启本机服务。"}
+    try:
+        segs, opt = _render_opt(data)
+    except Exception as e:
+        return _fail("渲染参数不合法：%s" % _short(e),
+                     "倒放 / 变速分段表由剪辑台自动生成，请勿手工构造请求。")
+
+    b64 = str(data.get("dataBase64") or "")
+    if "," in b64 and b64.strip().lower().startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    url = str(data.get("url") or "").strip()
+    td = tempfile.mkdtemp(prefix="manflows-render-")
+    ext = ".mp4"
+    m = re.search(r"\.([a-z0-9]{1,5})(?:\?|$)", url.lower())
+    if m:
+        ext = "." + m.group(1)
+    fname = str(data.get("filename") or "source.mp4")
+    if "." in os.path.basename(fname):
+        e2 = "." + os.path.basename(fname).rsplit(".", 1)[-1].lower()
+        if re.fullmatch(r"\.[a-z0-9]{1,5}", e2):
+            ext = e2
+    in_path = os.path.join(td, "input" + ext)
+    try:
+        if b64:
+            raw = base64.b64decode(b64, validate=False)
+            if len(raw) < 16:
+                raise ValueError("素材为空")
+            with open(in_path, "wb") as f:
+                f.write(raw)
+        elif url:
+            ok, why = is_allowed_target(url)
+            if not ok:
+                raise ValueError(why)
+            with _open_url(url, timeout=TIMEOUT_MEDIA) as r, open(in_path, "wb") as f:
+                shutil.copyfileobj(r, f, CHUNK)
+            if os.path.getsize(in_path) < 16:
+                raise ValueError("在线素材下载为空")
+        else:
+            raise ValueError("缺少素材：需要 dataBase64 或 url")
+    except Exception as e:
+        shutil.rmtree(td, ignore_errors=True)
+        return _fail("读取素材失败：%s" % _short(e),
+                     "在线素材建议先下载到本地再导入；跨域受限的链接可交给本服务代理。")
+
+    jid = uuid.uuid4().hex[:16]
+    with _RENDER_LOCK:
+        _RENDER_JOBS[jid] = {"state": "queued", "progress": 0.0,
+                             "stage": "排队中", "total": len(segs),
+                             "result": None, "touched": time.time()}
+    th = threading.Thread(target=_render_worker,
+                          args=(jid, td, in_path, data, opt, segs), daemon=True)
+    th.start()
+    return {"ok": True, "jobId": jid, "segments": len(segs),
+            "engine": "本机 FFmpeg %s" % (info.get("version") or ""),
+            "hint": "已在后台线程分段解码/重排帧/重编码，页面可继续操作；用 /api/render/status 查进度。"}
+
+
+def api_render_status(jid):
+    _render_cleanup()
+    with _RENDER_LOCK:
+        job = _RENDER_JOBS.get(jid)
+        if not job:
+            return _fail("渲染任务不存在或已过期", "请重新导出以创建新任务。")
+        job["touched"] = time.time()
+        res = {"ok": True, "jobId": jid, "state": job["state"],
+               "progress": round(job["progress"], 4), "stage": job["stage"],
+               "segments": job["total"]}
+        if job["state"] == "done" and job.get("result"):
+            res.update(job["result"])
+        elif job["state"] == "error":
+            res["reason"] = job.get("reason") or "渲染失败"
+            res["hint"] = job.get("hint") or ""
+        return res
+
+
 def api_export(body):
     try:
         data = json.loads(body.decode("utf-8")) if body else {}
@@ -1502,6 +1840,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_resolve(q.get("url", [""])[0]))
             elif path == "/api/media":
                 self._handle_media(q.get("u", [""])[0])
+            elif path == "/api/render/status":
+                self._send_json(api_render_status(q.get("jobId", [""])[0]))
             elif path == "/":
                 self._send_json({"ok": True, "service": "漫流 AI 剪辑台 · 本机服务",
                                  "version": VERSION, "port": PORT,
@@ -1509,7 +1849,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用接口：/api/ping、/api/guide、/api/ffmpeg-install、"
-                                      "/api/resolve、/api/media、/api/export、/api/transcribe"))
+                                      "/api/resolve、/api/media、/api/export、/api/transcribe、"
+                                      "/api/render、/api/render/status"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
@@ -1535,9 +1876,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_export(body))
             elif path == "/api/transcribe":
                 self._send_json(api_transcribe(body))
+            elif path == "/api/render":
+                self._send_json(api_render(body))
             else:
                 self._send_json(_fail("未知接口：%s" % path,
-                                      "可用的 POST 接口：/api/resolve、/api/export、/api/transcribe"))
+                                      "可用的 POST 接口：/api/resolve、/api/export、"
+                                      "/api/transcribe、/api/render"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
