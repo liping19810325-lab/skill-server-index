@@ -218,7 +218,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .track-row.compound .clip{height:60px;top:3px;}
 .clip-video-half{height:30px;display:flex;align-items:center;position:relative;flex:0 0 30px;}
 .clip-audio-half{height:30px;position:relative;flex:0 0 30px;border-top:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.2);}
-.canvas.clip-wave,.clip-wave{width:100%;height:100%;display:block;}
+.canvas.clip-wave,.clip-wave{width:100%;height:100%;display:block;pointer-events:none;}
 .ctx-menu{position:fixed;z-index:1100;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,.45);min-width:200px;}
 .ctx-menu[hidden]{display:none;}
 .ctx-menu button{display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:7px 9px;border-radius:5px;font-size:11.5px;cursor:pointer;}
@@ -244,10 +244,16 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .clip.sel{border:2px solid #fff;box-shadow:0 0 0 2px rgba(96,165,250,.55);z-index:3;}
 .clip.dragging{cursor:grabbing;opacity:.88;z-index:4;}
 .clip-body{flex:1 1 auto;min-width:0;padding:0 7px;font-size:10.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:30px;}
-.clip-handle{width:7px;flex:0 0 7px;height:100%;background:rgba(0,0,0,.28);cursor:ew-resize;}
+.clip-handle{width:10px;flex:0 0 10px;height:100%;background:rgba(0,0,0,.28);cursor:ew-resize;position:relative;z-index:6;transition:background .12s;}
+.clip-handle:hover{background:rgba(96,165,250,.85);}
 .clip-handle-l{background:rgba(255,255,255,.24);}
-.clip-split{position:absolute;right:3px;top:4px;width:16px;height:16px;border:none;border-radius:4px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;line-height:1;padding:0;display:none;}
+.clip-handle-l:hover{background:rgba(96,165,250,.85);}
+/* 剪刀按钮移到手柄内侧，避免覆盖右裁剪手柄；hover 才显示 */
+.clip-split{position:absolute;right:13px;top:7px;width:14px;height:14px;border:none;border-radius:4px;background:rgba(0,0,0,.5);color:#fff;font-size:9px;line-height:1;padding:0;display:none;z-index:5;}
 .clip:hover .clip-split{display:block;}
+/* 拖动裁剪时的实时时间码浮层 */
+.trim-hint{position:fixed;z-index:1200;pointer-events:none;padding:4px 8px;background:rgba(15,20,30,.95);border:1px solid rgba(96,165,250,.6);border-radius:5px;color:#e6f0ff;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.45);}
+.trim-hint[hidden]{display:none;}
 .playhead{position:absolute;top:0;bottom:0;width:2px;background:#f87171;z-index:8;pointer-events:none;}
 .playhead::before{content:"";position:absolute;top:0;left:-5px;width:12px;height:10px;background:#f87171;clip-path:polygon(0 0,100% 0,50% 100%);}
 
@@ -658,6 +664,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
                 <button class="tb-btn ai-rec" id="recBtn" title="录音：选择麦克风或系统声音，实时显示双声道电平，结束后自动加入音频轨">⏺ 录音</button>
                 <button class="tb-btn ai-sub" id="smartCutBtn" title="智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ 剪口播</button>
+                <button class="tb-btn" id="dumpStructBtn" title="轨道结构化数据：查看 / 下载含媒体元信息、独立音轨、毫秒字幕、静音区间的标准 JSON">📊 轨道数据</button>
             </div>
             <div class="tl-tools right">
                 <button class="tb-btn" id="zoomOut" title="缩小时间轴 (-)">−</button>
@@ -717,11 +724,11 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </ul>
             <h2>④ 四个 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
-                <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材信息、视频抽帧与你的思路，返回可预览的剪辑方案，确认后才写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b></li>
+                <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材元信息、独立音轨、毫秒字幕、静音区间、视频抽帧与你的思路，先做语义分析区分有效停顿 / 无效废片并给出内容优化建议；确认后删除建议会转成剪口播候选（可勾选、全选、撤销），其它裁切 / 字幕优化可直接写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b></li>
                 <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
                 <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因。<b>删除后视频 / 音频 / 字幕 / LUT 会按同一批区间物理切成多个独立片段</b>，没剪好的段落可继续手动裁剪、变速、倒放；<b>导出成片仍是完整一条</b>，由本机 FFmpeg 按各片段真实源范围拼接重编码，不是只做预览隐藏。</li>
                 <li><b>🎨 时间轴 LUT 轨</b>：视频轨上方新增独立的 LUT 轨。在右侧「调整 · 调色 LUT」面板加载 <code>.cube / .3dl / .lut</code> 文件，可保存多个预制反复调用；LUT 自带强度 / 亮度 / 对比度 / 饱和度 / 色温参数，拖动滑块实时改变画面。LUT 片段可裁剪、可移动，只影响它覆盖时间段内下方的视频；导出时由本机 FFmpeg 的 <code>lut3d</code> 滤镜真实烘焙进成片，预览与成品一致。</li>
-                <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏的「磁吸」可开/关，拖动片段时自动吸附到其他片段边缘、播放头与 0 点；每个片段头尾都有可拖动手柄，按住前后拖即可裁掉开头或结尾；预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点预览标题栏「◇ 变换框」常显。</li>
+                <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏「🧲 磁吸」按钮<b>高亮=开启</b>，点一下开/关（选择会记住）。开启后拖动片段或裁剪手柄时，靠近<b>其它片段首尾、播放头、0 秒</b>会自动吸附对齐，浮层显示「🧲 已吸附」；关闭则完全自由拖动。每个片段头尾各有一个可拖动手柄（鼠标移上去高亮变蓝）：<b>向右拖开头=裁掉片头；向左拖开头=在源素材范围内找回片头</b>（到源起点为止，拉不出界）；<b>向左拖结尾=裁掉片尾；向右拖结尾=找回片尾</b>（到源素材末尾为止）。裁剪时画面上方实时显示起点/终点时间码。剪刀 ✂ 按钮在手柄内侧，悬停片段才出现，点一下从播放头处剪断（等价快捷键 S）。预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点预览标题栏「◇ 变换框」常显。</li>
                 <li><b>🎬🔊 复合音视频轨 / 波形</b>：带声音的视频片段在时间轴上高度加倍，上半是画面、下半是音频波形；所有音频轨片段也自带波形（由浏览器 WebAudio 解码生成，不上传任何数据）。右键这类视频片段可选「拆分视频和音频轨道」，音频会下移到新音轨并与画面严格对齐，之后可单独剪辑或删除。</li>
                 <li><b>⏺ 录音</b>：点位录音按钮后先弹出输入选择窗，可选任一麦克风或「系统声音 / 当前标签页内录」；录音时预览画面与弹窗同时显示左右双声道实时电平表，再点顶栏「⏹ 停止录音」结束，录音文件自动加入音频轨。调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
                 <li><b>两栏状态彻底分开</b>：左上「算力总控」下方现在有独立的「✨ AI 剪辑」与「🅰 AI 字幕」两块状态栏，各自显示自己的进度条与报错；点其中一个按钮只清空自己那一栏，<b>不会再看到另一个任务残留的旧报错</b>。AI 剪辑的弹窗进度与左栏同步。</li>
@@ -753,7 +760,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <h2>⑧ 本轮新增：工作区 / 导出成片 / 调整栏 / 素材预览 / 缩放 / URL 解析</h2>
             <ul>
                 <li><b>用户工作区（互不串工程）</b>：顶栏「👤 工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「打开工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。不同电脑、不同浏览器配置文件本来就天然互不相通。注意：静态站点没有账号体系，这是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
-                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。视频区块含一键超清、分辨率、补分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。</li>
+                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。视频区块含一键超清、分辨率、补分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。<br><b>字幕烧录</b>：视频区块的「烧录字幕」默认开启，导出时把字幕轨交给本机 FFmpeg 的 libass 滤镜真正写进画面像素（硬字幕，支持中文），不依赖播放器外挂；关闭则只输出画面，可另在「字幕导出」里单独拿 SRT / VTT。<b>防爆音</b>：导出真渲染时每个片段首尾各加 30ms 淡入淡出，消除智能剪口播切段拼接处的爆音，预览逻辑不受影响。</li>
                 <li><b>本机小服务（Mac / Windows 通用，可选）</b>：仓库里的 <code>启动本机服务.command</code>（Mac 双击）或 <code>启动本机服务.bat</code>（Windows 双击）会在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。<br><b>每位用户用自己电脑上的 FFmpeg</b>：Windows 可 <code>winget install --id Gyan.FFmpeg</code> 或下载 <code>https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip</code>，Mac 用 <code>brew install ffmpeg</code>，Linux 用 <code>sudo apt install ffmpeg</code>；服务也会按需自动下载静态版到 <code>~/.manflows/bin/</code>。仓库里的 <code>render_verify.py</code> 是 10 秒短视频验证用例，可直接跑出倒放与各档变速的实测结果。</li>
                 <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
                 <li><b>单击素材即预览</b>：点素材库里任一素材，预览窗口立即预览——视频 / 声音自动播放，图片 / 文字只显示画面，<b>都不自动加入轨道</b>；要剪辑请自己用鼠标把素材拖到时间轴对应轨道（双击加入仍保留给习惯用它的用户）。</li>
@@ -813,6 +820,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                             <div class="export-field"><span>分辨率</span><select id="expRes"><option value="source">原始</option><option value="720">720P</option><option value="1080">1080P</option><option value="1440">2K</option><option value="2160">4K</option></select></div>
                             <div class="export-note" id="expResNote">以当前画幅与素材原始尺寸导出</div>
                             <div class="export-field"><span>补分辨率 💎</span><input type="checkbox" class="sw" id="expUpscale"><span style="flex:1;font-size:10px;color:var(--muted)">用高质量重采样把画面补到设置值（非 AI 超分）</span></div>
+                            <div class="export-field"><span>烧录字幕</span><input type="checkbox" class="sw" id="expBurnSub" checked><span style="flex:1;font-size:10px;color:var(--muted)">把字幕轨真正烧进画面（本机 FFmpeg libass 硬字幕，中文字体可用）；关闭则只输出画面，可另在下方单独导出 SRT / VTT</span></div>
                             <div class="export-field"><span>格式</span><select id="expFormat"><option value="mp4">MP4</option><option value="mov">MOV</option><option value="webm">WebM</option></select></div>
                             <div class="export-field"><span>帧率</span><select id="expFps"><option value="24">24</option><option value="25">25</option><option value="30" selected>30</option><option value="60">60</option></select></div>
                             <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="recommend">推荐</option><option value="low">较低</option><option value="high">较高</option><option value="8M">8 Mbps</option><option value="16M">16 Mbps</option></select></div>
@@ -1023,7 +1031,24 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="modal-body" id="aiPlanBody"></div>
         <div class="modal-foot">
             <button class="mini-btn gray" data-close="aiPlanModal">暂不应用</button>
-            <button class="mini-btn green" id="aiPlanApply">✔ 应用方案到轨道（可 Ctrl+Z 撤销）</button>
+            <button class="mini-btn" id="aiPlanApply">直接应用其它优化</button>
+            <button class="mini-btn green" id="aiPlanCand">✔ 加入剪口播候选（勾选后删除）</button>
+        </div>
+    </div>
+</div>
+
+<!-- 轨道结构化数据 -->
+<div class="modal-overlay" id="structModal">
+    <div class="modal-box" style="width:min(880px,100%)">
+        <div class="modal-head">📊 轨道结构化数据（AI 分析用原始数据）<button class="mh-close" data-close="structModal">×</button></div>
+        <div class="modal-body">
+            <div class="hint" id="structModalCount">—</div>
+            <pre id="structModalBody" style="max-height:52vh;overflow:auto;background:var(--bg);padding:10px;border-radius:8px;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all"></pre>
+        </div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" data-close="structModal">关闭</button>
+            <button class="mini-btn" id="structRefresh">↻ 重新采集</button>
+            <button class="mini-btn green" id="structDownload">⬇ 下载 JSON</button>
         </div>
     </div>
 </div>
@@ -1220,7 +1245,7 @@ let state = {
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
-let pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
+let aiExtraCandidates=[], pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
 let recMeterRaf=0, recAudioCtx=null, recAnalysers=null;
 let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
 let showFxBox=false, fxHover=false;
@@ -2050,13 +2075,17 @@ function trackKind(id){ const t=trackById(id); return t?t.kind:""; }
 function textTracks(){ return orderedTracks().filter(t=>t.kind==="text"); }
 function assetById(id){ return state.assets.find(a=>a.id===id)||null; }
 function clipById(id){ return state.clips.find(c=>c.id===id)||null; }
-/* 时间轴磁吸：拖动 / 裁剪片段时吸附到其他片段边缘、播放头与 0 点 */
+/* 时间轴磁吸：拖动 / 裁剪片段时吸附到其他片段边缘、播放头与 0 点。
+   snapHit 记录最近一次调用是否真的吸附上，供裁剪浮层显示「已吸附」反馈。 */
+let snapHit=false;
 function snapPos(v, excludeId, zoom){
+    snapHit=false;
     if(!state.snap) return v;
     const th=9/Math.max(1,zoom), pts=[0,state.playhead];
     state.clips.forEach(o=>{ if(o.id!==excludeId){ pts.push(o.start); pts.push(o.start+o.duration); } });
     let best=v, bd=th;
     for(const p of pts){ const d=Math.abs(v-p); if(d<bd){ bd=d; best=p; } }
+    if(best!==v) snapHit=true;
     return best;
 }
 function selectedClip(){ return state.selected?clipById(state.selected):null; }
@@ -3295,6 +3324,13 @@ function buildSmartCutCandidates(){
     }
     out.sort((a,b)=>a.start-b.start);
     /* 合并重叠候选：同一处不重复删两次；留白已体现在 start/end 上 */
+    /* ④ AI 剪辑语义分析给出的删除建议，与本地检测结果合并去重 */
+    for(const x of aiExtraCandidates){
+        const s=Number(x.start),e=Number(x.end);
+        if(!Number.isFinite(s)||!Number.isFinite(e)||e<=s+0.05) continue;
+        out.push({start:s,end:e,type:x.type||"废片",text:x.text||"",
+            reason:x.reason||"AI 语义分析建议删除",on:x.on!==false,source:"ai"});
+    }
     const merged=[];
     for(const x of out){
         const last=merged[merged.length-1];
@@ -3516,26 +3552,90 @@ async function collectFrames(){
     const res=await Promise.all(jobs);
     return res.filter(Boolean).slice(0,6);
 }
-const AI_SYS_PROMPT = "你是一位资深短视频 / 漫剧剪辑师。用户会给你一份剪辑时间轴的 JSON（含轨道层级、每个片段的 id、名称、类型、起止时间）以及若干视频抽帧图片。请结合画面与节奏自主完成剪辑决策：删除冗余片段、裁切拖沓部分、调整片段顺序位置、必要时补充字幕。你必须只输出一个 JSON 对象，不要输出任何解释文字、不要加 Markdown 围栏。格式：{\"summary\":\"整体剪辑思路（中文，60字内）\",\"actions\":[{\"id\":\"原片段id\",\"op\":\"keep|trim|delete|move\",\"start\":数字,\"duration\":数字,\"track\":\"可选，改放到的轨道id\",\"reason\":\"中文理由，20字内\"}],\"newSubtitles\":[{\"start\":数字,\"duration\":数字,\"text\":\"字幕文字\",\"kind\":\"dialogue|narration|inner\"}]}。要求：只使用给定的片段 id，时间单位为秒，trim 时 start/duration 必须在原片段范围内，不要虚构新素材，不要修改素材文件本身。若用户提供了剪辑思路，必须优先满足该思路，不得与之冲突；";
+/* ---------- 轨道素材结构化采集：供 AI 分析 / 调试 / 下载的统一原始数据 ---------- */
+function collectTimelineStructure(){
+    const num=(v,d)=>{ const n=Number(v); return Number.isFinite(n)?+n.toFixed(3):(d||0); };
+    const metaOf=a=>{
+        const m=(a&&a.url)?probeMetaCache.get(a.url):null;
+        if(m) return {width:num(m.width),height:num(m.height),fps:num(m.fps),
+            hasVideo:!!m.hasVideo,hasAudio:!!m.hasAudio,
+            ratio:(m.width&&m.height)?+(m.width/m.height).toFixed(4):0,source:"本机 FFmpeg /api/probe"};
+        return {width:0,height:0,fps:0,hasVideo:!!(a&&a.type==="video"),
+            hasAudio:!!(a&&a.type==="audio"),ratio:0,source:"浏览器元数据 / 尚未探测"};
+    };
+    const tracks=orderedTracks().map((t,i)=>({index:i,id:t.id,type:t.kind,name:t.label,
+        clipCount:state.clips.filter(c=>c.track===t.id).length}));
+    const clips=state.clips.map(c=>{
+        const a=c.assetId?assetById(c.assetId):null, k=trackKind(c.track), f=fxOf(c);
+        const st=num(c.start), dur=num(c.duration), meta=a?metaOf(a):null;
+        const o={id:c.id,track:c.track,trackType:k,name:c.name||"",
+            start:st,end:num(st+dur),duration:dur,offset:num(c.offset),
+            speed:num(f.speed||1,1),reverse:!!f.reverse,
+            muteAudio:!!c.muteAudio,audioOnly:!!c.audioOnly};
+        if(k==="text"){
+            o.text=c.text||""; o.subKind=c.subKind||"";
+            o.startMs=Math.round(st*1000); o.endMs=Math.round((st+dur)*1000);
+        }
+        if(a){
+            o.asset={id:a.id,name:a.name,type:a.type,urlKind:a.urlKind||"",
+                duration:num(a.duration),size:num(a.size),meta:meta,
+                audioStream:{available:!!(meta&&meta.hasAudio)||a.type==="audio",
+                    format:a.type==="audio"?"独立音频轨":"视频抽取 16kHz 单声道 WAV（本机服务 /api/transcribe）",
+                    note:"转写与静音检测均由本机 FFmpeg 抽流后分析，不上传整段原片"}};
+        }
+        return o;
+    });
+    const cfg=scConfig();
+    return {
+        version:"1.0",generatedAt:new Date().toISOString(),project:state.date,
+        totalDuration:num(totalDuration()),
+        config:{silenceThresholdDb:num(cfg.db,-35),minPauseSec:num(cfg.min,0.5),cutPadSec:num(cfg.pad,0.12)},
+        tracks:tracks,clips:clips,
+        assets:state.assets.map(a=>({id:a.id,name:a.name,type:a.type,urlKind:a.urlKind||"",
+            duration:num(a.duration),size:num(a.size),meta:metaOf(a)})),
+        subtitles:clips.filter(c=>c.trackType==="text"&&c.text).map(c=>({
+            clipId:c.id,start:c.start,end:c.end,startMs:c.startMs,endMs:c.endMs,
+            text:c.text,kind:c.subKind})),
+        silences:(lastSilences||[]).map(z=>({start:num(z.start),end:num(z.end),
+            startMs:num(z.startMs),endMs:num(z.endMs),duration:num(z.duration),
+            cutStart:num(z.cutStart),cutEnd:num(z.cutEnd),
+            canCut:z.canCut!==false,source:z.source||""})),
+        candidates:(smartCutCandidates||[]).map(x=>({start:num(x.start),end:num(x.end),
+            type:x.type,also:x.also||[],text:x.text||"",reason:x.reason||"",on:!!x.on}))
+    };
+}
+function showTimelineStructure(){
+    let data; try{ data=collectTimelineStructure(); }catch(e){ toast("采集轨道数据失败："+(e&&e.message||e),"err"); return; }
+    const txt=JSON.stringify(data,null,2);
+    const box=$("structModalBody"), cnt=$("structModalCount");
+    if(box) box.textContent=txt;
+    if(cnt) cnt.textContent=data.clips.length+" 个片段 / "+data.assets.length+" 个素材 / "
+        +data.subtitles.length+" 条字幕 / "+data.silences.length+" 段静音 / "+data.candidates.length+" 处候选";
+    $("structModal").classList.add("show");
+}
+function downloadTimelineStructure(){
+    const txt=JSON.stringify(collectTimelineStructure(),null,2);
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([txt],{type:"application/json;charset=utf-8"}));
+    a.download="漫流剪辑台_轨道结构_"+state.date+".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+    toast("轨道结构化 JSON 已下载","ok");
+}
+const AI_SYS_PROMPT = "你是一位资深短视频 / 漫剧剪辑师。用户会给你一份剪辑时间轴的结构化 JSON（轨道、片段 id / 类型 / 起止时间、素材元信息、独立音轨标记、毫秒级字幕、静音/气口区间、已有候选）以及若干视频抽帧图片。请先做语义分析：区分「有效停顿」（叙事节奏需要、语气留白）与「无效废片」（嗯啊语气词、长静音、重复赘述、口误），再给出内容优化建议。你必须只输出一个 JSON 对象，不要解释文字、不要 Markdown 围栏。格式：{\"analysis\":\"语义分析结论：哪些停顿有效、哪些是废片（中文，80字内）\",\"advice\":\"内容优化建议：节奏、顺序、字幕、画面等（中文，120字内）\",\"candidates\":[{\"start\":数字,\"end\":数字,\"type\":\"停顿|语气词|重复|废片\",\"reason\":\"中文理由，20字内\"}],\"summary\":\"整体剪辑思路（中文，60字内）\",\"actions\":[{\"id\":\"原片段id\",\"op\":\"keep|trim|delete|move\",\"start\":数字,\"duration\":数字,\"reason\":\"中文理由\"}],\"newSubtitles\":[{\"start\":数字,\"duration\":数字,\"text\":\"字幕文字\",\"kind\":\"dialogue|narration|inner\"}]}。candidates 的 start/end 必须是输入 JSON 时间轴上的绝对秒数（参考 clips[].start/end 与 subtitles/silences），不要超出 totalDuration，不要虚构片段，建议删除总时长不超过总时长的 60%。actions 只使用给定片段 id，trim 的 start/duration 必须在原片段范围内。若用户写了剪辑思路，必须优先满足并在 summary 说明如何落实；";
 function buildAiMessages(frames,idea){
+    const full=collectTimelineStructure();
     const info={
-        project:state.date, totalDuration:totalDuration(),
-        trackOrder:"字幕(text) → 图片(image) → 视频(video) → 音频(audio)",
-        tracks:orderedTracks().map((t,i)=>({index:i,id:t.id,type:t.kind,name:t.label})),
-        clips:state.clips.map(c=>{
-            const a=c.assetId?assetById(c.assetId):null;
-            return {id:c.id,track:c.track,trackType:trackKind(c.track),name:c.name||"",
-                start:Number(Number(c.start||0).toFixed(2)),duration:Number(Number(c.duration||0).toFixed(2)),
-                offset:Number(Number(c.offset||0).toFixed(2)),text:c.text||"",subKind:c.subKind||"",
-                asset:a?{name:a.name,type:a.type,duration:Number(Number(a.duration||0).toFixed(2))}:null};
-        }),
-        assets:state.assets.map(a=>({id:a.id,name:a.name,type:a.type}))
+        version:full.version,project:full.project,totalDuration:full.totalDuration,
+        trackOrder:"字幕(text) → 图片(image) → LUT(lut) → 视频(video) → 音频(audio)",
+        config:full.config,tracks:full.tracks,clips:full.clips,assets:full.assets,
+        subtitles:full.subtitles,silences:full.silences,candidates:full.candidates
     };
     const ideaBlock=String(idea||"").trim()
         ? "\n\n【用户的剪辑思路 / 想法 —— 优先级高于你自己的节奏偏好，必须严格遵守】\n"+String(idea).trim()+"\n【思路结束】\n" : "";
-    const txt="请剪辑下面这份时间轴。"+ideaBlock+"轨道与片段数据（JSON）：\n"+JSON.stringify(info)
+    const txt="请对下面这份时间轴做语义分析并给出剪辑优化建议。"+ideaBlock+"轨道与片段数据（JSON，含毫秒字幕、静音区间与已有候选）：\n"+JSON.stringify(info)
         +"\n\n"+(frames.length?"后面附 "+frames.length+" 张按片段顺序抽取的画面（JPEG），请结合画面判断。":"本次没有附上画面，请仅依据轨道结构与时间码决策。")
-        +"\n严格只输出上面约定的 JSON 对象；若用户写了剪辑思路，方案必须体现该思路，并在 summary 里用一句话说明如何落实。";
+        +"\n请先区分有效停顿与无效废片，再给出可执行的 candidates 删除建议与 advice 内容优化建议；严格只输出上面约定的 JSON 对象；若用户写了剪辑思路，方案必须体现该思路，并在 summary 里用一句话说明如何落实。";
     const content=frames.length
         ? [{type:"text",text:txt}].concat(frames.map(f=>({type:"image_url",image_url:{url:f.data}})))
         : txt;
@@ -3570,6 +3670,14 @@ function parseAiPlan(s){
     o.actions=Array.isArray(o.actions)?o.actions:[];
     o.newSubtitles=Array.isArray(o.newSubtitles)?o.newSubtitles:[];
     o.summary=String(o.summary||"");
+    o.analysis=String(o.analysis||"");
+    o.advice=String(o.advice||"");
+    o.candidates=(Array.isArray(o.candidates)?o.candidates:[]).map(x=>{
+        const st=Number(x&&x.start), en=Number(x&&x.end);
+        return {start:st,end:en,type:String((x&&x.type)||"废片"),
+            reason:String((x&&x.reason)||""),text:String((x&&x.text)||""),on:true};
+    }).filter(x=>Number.isFinite(x.start)&&Number.isFinite(x.end)&&x.end>x.start+0.05)
+      .slice(0,200);
     return o;
 }
 function aiEditFail(e,st){
@@ -3596,7 +3704,17 @@ function renderAiPlan(plan,cfg,nframes){
         return '<tr><td>'+esc(name)+'</td><td>'+esc(op)+'</td><td>'+(Number.isFinite(Number(a.start))?Number(a.start).toFixed(2):"—")+' / '+(Number.isFinite(Number(a.duration))?Number(a.duration).toFixed(2):"—")+'</td><td>'+esc(a.reason||"")+'</td></tr>';
     }).join("");
     $("aiPlanBody").innerHTML='<p class="hint ok">模型：<b>'+esc(cfg.model)+'</b> · 来源：'+esc(cfg.label)+' · 抽帧 '+nframes+' 张 · 片段 '+state.clips.length+' 个。方案只在你确认后写入轨道，随时可 <code>Ctrl+Z</code> 撤销。</p>'
+      +(plan.analysis?'<h2>语义分析</h2><p>'+esc(plan.analysis)+'</p>':'')
+      +(plan.advice?'<h2>内容优化建议</h2><p class="hint ok">'+esc(plan.advice)+'</p>':'')
       +(plan.summary?'<h2>剪辑思路</h2><p>'+esc(plan.summary)+'</p>':'')
+      +(plan.candidates&&plan.candidates.length
+          ?'<h2>AI 建议删除区间（勾选后加入剪口播候选）</h2><div class="sc-list">'
+            +plan.candidates.map((x,i)=>'<label class="sc-item"><input type="checkbox" data-aic="'+i+'" checked>'
+              +'<span class="sc-type">'+esc(x.type||"废片")+'</span>'
+              +'<span class="sc-time">'+fmt(Number(x.start)||0)+' – '+fmt(Number(x.end)||0)+'</span>'
+              +'<span class="sc-cut">可删 '+(Number(x.end)-Number(x.start)).toFixed(2)+'s</span>'
+              +'<span class="sc-why">'+esc(x.reason||"")+'</span></label>').join("")+'</div>'
+          :'<p class="hint">模型没有给出可删除的候选区间。</p>')
       +'<h2>将对 '+acts.length+' 个片段执行</h2>'
       +(rows?'<table><tr><th>片段</th><th>操作</th><th>开始 / 时长</th><th>理由</th></tr>'+rows+'</table>':'<p class="hint">模型没有给出具体片段操作。</p>')
       +(plan.newSubtitles.length?'<h2>将新增 '+plan.newSubtitles.length+' 条字幕</h2><ul>'+plan.newSubtitles.slice(0,12).map(s=>'<li>'+fmt(Number(s.start)||0)+' · '+esc(String(s.text||""))+'</li>').join("")+'</ul>':'')
@@ -3622,6 +3740,24 @@ function applyAiPlan(){
     state.selected=null; state.multi=[]; pendingPlan=null;
     $("aiPlanModal").classList.remove("show");
     renderAll(); autoSave(); toast("AI 剪辑方案已应用（Ctrl+Z 可撤销）","ok");
+}
+function applyAiCandidates(){
+    if(!pendingPlan) return;
+    const picked=[];
+    (pendingPlan.candidates||[]).forEach((x,i)=>{
+        const el=document.querySelector('input[data-aic="'+i+'"]');
+        if(!el||el.checked) picked.push({start:x.start,end:x.end,type:x.type||"废片",
+            reason:x.reason||"AI 语义分析建议删除",text:x.text||"",on:true});
+    });
+    if(!picked.length){ toast("没有勾选任何 AI 删除建议","err"); return; }
+    aiExtraCandidates=picked;
+    const advice=pendingPlan.advice||"";
+    pendingPlan=null;
+    $("aiPlanModal").classList.remove("show");
+    scLogPush("AI 语义分析给出 "+picked.length+" 处删除建议，已加入智能剪口播候选（可勾选 / 全选 / 撤销）");
+    if(advice) scLogPush("AI 内容优化建议："+advice.slice(0,600));
+    toast("已加入 "+picked.length+" 处 AI 候选，请在剪口播面板确认后删除","ok");
+    openSmartCutModal();
 }
 async function runAiEdit(idea,overrideModel){
     resetAiPanel("edit");
@@ -4149,6 +4285,9 @@ function wire(){
     ["aiEndpoint","aiKey","aiModel","aiFrames"].forEach(id=>$(id).addEventListener("change",saveAiCfg));
     $("aiCutBtn").onclick=openAiIdea;
     $("aiSubBtn").onclick=openAsrSetup;
+    $("dumpStructBtn").onclick=showTimelineStructure;
+    $("structRefresh").onclick=showTimelineStructure;
+    $("structDownload").onclick=downloadTimelineStructure;
     $("asrUiStart").onclick=()=>{ $("asrSetupModal").classList.remove("show"); runAsrCore(); };
     $("asrUiGoCompute").onclick=()=>{ $("asrSetupModal").classList.remove("show"); $("edComputeHint").scrollIntoView({behavior:"smooth",block:"center"}); toast("请在上方「算力总控」切换档位后重新点 AI字幕","ok"); };
     $("recStart").onclick=startRecord;
@@ -4181,6 +4320,7 @@ function wire(){
     $("scApply").onclick=applySmartCut;
     $("recBtn").onclick=toggleRecord;
     $("aiPlanApply").onclick=applyAiPlan;
+    $("aiPlanCand").onclick=applyAiCandidates;
     /* 算力总控三档：点选即切换，本页独立保存，同页多标签同步 */
     $("edModeRow").addEventListener("change",e=>{
         const r=e.target.closest('input[name="edComputeMode"]');
@@ -4341,22 +4481,48 @@ function wire(){
         }
         state.selected=c.id; state.multi=[]; state.selectedAsset=null;
         renderProps(); renderSubList(); renderAssets(); renderTimeline();
-        if(!(state.playhead>=c.start && state.playhead<c.start+c.duration)) seek(Math.max(0,c.start+Math.min(0.1,c.duration/2)));
-        const fresh=document.querySelector('.clip[data-id="'+c.id+'"]'); if(!fresh)return;
         const resize=!!e.target.closest("[data-handle]"), resizeL=!!e.target.closest("[data-handle-l]");
+        /* 裁剪时把播放头精确停在片段起点；普通点击仍用 +0.1s 偏移避免预览首帧黑。
+           否则磁吸会把这个偏移当成吸附点，导致裁不到精确片头。 */
+        if(!(state.playhead>=c.start && state.playhead<c.start+c.duration))
+            seek(Math.max(0,c.start+(resize||resizeL?0:Math.min(0.1,c.duration/2))));
+        const fresh=document.querySelector('.clip[data-id="'+c.id+'"]'); if(!fresh)return;
         const x0=e.clientX, start0=c.start, dur0=c.duration, zoom=state.zoom, offset0=Number(c.offset)||0;
+        /* 源时间边界：时间轴 1 秒 = 源 sp 秒；cutRanges 也占源长度。
+           裁剪只能在这个源窗口内移动，不能把源起点拉成负数或越过源素材末尾。 */
+        const sp=clipSpeed(c), asset=c.assetId?assetById(c.assetId):null;
+        const srcDur=(asset&&Number(asset.duration)>0)?Number(asset.duration):Infinity;
+        const cutSrc=mergedCutRanges(c).reduce((a,r)=>a+(r.end-r.start),0);
+        const maxDur=Math.max(0.2,(srcDur-offset0-cutSrc)/sp);      // 右裁剪：时长上限
+        const minLeftD=-Math.min(start0,offset0/sp);                 // 左裁剪：偏移下限（不越时间轴 0 / 源起点）
         fresh.classList.add("dragging");
+        let hint=null;
+        if(resize||resizeL){
+            hint=document.createElement("div"); hint.className="trim-hint"; hint.hidden=true;
+            document.body.appendChild(hint);
+        }
+        const showHint=()=>{
+            if(!hint) return;
+            hint.hidden=false;
+            const at=c.start+(resizeL?0:c.duration);
+            hint.textContent=(resizeL?"起点 ":"终点 ")+fmt(at)+" · 时长 "+fmt(c.duration)+(snapHit?"  🧲 已吸附":"");
+            const r=fresh.getBoundingClientRect();
+            hint.style.left=Math.max(6,Math.min(window.innerWidth-180,(resizeL?r.left:r.right)-56))+"px";
+            hint.style.top=Math.max(6,r.top-32)+"px";
+        };
         const mv=ev=>{
             const dx=(ev.clientX-x0)/zoom;
             if(resize){
-                let ne=Math.max(0.2,Math.min(dur0+dx,(assetById(c.assetId)&&assetById(c.assetId).duration)||600));
-                ne=Math.max(0.2,snapPos(start0+ne,c.id,zoom)-start0);
-                c.duration=ne;
+                let ne=clamp(dur0+dx,0.2,maxDur);
+                ne=clamp(snapPos(start0+ne,c.id,zoom)-start0,0.2,maxDur);
+                c.duration=+ne.toFixed(4);
             }else if(resizeL){
-                const maxTrim=Math.min(dur0-0.2,offset0);
-                let d=clamp(dx,-start0,maxTrim);
-                d=clamp(snapPos(start0+d,c.id,zoom)-start0,-start0,maxTrim);
-                c.start=Math.max(0,start0+d); c.duration=dur0-d; c.offset=offset0+d;
+                const minD=minLeftD, maxD=dur0-0.2;
+                let d=clamp(dx,minD,maxD);
+                d=clamp(snapPos(start0+d,c.id,zoom)-start0,minD,maxD);
+                c.start=Math.max(0,+(start0+d).toFixed(4));
+                c.duration=+(dur0-d).toFixed(4);
+                c.offset=+(offset0+d*sp).toFixed(4);
             }else{
                 let ns=Math.max(0,start0+dx);
                 const s1=snapPos(ns,c.id,zoom), e1=snapPos(ns+c.duration,c.id,zoom);
@@ -4365,9 +4531,11 @@ function wire(){
             }
             fresh.style.left=Math.round(c.start*zoom)+"px";
             fresh.style.width=Math.max(14,Math.round(c.duration*zoom))+"px";
+            showHint();
         };
         const up=()=>{
             fresh.classList.remove("dragging");
+            if(hint){ hint.remove(); hint=null; }
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
         };
@@ -4911,7 +5079,7 @@ async function prepareRenderOverrides(onProgress){
         if(!segs.length){ done++; continue; }
         const payload={filename:String(a.name||("clip."+(k==="audio"?"m4a":"mp4"))),
             kind:k,width:sz.w,height:sz.h,fps:Number($("expFps").value)||30,
-            segments:segs};
+            segments:segs,fadeMs:30};
         const lutHere=lutAtTime(c.start+0.02);
         if(lutHere&&lutHere.cube) payload.lut={cube:lutHere.cube,size:lutHere.size,adjust:lutHere.adjust||{}};
         const u=String(a.url||"");
@@ -5126,6 +5294,17 @@ async function recordCanvas(dur,opts,onProgress){
     state.playhead=before; seek(before);
     return blob;
 }
+async function serviceBurnSubtitles(blob,srt,filename){
+    if(!svcOnline) await pingService(2800);
+    if(!svcOnline||!ffmpegReady()) throw new Error("烧录字幕需要本机服务与 FFmpeg：请启动本机服务，或关闭「烧录字幕」改用单独导出的 SRT 外挂字幕");
+    const r=await fetch(LOCAL_SERVICE+"/api/burn-subtitles",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({filename:String(filename||exportTitle()),srt:String(srt||""),
+            dataBase64:await blobToBase64(blob)})});
+    const j=await r.json();
+    if(!j||!j.ok) throw new Error(j?(j.reason||"字幕烧录失败"):"本机服务返回异常");
+    return base64ToBlob(j.dataBase64,"video/mp4");
+}
 async function exportVideoFile(recorded,onProgress){
     const fmt=$("expFormat").value, codec=$("expCodec").value;
     const needFF=(fmt==="mov"||codec!=="h264");
@@ -5133,12 +5312,23 @@ async function exportVideoFile(recorded,onProgress){
     const blob=await recorded();
     if(!blob||!blob.size) throw new Error("没有录到画面，请确认轨道上有视频 / 图片素材并且预览窗口能显示");
     const ext=(fmt==="webm")?"webm":(fmt==="mov"?"mov":"mp4");
-    if(!needFF){ await saveBlob(blob,exportTitle()+"."+ext); return; }
-    const size=exportSize();
-    const j=await serviceExport({filename:exportTitle()+"."+ext,container:fmt,vcodec:codec,
-        width:size.w,height:size.h,fps:Number($("expFps").value)||30,bitrate:$("expBitrate").value,
-        acodec:"aac",faststart:$("expFaststart").checked,dataBase64:await blobToBase64(blob)});
-    await saveBlob(base64ToBlob(j.dataBase64,fmt==="mov"?"video/quicktime":"video/mp4"),j.filename||(exportTitle()+"."+ext));
+    let finalBlob=blob, finalName=exportTitle()+"."+ext;
+    if(needFF){
+        const size=exportSize();
+        const j=await serviceExport({filename:finalName,container:fmt,vcodec:codec,
+            width:size.w,height:size.h,fps:Number($("expFps").value)||30,bitrate:$("expBitrate").value,
+            acodec:"aac",faststart:$("expFaststart").checked,dataBase64:await blobToBase64(blob)});
+        finalBlob=base64ToBlob(j.dataBase64,fmt==="mov"?"video/quicktime":"video/mp4");
+        finalName=j.filename||finalName;
+    }
+    if($("expBurnSub")&&$("expBurnSub").checked){
+        const r=buildSubtitleText("srt");
+        if(r.count){
+            finalBlob=await serviceBurnSubtitles(finalBlob,r.text,finalName);
+            finalName=finalName.replace(/\.[^.]+$/,"")+"_字幕烧录.mp4";
+        }
+    }
+    await saveBlob(finalBlob,finalName);
 }
 async function exportGifFile(recorded){
     if(!ffmpegReady()) throw new Error("GIF 导出需要本机服务与 ffmpeg");
@@ -5191,7 +5381,9 @@ function updateExportStatus(){
     Array.from(fmt.options).forEach(o=>{ if(o.value==="mov") o.disabled=off; });
     Array.from(af.options).forEach(o=>{ if(o.value!=="wav") o.disabled=off; });
     $("expChkGif").disabled=off;
+    if($("expBurnSub")) $("expBurnSub").disabled=off;
     if(off){
+        if($("expBurnSub")) $("expBurnSub").checked=false;
         if(codec.value!=="h264") codec.value="h264";
         if(fmt.value==="mov") fmt.value="mp4";
         if(af.value!=="wav") af.value="wav";

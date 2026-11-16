@@ -49,7 +49,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -545,6 +545,12 @@ def api_guide():
             "why": "倒放(reverse+areverse)与变速(setpts+atempo 保音调)必须真正写进文件，"
                    "不能用 video.playbackRate 冒充成品效果。",
             "chunk": "每段最长 %g 秒，reverse 只缓存单段帧，长视频峰值内存恒定。" % RENDER_CHUNK_SEC,
+            "fade": "导出时每个片段首尾各加 30ms afade 淡入淡出，避免智能剪口播切段拼接处爆音；预览不受影响。",
+        },
+        "burn": {
+            "what": "POST /api/burn-subtitles 把 SRT 字幕用 FFmpeg libass/subtitles 滤镜真正烧进画面（硬字幕）。",
+            "why": "浏览器只能录屏合成，无法把文字写进画面像素；烧录在导出阶段由本机 FFmpeg 完成，任何播放器都能看到。",
+            "input": "dataBase64=已合成视频，srt=SRT 文本，filename=导出文件名；返回 dataBase64。",
         },
         "transcribe": {
             "what": "AI字幕 / 智能剪口播 的语音识别：网页把素材交给本服务，本服务用 FFmpeg 抽成 16kHz 单声道 WAV、按 60 秒切片，再逐段转发给转写接口并合并时间码。",
@@ -1642,13 +1648,22 @@ def _render_segments(ff, td, in_path, segs, opt, jid):
         cmd = [ff, "-y", "-hide_banner", "-loglevel", "error",
                "-ss", "%.6f" % float(seg["srcStart"]),
                "-t", "%.6f" % float(seg["srcLen"]), "-i", in_path]
+        af = _audio_filter(seg, pitch)
+        fade = float(opt.get("fade") or 0)
+        if fade > 0:
+            # 只在整段渲染的首段/末段加淡入淡出，等价于片段边界的 30ms 防爆音，
+            # 不会在每个 2 秒内部小段都产生不必要的音量抖动。
+            if i == 0:
+                af += ",afade=t=in:st=0:d=%.3f" % fade
+            if i == len(segs) - 1:
+                af += ",afade=t=out:st=%.3f:d=%.3f" % (max(0.0, out_len - fade), fade)
         if pure_audio:
-            cmd += ["-vn", "-af", _audio_filter(seg, pitch),
+            cmd += ["-vn", "-af", af,
                     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
         else:
             cmd += ["-vf", _video_filter(seg, w, h, fps, lut_path, lut_adj)]
             if has_audio:
-                cmd += ["-af", _audio_filter(seg, pitch),
+                cmd += ["-af", af,
                         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
             else:
                 cmd += ["-an"]
@@ -1757,8 +1772,13 @@ def _render_opt(data):
                        "contrast": num("contrast", 0.0, -50.0, 50.0),
                        "saturate": num("saturate", 0.0, -50.0, 50.0),
                        "temperature": num("temperature", 0.0, -50.0, 50.0)}
+    try:
+        # 导出接缝防爆音：毫秒转秒，限制 0~300ms；预览不走 /api/render，因此完全不受影响
+        fade = max(0.0, min(0.3, float(data.get("fadeMs", 0) or 0) / 1000.0))
+    except Exception:
+        fade = 0.0
     return out, {"kind": kind, "width": w, "height": h,
-                 "fps": _fps(data.get("fps"), 30), "lut": lut_opt}
+                 "fps": _fps(data.get("fps"), 30), "lut": lut_opt, "fade": fade}
 
 
 def api_render(body):
@@ -1906,6 +1926,74 @@ def api_export(body):
 # ----------------------------------------------------------------------------
 # HTTP Handler
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# /api/burn-subtitles —— 把字幕轨真正烧录进成片（硬字幕）
+#
+# 合成录制在浏览器里完成，字幕烧录必须走后端 FFmpeg 的 libass/subtitles 滤镜：
+# 网页把已合成的视频 Blob 与 SRT 文本一起提交，服务写成 UTF-8 SRT 后烧进画面。
+# 这样导出的每条字幕都成为画面像素，任何播放器都能看到，不依赖外挂字幕文件。
+# ----------------------------------------------------------------------------
+def api_burn_subtitles(body):
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return _fail("请求体不是合法 JSON：%s" % _short(e))
+    if not isinstance(data, dict):
+        return _fail("请求体格式不正确")
+    info = detect_ffmpeg()
+    if not info["found"]:
+        return {"ok": False, "reason": "本机未找到 FFmpeg，无法烧录字幕",
+                "ffmpegInstall": FFMPEG_INSTALL_GUIDE, "guide": FFMPEG_GUIDE}
+    srt = str(data.get("srt") or "")[:2000000].replace("\r\n", "\n").replace("\r", "\n")
+    if "-->" not in srt:
+        return _fail("字幕内容不是有效的 SRT 文本", "请先在剪辑台生成 AI 字幕或导入字幕")
+    b64 = str(data.get("dataBase64") or "")
+    if "," in b64 and b64.strip().lower().startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    if not b64:
+        return _fail("缺少已合成的视频数据")
+    td = tempfile.mkdtemp(prefix="manflows-burn-")
+    try:
+        raw = base64.b64decode(b64, validate=False)
+        if len(raw) < 16:
+            raise ValueError("视频数据为空")
+        in_path = os.path.join(td, "input.mp4")
+        srt_path = os.path.join(td, "subs.srt")
+        out_path = os.path.join(td, "burned.mp4")
+        with open(in_path, "wb") as f:
+            f.write(raw)
+        with open(srt_path, "w", encoding="utf-8") as f:
+            f.write("\ufeff" + srt if not srt.startswith("\ufeff") else srt)
+        # libass + fontconfig 会自动挑系统中文字体；force_style 仅定字号与描边
+        style = "FontName=PingFang SC,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=32"
+        if _plat() == "windows":
+            style = style.replace("PingFang SC", "Microsoft YaHei")
+        vf = "subtitles=filename='%s':force_style='%s'" % (
+            srt_path.replace("\\", "/"), style.replace("'", "\\'"))
+        cmd = [info["path"], "-y", "-hide_banner", "-loglevel", "error",
+               "-i", in_path, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
+               "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy",
+               "-movflags", "+faststart", out_path]
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                           timeout=TIMEOUT_TRANSCODE)
+        if p.returncode != 0 or not os.path.isfile(out_path) or os.path.getsize(out_path) < 128:
+            err = _scrub((p.stderr or b"").decode("utf-8", "replace"), info["path"], td)[-420:]
+            return _fail("字幕烧录失败：%s" % (err or "未生成输出"),
+                         "请确认字幕为 UTF-8 SRT、系统已安装中文字体，并重试")
+        res = _ok_file(out_path, _safe_stem(data.get("filename") or "burned") + ".mp4",
+                       "ffmpeg -vf subtitles（libass 硬字幕烧录）",
+                       ["字幕已烧进画面像素，不依赖播放器外挂字幕"])
+        res["engine"] = "本机 FFmpeg %s（libass 字幕烧录）" % (info.get("version") or "")
+        return res
+    except Exception as e:
+        return _fail("字幕烧录失败：%s" % _short(e))
+    finally:
+        try:
+            shutil.rmtree(td, ignore_errors=True)
+        except Exception:
+            pass
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "ManflowsLocal/%s" % VERSION
@@ -2105,10 +2193,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_probe(body))
             elif path == "/api/render":
                 self._send_json(api_render(body))
+            elif path == "/api/burn-subtitles":
+                self._send_json(api_burn_subtitles(body))
             else:
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用的 POST 接口：/api/resolve、/api/export、/api/probe、"
-                                      "/api/transcribe、/api/silences、/api/render"))
+                                      "/api/transcribe、/api/silences、/api/render、/api/burn-subtitles"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
