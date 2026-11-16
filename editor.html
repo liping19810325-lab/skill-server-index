@@ -11,6 +11,7 @@
     --text:#e5e7eb; --muted:#9ca3af; --blue:#2563eb; --green:#059669;
     --purple:#7c3aed; --cyan:#0891b2; --red:#dc2626; --amber:#d97706;
     --hover:#2b3241; --font-sans:"Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    --leftW:308px; --rightW:300px; --tlH:294px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-sans);overflow:hidden;}
@@ -45,12 +46,19 @@ button{cursor:pointer;}
 .tb-sep{width:1px;height:24px;background:var(--border2);margin:0 2px;}
 .spacer{flex:1 1 auto;}
 
-/* ===== 三栏工作区 ===== */
-.workspace{flex:1 1 auto;min-height:0;display:flex;}
-.side{overflow-y:auto;overflow-x:hidden;background:var(--bg);display:flex;flex-direction:column;gap:10px;padding:10px;}
-.side.left{width:308px;flex:0 0 308px;border-right:1px solid var(--border);}
-.side.right{width:300px;flex:0 0 300px;border-left:1px solid var(--border);}
+/* ===== 三栏工作区 + 可拖拽分隔条 ===== */
+.workspace{flex:1 1 auto;min-height:0;display:flex;overflow:hidden;}
+.side{overflow-y:auto;overflow-x:hidden;background:var(--bg);display:flex;flex-direction:column;gap:10px;padding:10px;min-width:0;}
+.side.left{width:var(--leftW);flex:0 0 var(--leftW);}
+.side.right{width:var(--rightW);flex:0 0 var(--rightW);}
 .center{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:10px;padding:10px;background:#0c0e14;}
+.vsplit{flex:0 0 6px;cursor:col-resize;background:var(--border);position:relative;z-index:20;touch-action:none;}
+.vsplit:hover,.vsplit.active{background:var(--green);}
+.vsplit::after{content:"";position:absolute;top:50%;left:1px;width:4px;height:36px;transform:translateY(-50%);border-radius:3px;background:rgba(255,255,255,.16);}
+.hsplit{flex:0 0 6px;cursor:row-resize;background:var(--border);position:relative;z-index:20;touch-action:none;}
+.hsplit:hover,.hsplit.active{background:var(--green);}
+.hsplit::after{content:"";position:absolute;left:50%;top:1px;height:4px;width:36px;transform:translateX(-50%);border-radius:3px;background:rgba(255,255,255,.16);}
+body.resizing,body.resizing *{user-select:none!important;cursor:inherit!important;}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px;flex-shrink:0;}
 .card h2{font-size:13px;color:#cbd5e1;font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:6px;}
 .card h2 .h2-extra{margin-left:auto;font-size:10.5px;color:var(--muted);font-weight:400;}
@@ -69,7 +77,7 @@ button{cursor:pointer;}
 .side input:focus,.side textarea:focus,.side select:focus{border-color:var(--blue);}
 .side input[type=checkbox]{width:auto;accent-color:var(--blue);}
 
-/* 素材库 Tab */
+/* 素材库：缩略图放大一倍、去掉卡片按钮，整卡可拖拽 */
 .lib-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
 .lib-tab{flex:1 1 auto;padding:6px 7px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);color:var(--muted);font-size:11px;white-space:nowrap;}
 .lib-tab:hover{background:var(--hover);}
@@ -78,19 +86,17 @@ button{cursor:pointer;}
 .import-row .mini-btn{flex:1 1 auto;}
 .drop-zone{border:1px dashed var(--border2);border-radius:8px;padding:10px 8px;text-align:center;font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:8px;transition:border-color .15s,background .15s;}
 .drop-zone.over{border-color:var(--green);background:rgba(5,150,105,.09);color:#a7f3d0;}
-.asset-list{display:flex;flex-direction:column;gap:6px;max-height:262px;overflow:auto;margin-top:8px;padding-right:2px;}
-.asset-item{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:6px 7px;}
-.asset-thumb{width:46px;height:38px;border-radius:5px;flex-shrink:0;object-fit:cover;background:#0b0d13;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;color:#93c5fd;overflow:hidden;}
-.asset-thumb img,.asset-thumb video{width:100%;height:100%;object-fit:cover;}
-.asset-meta{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px;}
-.asset-name{font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.asset-list{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:120px;max-height:520px;overflow:auto;margin-top:8px;padding-right:2px;}
+.asset-item{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:7px 8px;cursor:grab;transition:border-color .12s,background .12s,opacity .12s;}
+.asset-item:hover{border-color:#3b82f6;}
+.asset-item.sel{border-color:#60a5fa;background:#1b2740;box-shadow:0 0 0 1px rgba(96,165,250,.45) inset;}
+.asset-item.dragging{opacity:.45;cursor:grabbing;}
+.asset-thumb{width:92px;height:76px;border-radius:6px;flex-shrink:0;object-fit:contain;background:#0b0d13;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:#93c5fd;overflow:hidden;}
+.asset-thumb img,.asset-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
+.asset-meta{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:4px;}
+.asset-name{font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .asset-sub{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.asset-acts{display:flex;gap:4px;flex-shrink:0;}
-.asset-acts button{border:none;border-radius:5px;width:24px;height:24px;font-size:12px;line-height:1;background:var(--hover);color:#fff;padding:0;}
-.asset-acts button:hover{background:#4b5563;}
-.asset-acts button.add{background:var(--green);} .asset-acts button.add:hover{background:#047857;}
-.asset-acts button.del{background:var(--red);} .asset-acts button.del:hover{background:#b91c1c;}
-.src-tag{font-size:9px;padding:1px 4px;border-radius:4px;background:var(--hover);color:#c4b5fd;flex-shrink:0;}
+.asset-drag-tip{font-size:9.5px;color:#64748b;line-height:1.5;}
 .empty-line{font-size:10.5px;color:var(--muted);text-align:center;padding:16px 4px;line-height:1.7;}
 
 /* AI 面板 */
@@ -116,7 +122,8 @@ button{cursor:pointer;}
 .stage{position:relative;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 #previewVideo,#previewImage{width:100%;height:100%;object-fit:contain;display:none;background:#000;}
 #previewVideo.show,#previewImage.show{display:block;}
-#pipImage{position:absolute;right:14px;top:14px;width:20%;max-height:28%;object-fit:cover;border:2px solid rgba(255,255,255,.7);border-radius:8px;display:none;box-shadow:0 6px 20px rgba(0,0,0,.6);}
+#pipLayer{position:absolute;inset:0;pointer-events:none;}
+.pip-item{position:absolute;right:14px;width:20%;max-height:20%;object-fit:contain;border:2px solid rgba(255,255,255,.7);border-radius:8px;background:#000;box-shadow:0 6px 20px rgba(0,0,0,.6);}
 .stage-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#6b7280;font-size:12px;line-height:1.8;text-align:center;pointer-events:none;}
 .stage-empty b{color:#cbd5e1;font-size:14px;}
 .subtitle-overlay{position:absolute;left:0;right:0;bottom:7%;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;padding:0 24px;}
@@ -124,7 +131,6 @@ button{cursor:pointer;}
 .sub-line.dialogue{color:#fff;background:rgba(0,0,0,.42);}
 .sub-line.narration{color:#fde68a;background:rgba(0,0,0,.42);}
 .sub-line.inner{color:#f9a8d4;font-style:italic;background:rgba(0,0,0,.42);}
-.sub-line .sub-kind{font-size:10px;opacity:.75;margin-right:6px;font-style:normal;}
 .seek-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .seek-row input[type=range]{flex:1 1 160px;min-width:100px;accent-color:var(--green);}
 .controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
@@ -142,9 +148,6 @@ button{cursor:pointer;}
 .prop-row textarea{resize:vertical;min-height:54px;line-height:1.5;}
 .prop-row input:focus,.prop-row textarea:focus,.prop-row select:focus{border-color:var(--blue);}
 .prop-empty{font-size:11px;color:var(--muted);line-height:1.8;padding:8px 0;}
-.sub-tabs{display:flex;gap:4px;margin-bottom:8px;}
-.sub-tab{flex:1;padding:5px 3px;border:1px solid var(--border2);border-radius:6px;background:var(--panel);color:var(--muted);font-size:10.5px;white-space:nowrap;}
-.sub-tab.active{color:#fff;border-color:transparent;}
 .sub-list{display:flex;flex-direction:column;gap:5px;max-height:290px;overflow:auto;}
 .sub-item{background:var(--panel);border:1px solid var(--border2);border-radius:7px;padding:6px 7px;cursor:pointer;}
 .sub-item:hover{background:var(--hover);}
@@ -159,9 +162,22 @@ button{cursor:pointer;}
 .kv b{color:#93c5fd;font-weight:500;}
 
 /* ===== 底部时间轴 ===== */
-.timeline{height:294px;flex:0 0 294px;border-top:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;min-height:0;}
-.tl-toolbar{display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.timeline{height:var(--tlH);flex:0 0 var(--tlH);border-top:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;min-height:0;}
+.tl-toolbar{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.tl-tools{display:flex;align-items:center;gap:5px;min-width:0;}
+.tl-tools.left{flex:0 1 auto;}
+/* 注意：不要用 .center 类名——会与中间预览区的 .center{flex-direction:column} 冲突 */
+.tl-tools.mid{flex:1 1 300px;justify-content:center;flex-direction:row;flex-wrap:nowrap;padding:0;background:transparent;gap:5px;}
+.tl-tools.right{flex:0 1 auto;margin-left:auto;}
 .tl-toolbar .tb-btn{font-size:11px;}
+.tb-btn.ai-cut{background:linear-gradient(135deg,#7c3aed,#2563eb);border-color:transparent;color:#fff;font-weight:600;padding:4px 13px;}
+.tb-btn.ai-cut:hover{filter:brightness(1.14);}
+.tb-btn.ai-sub{background:linear-gradient(135deg,#0891b2,#059669);border-color:transparent;color:#fff;font-weight:600;padding:4px 13px;}
+.tb-btn.ai-sub:hover{filter:brightness(1.14);}
+.tb-btn.ai-rec{background:#b91c1c;border-color:transparent;color:#fff;font-weight:600;padding:4px 13px;}
+.tb-btn.ai-rec:hover{filter:brightness(1.14);}
+.tb-btn.ai-rec.recording{background:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.35);animation:recpulse 1.2s infinite;}
+@keyframes recpulse{50%{box-shadow:0 0 0 6px rgba(220,38,38,.12);}}
 .tl-info{font-size:10.5px;color:var(--muted);white-space:nowrap;}
 .tl-scroll{flex:1 1 auto;min-height:0;overflow:auto;position:relative;}
 .tl-inner{position:relative;min-width:100%;}
@@ -171,12 +187,17 @@ button{cursor:pointer;}
 .tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border2);}
 .tick span{position:absolute;left:4px;top:5px;font-size:9.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .track-row{display:flex;height:38px;border-bottom:1px solid var(--border);}
-.track-label{width:92px;flex:0 0 92px;position:sticky;left:0;z-index:5;background:var(--card);border-right:1px solid var(--border2);display:flex;flex-direction:column;justify-content:center;padding:0 7px;gap:2px;}
-.track-label .tl-name{font-size:10.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.track-label .tl-sub{font-size:9px;color:var(--muted);}
+.track-label{width:92px;flex:0 0 92px;position:sticky;left:0;z-index:5;background:var(--card);border-right:1px solid var(--border2);display:flex;flex-direction:column;justify-content:center;padding:0 5px;gap:2px;}
+.tl-head{display:flex;align-items:center;gap:2px;min-width:0;}
+.track-label .tl-name{font-size:10.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;}
+.tl-ops{display:flex;gap:1px;flex-shrink:0;}
+.tl-ops button{border:none;background:var(--hover);color:#cbd5e1;border-radius:3px;width:14px;height:14px;font-size:10px;line-height:1;padding:0;}
+.tl-ops button:hover{background:var(--blue);color:#fff;}
+.tl-ops button.tkdel:hover{background:var(--red);}
+.track-label .tl-sub{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .track-label .tl-bar{height:3px;width:26px;border-radius:2px;}
 .lane{position:relative;flex:1 1 auto;min-width:0;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(var(--grid-step) - 1px),rgba(47,52,64,.55) calc(var(--grid-step) - 1px),rgba(47,52,64,.55) var(--grid-step));cursor:crosshair;}
-.lane.drag-over{background-color:rgba(37,99,235,.12);}
+.lane.drag-over{background-color:rgba(37,99,235,.16);box-shadow:inset 0 0 0 2px #60a5fa;}
 .clip{position:absolute;top:4px;height:30px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;user-select:none;cursor:grab;z-index:2;}
 .clip:hover{filter:brightness(1.12);}
 .clip.sel{border:2px solid #fff;box-shadow:0 0 0 2px rgba(96,165,250,.55);z-index:3;}
@@ -204,6 +225,9 @@ button{cursor:pointer;}
 .modal-body pre{background:#0b0d13;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;overflow:auto;font-size:11px;line-height:1.65;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;}
 .modal-body ul{padding-left:20px;margin:6px 0;}
 .modal-body li{margin:4px 0;}
+.modal-body table{border-collapse:collapse;width:100%;font-size:11.5px;margin:8px 0;}
+.modal-body th,.modal-body td{border:1px solid var(--border2);padding:5px 8px;text-align:left;vertical-align:top;}
+.modal-body th{background:var(--panel);color:#cbd5e1;font-weight:500;}
 .help-contact-box,.help-workbuddy-box{background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;margin:6px 0 12px;}
 .help-contact-box p{margin:5px 0;}
 .help-model-file{color:#a7f3d0;font-size:11.5px;}
@@ -233,21 +257,22 @@ button{cursor:pointer;}
         <button class="nav-btn" id="navIndex" title="打开漫流编导创作台">← 编导创作台</button>
         <button class="nav-btn" id="navCanvas" title="返回漫流导演画布">← 返回画布</button>
         <div class="tb-sep"></div>
-        <button class="tb-btn primary" id="topImport">＋ 导入素材</button>
+        <button class="tb-btn primary" id="topImport" title="导入素材 (Ctrl+I)">＋ 导入素材</button>
         <button class="tb-btn purple" id="topUrl">🔗 粘贴在线 URL</button>
-        <button class="tb-btn green" id="topSave">💾 保存工程</button>
-        <button class="tb-btn" id="topOpen">📂 打开工程</button>
-        <button class="tb-btn cyan" id="topSrt">⬇ 导出字幕 SRT</button>
+        <button class="tb-btn green" id="topSave" title="保存工程 (Ctrl+S)">💾 保存工程</button>
+        <button class="tb-btn" id="topOpen" title="打开工程 (Ctrl+O)">📂 打开工程</button>
+        <button class="tb-btn cyan" id="topSrt" title="导出字幕 SRT (Ctrl+E)">⬇ 导出字幕 SRT</button>
         <div class="tb-sep"></div>
-        <button class="tb-btn" id="topDemo">↺ 重置演示工程</button>
+        <button class="tb-btn" id="resetLayout" title="把三栏宽度与时间轴高度恢复为初始尺寸">↺ 恢复初始化布局</button>
+        <button class="tb-btn" id="topDemo">重置演示工程</button>
         <button class="tb-btn" id="topHelp">📖 使用帮助</button>
         <span class="spacer"></span>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         <span class="tl-info" id="saveState">工程自动保存</span>
     </header>
 
-    <div class="workspace">
-        <aside class="side left">
+    <div class="workspace" id="workspace">
+        <aside class="side left" id="sideLeft">
             <div class="card">
                 <h2>素材库 <span class="h2-extra" id="assetCount">0 个素材</span></h2>
                 <div class="lib-tabs" id="libTabs">
@@ -262,12 +287,30 @@ button{cursor:pointer;}
                     <button class="mini-btn purple" id="importUrl">🔗 粘贴 URL</button>
                 </div>
                 <div class="drop-zone" id="dropZone">把本地 <b>文本 / 图片 / 视频 / 声音</b> 拖到这里<br>也可以直接拖入一个在线文件 URL</div>
-                <div class="hint">支持 <b>.txt .md .srt .vtt</b> 台词 / 字幕、<b>.png .jpg .webp</b>、<b>.mp4 .webm .mov</b>、<b>.mp3 .wav .m4a</b>。文本与字幕点「＋ 加入轨道」会按对白 / 旁白 / 内心独白自动分到三条字幕层。</div>
+                <div class="hint">缩略图已放大；<b>按住素材拖到下方对应轨道</b>即可剪辑，双击则自动放到该类轨道。单击选中后按 <code>Delete</code> 删除素材。支持 <b>.txt .md .srt .vtt / .png .jpg .webp / .mp4 .webm .mov / .mp3 .wav .m4a</b>。</div>
                 <div class="asset-list" id="assetList"></div>
             </div>
 
             <div class="card">
-                <h2>AI 自动剪辑 <span class="h2-extra">语音 → 字幕层</span></h2>
+                <h2>AI 剪辑 · 模型配置 <span class="h2-extra">需强多模态模型</span></h2>
+                <div class="hint warn">「✨ AI剪辑」会把整条时间轴结构、素材信息与视频抽帧交给大模型自主决策，需要 <b>Claude / GPT-4o / Gemini 等综合能力强的多模态大模型</b>；小参数本地模型通常无法稳定输出可执行方案。</div>
+                <div class="row" style="margin-top:0"><label>模型来源</label></div>
+                <select id="aiSrc">
+                    <option value="profile">复用创作台 / 画布「第三方API」当前配置</option>
+                    <option value="local">复用「本机算力」已接通的大语言模型</option>
+                    <option value="custom">自定义接口（下面手填）</option>
+                </select>
+                <div id="aiCustom" style="display:none;margin-top:7px">
+                    <input type="text" id="aiEndpoint" placeholder="完整接口地址 https://.../v1/chat/completions">
+                    <input type="text" id="aiKey" placeholder="API Key（本机服务可留空）" style="margin-top:5px">
+                    <input type="text" id="aiModel" placeholder="模型名，如 gpt-4o / claude-sonnet-4" style="margin-top:5px">
+                </div>
+                <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="aiFrames" checked> 附上视频抽帧 / 图片缩略图（多模态视觉输入）</label></div>
+                <div class="ai-state" id="aiEditState">配置好模型后，点时间轴上方居中的「✨ AI剪辑」自动分析轨道并生成剪辑方案。</div>
+            </div>
+
+            <div class="card">
+                <h2>AI 字幕 · 语音识别 <span class="h2-extra">→ 字幕轨</span></h2>
                 <div class="row" style="margin-top:0"><label>识别引擎</label></div>
                 <select id="asrEngine">
                     <option value="demo">演示识别（内置漫剧台词，无需服务）</option>
@@ -283,10 +326,10 @@ button{cursor:pointer;}
                 </div>
                 <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="asrKeep"> 保留已有字幕，只往空白段补充</label></div>
                 <div class="row">
-                    <button class="mini-btn green" id="asrRun" style="flex:1">🎙 识别语音并生成三条字幕层</button>
+                    <button class="mini-btn green" id="asrRun" style="flex:1">🎙 识别语音并生成字幕</button>
                 </div>
-                <div class="ai-stat" id="aiStat"><span>对白 0</span><span>旁白 0</span><span>内心独白 0</span></div>
-                <div class="ai-state" id="aiState">选择主画面轨上的视频片段后点识别；演示识别可直接体验完整链路。</div>
+                <div class="ai-stat" id="aiStat"><span>字幕轨 0</span><span>字幕 0</span><span>对白 0</span><span>旁白 0</span><span>内心独白 0</span></div>
+                <div class="ai-state" id="aiState">会自动识别轨道上视频、音频里的对白 / 旁白 / 内心独白，按时间码写成统一字幕轨；演示识别可直接体验完整链路。</div>
             </div>
 
             <div class="card">
@@ -301,42 +344,43 @@ button{cursor:pointer;}
             </div>
         </aside>
 
-        <section class="center">
+        <div class="vsplit" id="splitLeft" data-side="left" title="拖动调整素材库宽度"></div>
+
+        <section class="center" id="centerPane">
             <div class="player-head">
                 <h2>预览</h2>
-                <span class="ph-extra" id="playerMode">主画面 + 音乐 + 三层字幕 同步预览</span>
+                <span class="ph-extra" id="playerMode">字幕 / 图片 / 视频 / 音频 多层同步预览</span>
             </div>
             <div class="stage-wrap">
                 <div class="stage" id="stage">
                     <video id="previewVideo" playsinline preload="auto"></video>
                     <img id="previewImage" alt="画面">
-                    <img id="pipImage" alt="图片叠加">
-                    <div class="stage-empty" id="stageEmpty"><b>把素材加入下方剪辑轨道</b>或直接导入一个本地视频<br>导入后可播放、剪断、加字幕</div>
+                    <div id="pipLayer"></div>
+                    <div class="stage-empty" id="stageEmpty"><b>把素材库的文件拖到下方轨道</b>或直接导入一个本地视频<br>导入后可播放、剪断、加字幕</div>
                     <div class="subtitle-overlay" id="subOverlay"></div>
                 </div>
             </div>
             <div class="controls">
-                <button class="ctrl" id="btnStart" title="回到开头">⏮</button>
-                <button class="ctrl play" id="btnPlay">▶ 播放</button>
-                <button class="ctrl" id="btnEnd" title="跳到结尾">⏭</button>
+                <button class="ctrl" id="btnStart" title="回到开头 (Home)">⏮</button>
+                <button class="ctrl play" id="btnPlay" title="播放 / 暂停 (Space)">▶ 播放</button>
+                <button class="ctrl" id="btnEnd" title="跳到结尾 (End)">⏭</button>
                 <span class="time-label" id="timeLabel">00:00.0 / 00:00.0</span>
                 <div class="vol-row">🔊<input type="range" id="volRange" min="0" max="1" step="0.01" value="0.8"></div>
             </div>
             <div class="seek-row"><input type="range" id="seekRange" min="0" max="30" step="0.01" value="0"></div>
         </section>
 
-        <aside class="side right">
+        <div class="vsplit" id="splitRight" data-side="right" title="拖动调整属性面板宽度"></div>
+
+        <aside class="side right" id="sideRight">
             <div class="card">
                 <h2>选中片段属性</h2>
-                <div id="propBox"><div class="prop-empty">点时间轴上任意一个片段，可在这里改名称、起止时间、时长、素材切入点，以及字幕文字与类型。</div></div>
+                <div id="propBox"><div class="prop-empty">点时间轴上任意一个片段，可在这里改名称、起止时间、时长、素材切入点，以及字幕文字与类型标签。</div></div>
             </div>
             <div class="card">
                 <h2>字幕层 <span class="h2-extra" id="subCount">0 条</span></h2>
-                <div class="sub-tabs" id="subTabs">
-                    <button class="sub-tab active" data-sub="dialogue" style="background:#0891b2;color:#fff">对白</button>
-                    <button class="sub-tab" data-sub="narration">旁白</button>
-                    <button class="sub-tab" data-sub="inner">内心独白</button>
-                </div>
+                <div class="row" style="margin-top:0"><label style="flex:0 0 52px;font-size:11px">字幕轨</label><select id="subTrackSel" style="flex:1"></select></div>
+                <div class="hint" style="margin:0 0 5px">字幕不再按对白 / 旁白 / 内心独白分轨，全部放在字幕轨上，由你自己决定内容和位置；类型只是可选标签。</div>
                 <div class="sub-list" id="subList"></div>
                 <div class="row"><button class="mini-btn" id="addSub" style="flex:1">＋ 新增一条空白字幕</button></div>
             </div>
@@ -348,18 +392,30 @@ button{cursor:pointer;}
         </aside>
     </div>
 
-    <section class="timeline">
+    <div class="hsplit" id="splitTimeline" title="拖动调整剪辑轨道高度"></div>
+
+    <section class="timeline" id="timeline">
         <div class="tl-toolbar">
-            <button class="tb-btn" id="splitBtn" title="在播放头处剪断选中片段（S）">✂ 在播放头剪断</button>
-            <button class="tb-btn" id="delBtn" title="删除选中片段（Delete）">🗑 删除片段</button>
-            <button class="tb-btn" id="undoBtn" title="撤销（Ctrl+Z）">↶</button>
-            <button class="tb-btn" id="redoBtn" title="重做（Ctrl+Shift+Z）">↷</button>
-            <div class="tb-sep"></div>
-            <button class="tb-btn" id="zoomOut">−</button><span class="tl-info" id="zoomLabel">36 px/s</span><button class="tb-btn" id="zoomIn">＋</button>
-            <div class="tb-sep"></div>
-            <span class="tl-info" id="tlInfo">共 6 轨</span>
-            <span class="spacer"></span>
-            <span class="tl-info">Space 播放 · S 剪断 · ← → 微调 · 拖片段移动 · 拖右边缘裁切</span>
+            <div class="tl-tools left">
+                <button class="tb-btn" id="quickImport" title="导入素材 (Ctrl+I)">＋ 导入</button>
+                <button class="tb-btn" id="splitBtn" title="分割 / 剪断 (Ctrl+B，兼容 S)">✂ 分割</button>
+                <button class="tb-btn" id="delBtn" title="删除选中 (Delete)">🗑 删除</button>
+                <button class="tb-btn" id="copyBtn" title="复制 (Ctrl+C)">⧉ 复制</button>
+                <button class="tb-btn" id="pasteBtn" title="粘贴 (Ctrl+V)">📋 粘贴</button>
+                <button class="tb-btn" id="undoBtn" title="撤销 (Ctrl+Z)">↶</button>
+                <button class="tb-btn" id="redoBtn" title="重做 (Ctrl+Shift+Z)">↷</button>
+                <button class="tb-btn" id="addTrackBtn" title="新建一条轨道">＋ 轨道</button>
+            </div>
+            <div class="tl-tools mid">
+                <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：自动分析轨道素材并完成剪辑（需 Claude / GPT 等强多模态大模型）">✨ AI剪辑</button>
+                <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
+                <button class="tb-btn ai-rec" id="recBtn" title="录音：调用电脑麦克风，结束后自动加入音频轨">⏺ 录音</button>
+            </div>
+            <div class="tl-tools right">
+                <button class="tb-btn" id="zoomOut" title="缩小时间轴 (-)">−</button><span class="tl-info" id="zoomLabel">36 px/s</span><button class="tb-btn" id="zoomIn" title="放大时间轴 (+)">＋</button>
+                <span class="tl-info" id="tlInfo">共 0 轨</span>
+                <button class="tb-btn" id="keyHelpBtn" title="查看全部快捷键">⌨ 快捷键</button>
+            </div>
         </div>
         <div class="tl-scroll" id="tlScroll">
             <div class="tl-inner" id="tlInner">
@@ -390,28 +446,43 @@ button{cursor:pointer;}
             </div>
             <h2 class="help-part-title">三、漫流 AI 剪辑台 使用说明书</h2>
             <p>漫流 AI 剪辑台已并入站点，与<b>编导创作台</b>、<b>导演画布</b>三页互通：三页顶部都有互链按钮，点一下即可切换。本页可直接读取导演画布本机生成的历史结果，把视频 / 图片一键转入素材库或当天剪辑轨道。所有素材与工程只存本机，不上传服务器。</p>
-            <h2>① 素材库：四类本地文件 + 在线 URL</h2>
+            <h2>① 板块大小可自由调整</h2>
             <ul>
-                <li>点「＋ 导入素材」「＋ 上传本地文件」，或把文件拖进虚线框：支持<b>文本</b>（.txt / .md / .srt / .vtt）、<b>图片</b>（.png / .jpg / .webp）、<b>视频</b>（.mp4 / .webm / .mov）、<b>声音</b>（.mp3 / .wav / .m4a）。顶部 Tab 可切「全部 / 视频 / 图片库 / 音乐库 / 文本」。</li>
-                <li>点「🔗 粘贴在线 URL」可粘贴<b>一行一个</b>在线文件地址，自动按扩展名判类型，也能手动指定；在线字幕 / 台词文件会尝试读取文本内容（跨域读不到时会给出提示，可改用本地上传）。</li>
-                <li>每个素材点 <b>＋</b> 加入剪辑轨道：视频 / 图片进主画面或图片叠加轨，声音进音乐轨，<b>文本与 SRT/VTT 会自动拆成一条条字幕</b>，按对白 / 旁白 / 内心独白分到三条独立字幕层。</li>
-                <li>素材点 <b>▶</b> 可单独预览，点 <b>×</b> 移除。本地大文件只存本机 IndexedDB，不上传服务器。</li>
+                <li>三栏之间有两条<b>竖向分隔条</b>，工作区与剪辑轨道之间有一条<b>横向分隔条</b>：鼠标按住拖动即可改变大小，相邻板块会自动补足让出的空位，整页始终填满、不留空白。</li>
+                <li>调整后的尺寸记在本机，下次打开仍然保留；点顶栏「↺ 恢复初始化布局」一键回到初始尺寸。</li>
             </ul>
-            <h2>② AI 自动剪辑：语音 → 三条字幕层</h2>
+            <h2>② 素材库：拖进轨道就能剪</h2>
             <ul>
-                <li><b>演示识别</b>：用内置漫剧台词演示完整链路，选中主画面片段后点识别，自动生成带时间码的对白 / 旁白 / 内心独白三条字幕轨。</li>
-                <li><b>本机 Whisper / 第三方 API</b>：填任意 OpenAI 兼容的 <code>/v1/audio/transcriptions</code> 地址（本机 faster-whisper-server 或云端），上传选中视频 / 音频文件转写，返回 <code>segments</code> 的时间码后自动分类成三层字幕。跨域服务需要自己开 CORS。</li>
-                <li><b>浏览器麦克风实时听写</b>：实验功能，用浏览器自带语音识别把当场说的话写成字幕（Chrome 需可访问其语音服务）。</li>
-                <li>分类规则可人工改：右侧字幕层里每条都能改文字、改类型、改起止时间；含「心想 / 心里 / 括号内」判内心独白，含场景 / 时间描述判旁白，其余判对白。</li>
+                <li>点「＋ 导入素材」「＋ 上传本地文件」，或把文件拖进虚线框：支持<b>文本</b>（.txt / .md / .srt / .vtt）、<b>图片</b>（.png / .jpg / .webp）、<b>视频</b>（.mp4 / .webm / .mov）、<b>声音</b>（.mp3 / .wav / .m4a）。顶部 Tab 可切「全部 / 视频 / 图片库 / 音乐库 / 文本」。点「🔗 粘贴在线 URL」可一行一个粘贴在线文件地址。</li>
+                <li>每个素材的预览缩略图已<b>放大一倍</b>，卡片上不再放演示、＋、播放、删除按钮：按住素材<b>拖到下方对应类型的轨道</b>即可放到鼠标落点的时间位置；<b>双击</b>则自动放到该类轨道的播放头处。</li>
+                <li><b>单击</b>选中素材（蓝色高亮），按 <code>Delete</code> / <code>Backspace</code> 删除；文本与 SRT/VTT 会自动拆成一条条字幕落到字幕轨。本地大文件只存本机 IndexedDB，不上传服务器。</li>
             </ul>
-            <h2>③ 剪辑轨道与人工剪断</h2>
+            <h2>③ 轨道自适应：字幕 → 图片 → 视频 → 音频</h2>
             <ul>
-                <li>六条轨道：<b>主画面·视频</b>、<b>图片叠加</b>、<b>音乐 / 声音</b>、<b>对白字幕</b>、<b>旁白字幕</b>、<b>内心独白</b>。主画面轨也接受图片当静帧使用。</li>
-                <li>点标尺 / 轨道空白处移动播放头；<b>拖动片段</b>改位置，<b>拖右边缘</b>裁切长度；片段上的小剪刀可在点击位置直接剪断；工具条「✂ 在播放头剪断」只剪选中片段（没选中时自动挑播放头处的片段）。视频 / 音乐 / 字幕都能剪。</li>
-                <li>右侧「选中片段属性」可精确改起止时间、素材内切入点、字幕文字与类型；<code>Delete</code> 删除，<code>Ctrl+Z / Ctrl+Shift+Z</code> 撤销重做，<code>Space</code> 播放暂停，<code>S</code> 剪断，<code>← →</code> 微调播放头。</li>
-                <li>预览区会同步播放主画面、音乐，并把三条字幕层叠加在画面上（对白白字 / 旁白黄字 / 内心独白粉字斜体）。「⬇ 导出字幕 SRT」把三层字幕合并导出。</li>
+                <li>轨道不再固定六条，改为<b>按你拖入的素材类型自动生成</b>：同类素材可以有多条轨道，拖入时优先复用该类轨道上与落点不重叠的空位，都占满了就自动新建一条同类轨道；拖到类型不符的轨道会自动改放到正确类型的轨道并提示。</li>
+                <li>层级固定为<b>最上层字幕（文本）→ 图片 → 视频 → 最下层音轨</b>，新轨道自动插在所属分组里。<b>字幕层不再区分对白 / 旁白 / 内心独白</b>，全部由你自己决定放哪条字幕轨、写什么内容；单条字幕只保留一个可选「类型标签」用于颜色与 SRT 标注。</li>
+                <li>轨道名右侧的 <b>＋</b> 新建一条同类型轨道、<b>×</b> 删除该空轨道（有片段时先删片段）；工具条「＋ 轨道」可直接选类型新建。旧工程里原来的对白 / 旁白 / 内心独白三条字幕轨会自动合并成一条字幕轨，片段不丢失。</li>
             </ul>
-            <h2>④ 从导演画布一键转入</h2>
+            <h2>④ 三个 AI 按钮（剪辑轨道上方居中）</h2>
+            <ul>
+                <li><b>✨ AI剪辑</b>：把整条时间轴的轨道结构、每段素材的名称 / 类型 / 时间码，以及勾选后的<b>视频抽帧、图片缩略图</b>一起发给多模态大模型，让它自主判断节奏、删减、裁切、移动、补字幕，返回一份可预览的剪辑方案，确认后一键应用到轨道（<code>Ctrl+Z</code> 可撤销）。<b>这项功能需要 Claude / GPT-4o / Gemini 等综合能力强的多模态大模型</b>；可在左侧「AI 剪辑 · 模型配置」里复用创作台 / 画布已保存的第三方 API 配置、本机算力配置，或自定义接口。未配置时会弹窗提醒去哪配置；模型不支持视觉输入时会自动降级为纯轨道数据分析。</li>
+                <li><b>🅰 AI字幕</b>：自动识别轨道上视频、音频中的对白 / 旁白 / 内心独白，按时间码转成字幕，放到对应位置的字幕轨。三种识别引擎：<b>演示识别</b>（内置漫剧台词，无需服务）、<b>本机 Whisper / 第三方 API</b>（任意 OpenAI 兼容 <code>/v1/audio/transcriptions</code>）、<b>浏览器麦克风实时听写</b>（实验）。识别结果可在右侧字幕层逐条改文字、起止时间与类型标签。</li>
+                <li><b>⏺ 录音</b>：调用电脑的麦克风输入，再点一次「⏹ 停止录音」即结束，录音文件自动加入素材库并放到当前播放头位置的音频轨。</li>
+            </ul>
+            <h2>⑤ 剪映风格按钮与快捷键</h2>
+            <p>剪辑工具条按剪映的排布重排（导入 / 分割 / 删除 / 复制 / 粘贴 / 撤销 / 重做 / 新建轨道 + 缩放），每个按钮悬停可看快捷键。</p>
+            <table>
+                <tr><th>功能</th><th>快捷键</th><th>功能</th><th>快捷键</th></tr>
+                <tr><td>播放 / 暂停</td><td><code>Space</code></td><td>分割（剪断）</td><td><code>Ctrl/⌘ + B</code>（兼容 <code>S</code>）</td></tr>
+                <tr><td>删除选中片段 / 素材</td><td><code>Delete</code> / <code>Backspace</code></td><td>撤销 / 重做</td><td><code>Ctrl/⌘ + Z</code> / <code>Ctrl/⌘ + Shift + Z</code></td></tr>
+                <tr><td>复制 / 剪切 / 粘贴</td><td><code>Ctrl/⌘ + C</code> / <code>Ctrl/⌘ + X</code> / <code>Ctrl/⌘ + V</code></td><td>全选片段</td><td><code>Ctrl/⌘ + A</code></td></tr>
+                <tr><td>保存 / 打开工程</td><td><code>Ctrl/⌘ + S</code> / <code>Ctrl/⌘ + O</code></td><td>导入素材 / 导出 SRT</td><td><code>Ctrl/⌘ + I</code> / <code>Ctrl/⌘ + E</code></td></tr>
+                <tr><td>回到开头 / 结尾</td><td><code>Home</code> / <code>End</code></td><td>播放头逐帧 / 逐秒</td><td><code>← →</code> / <code>Shift + ← →</code></td></tr>
+                <tr><td>放大 / 缩小时间轴</td><td><code>+</code> / <code>-</code></td><td>关闭弹窗</td><td><code>Esc</code></td></tr>
+                <tr><td>按住 Shift 点片段</td><td>多选片段</td><td>拖片段 / 拖右边缘</td><td>移动 / 裁切长度</td></tr>
+            </table>
+            <p>点标尺或轨道空白处移动播放头；片段上的小剪刀可在点击位置直接剪断。预览区会同步播放主画面视频、混播所有音频轨、叠加所有图片层与字幕层。「⬇ 导出字幕 SRT」把所有字幕轨合并导出。</p>
+            <h2>⑥ 从导演画布一键转入</h2>
             <p>左侧「⇢ 扫描画布生成结果」会读取本机画布的 IndexedDB 历史结果（<code>manflows_canvas_db / canvas / __global__ / history</code>），列出生成过的视频与图片，每项可<b>转入素材库</b>或<b>直接放进当天剪辑轨道</b>。画布结果页后续要加的转入按钮，也会走下面这个通道（三页已同域，通道现已生效）：</p>
             <pre>function sendToEditor(d, target){
   const p = { id:"cv_"+Date.now(), source:"canvas", type:d.kind,
@@ -421,8 +492,8 @@ button{cursor:pointer;}
   window.open("./editor.html?fromCanvas=1","_blank");
 }</pre>
             <p>剪辑台同时监听 <code>BroadcastChannel("manflows_ai_editor")</code>、<code>storage</code> 收件箱与 <code>postMessage</code>，也暴露了 <code>window.ManflowsAIEditor.receiveFromCanvas(payload)</code> 供直接调用。本地单文件预览与线上站点不同源，读不到线上画布数据时可用「模拟转入」查看效果；部署到 www.manflows.com 同目录后即自动读得到。</p>
-            <h2>⑤ 当天工程</h2>
-            <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道与字幕自动存在本机；「💾 保存工程」手动存，「📂 打开工程」可切到其它日期，「⬇ 导出工程 JSON」可备份，「↺ 重置演示工程」回到内置示例。</p>
+            <h2>⑦ 当天工程</h2>
+            <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道、字幕与素材自动存在本机；「💾 保存工程」手动存，「📂 打开工程」可切到其它日期，「⬇ 导出工程 JSON」可备份，「重置演示工程」回到内置示例。</p>
         </div>
     </div>
 </div>
@@ -451,13 +522,43 @@ button{cursor:pointer;}
     </div>
 </div>
 
+<!-- AI 剪辑 · 配置提醒 -->
+<div class="modal-overlay" id="aiSetupModal">
+    <div class="modal-box" style="width:min(640px,100%)">
+        <div class="modal-head">✨ AI 剪辑 · 需要强多模态大模型<button class="mh-close" data-close="aiSetupModal">×</button></div>
+        <div class="modal-body" id="aiSetupBody"></div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" data-close="aiSetupModal">知道了</button>
+            <button class="mini-btn purple" id="aiGoIndex">去创作台配置第三方 API</button>
+            <button class="mini-btn green" id="aiGoLocal">去画布接本机算力</button>
+        </div>
+    </div>
+</div>
+
+<!-- AI 剪辑 · 方案预览 -->
+<div class="modal-overlay" id="aiPlanModal">
+    <div class="modal-box" style="width:min(780px,100%)">
+        <div class="modal-head">✨ AI 剪辑方案（确认后才应用到轨道）<button class="mh-close" data-close="aiPlanModal">×</button></div>
+        <div class="modal-body" id="aiPlanBody"></div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" data-close="aiPlanModal">暂不应用</button>
+            <button class="mini-btn green" id="aiPlanApply">✔ 应用方案到轨道（可 Ctrl+Z 撤销）</button>
+        </div>
+    </div>
+</div>
+
 <div class="menu-pop" id="demoMenu">
     <button data-demo="library">转入 AI 剪辑台素材库</button>
-    <button data-demo="timeline">转入当天剪辑轨道（主画面）</button>
+    <button data-demo="timeline">转入当天剪辑轨道</button>
+</div>
+<div class="menu-pop" id="trackMenu">
+    <button data-kind="text">＋ 字幕 / 文本轨（最上层）</button>
+    <button data-kind="image">＋ 图片轨</button>
+    <button data-kind="video">＋ 视频轨</button>
+    <button data-kind="audio">＋ 音频轨（最下层）</button>
 </div>
 <div id="toast"></div>
 <input type="file" id="fileInput" multiple hidden accept="video/*,audio/*,image/*,.txt,.md,.srt,.vtt,.json,text/plain">
-<audio id="previewAudio" preload="auto"></audio>
 
 <script>
 "use strict";
@@ -465,7 +566,8 @@ button{cursor:pointer;}
    漫流 AI 剪辑台（站点正式页 editor.html）
    - 与 index.html / canvas.html 同一套色板与交互语言，三页顶部互链
    - 数据全部留在本机：IndexedDB 存媒体 Blob，localStorage 存工程结构
-   - 同源读取导演画布的历史生成结果，支持一键转入素材库 / 当天轨道
+   - 轨道按素材类型自适应：字幕 → 图片 → 视频 → 音频，同类可多层
+   - 三栏 / 时间轴可拖拽调整；剪映风格按钮与快捷键
    ============================================================ */
 
 const MF_EDITOR_CHANNEL = "manflows_ai_editor";
@@ -473,25 +575,38 @@ const MF_EDITOR_INBOX   = "manflows_ai_editor_inbox";
 const MF_CANVAS_DB      = "manflows_canvas_db";
 const MF_EDITOR_DB      = "manflows_ai_editor_db";
 const PROJECT_PREFIX    = "manflows_ai_editor_project_";
+const LAYOUT_KEY        = "manflows_ai_editor_layout";
+const AI_CFG_KEY        = "manflows_ai_editor_ai_cfg";
 const LABEL_W           = 92;
+const DEF_LAYOUT        = {left:308, right:300, tl:294};
 
-const TRACKS = [
-    {id:"V1", label:"主画面 · 视频", sub:"视频 / 静帧",   kind:"video",    color:"#2563eb"},
-    {id:"P1", label:"图片叠加",     sub:"画中画",         kind:"image",    color:"#7c3aed"},
-    {id:"A1", label:"音乐 / 声音",  sub:"BGM / 音效",      kind:"audio",    color:"#059669"},
-    {id:"S1", label:"对白字幕",     sub:"dialogue",        kind:"subtitle", color:"#0891b2", subKind:"dialogue"},
-    {id:"S2", label:"旁白字幕",     sub:"narration",       kind:"subtitle", color:"#d97706", subKind:"narration"},
-    {id:"S3", label:"内心独白",     sub:"inner",           kind:"subtitle", color:"#db2777", subKind:"inner"}
-];
+/* 四类轨道：数组顺序即渲染层级（上 → 下） */
+const TK_ORDER = ["text","image","video","audio"];
+const TK_NAME  = {text:"字幕", image:"图片", video:"视频", audio:"音频"};
+const TK_COLOR = {text:"#0891b2", image:"#7c3aed", video:"#2563eb", audio:"#059669"};
+const TK_ICON  = {text:"🅰", image:"🖼", video:"🎬", audio:"🎵"};
 const SUB_NAME = {dialogue:"对白", narration:"旁白", inner:"内心独白"};
-const TRACK_OF_SUB = {dialogue:"S1", narration:"S2", inner:"S3"};
+/* 旧六轨工程迁移到四条初始轨 */
+const LEGACY_TRACK = {V1:"tk_video1", P1:"tk_image1", A1:"tk_audio1", S1:"tk_text1", S2:"tk_text1", S3:"tk_text1"};
+const LEGACY_SUB   = {S1:"dialogue", S2:"narration", S3:"inner"};
+
+function defaultTracks(){
+    return [
+        {id:"tk_text1",  kind:"text",  label:"字幕 1", order:0},
+        {id:"tk_image1", kind:"image", label:"图片 1", order:0},
+        {id:"tk_video1", kind:"video", label:"视频 1", order:0},
+        {id:"tk_audio1", kind:"audio", label:"音频 1", order:0}
+    ];
+}
 
 let state = {
-    date: todayStr(), zoom:36, playhead:0, tab:"all", subTab:"dialogue",
-    assets:[], clips:[], selected:null
+    date: todayStr(), zoom:36, playhead:0, tab:"all",
+    assets:[], clips:[], tracks:defaultTracks(),
+    selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1"
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
-let toastTimer=0, subCache="", canvasResults=[];
+let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
+let pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
 const $ = id => document.getElementById(id);
 
 /* ---------- 通用小工具 ---------- */
@@ -501,11 +616,18 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function fmt(t){ t=Math.max(0,Number(t)||0); const m=Math.floor(t/60), s=t-m*60; return String(m).padStart(2,"0")+":"+s.toFixed(1).padStart(4,"0"); }
 function fmtSize(n){ n=Number(n)||0; return n>1048576 ? (n/1048576).toFixed(1)+" MB" : (n>1024 ? Math.round(n/1024)+" KB" : n+" B"); }
-function toast(msg, kind){ const el=$("toast"); el.textContent=msg; el.className="show"+(kind?" "+kind:""); clearTimeout(toastTimer); toastTimer=setTimeout(()=>{el.className="";},2600); }
-function trackById(id){ return TRACKS.find(t=>t.id===id); }
-function assetById(id){ return state.assets.find(a=>a.id===id); }
-function clipById(id){ return state.clips.find(c=>c.id===id); }
-function selectedClip(){ return state.selected ? clipById(state.selected) : null; }
+function toast(msg, kind){ const el=$("toast"); el.textContent=msg; el.className="show"+(kind?" "+kind:""); clearTimeout(toastTimer); toastTimer=setTimeout(()=>{el.className="";},2800); }
+function orderedTracks(){
+    return state.tracks.slice().sort((a,b)=>
+        (TK_ORDER.indexOf(a.kind)-TK_ORDER.indexOf(b.kind)) || ((a.order||0)-(b.order||0)) || (a.id<b.id?-1:1));
+}
+function trackById(id){ return state.tracks.find(t=>t.id===id)||null; }
+function trackKind(id){ const t=trackById(id); return t?t.kind:""; }
+function textTracks(){ return orderedTracks().filter(t=>t.kind==="text"); }
+function assetById(id){ return state.assets.find(a=>a.id===id)||null; }
+function clipById(id){ return state.clips.find(c=>c.id===id)||null; }
+function selectedClip(){ return state.selected?clipById(state.selected):null; }
+function selectedIds(){ return state.multi.length?state.multi.slice():(state.selected?[state.selected]:[]); }
 function totalDuration(){ let m=30; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return Math.ceil(m+4); }
 function contentWidth(){ return totalDuration()*state.zoom; }
 
@@ -538,6 +660,58 @@ async function canvasHistory(){
     return new Promise(res=>{ try{ const tx=db.transaction("canvas","readonly"); const r=tx.objectStore("canvas").get("__global__");
         r.onsuccess=()=>{db.close();res(Array.isArray(r.result&&r.result.history)?r.result.history:[]);};
         r.onerror=()=>{db.close();res([]);}; }catch(e){ db.close(); res([]); } });
+}
+
+/* ---------- 可调布局 ---------- */
+function loadLayout(){
+    let L=Object.assign({},DEF_LAYOUT);
+    try{ const p=JSON.parse(safeStorage.get(LAYOUT_KEY)||"null"); if(p&&typeof p==="object"){
+        L.left=clamp(Number(p.left)||DEF_LAYOUT.left,180,620);
+        L.right=clamp(Number(p.right)||DEF_LAYOUT.right,180,620);
+        L.tl=clamp(Number(p.tl)||DEF_LAYOUT.tl,150,Math.max(180,window.innerHeight-160));
+    } }catch(e){}
+    return L;
+}
+function applyLayout(L){
+    const r=document.documentElement.style;
+    r.setProperty("--leftW",L.left+"px"); r.setProperty("--rightW",L.right+"px"); r.setProperty("--tlH",L.tl+"px");
+}
+function saveLayout(L){ safeStorage.set(LAYOUT_KEY,JSON.stringify(L)); }
+function resetLayout(){
+    safeStorage.remove(LAYOUT_KEY);
+    applyLayout(Object.assign({},DEF_LAYOUT));
+    toast("布局已恢复初始化尺寸","ok");
+}
+function wireSplitters(){
+    document.querySelectorAll(".vsplit").forEach(el=>{
+        el.addEventListener("mousedown",e=>{
+            e.preventDefault(); el.classList.add("active"); document.body.classList.add("resizing");
+            const side=el.dataset.side, x0=e.clientX, L=loadLayout(), w0=L[side];
+            const mv=ev=>{
+                let w=side==="left" ? w0+(ev.clientX-x0) : w0-(ev.clientX-x0);
+                L[side]=clamp(w,180,Math.min(620,window.innerWidth-360));
+                applyLayout(L);
+            };
+            const up=()=>{
+                el.classList.remove("active"); document.body.classList.remove("resizing");
+                document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
+                saveLayout(L);
+            };
+            document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+        });
+    });
+    const hs=$("splitTimeline");
+    hs.addEventListener("mousedown",e=>{
+        e.preventDefault(); hs.classList.add("active"); document.body.classList.add("resizing");
+        const y0=e.clientY, L=loadLayout(), h0=L.tl;
+        const mv=ev=>{ L.tl=clamp(h0-(ev.clientY-y0),150,Math.max(180,window.innerHeight-160)); applyLayout(L); };
+        const up=()=>{
+            hs.classList.remove("active"); document.body.classList.remove("resizing");
+            document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
+            saveLayout(L);
+        };
+        document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+    });
 }
 
 /* ---------- 素材：类型识别 / 导入 ---------- */
@@ -588,8 +762,7 @@ async function addFiles(files){
         const type=guessType(f.name);
         const a={name:f.name, type, size:f.size, source:"local", ext:(f.name.split(".").pop()||"").toLowerCase()};
         if(type==="text"){
-            a.text=await readAsText(f).catch(()=>""); a.url=""; a.urlKind="inline";
-            a.duration=0;
+            a.text=await readAsText(f).catch(()=>""); a.url=""; a.urlKind="inline"; a.duration=0;
         }else{
             const blobUrl=URL.createObjectURL(f);
             a.url=blobUrl; a.urlKind="blob"; a.blob=f; a.blobId=uid();
@@ -615,14 +788,9 @@ async function addUrls(raw, forced){
         const a={name:name||"在线文件", type, url:line, urlKind:"remote", source:"url",
                  ext:(name.split(".").pop()||"").toLowerCase()};
         if(type==="text"){
-            try{
-                const r=await fetch(line,{mode:"cors"});
-                if(!r.ok) throw new Error("HTTP "+r.status);
-                a.text=await r.text();
-            }catch(e){ a.text=""; }
-        }else{
-            a.duration=await mediaDuration(line,type);
-        }
+            try{ const r=await fetch(line,{mode:"cors"}); if(!r.ok) throw new Error("HTTP "+r.status); a.text=await r.text(); }
+            catch(e){ a.text=""; }
+        }else a.duration=await mediaDuration(line,type);
         await addAsset(a); n++;
     }
     if(n) toast("已添加 "+n+" 个在线素材"+(skipped?"（跳过 "+skipped+" 行）":""),"ok");
@@ -632,6 +800,8 @@ async function addUrls(raw, forced){
 }
 function assetThumbHtml(a){
     if(a.type==="image" && a.url) return '<img src="'+esc(a.url)+'" alt="">';
+    if(a.type==="video" && a.url) return typeIcon("video");
+    if(a.type==="audio") return typeIcon("audio");
     return typeIcon(a.type);
 }
 function renderAssets(){
@@ -642,14 +812,19 @@ function renderAssets(){
     list.innerHTML=arr.map(a=>{
         const meta=(a.type==="text" ? (a.text?a.text.length+" 字":"在线文本（未读取）") : (a.duration?fmt(a.duration):"—"))
             +" · "+typeLabel(a.type)+(a.size?" · "+fmtSize(a.size):"");
-        const srcTag=a.source==="canvas"?'<span class="src-tag">画布</span>':(a.source==="demo"?'<span class="src-tag">演示</span>':(a.source==="url"?'<span class="src-tag">URL</span>':""));
-        return '<div class="asset-item" data-id="'+a.id+'">'
+        return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="拖到下方轨道；双击自动加入；单击选中后 Delete 删除">'
           +'<div class="asset-thumb">'+assetThumbHtml(a)+'</div>'
-          +'<div class="asset-meta"><div class="asset-name" title="'+esc(a.name)+'">'+esc(a.name)+'</div>'
-          +'<div class="asset-sub">'+esc(meta)+'</div></div>'+srcTag
-          +'<div class="asset-acts"><button class="add" data-act="add" title="加入剪辑轨道">＋</button>'
-          +'<button data-act="view" title="预览">▶</button><button class="del" data-act="del" title="移除">×</button></div></div>';
+          +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+'</div>'
+          +'<div class="asset-sub">'+esc(meta)+'</div>'
+          +'<div class="asset-drag-tip">拖到轨道 · 双击加入</div></div></div>';
     }).join("");
+}
+function removeAsset(id){
+    const a=assetById(id); if(!a) return;
+    state.assets=state.assets.filter(x=>x.id!==id);
+    if(state.selectedAsset===id) state.selectedAsset=null;
+    renderAssets(); renderProjInfo(); autoSave();
+    toast("已从素材库删除「"+a.name+"」","ok");
 }
 
 /* ---------- 文本 / 字幕解析 ---------- */
@@ -661,11 +836,8 @@ function parseSrtTime(s){
 }
 function guessSubKind(txt){
     const t=String(txt||"").trim();
-    /* 括号整句 / 心理描写 → 内心独白 */
     if(/^[（(].*[）)]$/.test(t) || /心想|暗想|心中|心里|默念|念头|暗自/.test(t)) return "inner";
-    /* 引号台词、角色名冒号台词 → 对白（不能因为引号判成旁白） */
     if(/^[「“"']/.test(t) || /^[^\s]{1,8}[：:]/.test(t)) return "dialogue";
-    /* 明显的场景 / 时间描述 → 旁白 */
     if(/^(夜|风|雨|雪|清晨|黄昏|次日|三日后|镜头|画面|远处|城|长街|天色|他转身|她转身)/.test(t)) return "narration";
     return "dialogue";
 }
@@ -693,17 +865,49 @@ function textToSegments(txt, name){
         const seg={start:t,end:t+dur,text:line,kind:guessSubKind(line)}; t+=dur+0.28; return seg;
     });
 }
-function applySegments(segs, keep){
-    if(!segs.length){ toast("没有识别到可用的字幕内容","err"); return 0; }
-    pushHistory();
-    if(!keep) state.clips=state.clips.filter(c=>trackById(c.track).kind!=="subtitle");
+function newTrack(kind){
+    const same=state.tracks.filter(t=>t.kind===kind);
+    const t={id:"tk_"+uid(), kind:kind, label:TK_NAME[kind]+" "+(same.length+1),
+             order:same.length?Math.max.apply(null,same.map(x=>x.order||0))+1:0};
+    state.tracks.push(t);
+    return t;
+}
+function firstTextTrack(){ return textTracks()[0] || newTrack("text"); }
+function currentSubTrack(){
+    let t=trackById(state.subTrack);
+    if(!t||t.kind!=="text"){ t=textTracks()[0]||null; state.subTrack=t?t.id:""; }
+    return t;
+}
+function delTrack(id){
+    const t=trackById(id); if(!t) return;
+    if(state.clips.some(c=>c.track===id)){ toast("这条轨道上还有片段，请先删除片段","err"); return; }
+    state.tracks=state.tracks.filter(x=>x.id!==id);
+    if(state.subTrack===id) state.subTrack="";
+    renderAll(); autoSave(); toast("已删除空轨道「"+t.label+"」","ok");
+}
+function pickTrackFor(kind, at, dur){
+    const t0=Math.max(0,at==null?state.playhead:at);
+    for(const t of orderedTracks().filter(x=>x.kind===kind)){
+        const hit=state.clips.some(c=>c.track===t.id && c.start<t0+dur-0.01 && c.start+c.duration>t0+0.01);
+        if(!hit) return t;
+    }
+    return newTrack(kind);
+}
+function applySegments(segs, opts){
+    opts=opts||{};
+    if(!segs.length){ if(!opts.quiet) toast("没有识别到可用的字幕内容","err"); return 0; }
+    if(!opts.quiet) pushHistory();
+    if(!opts.keep) state.clips=state.clips.filter(c=>trackKind(c.track)!=="text");
+    let tr=opts.trackId?trackById(opts.trackId):null;
+    if(!tr||tr.kind!=="text") tr=firstTextTrack();
+    const shift=Math.max(0,Number(opts.at)||0);
     for(const s of segs){
         const dur=Math.max(0.4, (s.end||s.start+2)-s.start);
-        state.clips.push({id:uid(), track:TRACK_OF_SUB[s.kind]||"S1", assetId:"", start:Math.max(0,s.start),
-            duration:dur, offset:0, text:String(s.text||"").trim(), name:String(s.text||"").slice(0,10)});
+        state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,(Number(s.start)||0)+shift),
+            duration:dur, offset:0, text:String(s.text||"").trim(), name:String(s.text||"").slice(0,10), subKind:s.kind||""});
     }
-    state.selected=null;
-    renderAll(); autoSave();
+    state.selected=null; state.multi=[];
+    if(!opts.quiet){ renderAll(); autoSave(); }
     return segs.length;
 }
 function demoSegments(duration){
@@ -722,32 +926,38 @@ function demoSegments(duration){
 }
 
 /* ---------- 加入轨道 ---------- */
-function addAssetToTrack(a, explicitTrack){
+function addAssetToTrack(a, opts){
+    opts=opts||{};
+    if(!a) return;
     if(a.type==="text"){
         const segs=textToSegments(a.text, a.name);
         if(!segs.length){ toast("这个文本素材没有可读内容，请改用本地上传","err"); return; }
-        const n=applySegments(segs, $("asrKeep") && $("asrKeep").checked);
-        toast("已把文本拆成 "+n+" 条字幕，分到对白 / 旁白 / 内心独白三层","ok");
+        if(opts.trackId && trackKind(opts.trackId)!=="text") toast("文本素材已自动放到字幕轨（可用「＋ 轨道」再加一条字幕层）");
+        /* 拖入文本 / SRT 一律追加，不清空已有字幕；只有「AI字幕」按复选框决定是否替换 */
+        const n=applySegments(segs,{trackId:opts.trackId,at:opts.at,keep:true});
+        toast("已把文本拆成 "+n+" 条字幕追加到字幕轨","ok");
         return;
     }
-    let tr=explicitTrack || {video:"V1",image:"V1",audio:"A1"}[a.type] || "V1";
-    if(a.type==="image" && !explicitTrack) tr="P1";
-    const base=Math.max(0, state.playhead);
+    const kind=({video:"video",image:"image",audio:"audio"})[a.type]||"video";
+    let tr=opts.trackId?trackById(opts.trackId):null;
+    if(tr && tr.kind!==kind){ toast("素材是「"+typeLabel(a.type)+"」，已自动改放到"+TK_NAME[kind]+"轨"); tr=null; }
     const dur=a.type==="image" ? 5 : (a.duration>0 ? Math.min(a.duration,60) : 8);
+    if(!tr) tr=pickTrackFor(kind,opts.at,dur);
+    const base=Math.max(0,opts.at!=null?Number(opts.at):state.playhead);
     pushHistory();
-    state.clips.push({id:uid(), track:tr, assetId:a.id, start:base, duration:dur, offset:0, text:"", name:a.name});
-    state.selected=state.clips[state.clips.length-1].id;
+    const c={id:uid(), track:tr.id, assetId:a.id, start:base, duration:dur, offset:0, text:"", name:a.name};
+    state.clips.push(c); state.selected=c.id; state.multi=[]; state.selectedAsset=null;
     renderAll(); autoSave();
-    toast("已加入「"+trackById(tr).label+"」轨道","ok");
+    toast("已加入「"+tr.label+"」轨道","ok");
 }
 function addBlankSubtitle(){
+    const tr=currentSubTrack()||newTrack("text");
     pushHistory();
-    state.clips.push({id:uid(), track:TRACK_OF_SUB[state.subTab], assetId:"", start:Math.max(0,state.playhead),
-        duration:2.6, offset:0, text:"新字幕", name:"新字幕"});
+    state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,state.playhead),
+        duration:2.6, offset:0, text:"新字幕", name:"新字幕", subKind:""});
     renderAll(); autoSave();
 }
-
-/* ---------- 时间轴渲染 ---------- */
+/* ---------- 时间轴渲染（动态轨道） ---------- */
 function renderRuler(){
     const sc=$("rulerScale"); const total=totalDuration(); const step=state.zoom>=60?2:(state.zoom>=28?5:10);
     let html="";
@@ -757,25 +967,29 @@ function renderRuler(){
     sc.innerHTML=html;
 }
 function renderTracks(){
-    const box=$("tracks"); const w=contentWidth();
-    box.innerHTML=TRACKS.map(t=>{
+    const box=$("tracks"); const w=contentWidth(); const list=orderedTracks();
+    box.innerHTML=list.map(t=>{
         const clips=state.clips.filter(c=>c.track===t.id);
         const inner=clips.map(c=>clipHtml(c,t)).join("");
-        return '<div class="track-row"><div class="track-label"><div class="tl-name">'+esc(t.label)+'</div>'
-          +'<div class="tl-sub">'+esc(t.sub)+' · '+clips.length+' 段</div>'
-          +'<div class="tl-bar" style="background:'+t.color+'"></div></div>'
-          +'<div class="lane" data-track="'+t.id+'" style="width:'+w+'px;--grid-step:'+(state.zoom*5)+'px">'+inner+'</div></div>';
+        return '<div class="track-row"><div class="track-label">'
+          +'<div class="tl-head"><span class="tl-name" title="'+esc(t.label)+'">'+TK_ICON[t.kind]+' '+esc(t.label)+'</span>'
+          +'<span class="tl-ops"><button data-tkadd="'+esc(t.id)+'" title="在下方新建一条同类型轨道">＋</button>'
+          +'<button class="tkdel" data-tkdel="'+esc(t.id)+'" title="删除这条空轨道">×</button></span></div>'
+          +'<div class="tl-sub">'+TK_NAME[t.kind]+'层 · '+clips.length+' 段</div>'
+          +'<div class="tl-bar" style="background:'+TK_COLOR[t.kind]+'"></div></div>'
+          +'<div class="lane" data-track="'+esc(t.id)+'" style="width:'+w+'px;--grid-step:'+(state.zoom*5)+'px">'+inner+'</div></div>';
     }).join("");
 }
 function clipHtml(c,t){
     const a=c.assetId?assetById(c.assetId):null;
     const label=c.text || c.name || (a?a.name:"片段");
     const left=Math.round(c.start*state.zoom), width=Math.max(14,Math.round(c.duration*state.zoom));
-    return '<div class="clip'+(state.selected===c.id?" sel":"")+'" data-id="'+c.id+'" '
-      +'style="left:'+left+'px;width:'+width+'px;background:'+t.color+'" title="'+esc(label)+'">'
+    const sel=state.selected===c.id || state.multi.indexOf(c.id)>=0;
+    return '<div class="clip'+(sel?" sel":"")+'" data-id="'+esc(c.id)+'" '
+      +'style="left:'+left+'px;width:'+width+'px;background:'+TK_COLOR[t.kind]+'" title="'+esc(label)+'">'
       +'<div class="clip-body">'+esc(label)+'</div>'
-      +'<button class="clip-split" data-split="'+c.id+'" title="在此剪断">✂</button>'
-      +'<div class="clip-handle" data-handle="'+c.id+'"></div></div>';
+      +'<button class="clip-split" data-split="'+esc(c.id)+'" title="在此剪断">✂</button>'
+      +'<div class="clip-handle" data-handle="'+esc(c.id)+'"></div></div>';
 }
 function renderPlayhead(){
     const ph=$("playhead"); ph.style.left=(LABEL_W+state.playhead*state.zoom)+"px";
@@ -790,31 +1004,133 @@ function renderTimeline(){
     renderRuler(); renderTracks(); renderPlayhead();
     sc.scrollLeft=sl; sc.scrollTop=st;
     $("zoomLabel").textContent=state.zoom+" px/s";
-    $("tlInfo").textContent="共 "+TRACKS.length+" 轨 · "+state.clips.length+" 个片段 · 总长 "+fmt(totalDuration());
+    $("tlInfo").textContent="共 "+state.tracks.length+" 轨 · "+state.clips.length+" 个片段 · 总长 "+fmt(totalDuration());
+}
+
+/* ---------- 多层预览 ---------- */
+const vEl=$("previewVideo"), imgEl=$("previewImage"), pipLayer=$("pipLayer");
+const audioPool=new Map();
+function activeClipOn(tid){ return state.clips.find(c=>c.track===tid && state.playhead>=c.start && state.playhead<c.start+c.duration)||null; }
+function mainVisualClip(){
+    for(const t of orderedTracks()){
+        if(t.kind!=="video") continue;
+        const c=activeClipOn(t.id); if(c) return c;
+    }
+    return null;
+}
+function renderPips(){
+    const list=[];
+    for(const t of orderedTracks()){
+        if(t.kind!=="image") continue;
+        const c=activeClipOn(t.id); if(!c) continue;
+        const a=c.assetId?assetById(c.assetId):null;
+        if(a && a.type==="image" && a.url) list.push({id:c.id,url:a.url,aid:a.id});
+    }
+    const key=list.map(x=>x.aid).join("|");
+    if(pipLayer.dataset.key===key) return list.length;
+    pipLayer.dataset.key=key;
+    pipLayer.innerHTML=list.map((x,i)=>'<img class="pip-item" src="'+esc(x.url)+'" style="top:'+(14+i*118)+'px" alt="图片叠加">').join("");
+    return list.length;
+}
+function syncAudioPool(){
+    const list=[];
+    for(const t of orderedTracks()){
+        if(t.kind!=="audio") continue;
+        const c=activeClipOn(t.id); if(!c) continue;
+        const a=c.assetId?assetById(c.assetId):null;
+        if(a && a.url) list.push({c:c,a:a});
+    }
+    const want=new Set(list.map(x=>x.c.id));
+    audioPool.forEach((o,id)=>{ if(!want.has(id)){ try{ o.el.pause(); }catch(e){} o.el.remove(); audioPool.delete(id); } });
+    const vol=Number($("volRange").value)||0.8;
+    for(const x of list){
+        let o=audioPool.get(x.c.id);
+        if(!o){
+            const el=document.createElement("audio"); el.preload="auto"; el.style.display="none";
+            document.body.appendChild(el); o={el:el,aid:""}; audioPool.set(x.c.id,o);
+        }
+        if(o.aid!==x.a.id){ o.el.src=x.a.url; o.aid=x.a.id; }
+        const wt=(x.c.offset||0)+(state.playhead-x.c.start);
+        if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>0.32 && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
+        o.el.volume=vol;
+        if(playing && o.el.paused) o.el.play().catch(()=>{});
+        if(!playing && !o.el.paused) o.el.pause();
+    }
 }
 function renderSubtitleOverlay(){
-    const active=state.clips.filter(c=>trackById(c.track).kind==="subtitle"
-        && state.playhead>=c.start && state.playhead<c.start+c.duration && c.text);
-    const key=active.map(c=>c.id+c.text).join("|");
+    const active=[];
+    for(const t of orderedTracks()){
+        if(t.kind!=="text") continue;
+        for(const c of state.clips) if(c.track===t.id && state.playhead>=c.start && state.playhead<c.start+c.duration && c.text) active.push(c);
+    }
+    const key=active.map(c=>c.id+c.text+(c.subKind||"")).join("|");
     if(key===subCache) return;
     subCache=key;
-    $("subOverlay").innerHTML=active.map(c=>{
-        const k=trackById(c.track).subKind;
-        return '<div class="sub-line '+k+'"><span class="sub-kind">'+SUB_NAME[k]+'</span>'+esc(c.text)+'</div>';
-    }).join("");
+    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+'">'+esc(c.text)+'</div>').join("");
 }
+function syncMedia(){
+    const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
+    let showVideo=false, showImage=false;
+    if(va && va.type==="video" && va.url){
+        if(vEl.dataset.aid!==va.id){ vEl.src=va.url; vEl.dataset.aid=va.id; }
+        const wt=(vc.offset||0)+(state.playhead-vc.start);
+        if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>0.32 && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
+        if(playing && vEl.paused) vEl.play().catch(()=>{});
+        if(!playing && !vEl.paused) vEl.pause();
+        showVideo=true;
+    }else if(va && va.type==="image" && va.url){
+        if(imgEl.dataset.aid!==va.id){ imgEl.src=va.url; imgEl.dataset.aid=va.id; }
+        showImage=true;
+    }
+    vEl.classList.toggle("show",showVideo); imgEl.classList.toggle("show",showImage);
+    const nPip=renderPips()||0;
+    $("stageEmpty").style.display=(showVideo||showImage||nPip)?"none":"flex";
+    syncAudioPool();
+    renderSubtitleOverlay();
+}
+function tick(ts){
+    if(!playing) return;
+    if(!lastTs) lastTs=ts;
+    const dt=(ts-lastTs)/1000; lastTs=ts;
+    const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
+    let t;
+    if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
+        t=vc.start+(vEl.currentTime-(vc.offset||0));
+    }else t=state.playhead+Math.min(dt,0.25);
+    state.playhead=clamp(t,0,totalDuration());
+    syncMedia(); renderPlayhead();
+    if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
+    else rafId=requestAnimationFrame(tick);
+}
+function play(){ if(playing)return; playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=requestAnimationFrame(tick); }
+function pause(){
+    playing=false; cancelAnimationFrame(rafId);
+    if(!vEl.paused) vEl.pause();
+    audioPool.forEach(o=>{ try{ if(!o.el.paused) o.el.pause(); }catch(e){} });
+    renderPlayhead();
+}
+function seek(t){ state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
+
+/* ---------- 属性 / 字幕列表 / 统计 ---------- */
 function renderProps(){
     const c=selectedClip(); const box=$("propBox");
-    if(!c){ box.innerHTML='<div class="prop-empty">点时间轴上任意一个片段，可在这里改名称、起止时间、时长、素材切入点，以及字幕文字与类型。</div>'; return; }
+    if(!c){
+        let html='<div class="prop-empty">点时间轴上任意一个片段，可在这里改名称、起止时间、时长、素材切入点，以及字幕文字与类型标签。</div>';
+        const a=state.selectedAsset?assetById(state.selectedAsset):null;
+        if(a) html+='<div class="kv" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)">已选中素材：<b>'+esc(a.name)+'</b><br>类型：<b>'+typeLabel(a.type)+'</b><br>把它拖到下方轨道，或双击自动加入；按 <code>Delete</code> 删除素材。</div>';
+        box.innerHTML=html; return;
+    }
     const t=trackById(c.track), a=c.assetId?assetById(c.assetId):null;
-    const kindOpts=Object.keys(SUB_NAME).map(k=>'<option value="'+k+'"'+((t.subKind===k)?" selected":"")+'>'+SUB_NAME[k]+'</option>').join("");
-    box.innerHTML='<div class="kv" style="margin-bottom:6px">轨道：<b>'+esc(t.label)+'</b>'
-        +(a?' · 素材：<b>'+esc(a.name)+'</b>':'')+'</div>'
+    const isText=t&&t.kind==="text";
+    const kindOpts='<option value=""'+(!c.subKind?" selected":"")+'>不标注</option>'
+        +Object.keys(SUB_NAME).map(k=>'<option value="'+k+'"'+((c.subKind===k)?" selected":"")+'>'+SUB_NAME[k]+'</option>').join("");
+    box.innerHTML='<div class="kv" style="margin-bottom:6px">轨道：<b>'+esc(t?t.label:"—")+'</b>'
+        +(a?' · 素材：<b>'+esc(a.name)+'</b>':'')+(state.multi.length>1?'<br>已选中 <b>'+state.multi.length+'</b> 个片段':'')+'</div>'
       +'<div class="prop-row"><label>名称</label><input type="text" id="pName" value="'+esc(c.name||"")+'"></div>'
-      +'<div class="prop-row"><label>开始 / 时长</label><input type="number" id="pStart" step="0.1" min="0" value="'+c.start.toFixed(2)+'"><input type="number" id="pDur" step="0.1" min="0.2" value="'+c.duration.toFixed(2)+'"></div>'
-      +'<div class="prop-row"><label>素材切入</label><input type="number" id="pOffset" step="0.1" min="0" value="'+(c.offset||0).toFixed(2)+'"></div>'
-      +(t.kind==="subtitle"?'<div class="prop-row"><label>字幕文字</label><textarea id="pText">'+esc(c.text||"")+'</textarea></div>'
-        +'<div class="prop-row"><label>字幕类型</label><select id="pKind">'+kindOpts+'</select></div>':'')
+      +'<div class="prop-row"><label>开始 / 时长</label><input type="number" id="pStart" step="0.1" min="0" value="'+Number(c.start||0).toFixed(2)+'"><input type="number" id="pDur" step="0.1" min="0.2" value="'+Number(c.duration||0).toFixed(2)+'"></div>'
+      +'<div class="prop-row"><label>素材切入</label><input type="number" id="pOffset" step="0.1" min="0" value="'+Number(c.offset||0).toFixed(2)+'"></div>'
+      +(isText?'<div class="prop-row"><label>字幕文字</label><textarea id="pText">'+esc(c.text||"")+'</textarea></div>'
+        +'<div class="prop-row"><label>类型标签</label><select id="pKind">'+kindOpts+'</select></div>':'')
       +'<div class="row"><button class="mini-btn green" id="pApply" style="flex:1">应用修改</button><button class="mini-btn red" id="pDelete">删除片段</button></div>';
     $("pApply").onclick=()=>{
         pushHistory();
@@ -823,49 +1139,65 @@ function renderProps(){
         c.duration=Math.max(0.2,Number($("pDur").value)||0.2);
         c.offset=Math.max(0,Number($("pOffset").value)||0);
         if($("pText")){ c.text=$("pText").value; c.name=(c.text||"字幕").slice(0,12); }
-        if($("pKind")){ c.track=TRACK_OF_SUB[$("pKind").value]||c.track; state.subTab=$("pKind").value; }
-        renderAll(); autoSave(); toast("片段已更新","ok");
+        if($("pKind")) c.subKind=$("pKind").value;
+        subCache=""; renderAll(); autoSave(); toast("片段已更新","ok");
     };
     $("pDelete").onclick=deleteSelected;
 }
+function renderSubTrackSel(){
+    const sel=$("subTrackSel"), list=textTracks();
+    sel.innerHTML=list.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.label)+'</option>').join("");
+    const cur=currentSubTrack(); if(cur) sel.value=cur.id;
+}
 function renderSubList(){
-    const arr=state.clips.filter(c=>c.track===TRACK_OF_SUB[state.subTab]).sort((a,b)=>a.start-b.start);
-    $("subCount").textContent=state.clips.filter(c=>trackById(c.track).kind==="subtitle").length+" 条";
-    document.querySelectorAll(".sub-tab").forEach(b=>{
-        const on=b.dataset.sub===state.subTab;
-        b.classList.toggle("active",on);
-        b.style.background=on?({dialogue:"#0891b2",narration:"#d97706",inner:"#db2777"}[state.subTab]):"";
-        b.style.color=on?"#fff":"";
-    });
-    if(!arr.length){ $("subList").innerHTML='<div class="empty-line">这一层还没有字幕<br>点 AI 识别，或导入台词 / SRT 文件</div>'; return; }
+    renderSubTrackSel();
+    const tr=currentSubTrack();
+    const arr=tr?state.clips.filter(c=>c.track===tr.id).sort((a,b)=>a.start-b.start):[];
+    $("subCount").textContent=state.clips.filter(c=>trackKind(c.track)==="text").length+" 条";
+    if(!arr.length){ $("subList").innerHTML='<div class="empty-line">这条字幕轨还没有字幕<br>点「🅰 AI字幕」，或导入台词 / SRT 文件</div>'; return; }
     $("subList").innerHTML=arr.map(c=>
-        '<div class="sub-item'+(state.selected===c.id?" sel":"")+'" data-id="'+c.id+'">'
+        '<div class="sub-item'+(state.selected===c.id?" sel":"")+'" data-id="'+esc(c.id)+'">'
         +'<div class="si-top"><span class="si-time">'+fmt(c.start)+' → '+fmt(c.start+c.duration)+'</span>'
-        +'<span class="si-tag" style="background:'+trackById(c.track).color+'">'+SUB_NAME[state.subTab]+'</span>'
-        +'<button class="si-rm" data-rm="'+c.id+'" title="删除">×</button></div>'
-        +'<input type="text" data-text="'+c.id+'" value="'+esc(c.text||"")+'" placeholder="字幕文字"></div>').join("");
+        +'<span class="si-tag" style="background:'+TK_COLOR.text+'">'+esc(SUB_NAME[c.subKind]||"文本")+'</span>'
+        +'<button class="si-rm" data-rm="'+esc(c.id)+'" title="删除">×</button></div>'
+        +'<input type="text" data-text="'+esc(c.id)+'" value="'+esc(c.text||"")+'" placeholder="字幕文字"></div>').join("");
 }
 function renderAIStat(){
-    const c=k=>state.clips.filter(x=>x.track===TRACK_OF_SUB[k]).length;
-    $("aiStat").innerHTML='<span>对白 '+c("dialogue")+'</span><span>旁白 '+c("narration")+'</span><span>内心独白 '+c("inner")+'</span>';
+    const all=state.clips.filter(c=>trackKind(c.track)==="text");
+    const k=v=>all.filter(c=>c.subKind===v).length;
+    $("aiStat").innerHTML='<span>字幕轨 '+textTracks().length+'</span><span>字幕 '+all.length+'</span>'
+        +'<span>对白 '+k("dialogue")+'</span><span>旁白 '+k("narration")+'</span><span>内心独白 '+k("inner")+'</span>';
 }
 function renderProjInfo(){
-    const media=state.clips.filter(c=>c.assetId).length, subs=state.clips.filter(c=>!c.assetId).length;
-    $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
+    const media=state.clips.filter(c=>c.assetId).length, subs=state.clips.filter(c=>trackKind(c.track)==="text").length;
+    $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
     $("dateChip").textContent="当天工程 "+state.date;
 }
-function renderAll(){ renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); renderSubtitleOverlay(); }
+function renderAll(){ renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
-function snapshot(){ return JSON.stringify(state.clips); }
+function snapshot(){ return JSON.stringify({clips:state.clips,tracks:state.tracks}); }
 function pushHistory(){ historyStack.push(snapshot()); if(historyStack.length>40) historyStack.shift(); redoStack=[]; }
-function restore(s){ state.clips=JSON.parse(s); state.selected=null; renderAll(); autoSave(); }
+function restore(s){
+    let o; try{ o=JSON.parse(s); }catch(e){ return; }
+    state.clips=Array.isArray(o.clips)?o.clips:state.clips;
+    state.tracks=Array.isArray(o.tracks)&&o.tracks.length?o.tracks:defaultTracks();
+    state.selected=null; state.multi=[]; subCache="";
+    renderAll(); autoSave();
+}
 function undo(){ if(!historyStack.length){ toast("没有可撤销的操作"); return; } redoStack.push(snapshot()); restore(historyStack.pop()); toast("已撤销"); }
 function redo(){ if(!redoStack.length){ toast("没有可重做的操作"); return; } historyStack.push(snapshot()); restore(redoStack.pop()); toast("已重做"); }
 function deleteSelected(){
-    const c=selectedClip(); if(!c){ toast("请先点选一个片段"); return; }
-    pushHistory(); state.clips=state.clips.filter(x=>x.id!==c.id); state.selected=null;
-    renderAll(); autoSave(); toast("已删除片段","ok");
+    const ids=selectedIds();
+    if(!ids.length){ toast("请先点选一个片段"); return; }
+    pushHistory(); state.clips=state.clips.filter(x=>ids.indexOf(x.id)<0);
+    state.selected=null; state.multi=[];
+    renderAll(); autoSave(); toast("已删除 "+ids.length+" 个片段","ok");
+}
+function deleteAction(){
+    if(selectedIds().length){ deleteSelected(); return; }
+    if(state.selectedAsset){ removeAsset(state.selectedAsset); return; }
+    toast("请先点选片段或素材，再按删除键","err");
 }
 function splitSelected(at){
     let c=selectedClip();
@@ -885,68 +1217,38 @@ function splitSelected(at){
         right.name=(right.text||"字幕").slice(0,12); c.name=(c.text||"字幕").slice(0,12);
     }
     c.duration=leftDur;
-    state.clips.push(right); state.selected=right.id;
-    renderAll(); autoSave(); toast("已在 "+fmt(t)+" 剪断（视频 / 音乐 / 字幕通用）","ok");
+    state.clips.push(right); state.selected=right.id; state.multi=[];
+    renderAll(); autoSave(); toast("已在 "+fmt(t)+" 剪断","ok");
+}
+function copySelection(cut){
+    const ids=selectedIds();
+    if(!ids.length){ toast("请先点选片段（Shift 点选可多选）"); return; }
+    clipboard=state.clips.filter(c=>ids.indexOf(c.id)>=0).map(c=>Object.assign({},c,{_kind:trackKind(c.track)}));
+    if(cut){ pushHistory(); state.clips=state.clips.filter(c=>ids.indexOf(c.id)<0); state.selected=null; state.multi=[]; renderAll(); autoSave(); }
+    toast((cut?"已剪切 ":"已复制 ")+clipboard.length+" 个片段","ok");
+}
+function pasteClips(){
+    if(!clipboard.length){ toast("剪贴板里没有片段"); return; }
+    const base=Math.max(0,state.playhead), min=Math.min.apply(null,clipboard.map(c=>c.start||0));
+    pushHistory(); const added=[];
+    for(const src of clipboard){
+        let tr=trackById(src.track);
+        const kind=src._kind||"video";
+        if(!tr){ tr=orderedTracks().find(t=>t.kind===kind)||newTrack(kind); }
+        const c=Object.assign({},src,{id:uid(),track:tr.id,start:base+((src.start||0)-min)});
+        delete c._kind;
+        state.clips.push(c); added.push(c.id);
+    }
+    state.selected=added[added.length-1]||null; state.multi=[];
+    renderAll(); autoSave(); toast("已粘贴 "+added.length+" 个片段到播放头处","ok");
+}
+function selectAllClips(){
+    if(!state.clips.length){ toast("轨道上还没有片段"); return; }
+    state.multi=state.clips.map(c=>c.id); state.selected=state.multi[0];
+    renderProps(); renderTimeline(); toast("已全选 "+state.multi.length+" 个片段");
 }
 
-/* ---------- 预览播放 ---------- */
-const vEl=$("previewVideo"), imgEl=$("previewImage"), pipEl=$("pipImage"), aEl=$("previewAudio");
-function activeClip(track){ return state.clips.find(c=>c.track===track && state.playhead>=c.start && state.playhead<c.start+c.duration); }
-function syncMedia(){
-    const vc=activeClip("V1"), pc=activeClip("P1"), ac=activeClip("A1");
-    const va=vc&&vc.assetId?assetById(vc.assetId):null;
-    const pa=pc&&pc.assetId?assetById(pc.assetId):null;
-    const aa=ac&&ac.assetId?assetById(ac.assetId):null;
-    let showVideo=false, showImage=false;
-    if(va && va.type==="video" && va.url){
-        if(vEl.dataset.aid!==va.id){ vEl.src=va.url; vEl.dataset.aid=va.id; }
-        const want=(vc.offset||0)+(state.playhead-vc.start);
-        if(Number.isFinite(want) && Math.abs(vEl.currentTime-want)>0.32 && vEl.readyState>0){ try{ vEl.currentTime=want; }catch(e){} }
-        if(playing && vEl.paused) vEl.play().catch(()=>{});
-        if(!playing && !vEl.paused) vEl.pause();
-        showVideo=true;
-    }else if(va && va.type==="image" && va.url){
-        if(imgEl.dataset.aid!==va.id){ imgEl.src=va.url; imgEl.dataset.aid=va.id; }
-        showImage=true;
-    }
-    vEl.classList.toggle("show",showVideo); imgEl.classList.toggle("show",showImage);
-    if(pa && pa.url){
-        if(pipEl.dataset.aid!==pa.id){ pipEl.src=pa.url; pipEl.dataset.aid=pa.id; }
-        pipEl.style.display="block";
-    }
-    else pipEl.style.display="none";
-    $("stageEmpty").style.display=(showVideo||showImage)?"none":"flex";
-
-    if(aa && aa.url){
-        if(aEl.dataset.aid!==aa.id){ aEl.src=aa.url; aEl.dataset.aid=aa.id; }
-        const want=(ac.offset||0)+(state.playhead-ac.start);
-        if(Number.isFinite(want) && Math.abs(aEl.currentTime-want)>0.32 && aEl.readyState>0){ try{ aEl.currentTime=want; }catch(e){} }
-        if(playing && aEl.paused) aEl.play().catch(()=>{});
-        if(!playing && !aEl.paused) aEl.pause();
-    }else if(!aEl.paused) aEl.pause();
-    renderSubtitleOverlay();
-}
-function tick(ts){
-    if(!playing) return;
-    if(!lastTs) lastTs=ts;
-    const dt=(ts-lastTs)/1000; lastTs=ts;
-    const vc=activeClip("V1"), va=vc&&vc.assetId?assetById(vc.assetId):null;
-    let t;
-    if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
-        t=vc.start+(vEl.currentTime-(vc.offset||0));
-    }else{
-        t=state.playhead+Math.min(dt,0.25);
-    }
-    state.playhead=clamp(t,0,totalDuration());
-    syncMedia(); renderPlayhead();
-    if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
-    else rafId=requestAnimationFrame(tick);
-}
-function play(){ if(playing)return; playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=requestAnimationFrame(tick); }
-function pause(){ playing=false; cancelAnimationFrame(rafId); if(!vEl.paused)vEl.pause(); if(!aEl.paused)aEl.pause(); renderPlayhead(); }
-function seek(t){ state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
-
-/* ---------- AI 语音识别 ---------- */
+/* ---------- AI 语音识别 → 统一字幕轨 ---------- */
 async function assetBlob(a){
     if(!a) throw new Error("没有可用素材");
     if(a.blobId){ const b=await dbGet("assets",a.id); if(b) return b; }
@@ -961,7 +1263,7 @@ async function remoteASR(a,cfg){
     fd.append("response_format","verbose_json");
     if(cfg.language) fd.append("language",cfg.language);
     const headers={}; if(cfg.key) headers.Authorization="Bearer "+cfg.key;
-    const r=await fetch(cfg.endpoint,{method:"POST",headers,body:fd});
+    const r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:fd});
     if(!r.ok) throw new Error("转写接口 HTTP "+r.status+"："+(await r.text()).slice(0,160));
     const j=await r.json();
     const arr=Array.isArray(j.segments)?j.segments:(j.result&&Array.isArray(j.result.segments)?j.result.segments:[]);
@@ -975,7 +1277,7 @@ async function remoteASR(a,cfg){
 }
 function micASR(){
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){ throw new Error("当前浏览器不支持语音识别，请用 Chrome 或改用其它引擎"); }
+    if(!SR) throw new Error("当前浏览器不支持语音识别，请用 Chrome 或改用其它引擎");
     return new Promise((res,rej)=>{
         const r=new SR(); r.lang="zh-CN"; r.continuous=true; r.interimResults=false;
         const out=[]; const t0=state.playhead; let last=t0;
@@ -983,13 +1285,13 @@ function micASR(){
             for(let i=e.resultIndex;i<e.results.length;i++){
                 if(!e.results[i].isFinal) continue;
                 const txt=String(e.results[i][0].transcript||"").trim(); if(!txt) continue;
-                const st=Math.max(t0,last); const en=st+clamp(txt.length*0.19,1.6,5);
+                const st=Math.max(t0,last), en=st+clamp(txt.length*0.19,1.6,5);
                 out.push({start:st,end:en,text:txt,kind:guessSubKind(txt)}); last=en;
             }
             $("aiState").textContent="正在听写…已收到 "+out.length+" 句，点「停止听写」结束";
         };
-        r.onerror=e=>{ $("asrRun").textContent="🎙 识别语音并生成三条字幕层"; $("asrRun").dataset.mic=""; rej(new Error("语音识别失败："+(e.error||"未知"))); };
-        r.onend=()=>{ const btn=$("asrRun"); btn.textContent="🎙 识别语音并生成三条字幕层"; btn.dataset.mic=""; res(out); };
+        r.onerror=e=>{ $("asrRun").textContent="🎙 识别语音并生成字幕"; $("asrRun").dataset.mic=""; rej(new Error("语音识别失败："+(e.error||"未知"))); };
+        r.onend=()=>{ const btn=$("asrRun"); btn.textContent="🎙 识别语音并生成字幕"; btn.dataset.mic=""; res(out); };
         r.start();
         const btn=$("asrRun"); btn.textContent="⏹ 停止听写"; btn.dataset.mic="1";
         btn.onclick=()=>{ try{ r.stop(); }catch(e){} };
@@ -997,7 +1299,7 @@ function micASR(){
 }
 async function runASR(){
     const btn=$("asrRun");
-    if(btn.dataset.mic==="1"){ return; }
+    if(btn.dataset.mic==="1") return;
     const engine=$("asrEngine").value, st=$("aiState");
     let segs=[];
     try{
@@ -1005,41 +1307,310 @@ async function runASR(){
             st.className="ai-state"; st.textContent="麦克风已开启，请开始说话…";
             segs=await micASR();
         }else if(engine==="remote"){
-            const c=selectedClip(); const a=c&&c.assetId?assetById(c.assetId):null;
-            if(!a || (a.type!=="video" && a.type!=="audio")){
-                const first=state.clips.find(x=>x.track==="V1"&&x.assetId&&assetById(x.assetId)&&assetById(x.assetId).type==="video");
-                if(!first) throw new Error("请先选中主画面轨上的视频 / 音频片段，或改用演示识别");
-                toast("未选中片段，已自动识别主画面轨第一个视频","ok");
-                state.selected=first.id;
-                segs=await remoteASR(assetById(first.assetId),{
-                    endpoint:$("asrEndpoint").value.trim(),key:$("asrKey").value.trim(),
-                    model:$("asrModel").value.trim(),language:$("asrLang").value.trim()});
-            }else{
-                segs=await remoteASR(a,{
-                    endpoint:$("asrEndpoint").value.trim(),key:$("asrKey").value.trim(),
-                    model:$("asrModel").value.trim(),language:$("asrLang").value.trim()});
+            let c=selectedClip(), a=c&&c.assetId?assetById(c.assetId):null;
+            if(!a || (a.type!=="video"&&a.type!=="audio")){
+                const first=state.clips.find(x=>{
+                    const k=trackKind(x.track), aa=x.assetId?assetById(x.assetId):null;
+                    return (k==="video"||k==="audio") && aa && (aa.type==="video"||aa.type==="audio");
+                });
+                if(!first) throw new Error("轨道上还没有可识别的视频 / 音频片段，请先拖入素材，或改用演示识别");
+                a=assetById(first.assetId); state.selected=first.id;
+                toast("未选中片段，已自动识别轨道上第一个视频 / 音频","ok");
             }
+            segs=await remoteASR(a,{endpoint:$("asrEndpoint").value.trim(),key:$("asrKey").value.trim(),
+                model:$("asrModel").value.trim(),language:$("asrLang").value.trim()});
         }else{
-            const c=selectedClip();
-            const base=c&&c.track==="V1"?c.duration:Math.max(20,Math.min(60,totalDuration()-4));
+            const base=Math.max(20,Math.min(60,totalDuration()-4));
             st.className="ai-state"; st.textContent="正在按时间码切分语音…";
             await new Promise(r=>setTimeout(r,320));
             segs=demoSegments(base);
         }
-        const n=applySegments(segs, $("asrKeep").checked);
+        const n=applySegments(segs,{keep:!!$("asrKeep").checked});
         st.className="ai-state ok";
-        st.textContent="识别完成：共 "+n+" 条，已分成对白 / 旁白 / 内心独白三条独立字幕层。"
+        st.textContent="识别完成：共 "+n+" 条，已按时间码写入字幕轨（对白 / 旁白 / 内心独白仅作为可选类型标签，不再分轨）。"
             +(engine==="demo"?"（演示识别：内置漫剧台词，未调用真实模型）":"")
             +(engine==="remote"?"（来自转写接口 segments）":"");
         toast("AI 已生成 "+n+" 条字幕","ok");
     }catch(e){
         st.className="ai-state err";
-        st.textContent="识别失败："+(e&&e.message?e.message:e)+"。演示工程用图片当主画面、本身没有音轨，可切换「演示识别」或先导入真实视频。";
+        st.textContent="识别失败："+((e&&e.message)?e.message:e)+"。演示工程用图片当主画面、本身没有音轨，可切换「演示识别」或先导入真实视频。";
         toast("识别失败，请看左侧状态说明","err");
     }finally{
-        btn.textContent="🎙 识别语音并生成三条字幕层"; btn.dataset.mic="";
-        btn.onclick=runASR;
+        btn.textContent="🎙 识别语音并生成字幕"; btn.dataset.mic=""; btn.onclick=runASR;
     }
+}
+
+/* ---------- AI 剪辑：复用站点已保存的大模型配置 ---------- */
+function llmUrlFromBase(raw){
+    let s=String(raw||"").trim().replace(/\/+$/,"");
+    if(!s) return "";
+    if(/\/chat\/completions$/i.test(s)) return s;
+    if(/\/responses$/i.test(s)) return s.replace(/\/responses$/i,"/chat/completions");
+    if(/\/(?:compatible-mode\/)?v\d+(?:\.\d+)?$/i.test(s)) return s+"/chat/completions";
+    return s+"/v1/chat/completions";
+}
+function aiConfig(){
+    const src=$("aiSrc").value;
+    if(src==="custom") return {endpoint:$("aiEndpoint").value.trim(),key:$("aiKey").value.trim(),model:$("aiModel").value.trim(),label:"自定义接口"};
+    if(src==="local"){
+        const base=String(safeStorage.get("manflows_local_base")||"").trim();
+        return {endpoint:llmUrlFromBase(base),key:"",model:String(safeStorage.get("manflows_local_model")||"").trim(),label:"本机算力（已接通的大语言模型）"};
+    }
+    let list=[]; try{ list=JSON.parse(safeStorage.get("manflows_api_profiles")||"[]")||[]; }catch(e){}
+    if(!Array.isArray(list)) list=[];
+    const cur=String(safeStorage.get("manflows_current_profile_id")||"").trim();
+    const p=list.find(x=>x&&String(x.id||"")===cur)||list[0]||null;
+    return {endpoint:llmUrlFromBase(p?String(p.endpoint||""):""),key:p?String(p.key||"").trim():"",
+        model:p?String(p.model||"").trim():"",label:p?("创作台 / 画布配置「"+String(p.name||p.model||"未命名")+"」"):"创作台 / 画布「第三方API」当前配置"};
+}
+function saveAiCfg(){
+    safeStorage.set(AI_CFG_KEY,JSON.stringify({src:$("aiSrc").value,endpoint:$("aiEndpoint").value,
+        key:$("aiKey").value,model:$("aiModel").value,frames:$("aiFrames").checked}));
+}
+function loadAiCfg(){
+    let c={}; try{ c=JSON.parse(safeStorage.get(AI_CFG_KEY)||"{}")||{}; }catch(e){}
+    if(c.src) $("aiSrc").value=c.src;
+    $("aiEndpoint").value=c.endpoint||""; $("aiKey").value=c.key||""; $("aiModel").value=c.model||"";
+    $("aiFrames").checked=c.frames!==false;
+    $("aiCustom").style.display=$("aiSrc").value==="custom"?"block":"none";
+}
+function shrinkImage(url){
+    return new Promise(res=>{
+        let done=false; const fin=v=>{ if(done)return; done=true; res(v||""); };
+        try{
+            const im=new Image(); im.crossOrigin="anonymous";
+            im.onload=()=>{
+                try{
+                    const c=document.createElement("canvas");
+                    const s=Math.min(1,512/Math.max(im.naturalWidth,im.naturalHeight,1));
+                    c.width=Math.max(1,Math.round(im.naturalWidth*s)); c.height=Math.max(1,Math.round(im.naturalHeight*s));
+                    c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+                    fin(c.toDataURL("image/jpeg",0.68));
+                }catch(e){ fin(""); }
+            };
+            im.onerror=()=>fin("");
+            im.src=url;
+            setTimeout(()=>fin(""),2500);
+        }catch(e){ fin(""); }
+    });
+}
+function grabFrame(url,t){
+    return new Promise(res=>{
+        let done=false; const fin=v=>{ if(done)return; done=true; res(v||""); };
+        try{
+            const v=document.createElement("video"); v.crossOrigin="anonymous"; v.preload="auto"; v.muted=true;
+            v.onloadeddata=()=>{ try{ v.currentTime=Math.min(Number(t)||0,Math.max(0,(v.duration||1)-0.1)); }catch(e){ fin(""); } };
+            v.onseeked=()=>{
+                try{
+                    const c=document.createElement("canvas");
+                    const s=Math.min(1,512/Math.max(v.videoWidth,v.videoHeight,1));
+                    c.width=Math.max(1,Math.round(v.videoWidth*s)); c.height=Math.max(1,Math.round(v.videoHeight*s));
+                    c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+                    fin(c.toDataURL("image/jpeg",0.68));
+                }catch(e){ fin(""); }
+            };
+            v.onerror=()=>fin("");
+            v.src=url;
+            setTimeout(()=>fin(""),3500);
+        }catch(e){ fin(""); }
+    });
+}
+async function collectFrames(){
+    const jobs=[];
+    const vids=state.clips.filter(c=>trackKind(c.track)==="video"&&c.assetId).slice(0,4);
+    const imgs=state.clips.filter(c=>trackKind(c.track)==="image"&&c.assetId).slice(0,2);
+    for(const c of vids){
+        const a=assetById(c.assetId); if(!a||!a.url) continue;
+        if(a.type==="image") jobs.push(shrinkImage(a.url).then(d=>d?{name:a.name,data:d}:null));
+        else if(a.type==="video") jobs.push(grabFrame(a.url,(c.offset||0)+Math.min(c.duration/2,3)).then(d=>d?{name:a.name,data:d}:null));
+    }
+    for(const c of imgs){ const a=assetById(c.assetId); if(a&&a.type==="image"&&a.url) jobs.push(shrinkImage(a.url).then(d=>d?{name:a.name,data:d}:null)); }
+    const res=await Promise.all(jobs);
+    return res.filter(Boolean).slice(0,6);
+}
+const AI_SYS_PROMPT = "你是一位资深短视频 / 漫剧剪辑师。用户会给你一份剪辑时间轴的 JSON（含轨道层级、每个片段的 id、名称、类型、起止时间）以及若干视频抽帧图片。请结合画面与节奏自主完成剪辑决策：删除冗余片段、裁切拖沓部分、调整片段顺序位置、必要时补充字幕。你必须只输出一个 JSON 对象，不要输出任何解释文字、不要加 Markdown 围栏。格式：{\"summary\":\"整体剪辑思路（中文，60字内）\",\"actions\":[{\"id\":\"原片段id\",\"op\":\"keep|trim|delete|move\",\"start\":数字,\"duration\":数字,\"track\":\"可选，改放到的轨道id\",\"reason\":\"中文理由，20字内\"}],\"newSubtitles\":[{\"start\":数字,\"duration\":数字,\"text\":\"字幕文字\",\"kind\":\"dialogue|narration|inner\"}]}。要求：只使用给定的片段 id，时间单位为秒，trim 时 start/duration 必须在原片段范围内，不要虚构新素材，不要修改素材文件本身。";
+function buildAiMessages(frames){
+    const info={
+        project:state.date, totalDuration:totalDuration(),
+        trackOrder:"字幕(text) → 图片(image) → 视频(video) → 音频(audio)",
+        tracks:orderedTracks().map((t,i)=>({index:i,id:t.id,type:t.kind,name:t.label})),
+        clips:state.clips.map(c=>{
+            const a=c.assetId?assetById(c.assetId):null;
+            return {id:c.id,track:c.track,trackType:trackKind(c.track),name:c.name||"",
+                start:Number(Number(c.start||0).toFixed(2)),duration:Number(Number(c.duration||0).toFixed(2)),
+                offset:Number(Number(c.offset||0).toFixed(2)),text:c.text||"",subKind:c.subKind||"",
+                asset:a?{name:a.name,type:a.type,duration:Number(Number(a.duration||0).toFixed(2))}:null};
+        }),
+        assets:state.assets.map(a=>({id:a.id,name:a.name,type:a.type}))
+    };
+    const txt="请剪辑下面这份时间轴。轨道与片段数据（JSON）：\n"+JSON.stringify(info)
+        +"\n\n"+(frames.length?"后面附 "+frames.length+" 张按片段顺序抽取的画面（JPEG），请结合画面判断。":"本次没有附上画面，请仅依据轨道结构与时间码决策。")
+        +"\n严格只输出上面约定的 JSON 对象。";
+    const content=frames.length
+        ? [{type:"text",text:txt}].concat(frames.map(f=>({type:"image_url",image_url:{url:f.data}})))
+        : txt;
+    return [{role:"system",content:AI_SYS_PROMPT},{role:"user",content:content}];
+}
+async function aiChat(cfg,messages){
+    const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),120000);
+    try{
+        const body={model:cfg.model,messages:messages,stream:false,temperature:0.3};
+        const headers={"Content-Type":"application/json"};
+        if(cfg.key) headers.Authorization="Bearer "+cfg.key;
+        const r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:JSON.stringify(body),signal:ctrl.signal});
+        const raw=await r.text();
+        if(!r.ok) throw new Error("HTTP "+r.status+"："+raw.slice(0,300));
+        let j; try{ j=JSON.parse(raw); }catch(e){ throw new Error("接口返回的不是 JSON："+raw.slice(0,200)); }
+        const ch=(j&&Array.isArray(j.choices)&&j.choices[0])||{};
+        const msg=ch.message||ch.delta||{};
+        let c=msg.content;
+        if(Array.isArray(c)) c=c.map(x=>(x&&typeof x==="object")?(x.text||""):String(x||"")).join("");
+        if(!c) c=msg.reasoning_content||ch.text||j.output_text||j.text||"";
+        if(!c) throw new Error("模型没有返回文本内容："+raw.slice(0,300));
+        return String(c);
+    }finally{ clearTimeout(timer); }
+}
+function parseAiPlan(s){
+    let t=String(s||"").trim();
+    t=t.replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"").trim();
+    const i=t.indexOf("{"), j=t.lastIndexOf("}");
+    if(i<0||j<i) return null;
+    let o; try{ o=JSON.parse(t.slice(i,j+1)); }catch(e){ return null; }
+    if(!o||typeof o!=="object") return null;
+    o.actions=Array.isArray(o.actions)?o.actions:[];
+    o.newSubtitles=Array.isArray(o.newSubtitles)?o.newSubtitles:[];
+    o.summary=String(o.summary||"");
+    return o;
+}
+function aiEditFail(e,st){
+    st.className="ai-state err";
+    st.textContent="AI 剪辑失败："+((e&&e.message)?e.message:e)+"。请确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态（Claude / GPT-4o / Gemini 等综合能力强的模型），跨域服务需自行放行 CORS。";
+    toast("AI 剪辑失败，请看左侧状态说明","err");
+}
+function showAiSetup(cfg){
+    const miss=[]; if(!cfg.endpoint) miss.push("接口地址"); if(!cfg.model) miss.push("模型名");
+    $("aiSetupBody").innerHTML='<p class="hint warn">「✨ AI剪辑」会把整条时间轴的结构、素材信息与视频抽帧一起交给大模型，让它自主判断节奏、删减、裁切、补字幕并返回可执行的剪辑方案。<b>这需要使用 Claude / GPT-4o / Gemini 等综合能力强的多模态大模型</b>；小参数本地模型通常无法稳定输出可执行的 JSON 方案。</p>'
+      +'<h2>当前模型来源</h2><p>'+esc(cfg.label)+'：'+(miss.length?'<b style="color:#fca5a5">还缺 '+esc(miss.join(" / "))+'</b>':'<b style="color:#a7f3d0">已配置</b>')+'</p>'
+      +'<h2>三种配置方式</h2><ul>'
+      +'<li><b>复用创作台 / 画布「第三方API」当前配置</b>：到编导创作台或导演画布的「算力总控 → 第三方API」填好接口地址、Key 与模型名，本页自动读取（共用键 <code>manflows_api_profiles</code>）。</li>'
+      +'<li><b>复用「本机算力」已接通的大语言模型</b>：在创作台 / 画布点「⚡ 自动接通」接通本机 llama / Ollama 后，本页读取地址与模型名。</li>'
+      +'<li><b>自定义接口</b>：在左侧「AI 剪辑 · 模型配置」把来源切到「自定义接口」，直接填完整 <code>/v1/chat/completions</code> 地址、Key 与模型名。</li></ul>'
+      +'<p class="hint">配置好后再点一次「✨ AI剪辑」即可；带图请求失败时会自动降级为纯轨道数据分析。</p>';
+    $("aiSetupModal").classList.add("show");
+}
+function renderAiPlan(plan,cfg,nframes){
+    const acts=plan.actions||[];
+    const rows=acts.map(a=>{
+        const c=clipById(a.id); const name=c?(c.text||c.name||"片段"):"—";
+        const op=({keep:"保留",trim:"裁切",delete:"删除",move:"移动"})[String(a.op||"keep").toLowerCase()]||String(a.op||"keep");
+        return '<tr><td>'+esc(name)+'</td><td>'+esc(op)+'</td><td>'+(Number.isFinite(Number(a.start))?Number(a.start).toFixed(2):"—")+' / '+(Number.isFinite(Number(a.duration))?Number(a.duration).toFixed(2):"—")+'</td><td>'+esc(a.reason||"")+'</td></tr>';
+    }).join("");
+    $("aiPlanBody").innerHTML='<p class="hint ok">模型：<b>'+esc(cfg.model)+'</b> · 来源：'+esc(cfg.label)+' · 抽帧 '+nframes+' 张 · 片段 '+state.clips.length+' 个。方案只在你确认后写入轨道，随时可 <code>Ctrl+Z</code> 撤销。</p>'
+      +(plan.summary?'<h2>剪辑思路</h2><p>'+esc(plan.summary)+'</p>':'')
+      +'<h2>将对 '+acts.length+' 个片段执行</h2>'
+      +(rows?'<table><tr><th>片段</th><th>操作</th><th>开始 / 时长</th><th>理由</th></tr>'+rows+'</table>':'<p class="hint">模型没有给出具体片段操作。</p>')
+      +(plan.newSubtitles.length?'<h2>将新增 '+plan.newSubtitles.length+' 条字幕</h2><ul>'+plan.newSubtitles.slice(0,12).map(s=>'<li>'+fmt(Number(s.start)||0)+' · '+esc(String(s.text||""))+'</li>').join("")+'</ul>':'')
+      +'<p class="hint warn">提示：如果方案不理想，可换用 Claude / GPT-4o / Gemini 等综合能力更强的多模态模型重试，或点「暂不应用」保留原轨道。</p>';
+}
+function applyAiPlan(){
+    if(!pendingPlan) return;
+    const p=pendingPlan;
+    pushHistory();
+    for(const a of p.actions){
+        const c=clipById(a.id); if(!c) continue;
+        const op=String(a.op||"keep").toLowerCase();
+        if(op==="delete"){ state.clips=state.clips.filter(x=>x.id!==c.id); continue; }
+        if(Number.isFinite(Number(a.start))) c.start=Math.max(0,Number(a.start));
+        if(Number.isFinite(Number(a.duration))&&Number(a.duration)>0) c.duration=Math.max(0.2,Number(a.duration));
+        if(op==="move"&&a.track&&trackById(a.track)) c.track=a.track;
+    }
+    if(p.newSubtitles.length){
+        const segs=p.newSubtitles.map(s=>({start:Number(s.start)||0,end:(Number(s.start)||0)+(Number(s.duration)||2),
+            text:String(s.text||""),kind:SUB_NAME[s.kind]?s.kind:""})).filter(s=>s.text);
+        applySegments(segs,{keep:true,quiet:true,at:0});
+    }
+    state.selected=null; state.multi=[]; pendingPlan=null;
+    $("aiPlanModal").classList.remove("show");
+    renderAll(); autoSave(); toast("AI 剪辑方案已应用（Ctrl+Z 可撤销）","ok");
+}
+async function runAiEdit(){
+    const st=$("aiEditState");
+    if(!state.clips.length){
+        st.className="ai-state err"; st.textContent="轨道上还没有素材：请先把素材库的文件拖到下方轨道，再点「✨ AI剪辑」。";
+        toast("轨道是空的，先拖入素材","err"); return;
+    }
+    const cfg=aiConfig();
+    if(!cfg.endpoint||!cfg.model){ showAiSetup(cfg); return; }
+    const btn=$("aiCutBtn"); btn.disabled=true;
+    st.className="ai-state"; st.textContent="① 正在整理轨道结构…";
+    try{
+        const frames=$("aiFrames").checked?await collectFrames():[];
+        st.textContent="② 已抽取 "+frames.length+" 帧画面，正在请求 "+cfg.model+" …（强多模态模型可能需要 10~60 秒）";
+        let text="";
+        try{ text=await aiChat(cfg,buildAiMessages(frames)); }
+        catch(e){
+            if(frames.length){
+                st.textContent="带图请求失败（"+((e&&e.message)||e)+"），正在改用纯轨道数据重试…";
+                try{
+                    text=await aiChat(cfg,buildAiMessages([]));
+                    toast("当前模型可能不支持视觉输入，已改用纯轨道数据分析；建议换 Claude / GPT-4o / Gemini 等多模态模型","err");
+                }catch(e2){ aiEditFail(e2,st); return; }
+            }else{ aiEditFail(e,st); return; }
+        }
+        const plan=parseAiPlan(text);
+        if(!plan){ aiEditFail(new Error("模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o / Gemini 等综合能力强的多模态模型"),st); return; }
+        pendingPlan=plan; renderAiPlan(plan,cfg,frames.length);
+        $("aiPlanModal").classList.add("show");
+        st.className="ai-state ok";
+        st.textContent="③ 方案已生成（"+plan.actions.length+" 项片段操作 / "+plan.newSubtitles.length+" 条新字幕）：在弹窗里确认后应用，应用后可用 Ctrl+Z 撤销。";
+    }catch(e){ aiEditFail(e,st); }
+    finally{ btn.disabled=false; }
+}
+
+/* ---------- 录音 → 音频轨 ---------- */
+async function toggleRecord(){
+    if(recBusy) return;                       /* 等麦克风授权期间防重复点击，避免启动两次录音 */
+    if(recState.rec){ stopRecord(); return; }
+    if(!navigator.mediaDevices||!window.MediaRecorder){ toast("当前浏览器不支持录音（需 HTTPS 与麦克风权限）","err"); return; }
+    recBusy=true;
+    try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        const mimes=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"];
+        const mime=mimes.find(m=>{ try{ return MediaRecorder.isTypeSupported(m); }catch(e){ return false; } })||"";
+        const rec=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+        recState={rec:rec,chunks:[],stream:stream,t0:Date.now(),timer:0};
+        rec.ondataavailable=e=>{ if(e.data&&e.data.size) recState.chunks.push(e.data); };
+        rec.onstop=()=>{ finishRecord(); };
+        rec.start(200);
+        const btn=$("recBtn"); btn.classList.add("recording"); btn.textContent="⏹ 停止录音";
+        recState.timer=setInterval(()=>{ btn.title="录音中 "+((Date.now()-recState.t0)/1000).toFixed(0)+" 秒，再点一次结束并加入音频轨"; },500);
+        toast("录音已开始，再点「⏹ 停止录音」结束并加入音频轨","ok");
+    }catch(e){ toast("无法调用麦克风："+((e&&e.message)||e),"err"); }
+    finally{ recBusy=false; }
+}
+function stopRecord(){
+    if(!recState.rec) return;
+    try{ recState.rec.stop(); }catch(e){}
+    clearInterval(recState.timer);
+    try{ recState.stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    const btn=$("recBtn"); btn.classList.remove("recording"); btn.textContent="⏺ 录音";
+    btn.title="录音：调用电脑麦克风，结束后自动加入音频轨";
+}
+async function finishRecord(){
+    const mime=(recState.rec&&recState.rec.mimeType)||"audio/webm";
+    const chunks=recState.chunks.slice(), secs=(Date.now()-recState.t0)/1000;
+    recState={rec:null,chunks:[],stream:null,t0:0,timer:0};
+    if(!chunks.length){ toast("没有录到声音","err"); return; }
+    const blob=new Blob(chunks,{type:mime});
+    const ext=/ogg/i.test(mime)?"ogg":(/mp4/i.test(mime)?"m4a":"webm");
+    const url=URL.createObjectURL(blob);
+    const d=new Date(), pad=x=>String(x).padStart(2,"0");
+    const name="录音_"+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"_"+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds())+"."+ext;
+    const dur=(await mediaDuration(url,"audio"))||secs;
+    const a=await addAsset({name:name,type:"audio",url:url,urlKind:"blob",source:"local",ext:ext,
+        blob:blob,blobId:uid(),size:blob.size,duration:dur});
+    addAssetToTrack(a,{at:state.playhead});
+    toast("录音完成，已加入音频轨道","ok");
 }
 
 /* ---------- 从导演画布转入 ---------- */
@@ -1065,7 +1636,7 @@ async function receiveFromCanvas(p){
         type:(type==="audio"?"audio":(type==="image"?"image":"video")),
         url:p.url, urlKind:/^data:/.test(p.url)?"data":"remote", source:"canvas",
         ext:(String(p.name||"").split(".").pop()||"").toLowerCase()});
-    if(p.target==="timeline") addAssetToTrack(a,"V1");
+    if(p.target==="timeline") addAssetToTrack(a,{at:state.playhead});
     toast(p.target==="timeline"?"已从画布转入当天剪辑轨道":"已从画布转入素材库","ok");
     return true;
 }
@@ -1084,14 +1655,13 @@ function setupChannels(){
     }catch(e){}
     window.addEventListener("storage",e=>{ if(e.key===MF_EDITOR_INBOX&&e.newValue){ try{ receiveFromCanvas(JSON.parse(e.newValue)); safeStorage.remove(MF_EDITOR_INBOX); }catch(err){} } });
     window.addEventListener("message",e=>{ if(e.data&&e.data.source==="canvas"&&e.data.url) receiveFromCanvas(e.data); });
-    window.ManflowsAIEditor={receiveFromCanvas, scanCanvasHistory, state, renderAll};
+    window.ManflowsAIEditor={receiveFromCanvas,scanCanvasHistory,state,renderAll};
 }
 
 /* ---------- 工程保存 / 恢复 / 导出 ---------- */
 function projectPayload(){
-    return {v:1,date:state.date,zoom:state.zoom,playhead:0,
-        /* 本地 Blob 只存 blobId（媒体在 IndexedDB）；直链 / dataURL / 文本则原样保留，
-           否则重新打开工程时远程素材会丢地址。 */
+    return {v:2,date:state.date,zoom:state.zoom,playhead:0,
+        tracks:state.tracks, subTrack:state.subTrack,
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
             o.remoteUrl=(a.urlKind==="blob")?"":(a.url||""); return o; }),
         clips:state.clips, savedAt:Date.now()};
@@ -1104,12 +1674,31 @@ function saveProject(silent){
     return ok;
 }
 function autoSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>saveProject(true),700); }
+function migrateClip(c){
+    const o=Object.assign({},c);
+    if(LEGACY_TRACK[c.track]){
+        o.track=LEGACY_TRACK[c.track];
+        if(LEGACY_SUB[c.track]&&!o.subKind) o.subKind=LEGACY_SUB[c.track];
+    }
+    if(!state.tracks.some(t=>t.id===o.track)){
+        const k=({V1:"video",P1:"image",A1:"audio",S1:"text",S2:"text",S3:"text"})[c.track]||"video";
+        const t=orderedTracks().find(x=>x.kind===k)||newTrack(k);
+        o.track=t.id;
+    }
+    return o;
+}
 async function loadProject(date){
     const raw=safeStorage.get(PROJECT_PREFIX+date);
     if(!raw){ toast("没有找到 "+date+" 的工程","err"); return false; }
     try{
         const p=JSON.parse(raw);
-        state.date=date; state.zoom=p.zoom||36; state.clips=Array.isArray(p.clips)?p.clips:[];
+        state.date=date; state.zoom=p.zoom||36;
+        state.tracks=(Array.isArray(p.tracks)&&p.tracks.length)
+            ? p.tracks.map(t=>({id:String(t.id||uid()),kind:(TK_ORDER.indexOf(t.kind)>=0?t.kind:"video"),
+                label:String(t.label||TK_NAME[t.kind]||"轨道"),order:Number(t.order)||0}))
+            : defaultTracks();
+        state.subTrack=String(p.subTrack||"");
+        state.clips=(Array.isArray(p.clips)?p.clips:[]).map(migrateClip);
         state.assets=[];
         for(const a of (p.assets||[])){
             const x=Object.assign({},a);
@@ -1121,7 +1710,8 @@ async function loadProject(date){
             else{ x.url=""; x.urlKind="inline"; }
             state.assets.push(x);
         }
-        state.selected=null; state.playhead=0; historyStack=[]; redoStack=[];
+        state.selected=null; state.multi=[]; state.selectedAsset=null; state.playhead=0;
+        historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key="";
         pause(); renderAll(); toast("已打开 "+date+" 的工程","ok");
         return true;
     }catch(e){ toast("工程读取失败："+e.message,"err"); return false; }
@@ -1141,23 +1731,21 @@ function download(name,content,mime){
     setTimeout(()=>URL.revokeObjectURL(u),3000);
 }
 function exportSRT(){
-    const arr=state.clips.filter(c=>trackById(c.track).kind==="subtitle"&&c.text)
-        .sort((a,b)=>a.start-b.start);
-    if(!arr.length){ toast("字幕层是空的，先生成或导入字幕","err"); return; }
+    const arr=state.clips.filter(c=>trackKind(c.track)==="text"&&c.text).sort((a,b)=>a.start-b.start);
+    if(!arr.length){ toast("字幕轨是空的，先生成或导入字幕","err"); return; }
     const srt=t=>{ const ms=Math.round(t*1000); const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000),x=ms%1000;
         return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")+","+String(x).padStart(3,"0"); };
     const txt=arr.map((c,i)=>(i+1)+"\n"+srt(c.start)+" --> "+srt(c.start+c.duration)+"\n"
-        +"["+SUB_NAME[trackById(c.track).subKind]+"] "+c.text+"\n").join("\n");
+        +(c.subKind&&SUB_NAME[c.subKind]?"["+SUB_NAME[c.subKind]+"] ":"")+c.text+"\n").join("\n");
     download("manflows_"+state.date+"_字幕.srt",txt,"text/plain;charset=utf-8");
-    toast("已导出 "+arr.length+" 条字幕（含类型标注）","ok");
+    toast("已导出 "+arr.length+" 条字幕","ok");
 }
 function exportProject(){
-    const p=projectPayload();
-    download("manflows_"+state.date+"_工程.json",JSON.stringify(p,null,2),"application/json");
+    download("manflows_"+state.date+"_工程.json",JSON.stringify(projectPayload(),null,2),"application/json");
     toast("工程 JSON 已导出（媒体文件需另行备份）","ok");
 }
 
-/* ---------- 演示工程（零外部依赖） ---------- */
+/* ---------- 演示工程（零外部依赖，四条初始轨） ---------- */
 function demoScene(title,sub,c1,c2){
     const cv=document.createElement("canvas"); cv.width=640; cv.height=360; const x=cv.getContext("2d");
     const g=x.createLinearGradient(0,0,640,360); g.addColorStop(0,c1); g.addColorStop(1,c2); x.fillStyle=g; x.fillRect(0,0,640,360);
@@ -1188,48 +1776,44 @@ function demoWav(seconds,base,chord){
     return new Blob([buf],{type:"audio/wav"});
 }
 async function loadDemoProject(){
-    pause(); state.assets=[]; state.clips=[]; state.selected=null; state.playhead=0;
-    state.zoom=36; state.tab="all"; state.subTab="dialogue"; historyStack=[]; redoStack=[];
+    pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
+    state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all";
+    state.tracks=defaultTracks(); state.subTrack="tk_text1";
+    historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key="";
     const scenes=[
         ["长安 · 夜雨","镜头一 · 空镜","#0b1d33","#254b63"],
         ["城门 · 送别","镜头二 · 双人","#2a1633","#6b3050"],
         ["雨中 · 回望","镜头三 · 特写","#101c22","#2f5661"]
     ];
-    const imgs=[];
-    scenes.forEach((s,i)=>{ imgs.push(demoScene(s[0],s[1],s[2],s[3])); });
+    const imgs=[]; scenes.forEach(s=>imgs.push(demoScene(s[0],s[1],s[2],s[3])));
     const wavs=[demoWav(10,220,[1,1.5,2]),demoWav(10,146.83,[1,1.25,1.5])];
     const imgAssets=[], audioAssets=[];
-    for(let i=0;i<3;i++){
-        imgAssets.push({id:uid(),name:scenes[i][0]+" · "+scenes[i][1]+".jpg",type:"image",url:imgs[i],urlKind:"data",
-            duration:0,size:0,source:"demo",ext:"jpg",blobId:"",text:"",ts:Date.now()});
-    }
-    wavs.forEach((w,i)=>{
-        audioAssets.push({id:uid(),name:(i?"离别 · 低音铺底":"夜雨 · 氛围音")+".wav",type:"audio",
-            url:URL.createObjectURL(w),urlKind:"blob",duration:10,size:w.size,source:"demo",ext:"wav",
-            blobId:"",text:"",ts:Date.now(),blob:w});
-    });
+    for(let i=0;i<3;i++) imgAssets.push({id:uid(),name:scenes[i][0]+" · "+scenes[i][1]+".jpg",type:"image",url:imgs[i],urlKind:"data",
+        duration:0,size:0,source:"demo",ext:"jpg",blobId:"",text:"",ts:Date.now()});
+    wavs.forEach((w,i)=>audioAssets.push({id:uid(),name:(i?"离别 · 低音铺底":"夜雨 · 氛围音")+".wav",type:"audio",
+        url:URL.createObjectURL(w),urlKind:"blob",duration:10,size:w.size,source:"demo",ext:"wav",
+        blobId:"",text:"",ts:Date.now(),blob:w}));
     for(const a of audioAssets){ try{ await dbPut("assets",a.id,a.blob); a.blobId="stored"; }catch(e){} delete a.blob; }
     state.assets=imgAssets.concat(audioAssets);
     state.clips=[
-        {id:uid(),track:"V1",assetId:imgAssets[0].id,start:0,duration:7,offset:0,text:"",name:"长安 · 夜雨"},
-        {id:uid(),track:"V1",assetId:imgAssets[1].id,start:7,duration:7,offset:0,text:"",name:"城门 · 送别"},
-        {id:uid(),track:"V1",assetId:imgAssets[2].id,start:14,duration:7,offset:0,text:"",name:"雨中 · 回望"},
-        {id:uid(),track:"P1",assetId:imgAssets[2].id,start:2.5,duration:3,offset:0,text:"",name:"画中画"},
-        {id:uid(),track:"A1",assetId:audioAssets[0].id,start:0,duration:10,offset:0,text:"",name:"夜雨 · 氛围音"},
-        {id:uid(),track:"A1",assetId:audioAssets[1].id,start:10,duration:10,offset:0,text:"",name:"离别 · 低音铺底"},
-        {id:uid(),track:"S2",assetId:"",start:0.8,duration:3.2,offset:0,text:"夜色压下来，长安城的灯一盏盏灭了。",name:"旁白"},
-        {id:uid(),track:"S1",assetId:"",start:4.4,duration:2.6,offset:0,text:"「你真的要走？」",name:"对白"},
-        {id:uid(),track:"S1",assetId:"",start:7.4,duration:3.4,offset:0,text:"「我若不走，这满城的人都要替我死。」",name:"对白"},
-        {id:uid(),track:"S3",assetId:"",start:11.2,duration:3.2,offset:0,text:"（其实我怕的不是死，是再也见不到她。）",name:"内心独白"},
-        {id:uid(),track:"S2",assetId:"",start:14.8,duration:2.6,offset:0,text:"风穿过长街，卷起一地未说完的话。",name:"旁白"},
-        {id:uid(),track:"S3",assetId:"",start:17.6,duration:2.6,offset:0,text:"（这一别，或许就是一生。）",name:"内心独白"}
+        {id:uid(),track:"tk_video1",assetId:imgAssets[0].id,start:0,duration:7,offset:0,text:"",name:"长安 · 夜雨"},
+        {id:uid(),track:"tk_video1",assetId:imgAssets[1].id,start:7,duration:7,offset:0,text:"",name:"城门 · 送别"},
+        {id:uid(),track:"tk_video1",assetId:imgAssets[2].id,start:14,duration:7,offset:0,text:"",name:"雨中 · 回望"},
+        {id:uid(),track:"tk_image1",assetId:imgAssets[2].id,start:2.5,duration:3,offset:0,text:"",name:"画中画"},
+        {id:uid(),track:"tk_audio1",assetId:audioAssets[0].id,start:0,duration:10,offset:0,text:"",name:"夜雨 · 氛围音"},
+        {id:uid(),track:"tk_audio1",assetId:audioAssets[1].id,start:10,duration:10,offset:0,text:"",name:"离别 · 低音铺底"},
+        {id:uid(),track:"tk_text1",assetId:"",start:0.8,duration:3.2,offset:0,text:"夜色压下来，长安城的灯一盏盏灭了。",name:"旁白",subKind:"narration"},
+        {id:uid(),track:"tk_text1",assetId:"",start:4.4,duration:2.6,offset:0,text:"「你真的要走？」",name:"对白",subKind:"dialogue"},
+        {id:uid(),track:"tk_text1",assetId:"",start:7.4,duration:3.4,offset:0,text:"「我若不走，这满城的人都要替我死。」",name:"对白",subKind:"dialogue"},
+        {id:uid(),track:"tk_text1",assetId:"",start:11.2,duration:3.2,offset:0,text:"（其实我怕的不是死，是再也见不到她。）",name:"内心独白",subKind:"inner"},
+        {id:uid(),track:"tk_text1",assetId:"",start:14.8,duration:2.6,offset:0,text:"风穿过长街，卷起一地未说完的话。",name:"旁白",subKind:"narration"},
+        {id:uid(),track:"tk_text1",assetId:"",start:17.6,duration:2.6,offset:0,text:"（这一别，或许就是一生。）",name:"内心独白",subKind:"inner"}
     ];
-    subCache=""; document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
+    document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
     renderAll(); autoSave(); syncMedia();
     $("aiState").className="ai-state";
-    $("aiState").textContent="演示工程已就绪：3 段画面 + 2 段音乐 + 6 条三层字幕。点「识别语音」可体验 AI 自动补字幕，导入真实 mp4 后链路完全一致。";
+    $("aiState").textContent="演示工程已就绪：字幕 / 图片 / 视频 / 音频四条轨，3 段主画面 + 1 段画中画 + 2 段音乐 + 6 条字幕。可拖素材到轨道自动加层，点「🅰 AI字幕」体验自动识别。";
 }
-
 /* ---------- 事件绑定 ---------- */
 function wire(){
     /* 顶栏 */
@@ -1238,10 +1822,10 @@ function wire(){
     $("topSave").onclick=()=>saveProject(false);
     $("topOpen").onclick=()=>{ listProjects(); $("projModal").classList.add("show"); };
     $("topSrt").onclick=exportSRT;
-    $("topDemo").onclick=()=>{ if(confirm("重置为内置演示工程？当前轨道会被替换（已保存的其它日期工程不受影响）。")) loadDemoProject(); };
+    $("resetLayout").onclick=resetLayout;
+    $("topDemo").onclick=()=>{ if(confirm("重置为内置演示工程？当前轨道与素材会被替换（已保存的其它日期工程不受影响）。")) loadDemoProject(); };
     $("topHelp").onclick=()=>$("helpModal").classList.add("show");
-    /* 三页已同处一个站点目录：返回创作台 / 返回画布一律走同目录相对地址，
-       本地预览、GitHub Pages 与 www.manflows.com 均适用；「漫流主站」始终新标签页打开。 */
+    /* 三页已同处一个站点目录：返回创作台 / 返回画布一律走同目录相对地址 */
     const go=page=>{ location.href="./"+page; };
     $("navIndex").onclick=()=>go("index.html");
     $("navCanvas").onclick=()=>go("canvas.html");
@@ -1249,7 +1833,6 @@ function wire(){
     /* 弹窗通用关闭 */
     document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove("show"));
     document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) m.classList.remove("show"); }));
-    document.addEventListener("keydown",e=>{ if(e.key==="Escape") document.querySelectorAll(".modal-overlay.show").forEach(m=>m.classList.remove("show")); });
 
     /* URL 弹窗 */
     $("urlAdd").onclick=async()=>{
@@ -1263,7 +1846,7 @@ function wire(){
         $("projModal").classList.remove("show"); await loadProject(b.dataset.load);
     });
 
-    /* 素材库 */
+    /* 素材库：单击选中 / 双击加入 / 拖到轨道 */
     $("fileInput").onchange=async e=>{ await addFiles(e.target.files); e.target.value=""; };
     $("importFiles").onclick=()=>$("fileInput").click();
     $("importUrl").onclick=()=>{$("urlModal").classList.add("show"); $("urlText").focus();};
@@ -1274,33 +1857,47 @@ function wire(){
         renderAssets();
     });
     $("assetList").addEventListener("click",e=>{
-        const item=e.target.closest(".asset-item"); if(!item)return;
-        const a=assetById(item.dataset.id); if(!a)return;
-        const btn=e.target.closest("button"); if(!btn)return;
-        const act=btn.dataset.act;
-        if(act==="add") addAssetToTrack(a);
-        else if(act==="del"){
-            if(confirm("从素材库移除「"+a.name+"」？轨道上已使用该素材的片段会保留但失去画面。")){
-                state.assets=state.assets.filter(x=>x.id!==a.id); renderAll(); autoSave(); toast("已移除素材","ok");
-            }
-        }else if(act==="view"){
-            if(a.type==="text"){ toast(a.text?a.text.slice(0,120):"在线文本未能读取，请改用本地上传"); }
-            else if(a.url){ window.open(a.url,"_blank","noopener"); }
-            else toast("这个素材没有可打开的链接","err");
-        }
+        const it=e.target.closest(".asset-item"); if(!it)return;
+        state.selectedAsset=it.dataset.id; state.selected=null; state.multi=[];
+        document.querySelectorAll(".asset-item").forEach(x=>x.classList.toggle("sel",x.dataset.id===state.selectedAsset));
+        renderProps(); renderTimeline();
+    });
+    $("assetList").addEventListener("dblclick",e=>{
+        const it=e.target.closest(".asset-item"); if(!it)return;
+        const a=assetById(it.dataset.id); if(a) addAssetToTrack(a);
+    });
+    $("assetList").addEventListener("dragstart",e=>{
+        const it=e.target.closest(".asset-item"); if(!it)return;
+        dragAssetId=it.dataset.id;
+        try{ e.dataTransfer.setData("text/plain","manflows-asset:"+dragAssetId); e.dataTransfer.effectAllowed="copy"; }catch(_){}
+        it.classList.add("dragging");
+    });
+    $("assetList").addEventListener("dragend",()=>{
+        dragAssetId="";
+        document.querySelectorAll(".asset-item.dragging").forEach(x=>x.classList.remove("dragging"));
+        document.querySelectorAll(".lane.drag-over").forEach(x=>x.classList.remove("drag-over"));
     });
     const dz=$("dropZone");
     ["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("over");}));
     ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("over");}));
     dz.addEventListener("drop",async e=>{
+        if(dragAssetId) return;
         const fs=e.dataTransfer&&e.dataTransfer.files;
         if(fs&&fs.length){ await addFiles(fs); return; }
         const txt=e.dataTransfer&&e.dataTransfer.getData("text");
-        if(txt){ await addUrls(txt.trim(),"auto"); }
+        if(txt && String(txt).indexOf("manflows-asset:")!==0) await addUrls(String(txt).trim(),"auto");
     });
     ["dragover","drop"].forEach(ev=>document.addEventListener(ev,e=>{ if(e.target===document.body||e.target===$("stage")) e.preventDefault(); }));
 
-    /* AI */
+    /* AI 配置 / 三个新按钮 */
+    $("aiSrc").onchange=()=>{ $("aiCustom").style.display=$("aiSrc").value==="custom"?"block":"none"; saveAiCfg(); };
+    ["aiEndpoint","aiKey","aiModel","aiFrames"].forEach(id=>$(id).addEventListener("change",saveAiCfg));
+    $("aiCutBtn").onclick=runAiEdit;
+    $("aiSubBtn").onclick=runASR;
+    $("recBtn").onclick=toggleRecord;
+    $("aiPlanApply").onclick=applyAiPlan;
+    $("aiGoIndex").onclick=()=>window.open("./index.html","_blank","noopener");
+    $("aiGoLocal").onclick=()=>window.open("./canvas.html","_blank","noopener");
     $("asrEngine").onchange=()=>{ $("asrCfg").style.display=$("asrEngine").value==="remote"?"block":"none"; };
     document.querySelectorAll("[data-preset]").forEach(b=>b.onclick=()=>{
         if(b.dataset.preset==="local"){ $("asrEndpoint").value="http://127.0.0.1:9000/v1/audio/transcriptions"; $("asrModel").value="whisper-1"; $("asrKey").value=""; }
@@ -1329,18 +1926,19 @@ function wire(){
         await receiveFromCanvas({id:"cv_"+Date.now(),source:"canvas",type:h.kind,
             name:h.name||"画布生成结果",url:h.url,target:b.dataset.target,at:Date.now()});
     });
-    document.addEventListener("click",e=>{ if(!e.target.closest("#demoMenu") && !e.target.closest("#demoCanvas")) $("demoMenu").classList.remove("show"); });
+    document.addEventListener("click",e=>{
+        if(!e.target.closest("#demoMenu") && !e.target.closest("#demoCanvas")) $("demoMenu").classList.remove("show");
+        if(!e.target.closest("#trackMenu") && !e.target.closest("#addTrackBtn")) $("trackMenu").classList.remove("show");
+    });
 
     /* 右侧属性 / 字幕 */
-    $("subTabs").addEventListener("click",e=>{
-        const b=e.target.closest(".sub-tab"); if(!b)return;
-        state.subTab=b.dataset.sub; renderSubList();
-    });
+    $("subTrackSel").onchange=()=>{ state.subTrack=$("subTrackSel").value; renderSubList(); };
     $("subList").addEventListener("click",e=>{
         const rm=e.target.closest("[data-rm]");
         if(rm){ pushHistory(); state.clips=state.clips.filter(c=>c.id!==rm.dataset.rm); renderAll(); autoSave(); return; }
         const item=e.target.closest(".sub-item"); if(!item)return;
-        state.selected=item.dataset.id; renderProps(); renderSubList(); renderTimeline();
+        state.selected=item.dataset.id; state.multi=[]; state.selectedAsset=null;
+        renderProps(); renderSubList(); renderTimeline();
         const c=clipById(item.dataset.id); if(c) seek(c.start);
     });
     $("subList").addEventListener("change",e=>{
@@ -1357,25 +1955,47 @@ function wire(){
     $("btnStart").onclick=()=>seek(0);
     $("btnEnd").onclick=()=>seek(totalDuration());
     $("seekRange").oninput=e=>seek(Number(e.target.value));
-    $("volRange").oninput=e=>{ vEl.volume=Number(e.target.value); aEl.volume=Number(e.target.value); };
-    vEl.volume=0.8; aEl.volume=0.8;
+    $("volRange").oninput=e=>{ const v=Number(e.target.value); vEl.volume=v; audioPool.forEach(o=>{o.el.volume=v;}); };
+    vEl.volume=0.8;
 
     /* 时间轴工具条 */
+    $("quickImport").onclick=()=>$("fileInput").click();
     $("splitBtn").onclick=()=>splitSelected();
-    $("delBtn").onclick=deleteSelected;
+    $("delBtn").onclick=deleteAction;
+    $("copyBtn").onclick=()=>copySelection(false);
+    $("pasteBtn").onclick=pasteClips;
     $("undoBtn").onclick=undo; $("redoBtn").onclick=redo;
     $("zoomIn").onclick=()=>{ state.zoom=clamp(state.zoom+12,12,120); renderTimeline(); };
     $("zoomOut").onclick=()=>{ state.zoom=clamp(state.zoom-12,12,120); renderTimeline(); };
+    $("keyHelpBtn").onclick=()=>$("helpModal").classList.add("show");
+    $("addTrackBtn").onclick=e=>{
+        const m=$("trackMenu"), r=e.currentTarget.getBoundingClientRect();
+        m.style.left=Math.min(window.innerWidth-210,r.left)+"px"; m.style.top=(r.bottom+6)+"px"; m.classList.add("show");
+    };
+    $("trackMenu").addEventListener("click",e=>{
+        const b=e.target.closest("[data-kind]"); if(!b)return;
+        $("trackMenu").classList.remove("show");
+        newTrack(b.dataset.kind); renderAll(); autoSave();
+        toast("已新建「"+TK_NAME[b.dataset.kind]+"」轨道","ok");
+    });
 
-    /* 时间轴点击 / 拖动 / 裁切 */
+    /* 时间轴点击 / 拖动 / 裁切 / 拖入素材 */
     const sc=$("tlScroll");
     sc.addEventListener("click",e=>{
+        const add=e.target.closest("[data-tkadd]");
+        if(add){
+            const t=trackById(add.dataset.tkadd);
+            if(t){ newTrack(t.kind); renderAll(); autoSave(); toast("已新建「"+TK_NAME[t.kind]+"」轨道","ok"); }
+            return;
+        }
+        const del=e.target.closest("[data-tkdel]");
+        if(del){ delTrack(del.dataset.tkdel); return; }
         const lane=e.target.closest(".lane"), scale=e.target.closest(".ruler-scale");
         if(e.target.closest(".clip")) return;
         if(lane||scale){
             const rect=(lane||scale).getBoundingClientRect();
             seek(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration()));
-            if(lane) { state.selected=null; renderProps(); renderTimeline(); }
+            if(lane){ state.selected=null; state.multi=[]; state.selectedAsset=null; renderProps(); renderAssets(); renderTimeline(); }
         }
     });
     sc.addEventListener("mousedown",e=>{
@@ -1384,12 +2004,20 @@ function wire(){
             e.stopPropagation(); e.preventDefault();
             const c=clipById(split.dataset.split); if(!c)return;
             const lane=split.closest(".lane"), rect=lane.getBoundingClientRect();
-            state.selected=c.id; splitSelected(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration()));
+            state.selected=c.id; state.multi=[];
+            splitSelected(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration()));
             return;
         }
         const clipEl=e.target.closest(".clip"); if(!clipEl)return;
         const c=clipById(clipEl.dataset.id); if(!c)return;
-        state.selected=c.id; renderProps(); renderSubList(); renderTimeline();
+        if(e.shiftKey){
+            const i=state.multi.indexOf(c.id);
+            if(i>=0) state.multi.splice(i,1); else state.multi.push(c.id);
+            state.selected=c.id; renderProps(); renderSubList(); renderTimeline();
+            e.preventDefault(); return;
+        }
+        state.selected=c.id; state.multi=[]; state.selectedAsset=null;
+        renderProps(); renderSubList(); renderAssets(); renderTimeline();
         const fresh=document.querySelector('.clip[data-id="'+c.id+'"]'); if(!fresh)return;
         const resize=!!e.target.closest("[data-handle]");
         const x0=e.clientX, start0=c.start, dur0=c.duration, zoom=state.zoom;
@@ -1409,33 +2037,77 @@ function wire(){
         document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
         e.preventDefault();
     });
+    sc.addEventListener("dragover",e=>{
+        if(!dragAssetId) return;
+        const lane=e.target.closest(".lane"); if(!lane) return;
+        e.preventDefault(); try{ e.dataTransfer.dropEffect="copy"; }catch(_){}
+        document.querySelectorAll(".lane.drag-over").forEach(x=>{ if(x!==lane) x.classList.remove("drag-over"); });
+        lane.classList.add("drag-over");
+    });
+    sc.addEventListener("drop",async e=>{
+        const lane=e.target.closest(".lane"); if(!lane) return;
+        let id=dragAssetId;
+        if(!id){ try{ const t=String(e.dataTransfer.getData("text/plain")||""); if(t.indexOf("manflows-asset:")===0) id=t.slice(15); }catch(_){} }
+        const a=id?assetById(id):null;
+        if(!a) return;
+        e.preventDefault(); e.stopPropagation();
+        const rect=lane.getBoundingClientRect();
+        const at=clamp((e.clientX-rect.left)/state.zoom,0,totalDuration());
+        dragAssetId="";
+        document.querySelectorAll(".lane.drag-over").forEach(x=>x.classList.remove("drag-over"));
+        document.querySelectorAll(".asset-item.dragging").forEach(x=>x.classList.remove("dragging"));
+        addAssetToTrack(a,{trackId:lane.dataset.track,at:at});
+    });
 
-    /* 快捷键 */
+    /* 剪映风格快捷键 */
     document.addEventListener("keydown",e=>{
+        if(e.key==="Escape"){
+            document.querySelectorAll(".modal-overlay.show").forEach(m=>m.classList.remove("show"));
+            $("demoMenu").classList.remove("show"); $("trackMenu").classList.remove("show");
+            return;
+        }
         const tag=(e.target&&e.target.tagName||"").toLowerCase();
-        if(tag==="input"||tag==="textarea"||tag==="select") return;
+        if(tag==="input"||tag==="textarea"||tag==="select"||(e.target&&e.target.isContentEditable)) return;
+        if(document.querySelector(".modal-overlay.show")) return;
+        const mod=e.ctrlKey||e.metaKey, k=e.key.toLowerCase();
+        if(mod){
+            if(k==="z"){ e.preventDefault(); e.shiftKey?redo():undo(); }
+            else if(k==="y"){ e.preventDefault(); redo(); }
+            else if(k==="b"){ e.preventDefault(); splitSelected(); }
+            else if(k==="c"){ e.preventDefault(); copySelection(false); }
+            else if(k==="x"){ e.preventDefault(); copySelection(true); }
+            else if(k==="v"){ e.preventDefault(); pasteClips(); }
+            else if(k==="a"){ e.preventDefault(); selectAllClips(); }
+            else if(k==="s"){ e.preventDefault(); saveProject(false); }
+            else if(k==="o"){ e.preventDefault(); listProjects(); $("projModal").classList.add("show"); }
+            else if(k==="i"){ e.preventDefault(); $("fileInput").click(); }
+            else if(k==="e"){ e.preventDefault(); exportSRT(); }
+            return;
+        }
         if(e.key===" "){ e.preventDefault(); playing?pause():play(); }
-        else if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); deleteSelected(); }
-        else if(e.key.toLowerCase()==="s"&&!e.ctrlKey&&!e.metaKey){ e.preventDefault(); splitSelected(); }
+        else if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); deleteAction(); }
+        else if(k==="s"){ e.preventDefault(); splitSelected(); }
         else if(e.key==="ArrowLeft"){ e.preventDefault(); seek(state.playhead-(e.shiftKey?1:0.1)); }
         else if(e.key==="ArrowRight"){ e.preventDefault(); seek(state.playhead+(e.shiftKey?1:0.1)); }
-        else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){ e.preventDefault(); e.shiftKey?redo():undo(); }
-        else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){ e.preventDefault(); redo(); }
+        else if(e.key==="Home"){ e.preventDefault(); seek(0); }
+        else if(e.key==="End"){ e.preventDefault(); seek(totalDuration()); }
+        else if(e.key==="+"||e.key==="="){ e.preventDefault(); state.zoom=clamp(state.zoom+12,12,120); renderTimeline(); }
+        else if(e.key==="-"||e.key==="_"){ e.preventDefault(); state.zoom=clamp(state.zoom-12,12,120); renderTimeline(); }
     });
     window.addEventListener("beforeunload",()=>saveProject(true));
 }
 
 /* ---------- 启动 ---------- */
 async function init(){
-    wire(); setupChannels();
+    applyLayout(loadLayout());
+    wireSplitters();
+    wire(); setupChannels(); loadAiCfg();
     const saved=safeStorage.get(PROJECT_PREFIX+todayStr());
     if(saved){
         try{ await loadProject(todayStr()); }
         catch(e){ await loadDemoProject(); }
         toast("已自动恢复今天的剪辑工程","ok");
-    }else{
-        await loadDemoProject();
-    }
+    }else await loadDemoProject();
     await drainInbox();
     scanCanvasHistory();
     saveProject(true);
