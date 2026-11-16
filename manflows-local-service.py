@@ -49,7 +49,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -1548,7 +1548,7 @@ def _atempo_expr(speed, pitch):
     return ",".join(parts)
 
 
-def _video_filter(seg, w, h, fps):
+def _video_filter(seg, w, h, fps, lut_path="", lut_adj=None):
     s = max(0.1, min(8.0, float(seg["speed"])))
     flt = "setpts=(PTS-STARTPTS)/%.6f" % s
     if seg.get("reverse"):
@@ -1558,6 +1558,32 @@ def _video_filter(seg, w, h, fps):
     if w and h:
         flt += (",scale=%d:%d:force_original_aspect_ratio=decrease:flags=lanczos,"
                 "pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1" % (w, h, w, h))
+    if lut_path:
+        flt += ",lut3d=file='%s'" % str(lut_path).replace("'", "\\'")
+        adj = lut_adj or {}
+        try:
+            inten = max(0.0, min(1.0, float(adj.get("intensity", 1) or 1)))
+        except Exception:
+            inten = 1.0
+        eqp = []
+        for key, param in (("brightness", "brightness"), ("contrast", "contrast"),
+                           ("saturate", "saturation")):
+            try:
+                v = float(adj.get(key, 0) or 0) * inten
+            except Exception:
+                v = 0.0
+            if abs(v) > 0.01:
+                eqp.append("%s=%.4f" % (param, (1.0 + v / 100.0) if param == "contrast" else (v / 100.0)))
+        if eqp:
+            flt += ",eq=" + ":".join(eqp)
+        try:
+            temp = float(adj.get("temperature", 0) or 0) * inten
+        except Exception:
+            temp = 0.0
+        if abs(temp) > 0.01:
+            v = abs(temp) / 100.0 * 0.3
+            flt += (",colorbalance=rs=%.4f:bs=-%.4f" % (v, v)) if temp > 0 else \
+                  (",colorbalance=rs=-%.4f:bs=%.4f" % (v, v))
     flt += ",format=yuv420p"
     return flt
 
@@ -1598,6 +1624,16 @@ def _render_segments(ff, td, in_path, segs, opt, jid):
     seg_dir = os.path.join(td, "segs")
     os.makedirs(seg_dir, exist_ok=True)
     made = []
+    lut_path = ""
+    lut_adj = opt.get("lut") or {}
+    if lut_adj and lut_adj.get("cube"):
+        try:
+            lut_path = os.path.join(td, "grade.cube")
+            with open(lut_path, "w", encoding="utf-8") as lf:
+                lf.write(lut_adj.get("cube", ""))
+            lut_path = lut_path.replace("\\", "/")
+        except Exception:
+            lut_path = ""
 
     for i, seg in enumerate(segs):
         pitch = bool(seg.get("pitch"))
@@ -1610,7 +1646,7 @@ def _render_segments(ff, td, in_path, segs, opt, jid):
             cmd += ["-vn", "-af", _audio_filter(seg, pitch),
                     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
         else:
-            cmd += ["-vf", _video_filter(seg, w, h, fps)]
+            cmd += ["-vf", _video_filter(seg, w, h, fps, lut_path, lut_adj)]
             if has_audio:
                 cmd += ["-af", _audio_filter(seg, pitch),
                         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
@@ -1704,8 +1740,25 @@ def _render_opt(data):
         kind = "video"
     w = _even(data.get("width"), None)
     h = _even(data.get("height"), None)
+    lut_in = data.get("lut")
+    lut_opt = None
+    if isinstance(lut_in, dict):
+        cube = str(lut_in.get("cube") or "")[:500000]
+        if "LUT_3D_SIZE" in cube.upper() and len(cube) > 50:
+            ad = lut_in.get("adjust") or {}
+            def num(key, default, lo, hi):
+                try:
+                    return max(lo, min(hi, float(ad.get(key, default) or default)))
+                except Exception:
+                    return default
+            lut_opt = {"cube": cube,
+                       "intensity": num("intensity", 1.0, 0.0, 1.0),
+                       "brightness": num("brightness", 0.0, -50.0, 50.0),
+                       "contrast": num("contrast", 0.0, -50.0, 50.0),
+                       "saturate": num("saturate", 0.0, -50.0, 50.0),
+                       "temperature": num("temperature", 0.0, -50.0, 50.0)}
     return out, {"kind": kind, "width": w, "height": h,
-                 "fps": _fps(data.get("fps"), 30)}
+                 "fps": _fps(data.get("fps"), 30), "lut": lut_opt}
 
 
 def api_render(body):

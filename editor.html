@@ -214,6 +214,20 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border2);}
 .tick span{position:absolute;left:4px;top:5px;font-size:9.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .track-row{display:flex;height:38px;border-bottom:1px solid var(--border);}
+.track-row.compound{height:66px;}
+.track-row.compound .clip{height:60px;top:3px;}
+.clip-video-half{height:30px;display:flex;align-items:center;position:relative;flex:0 0 30px;}
+.clip-audio-half{height:30px;position:relative;flex:0 0 30px;border-top:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.2);}
+.canvas.clip-wave,.clip-wave{width:100%;height:100%;display:block;}
+.ctx-menu{position:fixed;z-index:1100;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,.45);min-width:200px;}
+.ctx-menu[hidden]{display:none;}
+.ctx-menu button{display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:7px 9px;border-radius:5px;font-size:11.5px;cursor:pointer;}
+.ctx-menu button:hover{background:var(--hover);}
+.ctx-menu button[hidden]{display:none;}
+.lut-manager{margin-top:10px;padding-top:6px;border-top:1px dashed var(--border2);}
+.lut-manager .hint{line-height:1.55;}
+.lut-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
+.lut-canvas[hidden]{display:none;}
 .track-label{width:92px;flex:0 0 92px;position:sticky;left:0;z-index:5;background:var(--card);border-right:1px solid var(--border2);display:flex;flex-direction:column;justify-content:center;padding:0 5px;gap:2px;}
 .tl-head{display:flex;align-items:center;gap:2px;min-width:0;}
 .track-label .tl-name{font-size:10.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;}
@@ -231,10 +245,23 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .clip.dragging{cursor:grabbing;opacity:.88;z-index:4;}
 .clip-body{flex:1 1 auto;min-width:0;padding:0 7px;font-size:10.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:30px;}
 .clip-handle{width:7px;flex:0 0 7px;height:100%;background:rgba(0,0,0,.28);cursor:ew-resize;}
+.clip-handle-l{background:rgba(255,255,255,.24);}
 .clip-split{position:absolute;right:3px;top:4px;width:16px;height:16px;border:none;border-radius:4px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;line-height:1;padding:0;display:none;}
 .clip:hover .clip-split{display:block;}
 .playhead{position:absolute;top:0;bottom:0;width:2px;background:#f87171;z-index:8;pointer-events:none;}
 .playhead::before{content:"";position:absolute;top:0;left:-5px;width:12px;height:10px;background:#f87171;clip-path:polygon(0 0,100% 0,50% 100%);}
+
+/* ===== 录音设备选择 / 双声道电平表 ===== */
+.rec-meter{margin-top:10px;padding:10px 12px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;position:relative;}
+.rec-meter[hidden]{display:none;}
+.rec-meter-row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:11px;color:#cbd5e1;}
+.rec-meter-row>span{width:12px;color:#67e8f9;font-weight:700;}
+.rec-meter-bar{flex:1;height:9px;background:rgba(255,255,255,.09);border-radius:5px;overflow:hidden;}
+.rec-meter-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#22c55e,#eab308 72%,#ef4444);border-radius:5px;transition:width .06s linear;}
+.rec-time{position:absolute;right:12px;top:7px;font-size:11px;color:#fca5a5;font-variant-numeric:tabular-nums;}
+.rec-meter-stage{position:absolute;left:12px;bottom:12px;width:196px;padding:8px 10px;background:rgba(0,0,0,.64);border:1px solid rgba(255,255,255,.22);border-radius:8px;z-index:14;pointer-events:none;}
+.rec-meter-stage[hidden]{display:none;}
+.rec-meter-stage .rec-meter-row{margin:4px 0;font-size:10px;}
 
 /* ===== 弹窗 / Toast ===== */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;z-index:1000;padding:22px;}
@@ -300,6 +327,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 /* ===== 预览窗口变换框（移动 / 缩放 / 旋转） ===== */
 .fx-box{position:absolute;left:50%;top:50%;width:62%;height:62%;border:1px dashed #60a5fa;box-shadow:0 0 0 1px rgba(0,0,0,.4);transform-origin:center center;z-index:12;cursor:move;box-sizing:border-box;}
 .fx-box[hidden]{display:none;}
+.fx-box{transition:opacity .16s;}
+.fx-box.faded{opacity:0;pointer-events:none;}
 .fx-corner{position:absolute;width:12px;height:12px;background:#60a5fa;border:2px solid #fff;border-radius:3px;z-index:2;}
 .fx-corner[data-fx="nw"]{left:-7px;top:-7px;cursor:nwse-resize;}
 .fx-corner[data-fx="ne"]{right:-7px;top:-7px;cursor:nesw-resize;}
@@ -366,9 +395,6 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
   background:linear-gradient(145deg,#1e293b,#0f172a);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;}
 .export-cover img{width:100%;height:100%;object-fit:cover;}
 .export-cover .cover-empty{color:var(--muted);font-size:11px;text-align:center;line-height:1.8;padding:14px;}
-.export-cover .cover-edit{position:absolute;left:9px;top:9px;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.28);
-  color:#fff;border-radius:6px;padding:4px 8px;font-size:10.5px;}
-.export-cover .cover-edit:hover{background:rgba(0,0,0,.85);}
 .export-side-note{font-size:10px;color:var(--muted);line-height:1.65;}
 .export-side-note a{color:#67e8f9;}
 .export-row{display:flex;align-items:center;gap:9px;margin:9px 0;}
@@ -503,7 +529,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div id="aiEditState"></div><div id="aiState"></div><div id="aiStat"></div>
             </div>
 
-            <div class="card">
+            <div class="card" hidden>
                 <h2>从导演画布转入 <span class="h2-extra">一键</span></h2>
                 <div class="hint">读取本机画布历史结果（<code>manflows_canvas_db → __global__.history</code>），把生成出来的视频 / 图片<b>转入素材库</b>或<b>直接放进当天剪辑轨道</b>。同域部署后自动生效；本地单文件预览可用下面的演示数据。</div>
                 <div class="row">
@@ -525,6 +551,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <button class="asp-btn active" data-asp="auto">自适应</button>
                     <button class="asp-btn" data-asp="16:9">16:9</button>
                     <button class="asp-btn" data-asp="9:16">9:16</button>
+                    <button class="asp-btn" id="fxBoxToggle" title="显示 / 隐藏预览变换框（移动·缩放·旋转控件）">◇ 变换框</button>
                 </div>
                 <span class="ph-extra" id="playerMode">字幕 / 图片 / 视频 / 音频 多层同步预览</span>
             </div>
@@ -535,6 +562,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <div id="pipLayer"></div>
                     <div class="fx-color-overlay" id="fxColorOverlay"></div>
                     <div class="stage-empty" id="stageEmpty"><b>把素材库的文件拖到下方轨道</b>或直接导入一个本地视频<br>导入后可播放、剪断、加字幕</div>
+                    <div class="rec-meter-stage" id="recMeterStage" hidden>
+                        <div class="rec-meter-row"><span>L</span><div class="rec-meter-bar"><i id="recL"></i></div></div>
+                        <div class="rec-meter-row"><span>R</span><div class="rec-meter-bar"><i id="recR"></i></div></div>
+                    </div>
                     <div class="fx-box" id="fxBox" hidden>
                         <span class="fx-badge" id="fxBadge">拖动移动 · 四角缩放 · 顶部圆点旋转 · 滚轮缩放</span>
                         <div class="fx-rot" id="fxRot" title="按住拖动旋转"></div>
@@ -580,6 +611,14 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="card prop-panel" id="panelColor" hidden>
                 <h2>调整 · 调色 LUT</h2>
                 <div id="colorBox"></div>
+                <div class="lut-manager" id="lutManager">
+                    <div class="fx-sec">LUT 文件库 · 时间轴独立 LUT 轨</div>
+                    <div class="hint" style="margin:0 0 5px">加载 <code>.cube / .3dl / .lut</code> 后可存成多个预制反复调用；LUT 片段位于视频轨上方，实时影响下方所有视频画面，导出时也会烘焙进成片。</div>
+                    <div class="row"><input type="file" id="lutFile" accept=".cube,.3dl,.lut" style="flex:1;font-size:10.5px"><button class="mini-btn" id="lutLoad">加载</button></div>
+                    <div class="row"><select id="lutPreset" style="flex:1"></select><button class="mini-btn gray" id="lutSavePreset">存为预制</button></div>
+                    <div id="lutAdjustBox"></div>
+                    <div class="row"><button class="mini-btn green" id="lutApply" style="flex:1">＋ 放到当前播放头</button><button class="mini-btn gray" id="lutRemove">移除</button></div>
+                </div>
             </div>
             <div class="card prop-panel" id="panelSub" hidden>
                 <h2>调整 · 字幕 <span class="h2-extra" id="subCount">0 条</span></h2>
@@ -589,7 +628,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="sub-list" id="subList"></div>
                 <div class="row"><button class="mini-btn" id="addSub" style="flex:1">＋ 新增一条空白字幕</button></div>
             </div>
-            <div class="card">
+            <div class="card" hidden>
                 <h2>当天工程</h2>
                 <div class="kv" id="projInfo"></div>
                 <div class="row"><button class="mini-btn gray" id="exportProject" style="flex:1">⬇ 导出工程 JSON</button></div>
@@ -612,11 +651,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tb-btn" id="mirrorBtn" title="镜像：水平翻转选中片段画面 (M)">⇋ 镜像</button>
                 <button class="tb-btn" id="reverseBtn" title="倒放：反向播放选中片段画面 (R)">◀ 倒放</button>
                 <button class="tb-btn" id="addTrackBtn" title="新建一条轨道">＋ 轨道</button>
+                <button class="tb-btn active" id="snapBtn" title="磁吸：拖动片段时自动吸附到其他片段边缘或播放头，点一下可开/关">🧲 磁吸</button>
             </div>
             <div class="tl-tools mid">
                 <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：自动分析轨道素材并完成剪辑（需 Claude / GPT 等强多模态大模型）">✨ AI剪辑</button>
                 <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
-                <button class="tb-btn ai-rec" id="recBtn" title="录音：调用电脑麦克风，结束后自动加入音频轨">⏺ 录音</button>
+                <button class="tb-btn ai-rec" id="recBtn" title="录音：选择麦克风或系统声音，实时显示双声道电平，结束后自动加入音频轨">⏺ 录音</button>
                 <button class="tb-btn ai-sub" id="smartCutBtn" title="智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ 剪口播</button>
             </div>
             <div class="tl-tools right">
@@ -678,9 +718,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <h2>④ 四个 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
                 <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材信息、视频抽帧与你的思路，返回可预览的剪辑方案，确认后才写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b></li>
-                <li><b>🅰 AI字幕</b>：<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
+                <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
                 <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因；<b>删除区间在导出成片时由本机 FFmpeg 真实裁剪重编码</b>，不是只做预览隐藏。</li>
-                <li><b>⏺ 录音</b>：调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
+                <li><b>🎨 时间轴 LUT 轨</b>：视频轨上方新增独立的 LUT 轨。在右侧「调整 · 调色 LUT」面板加载 <code>.cube / .3dl / .lut</code> 文件，可保存多个预制反复调用；LUT 自带强度 / 亮度 / 对比度 / 饱和度 / 色温参数，拖动滑块实时改变画面。LUT 片段可裁剪、可移动，只影响它覆盖时间段内下方的视频；导出时由本机 FFmpeg 的 <code>lut3d</code> 滤镜真实烘焙进成片，预览与成品一致。</li>
+                <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏的「磁吸」可开/关，拖动片段时自动吸附到其他片段边缘、播放头与 0 点；每个片段头尾都有可拖动手柄，按住前后拖即可裁掉开头或结尾；预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点预览标题栏「◇ 变换框」常显。</li>
+                <li><b>🎬🔊 复合音视频轨 / 波形</b>：带声音的视频片段在时间轴上高度加倍，上半是画面、下半是音频波形；所有音频轨片段也自带波形（由浏览器 WebAudio 解码生成，不上传任何数据）。右键这类视频片段可选「拆分视频和音频轨道」，音频会下移到新音轨并与画面严格对齐，之后可单独剪辑或删除。</li>
+                <li><b>⏺ 录音</b>：点位录音按钮后先弹出输入选择窗，可选任一麦克风或「系统声音 / 当前标签页内录」；录音时预览画面与弹窗同时显示左右双声道实时电平表，再点顶栏「⏹ 停止录音」结束，录音文件自动加入音频轨。调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
                 <li><b>两栏状态彻底分开</b>：左上「算力总控」下方现在有独立的「✨ AI 剪辑」与「🅰 AI 字幕」两块状态栏，各自显示自己的进度条与报错；点其中一个按钮只清空自己那一栏，<b>不会再看到另一个任务残留的旧报错</b>。AI 剪辑的弹窗进度与左栏同步。</li>
             </ul>
             <h2>⑤ 剪映风格按钮与快捷键</h2>
@@ -738,6 +781,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 </div>
 
 
+<!-- 片段右键菜单 -->
+<div class="ctx-menu" id="clipCtxMenu" hidden>
+    <button data-ctx="splitav">🎬🔊 拆分视频和音频轨道</button>
+    <button data-ctx="copy">⧉ 复制片段</button>
+    <button data-ctx="del">🗑 删除片段</button>
+</div>
+
 <!-- 导出成片：布局与字段参照剪映导出窗口 -->
 <div class="modal-overlay" id="exportModal">
     <div class="modal-box export-modal">
@@ -747,8 +797,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="export-grid">
                 <div class="export-cover-box">
                     <div class="export-cover" id="exportCover">
-                        <button class="cover-edit" id="coverEdit" title="用当前播放头所在画面作为封面">✎ 编辑封面</button>
-                        <div class="cover-empty" id="coverEmpty">封面取自当前预览画面<br>点上方「编辑封面」抓取</div>
+                        <div class="cover-empty" id="coverEmpty">封面取自当前预览画面<br>打开导出窗口时自动更新</div>
                         <img id="coverImg" alt="封面" hidden>
                     </div>
                     <div class="export-side-note" id="coverNote">用 AI 设计爆款封面：<a href="https://www.manflows.cn/" target="_blank" rel="noopener noreferrer">去主站设计</a>（本站不内嵌 AI 封面设计，封面只用于此处预览，不影响导出文件）。</div>
@@ -903,6 +952,53 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <button class="mini-btn gray" data-close="aiIdeaModal">取消</button>
             <button class="mini-btn purple" id="aiIdeaGoCompute">切换算力档位</button>
             <button class="mini-btn green" id="aiIdeaStart">▶ 开始 AI 剪辑</button>
+        </div>
+    </div>
+</div>
+
+<!-- 录音 · 输入设备选择 -->
+<div class="modal-overlay" id="recSetupModal">
+    <div class="modal-box" style="width:min(620px,100%)">
+        <div class="modal-head">⏺ 录音 · 选择声音输入<button class="mh-close" data-close="recSetupModal">×</button></div>
+        <div class="modal-body">
+            <p class="hint">选择要录的声音来源；录音开始时轨道上所有声音自动静音，结束后立即恢复，录音文件自动加入音频轨。录音期间预览画面左下角会显示左右双声道实时电平表。</p>
+            <div class="row" style="margin-top:0"><label style="flex:0 0 86px">声音输入</label><select id="recDevice" style="flex:1"></select></div>
+            <label class="fx-switches" style="margin-top:6px"><input type="checkbox" id="recSystem"> 改用系统声音 / 当前标签页内录（会先弹出共享选择框，请勾选「分享音频」）</label>
+            <div class="rec-meter" id="recMeter" hidden>
+                <span class="rec-time" id="recTime">00:00</span>
+                <div class="rec-meter-row"><span>L</span><div class="rec-meter-bar"><i id="recMeterL"></i></div></div>
+                <div class="rec-meter-row"><span>R</span><div class="rec-meter-bar"><i id="recMeterR"></i></div></div>
+            </div>
+            <div class="ai-state" id="recState" style="margin-top:9px">选好输入后点「开始录音」；再点顶栏「⏹ 停止录音」结束。</div>
+        </div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" data-close="recSetupModal">取消</button>
+            <button class="mini-btn green" id="recStart">⏺ 开始录音</button>
+        </div>
+    </div>
+</div>
+
+<!-- AI 字幕 · 算力 / 引擎 / 模型配置 -->
+<div class="modal-overlay" id="asrSetupModal">
+    <div class="modal-box" style="width:min(680px,100%)">
+        <div class="modal-head">🅰 AI 字幕 · 算力与转写模型<button class="mh-close" data-close="asrSetupModal">×</button></div>
+        <div class="modal-body">
+            <p class="ai-idea-warn">✦ AI 字幕需要<b>语音转写模型</b>（whisper-1 / gpt-4o-transcribe / 本机 faster-whisper）。Claude、普通 GPT / Qwen / DeepSeek 等对话模型不能直接转写；本机服务会把长音频按 60 秒切片后转发，绕开浏览器跨域。转写失败时静音/气口仍会独立返回给「剪口播」。</p>
+            <div class="row" style="margin-top:0"><label style="flex:0 0 86px">当前算力</label><span class="kv" id="asrUiMode">第三方API</span></div>
+            <div class="row"><label style="flex:0 0 86px">转写引擎</label><select id="asrUiEngine" style="flex:1">
+                <option value="auto">自动探测（本机 faster-whisper 优先，失败走第三方）</option>
+                <option value="local">仅本机 faster-whisper（9000）</option>
+                <option value="remote">仅第三方 /v1/audio/transcriptions</option>
+            </select></div>
+            <div class="row"><label style="flex:0 0 86px">转写模型</label><input type="text" id="asrUiModel" placeholder="whisper-1 / gpt-4o-transcribe" style="flex:1"></div>
+            <div class="row"><label style="flex:0 0 86px">识别语言</label><input type="text" id="asrUiLang" value="zh" style="flex:1"></div>
+            <label class="fx-switches" style="margin-top:6px"><input type="checkbox" id="asrUiKeep" checked> 保留已有字幕（不勾选则先清空字幕轨再写入）</label>
+            <div class="ai-state" id="asrUiState" style="margin-top:9px">选好后点「开始 AI 字幕」；进度与报错会显示在左栏的 AI 字幕状态区，与 AI 剪辑互不覆盖。</div>
+        </div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" data-close="asrSetupModal">取消</button>
+            <button class="mini-btn purple" id="asrUiGoCompute">切换算力档位</button>
+            <button class="mini-btn green" id="asrUiStart">▶ 开始 AI 字幕</button>
         </div>
     </div>
 </div>
@@ -1096,10 +1192,10 @@ function classifyUrl(u){
 
 
 /* 四类轨道：数组顺序即渲染层级（上 → 下） */
-const TK_ORDER = ["text","image","video","audio"];
-const TK_NAME  = {text:"字幕", image:"图片", video:"视频", audio:"音频"};
-const TK_COLOR = {text:"#0891b2", image:"#7c3aed", video:"#2563eb", audio:"#059669"};
-const TK_ICON  = {text:"🅰", image:"🖼", video:"🎬", audio:"🎵"};
+const TK_ORDER = ["text","image","lut","video","audio"];
+const TK_NAME  = {text:"字幕", image:"图片", lut:"LUT", video:"视频", audio:"音频"};
+const TK_COLOR = {text:"#0891b2", image:"#7c3aed", lut:"#d97706", video:"#2563eb", audio:"#059669"};
+const TK_ICON  = {text:"🅰", image:"🖼", lut:"🎨", video:"🎬", audio:"🎵"};
 const SUB_NAME = {dialogue:"对白", narration:"旁白", inner:"内心独白"};
 /* 旧六轨工程迁移到四条初始轨 */
 const LEGACY_TRACK = {V1:"tk_video1", P1:"tk_image1", A1:"tk_audio1", S1:"tk_text1", S2:"tk_text1", S3:"tk_text1"};
@@ -1109,6 +1205,7 @@ function defaultTracks(){
     return [
         {id:"tk_text1",  kind:"text",  label:"字幕 1", order:0},
         {id:"tk_image1", kind:"image", label:"图片 1", order:0},
+        {id:"tk_lut1",   kind:"lut",   label:"LUT 1", order:0},
         {id:"tk_video1", kind:"video", label:"视频 1", order:0},
         {id:"tk_audio1", kind:"audio", label:"音频 1", order:0}
     ];
@@ -1118,14 +1215,19 @@ let state = {
     date: todayStr(), zoom:36, playhead:0, tab:"all",
     assets:[], clips:[], tracks:defaultTracks(),
     selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1",
-    compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic", zoomAuto:true
+    compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic", zoomAuto:true,
+    snap:true
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
 let pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
+let recMeterRaf=0, recAudioCtx=null, recAnalysers=null;
 let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
+let showFxBox=false, fxHover=false;
+const waveCache=new Map();   /* assetId -> {ready,peaks,error} */
+let ctxClipId="";
 let assetPreviewId=null, assetAudioEl=null, svcOnline=false, svcInfo=null;
-let exportBusy=false, exportDirHandle=null, exportCoverData="", coverPinned=false;
+let exportBusy=false, exportDirHandle=null, exportCoverData="";
 let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
 const AI_STEPS=["模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
 const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
@@ -1390,6 +1492,70 @@ function localSpeed(c){
 /* ---------- 逐片段真渲染：预览可模拟，导出必须重新解码/重排帧/重编码 ---------- */
 let renderOverrides=new Map();      /* clipId -> {url,blob,kind}，仅导出期间存在 */
 function renderedClip(c){ return c?renderOverrides.get(c.id)||null:null; }
+/* 素材是否带音频：优先 asset 上的探测结果，其次 probeMetaCache，视频默认视为带声音 */
+function clipHasAudio(c){
+    if(!c) return false;
+    const a=c.assetId?assetById(c.assetId):null;
+    if(!a) return false;
+    if(a.type==="audio") return true;
+    if(a.type!=="video") return false;
+    if(a.hasAudio===false) return false;
+    const pm=probeMetaCache.get(a.url);
+    if(pm&&pm.hasAudio===false) return false;
+    return true;
+}
+/* WebAudio 峰值缓存：给视频复合轨下半段与所有音频轨画波形 */
+function ensureWave(a, cb){
+    if(!a||!a.url) return;
+    let w=waveCache.get(a.id);
+    if(w){ if(w.ready&&cb) cb(); return; }
+    w={ready:false,peaks:null}; waveCache.set(a.id,w);
+    (async()=>{
+        try{
+            const buf=await fetch(a.url).then(r=>r.arrayBuffer());
+            const AC=window.AudioContext||window.webkitAudioContext;
+            if(!AC) throw new Error("当前浏览器不支持 WebAudio");
+            const actx=new AC();
+            const decoded=await actx.decodeAudioData(buf);
+            try{ actx.close(); }catch(e){}
+            const d=decoded.getChannelData(0), N=640, peaks=new Float32Array(N);
+            const step=Math.max(1,Math.floor(d.length/N));
+            for(let i=0;i<N;i++){
+                let mx=0; const st=i*step, en=Math.min(d.length,st+step);
+                for(let j=st;j<en;j++){ const v=Math.abs(d[j]); if(v>mx) mx=v; }
+                peaks[i]=mx;
+            }
+            w.peaks=peaks;
+        }catch(e){ w.error=((e&&e.message)||String(e)).slice(0,160); }
+        w.ready=true;
+        if(cb) cb();
+    })();
+}
+function drawWave(cv, c, a){
+    if(!cv) return;
+    const W=cv.width=Math.max(1,cv.clientWidth||Math.round((Number(c&&c.duration)||1)*state.zoom));
+    const H=cv.height=Math.max(1,cv.clientHeight||20);
+    const x=cv.getContext("2d"); if(!x) return;
+    x.clearRect(0,0,W,H);
+    const w=waveCache.get(a&&a.id);
+    if(!w||!w.ready||!w.peaks){
+        x.fillStyle="rgba(255,255,255,.14)"; x.fillRect(0,0,W,H);
+        if(a&&!w) ensureWave(a,()=>drawWave(cv,c,a));
+        return;
+    }
+    x.fillStyle="rgba(255,255,255,.86)";
+    const p=w.peaks, n=p.length;
+    for(let i=0;i<n;i++){
+        const px=i/n*W, v=Math.max(0.025,Math.min(1,p[i]));
+        x.fillRect(px,H/2-v*H/2,Math.max(1,W/n-0.4),v*H);
+    }
+}
+function drawAllWaves(){
+    document.querySelectorAll("canvas.clip-wave").forEach(cv=>{
+        const c=clipById(cv.dataset.wave), a=c&&c.assetId?assetById(c.assetId):null;
+        if(a) drawWave(cv,c,a);
+    });
+}
 /* 智能剪口播删除区间的源时间表示：cutRanges 是素材自身时间轴上的区间。
    导出时 /api/render 会按「原始源跨度 - cutRanges」重新解码拼接，是真裁剪，不是预览隐藏。 */
 function clipSpeed(c){
@@ -1442,7 +1608,8 @@ function needsRender(c){
     const k=trackKind(c.track); if(k!=="video"&&k!=="audio") return false;
     const f=fxOf(c);
     return !!f.reverse || f.speedMode==="curve"
-        || Math.abs((Number(f.speed)||1)-1)>0.001 || mergedCutRanges(c).length>0;
+        || Math.abs((Number(f.speed)||1)-1)>0.001 || mergedCutRanges(c).length>0
+        || !!lutAtTime(c.start+0.02);
 }
 /* 输出时间轴上的速度分段：[[outStart,outLen,speed],...] */
 function speedProfile(c, outLenOverride){
@@ -1598,6 +1765,7 @@ function updateFxBox(){
     if(!box) return;
     if(!c){ box.hidden=true; return; }
     box.hidden=false;
+    box.classList.toggle("faded",!showFxBox&&!fxHover);
     box.style.transform="translate(-50%,-50%) "+fxTransform(c);
     const f=fxOf(c), bg=$("fxBadge");
     if(bg) bg.textContent=(f.mirror?"⇋ 镜像 ":"")+(f.reverse?"◀ 倒放 ":"")+"拖动移动 · 四角缩放 · 圆点旋转 · 滚轮缩放";
@@ -1784,7 +1952,8 @@ function applyAspect(){
 function setRecordMute(on){
     recordMuted=on;
     const vol=Number($("volRange").value)||0.8;
-    try{ vEl.muted=on; vEl.volume=on?0:vol; }catch(e){}
+    const vc=mainVisualClip();
+    try{ vEl.muted=on||!!(vc&&vc.muteAudio); vEl.volume=on?0:vol; }catch(e){}
     audioPool.forEach(o=>{ try{ o.el.muted=on; o.el.volume=on?0:vol; }catch(e){} });
 }
 /* 时间轴鼠标框选多个片段 */
@@ -1878,6 +2047,15 @@ function trackKind(id){ const t=trackById(id); return t?t.kind:""; }
 function textTracks(){ return orderedTracks().filter(t=>t.kind==="text"); }
 function assetById(id){ return state.assets.find(a=>a.id===id)||null; }
 function clipById(id){ return state.clips.find(c=>c.id===id)||null; }
+/* 时间轴磁吸：拖动 / 裁剪片段时吸附到其他片段边缘、播放头与 0 点 */
+function snapPos(v, excludeId, zoom){
+    if(!state.snap) return v;
+    const th=9/Math.max(1,zoom), pts=[0,state.playhead];
+    state.clips.forEach(o=>{ if(o.id!==excludeId){ pts.push(o.start); pts.push(o.start+o.duration); } });
+    let best=v, bd=th;
+    for(const p of pts){ const d=Math.abs(v-p); if(d<bd){ bd=d; best=p; } }
+    return best;
+}
 function selectedClip(){ return state.selected?clipById(state.selected):null; }
 function selectedIds(){ return state.multi.length?state.multi.slice():(state.selected?[state.selected]:[]); }
 function totalDuration(){ let m=30; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return Math.ceil(m+4); }
@@ -2329,7 +2507,8 @@ function renderTracks(){
     box.innerHTML=list.map(t=>{
         const clips=state.clips.filter(c=>c.track===t.id);
         const inner=clips.map(c=>clipHtml(c,t)).join("");
-        return '<div class="track-row"><div class="track-label">'
+        const compound=t.kind==="video" && clips.some(c=>clipHasAudio(c));
+        return '<div class="track-row'+(compound?" compound":"")+'"><div class="track-label">'
           +'<div class="tl-head"><span class="tl-name" title="'+esc(t.label)+'">'+TK_ICON[t.kind]+' '+esc(t.label)+'</span>'
           +'<span class="tl-ops"><button data-tkadd="'+esc(t.id)+'" title="在下方新建一条同类型轨道">＋</button>'
           +'<button class="tkdel" data-tkdel="'+esc(t.id)+'" title="删除这条空轨道">×</button></span></div>'
@@ -2344,12 +2523,19 @@ function clipHtml(c,t){
     const left=Math.round(c.start*state.zoom), width=Math.max(14,Math.round(c.duration*state.zoom));
     const sel=state.selected===c.id || state.multi.indexOf(c.id)>=0;
     const f=c.fx||{}, tag=(f.mirror?"⇋":"")+(f.reverse?"◀":"");
-    return '<div class="clip'+(sel?" sel":"")+'" data-id="'+esc(c.id)+'" '
-      +'style="left:'+left+'px;width:'+width+'px;background:'+TK_COLOR[t.kind]+'" title="'+esc(label)+'">'
-      +'<div class="clip-body">'+esc(label)+'</div>'
-      +(tag?'<span class="clip-fx-tag">'+tag+'</span>':'')
+    const compound=t.kind==="video"&&clipHasAudio(c);
+    const wave=t.kind==="audio"||compound;
+    const body=compound
+      ? '<div class="clip-video-half"><div class="clip-body">'+esc(label)+'</div>'+(tag?'<span class="clip-fx-tag">'+tag+'</span>':'')+'</div>'
+        +'<div class="clip-audio-half"><canvas class="clip-wave" data-wave="'+esc(c.id)+'"></canvas></div>'
+      : '<div class="clip-body">'+esc(label)+'</div>'+(tag?'<span class="clip-fx-tag">'+tag+'</span>':'')
+        +(wave?'<canvas class="clip-wave" data-wave="'+esc(c.id)+'" style="position:absolute;left:0;top:0;opacity:.85"></canvas>':'');
+    return '<div class="clip'+(sel?" sel":"")+(compound?" compound":"")+'" data-id="'+esc(c.id)+'" '
+      +'style="left:'+left+'px;width:'+width+'px;background:'+TK_COLOR[t.kind]+'" title="'+esc(label)+(c.muteAudio?"（已拆分音频）":"")+'">'
+      +'<div class="clip-handle clip-handle-l" data-handle-l="'+esc(c.id)+'" title="按住拖动裁掉片段开头"></div>'
+      +body
       +'<button class="clip-split" data-split="'+esc(c.id)+'" title="在此剪断">✂</button>'
-      +'<div class="clip-handle" data-handle="'+esc(c.id)+'"></div></div>';
+      +'<div class="clip-handle" data-handle="'+esc(c.id)+'" title="按住拖动裁掉片段结尾"></div></div>';
 }
 function renderPlayhead(){
     const ph=$("playhead"); ph.style.left=(LABEL_W+state.playhead*state.zoom)+"px";
@@ -2361,10 +2547,53 @@ function renderPlayhead(){
 function renderTimeline(){
     const sc=$("tlScroll"), sl=sc.scrollLeft, st=sc.scrollTop;
     $("tlInner").style.width=(LABEL_W+contentWidth())+"px";
-    renderRuler(); renderTracks(); renderPlayhead();
+    renderRuler(); renderTracks(); drawAllWaves(); renderPlayhead();
     sc.scrollLeft=sl; sc.scrollTop=st;
     $("zoomLabel").textContent=state.zoom+" px/s";
     $("tlInfo").textContent="共 "+state.tracks.length+" 轨 · "+state.clips.length+" 个片段 · 总长 "+fmt(totalDuration());
+}
+
+/* ---------- 右键拆分视频 / 音频 ---------- */
+function splitClipAV(c){
+    if(!c) return;
+    const a=c.assetId?assetById(c.assetId):null;
+    if(!a||a.type!=="video"){ toast("只有带音频的视频片段才能拆分音轨","err"); return; }
+    if(!clipHasAudio(c)){ toast("这段视频没有可拆分的独立音频","err"); return; }
+    pushHistory();
+    const overlap=x=>c.start<x.start+x.duration && c.start+c.duration>x.start;
+    let tr=orderedTracks().find(t=>t.kind==="audio" && !state.clips.some(x=>x.track===t.id&&overlap(x)));
+    if(!tr) tr=newTrack("audio");
+    state.clips.push({id:uid(), track:tr.id, assetId:a.id, start:c.start, duration:c.duration,
+        offset:Number(c.offset)||0, text:"", name:(c.name||a.name)+" · 音频", fx:defaultFx(), audioOnly:true});
+    c.muteAudio=true;
+    state.selected=c.id; state.multi=[];
+    renderAll(); autoSave();
+    toast("已拆分：画面留在原视频轨，音频下移到「"+tr.label+"」并与之对齐","ok");
+}
+function wireClipContextMenu(){
+    const sc=$("tlScroll"), menu=$("clipCtxMenu");
+    sc.addEventListener("contextmenu",e=>{
+        const el=e.target.closest(".clip"); if(!el) return;
+        e.preventDefault(); e.stopPropagation();
+        const c=clipById(el.dataset.id); if(!c) return;
+        ctxClipId=c.id;
+        const a=c.assetId?assetById(c.assetId):null;
+        const can=!!a && a.type==="video" && clipHasAudio(c) && !c.muteAudio;
+        menu.querySelector('[data-ctx="splitav"]').hidden=!can;
+        menu.style.left=Math.min(e.clientX,window.innerWidth-215)+"px";
+        menu.style.top=Math.min(e.clientY,window.innerHeight-125)+"px";
+        menu.hidden=false;
+    });
+    document.addEventListener("mousedown",e=>{ if(!e.target.closest("#clipCtxMenu")) menu.hidden=true; });
+    menu.onclick=e=>{
+        const b=e.target.closest("button[data-ctx]"); if(!b) return;
+        const c=clipById(ctxClipId); menu.hidden=true;
+        if(!c) return;
+        if(b.dataset.ctx==="splitav"){ splitClipAV(c); return; }
+        if(b.dataset.ctx==="copy"){ clipboard=[Object.assign({},c,{id:uid()})]; toast("已复制片段","ok"); return; }
+        if(b.dataset.ctx==="del"){ pushHistory(); state.clips=state.clips.filter(x=>x.id!==c.id);
+            state.selected=null; renderAll(); autoSave(); toast("已删除片段","ok"); }
+    };
 }
 
 /* ---------- 多层预览 ---------- */
@@ -2417,7 +2646,7 @@ function syncAudioPool(){
         if(o.el.playbackRate!==asp) o.el.playbackRate=asp;
         const pp=ov?true:!fxOf(x.c).pitchShift;
         if(o.el.preservesPitch!==pp) try{ o.el.preservesPitch=pp; }catch(e){}
-        const wt=(ov?0:(x.c.offset||0))+(state.playhead-x.c.start);
+        const wt=(ov?0:(x.c.offset||0))+(state.playhead-x.c.start)*asp;
         if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>0.32 && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
         o.el.muted=recordMuted; o.el.volume=recordMuted?0:vol;
         if(playing && o.el.paused) o.el.play().catch(()=>{});
@@ -2444,15 +2673,16 @@ function syncMedia(){
         if(vEl.dataset.aid!==aid){ vEl.src=ov?ov.url:va.url; vEl.dataset.aid=aid; }
         /* 预览可以临时模拟；导出期间换成 FFmpeg 真渲染中间片，禁止再改 playbackRate */
         const spd=ov?1:localSpeed(vc);
+        try{ vEl.muted=recordMuted||!!(vc&&vc.muteAudio); }catch(e){}
         if(vEl.playbackRate!==spd) vEl.playbackRate=spd;
         const rev=ov?false:!!fxOf(vc).reverse;
         if(rev){
             /* 预览级倒放：暂停视频自身播放，由播放头反向映射 currentTime */
             if(!vEl.paused) vEl.pause();
-            const want=(vc.offset||0)+Math.max(0,vc.duration-(state.playhead-vc.start));
+            const want=(vc.offset||0)+Math.max(0,vc.duration-(state.playhead-vc.start))*spd;
             if(vEl.readyState>0 && Math.abs(vEl.currentTime-want)>0.05){ try{ vEl.currentTime=want; }catch(e){} }
         }else{
-            const wt=(ov?0:(vc.offset||0))+(state.playhead-vc.start);
+            const wt=(ov?0:(vc.offset||0))+(state.playhead-vc.start)*spd;
             if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>0.32 && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
             if(playing && vEl.paused) vEl.play().catch(()=>{});
             if(!playing && !vEl.paused) vEl.pause();
@@ -2482,7 +2712,7 @@ function tick(ts){
         t=vc.start+(ov?vEl.currentTime:(vEl.currentTime-(vc.offset||0)));
     }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
-    syncMedia(); renderPlayhead();
+    syncMedia(); renderPlayhead(); drawLutFrame();
     if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
     else rafId=requestAnimationFrame(tick);
 }
@@ -2557,7 +2787,7 @@ function renderProjInfo(){
     $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
     $("dateChip").textContent="当天工程 "+state.date;
 }
-function renderAll(){ updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); }
+function renderAll(){ if(!state.tracks.some(t=>t.kind==="lut")) state.tracks.push({id:"tk_lut1",kind:"lut",label:"LUT 1",order:0}); updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); drawLutFrame(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
 function snapshot(){ state.clips.forEach(fxOf); return JSON.stringify({clips:state.clips,tracks:state.tracks}); }
@@ -2897,8 +3127,16 @@ async function chatAudioASR(a,cfg){
     return arr.map(x=>({start:Number(x.start)||0,end:Number(x.end)||((Number(x.start)||0)+2),
         text:String(x.text||"").trim(),kind:guessSubKind(x.text)})).filter(x=>x.text);
 }
+/* AI 字幕弹窗：与 AI 剪辑同款，先选算力 / 引擎 / 模型再开始 */
+function openAsrSetup(){
+    const cfg=asrConfigForMode();
+    $("asrUiMode").textContent=ED_COMPUTE_LABEL[state.compute]||state.compute;
+    $("asrUiModel").value=cfg.model||"whisper-1";
+    $("asrUiLang").value=cfg.language||"zh";
+    $("asrSetupModal").classList.add("show");
+}
 /* AI 字幕：真实分析轨道上的视频 / 音频素材，绝不再给演示假字幕 */
-async function runASR(){
+async function runAsrCore(){
     if(asrBusy) return;
     if(state.compute==="manflow"){
         setEdState("「漫流算力」是占位档，暂不可运行 AI 字幕。请在左上「算力总控」切到「本机算力」或「第三方API」。","err");
@@ -2906,6 +3144,12 @@ async function runASR(){
     }
     scLogLines=[];
     let cfg=asrConfigForMode();
+    const asrEngine=($("asrUiEngine")&&$("asrUiEngine").value)||"auto";
+    if(asrEngine==="local") cfg=Object.assign({},cfg,{endpoint:"",model:"whisper-1",label:"本机 faster-whisper（服务自动探测）"});
+    const uiModel=String(($("asrUiModel")&&$("asrUiModel").value)||"").trim();
+    if(uiModel) cfg=Object.assign({},cfg,{model:uiModel});
+    const uiLang=String(($("asrUiLang")&&$("asrUiLang").value)||"").trim();
+    if(uiLang) cfg=Object.assign({},cfg,{language:uiLang});
     if(!cfg.endpoint){
         /* 没填第三方接口也别直接拦住：本机服务会自己探测 9000 端口的 faster-whisper，
            而且静音检测不依赖任何转写后端，仍应为「剪口播」返回气口数据。 */
@@ -2971,7 +3215,8 @@ async function runASR(){
             setEdProgress(3,"识别完成但没有返回任何语音内容（素材可能没有对白，或接口未返回分段时间码）；本次不生成任何字幕。",true);
             toast("没有识别到语音，未生成字幕","err"); return;
         }
-        const n=applySegments(all,{keep:!!$("asrKeep").checked});
+        const keep=($("asrUiKeep")?$("asrUiKeep").checked:!!$("asrKeep").checked);
+        const n=applySegments(all,{keep:keep});
         setEdProgress(4,"已把 "+n+" 条真实字幕写入字幕轨（分析 "+list.length+" 段音视频素材）");
         toast("AI 字幕完成：真实识别 "+list.length+" 段素材，生成 "+n+" 条字幕","ok");
     }catch(e){
@@ -3411,14 +3656,56 @@ async function runAiEdit(idea,overrideModel){
     }finally{ btn.disabled=false; }
 }
 
-/* ---------- 录音 → 音频轨 ---------- */
-async function toggleRecord(){
-    if(recBusy) return;                       /* 等麦克风授权期间防重复点击，避免启动两次录音 */
+/* ---------- 录音 → 音频轨（设备选择 + 双声道电平表） ---------- */
+async function fillRecDevices(){
+    const sel=$("recDevice"); if(!sel) return;
+    try{
+        const ds=await navigator.mediaDevices.enumerateDevices();
+        const ins=ds.filter(d=>d.kind==="audioinput");
+        sel.innerHTML=ins.length
+            ? ins.map((d,i)=>'<option value="'+esc(d.deviceId||"")+'">'+esc(d.label||("麦克风 "+(i+1)))+'</option>').join("")
+            : '<option value="">默认麦克风</option>';
+    }catch(e){ sel.innerHTML='<option value="">默认麦克风</option>'; }
+}
+function toggleRecord(){
     if(recState.rec){ stopRecord(); return; }
+    fillRecDevices();
+    $("recSetupModal").classList.add("show");
+}
+function recLevelLoop(){
+    recMeterRaf=requestAnimationFrame(recLevelLoop);
+    if(!recAnalysers||!recAnalysers.length) return;
+    const vals=[];
+    for(const an of recAnalysers){
+        try{
+            const buf=new Uint8Array(an.fftSize); an.getByteTimeDomainData(buf);
+            let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; }
+            vals.push(Math.min(1,Math.sqrt(sum/buf.length)*3.4));
+        }catch(e){ vals.push(0); }
+    }
+    [["recMeterL","recL"],["recMeterR","recR"]].forEach((pair,i)=>{
+        const w=(vals[i]||0)*100;
+        pair.forEach(id=>{ const el=$(id); if(el) el.style.width=w.toFixed(1)+"%"; });
+    });
+    const tm=$("recTime");
+    if(tm){ const s=Math.floor((Date.now()-(recState.t0||Date.now()))/1000);
+        tm.textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
+}
+async function startRecord(){
+    if(recBusy) return;
     if(!navigator.mediaDevices||!window.MediaRecorder){ toast("当前浏览器不支持录音（需 HTTPS 与麦克风权限）","err"); return; }
     recBusy=true;
+    const sys=!!($("recSystem")&&$("recSystem").checked);
+    const dev=String(($("recDevice")&&$("recDevice").value)||"");
     try{
-        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        let stream;
+        if(sys){
+            stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+            if(!stream.getAudioTracks().length) throw new Error("共享时没有勾选「分享音频 / 标签页音频」");
+            stream.getVideoTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
+        }else{
+            stream=await navigator.mediaDevices.getUserMedia({audio:dev?{deviceId:{exact:dev}}:true});
+        }
         const mimes=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"];
         const mime=mimes.find(m=>{ try{ return MediaRecorder.isTypeSupported(m); }catch(e){ return false; } })||"";
         const rec=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
@@ -3426,17 +3713,40 @@ async function toggleRecord(){
         rec.ondataavailable=e=>{ if(e.data&&e.data.size) recState.chunks.push(e.data); };
         rec.onstop=()=>{ finishRecord(); };
         rec.start(200);
+        /* 双声道实时电平：ChannelSplitter → 两个 AnalyserNode */
+        try{
+            const AC=window.AudioContext||window.webkitAudioContext;
+            if(AC){
+                recAudioCtx=new AC();
+                const src=recAudioCtx.createMediaStreamSource(stream);
+                const splitter=recAudioCtx.createChannelSplitter(2);
+                src.connect(splitter);
+                recAnalysers=[];
+                const cc=(stream.getAudioTracks()[0]&&stream.getAudioTracks()[0].getSettings&&stream.getAudioTracks()[0].getSettings().channelCount)||2;
+                for(let i=0;i<2;i++){
+                    const an=recAudioCtx.createAnalyser(); an.fftSize=512;
+                    splitter.connect(an,cc===1?0:i); recAnalysers.push(an);
+                }
+                ["recMeter","recMeterStage"].forEach(id=>{ const el=$(id); if(el) el.hidden=false; });
+                recLevelLoop();
+            }
+        }catch(e){ scLogPush("电平表不可用："+((e&&e.message)||e)); }
         setRecordMute(true);        /* 录音期间轨道上所有声音静音，保证录音纯净 */
         const btn=$("recBtn"); btn.classList.add("recording"); btn.textContent="⏹ 停止录音";
         recState.timer=setInterval(()=>{ btn.title="录音中 "+((Date.now()-recState.t0)/1000).toFixed(0)+" 秒，再点一次结束并加入音频轨"; },500);
+        $("recSetupModal").classList.remove("show");
         toast("录音已开始，再点「⏹ 停止录音」结束并加入音频轨","ok");
-    }catch(e){ setRecordMute(false); toast("无法调用麦克风："+((e&&e.message)||e),"err"); }
+    }catch(e){ setRecordMute(false); toast("无法开始录音："+((e&&e.message)||e),"err"); }
     finally{ recBusy=false; }
 }
 function stopRecord(){
     if(!recState.rec) return;
     try{ recState.rec.stop(); }catch(e){}
     clearInterval(recState.timer);
+    if(recMeterRaf){ cancelAnimationFrame(recMeterRaf); recMeterRaf=0; }
+    ["recMeter","recMeterStage"].forEach(id=>{ const el=$(id); if(el) el.hidden=true; });
+    if(recAudioCtx){ try{ recAudioCtx.close(); }catch(e){} recAudioCtx=null; }
+    recAnalysers=null;
     try{ recState.stream.getTracks().forEach(t=>t.stop()); }catch(e){}
     setRecordMute(false);        /* 停止录音后轨道声音恢复 */
     const btn=$("recBtn"); btn.classList.remove("recording"); btn.textContent="⏺ 录音";
@@ -3677,6 +3987,7 @@ function histExport(date){
 
 /* ---------- 事件绑定 ---------- */
 function wire(){
+    wireClipContextMenu();
     /* 顶栏 */
     $("topSave").onclick=()=>saveProject(false);
     $("topOpen").onclick=()=>{ listProjects(); $("projModal").classList.add("show"); };
@@ -3745,6 +4056,7 @@ function wire(){
     });
     $("assetList").addEventListener("dragstart",e=>{
         const it=e.target.closest(".asset-item"); if(!it)return;
+        pause(); if(assetPreviewId) exitAssetPreview(true);   /* 拖动素材时立即停止预览，避免拖入轨道后画面仍在播放 */
         dragAssetId=it.dataset.id;
         try{ e.dataTransfer.setData("text/plain","manflows-asset:"+dragAssetId); e.dataTransfer.effectAllowed="copy"; }catch(_){}
         it.classList.add("dragging");
@@ -3766,11 +4078,61 @@ function wire(){
     });
     ["dragover","drop"].forEach(ev=>document.addEventListener(ev,e=>{ if(e.target===document.body||e.target===$("stage")) e.preventDefault(); }));
 
+    /* LUT 文件 / 预制 / 应用 */
+    renderLutPresetList();
+    $("lutLoad").onclick=async()=>{
+        const fi=$("lutFile"), file=fi&&fi.files&&fi.files[0];
+        if(!file){ toast("请先选择一个 .cube / .3dl / .lut 文件","err"); return; }
+        const name=String(file.name||"LUT").replace(/\.(cube|3dl|lut)$/i,"");
+        const lut=parseLutFile(name,await file.text());
+        if(!lut){ toast("LUT 文件解析失败：请确认是 3D .cube（含 LUT_3D_SIZE）或立方形 .3dl","err"); return; }
+        if(saveLutPreset(lut)){ renderLutPresetList(lutPresets().length-1); toast("已加载并保存预制「"+name+"」","ok"); }
+        applyLutAtPlayhead(lut);
+    };
+    $("lutSavePreset").onclick=()=>{
+        const cur=currentLut(); if(!cur){ toast("先把一个 LUT 放到时间轴上，再存预制","err"); return; }
+        const name=prompt("给这个 LUT 预制起个名字",cur.lut.name||"我的 LUT");
+        if(!name) return;
+        const l=Object.assign({},cur.lut,{name:name});
+        if(saveLutPreset(l)){ renderLutPresetList(); toast("预制「"+name+"」已保存","ok"); }
+    };
+    $("lutPreset").onchange=e=>{
+        const arr=lutPresets(), l=arr[Number(e.target.value)];
+        if(l) applyLutAtPlayhead(Object.assign({},l,{adjust:Object.assign({},l.adjust)}));
+    };
+    $("lutApply").onclick=()=>{
+        const arr=lutPresets(), l=arr[Number($("lutPreset").value)];
+        if(l) applyLutAtPlayhead(Object.assign({},l,{adjust:Object.assign({},l.adjust)}));
+        else toast("请先加载 LUT 文件","err");
+    };
+    $("lutRemove").onclick=()=>{
+        const cur=currentLut(); if(!cur){ toast("当前播放头位置没有 LUT","err"); return; }
+        pushHistory(); state.clips=state.clips.filter(x=>x.id!==cur.c.id);
+        renderAll(); autoSave(); toast("已移除该处 LUT","ok");
+    };
+
+    /* 磁吸 / 变换框开关 */
+    try{ if(localStorage.getItem("manflows_editor_snap")==="0"){ state.snap=false; $("snapBtn").classList.remove("active"); } }catch(_){}
+    $("snapBtn").onclick=()=>{
+        state.snap=!state.snap; $("snapBtn").classList.toggle("active",state.snap);
+        try{ localStorage.setItem("manflows_editor_snap",state.snap?"1":"0"); }catch(_){}
+        toast("时间轴磁吸已"+(state.snap?"开启":"关闭"),"ok");
+    };
+    $("fxBoxToggle").onclick=()=>{
+        showFxBox=!showFxBox; $("fxBoxToggle").classList.toggle("active",showFxBox); updateFxBox();
+        toast("变换框已"+(showFxBox?"常显":"仅鼠标移到预览上时显示"),"ok");
+    };
+    $("stage").addEventListener("mouseenter",()=>{ fxHover=true; updateFxBox(); });
+    $("stage").addEventListener("mouseleave",()=>{ fxHover=false; updateFxBox(); });
+
     /* AI 配置 / 三个新按钮 */
     $("aiSrc").onchange=()=>{ $("aiCustom").style.display=$("aiSrc").value==="custom"?"block":"none"; saveAiCfg(); };
     ["aiEndpoint","aiKey","aiModel","aiFrames"].forEach(id=>$(id).addEventListener("change",saveAiCfg));
     $("aiCutBtn").onclick=openAiIdea;
-    $("aiSubBtn").onclick=runASR;
+    $("aiSubBtn").onclick=openAsrSetup;
+    $("asrUiStart").onclick=()=>{ $("asrSetupModal").classList.remove("show"); runAsrCore(); };
+    $("asrUiGoCompute").onclick=()=>{ $("asrSetupModal").classList.remove("show"); $("edComputeHint").scrollIntoView({behavior:"smooth",block:"center"}); toast("请在上方「算力总控」切换档位后重新点 AI字幕","ok"); };
+    $("recStart").onclick=startRecord;
     $("smartCutBtn").onclick=openSmartCutModal;
     $("scDetect").onclick=async()=>{
         const ready=mediaReadyClips();
@@ -3843,7 +4205,7 @@ function wire(){
         else{ $("asrEndpoint").value="https://api.openai.com/v1/audio/transcriptions"; $("asrModel").value="whisper-1"; }
         toast("已填入预设地址","ok");
     });
-    $("asrRun").onclick=runASR;
+    $("asrRun").onclick=runAsrCore;
 
     /* 画布转入 */
     $("scanCanvas").onclick=scanCanvasHistory;
@@ -3962,13 +4324,26 @@ function wire(){
         renderProps(); renderSubList(); renderAssets(); renderTimeline();
         if(!(state.playhead>=c.start && state.playhead<c.start+c.duration)) seek(Math.max(0,c.start+Math.min(0.1,c.duration/2)));
         const fresh=document.querySelector('.clip[data-id="'+c.id+'"]'); if(!fresh)return;
-        const resize=!!e.target.closest("[data-handle]");
-        const x0=e.clientX, start0=c.start, dur0=c.duration, zoom=state.zoom;
+        const resize=!!e.target.closest("[data-handle]"), resizeL=!!e.target.closest("[data-handle-l]");
+        const x0=e.clientX, start0=c.start, dur0=c.duration, zoom=state.zoom, offset0=Number(c.offset)||0;
         fresh.classList.add("dragging");
         const mv=ev=>{
             const dx=(ev.clientX-x0)/zoom;
-            if(resize) c.duration=Math.max(0.2,Math.min(dur0+dx,(assetById(c.assetId)&&assetById(c.assetId).duration)||600));
-            else c.start=Math.max(0,start0+dx);
+            if(resize){
+                let ne=Math.max(0.2,Math.min(dur0+dx,(assetById(c.assetId)&&assetById(c.assetId).duration)||600));
+                ne=Math.max(0.2,snapPos(start0+ne,c.id,zoom)-start0);
+                c.duration=ne;
+            }else if(resizeL){
+                const maxTrim=Math.min(dur0-0.2,offset0);
+                let d=clamp(dx,-start0,maxTrim);
+                d=clamp(snapPos(start0+d,c.id,zoom)-start0,-start0,maxTrim);
+                c.start=Math.max(0,start0+d); c.duration=dur0-d; c.offset=offset0+d;
+            }else{
+                let ns=Math.max(0,start0+dx);
+                const s1=snapPos(ns,c.id,zoom), e1=snapPos(ns+c.duration,c.id,zoom);
+                ns=(Math.abs(s1-ns)<=Math.abs(e1-(ns+c.duration)))?s1:(e1-c.duration);
+                c.start=Math.max(0,ns);
+            }
             fresh.style.left=Math.round(c.start*zoom)+"px";
             fresh.style.width=Math.max(14,Math.round(c.duration*zoom))+"px";
         };
@@ -4075,6 +4450,181 @@ const ANIM_COMBO_OPTS=[
     ["breath","循环呼吸","","","breath",0.5,"linear"],
     ["clear","清除动画","","","",0.5,"linear"]
 ];
+/* ================= LUT WebGL 预览（3D LUT 三线性插值） ================= */
+let lutGL=null;
+function lutShader(gl,type,src){
+    const o=gl.createShader(type); gl.shaderSource(o,src); gl.compileShader(o);
+    if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)||"LUT shader 编译失败");
+    return o;
+}
+function initLutGL(){
+    if(lutGL!==null) return lutGL;
+    const stage=$("stage"); if(!stage){ lutGL=false; return false; }
+    const cv=document.createElement("canvas");
+    cv.className="lut-canvas"; cv.hidden=true;
+    stage.insertBefore(cv,$("fxColorOverlay")||null);
+    let gl=null;
+    try{ gl=cv.getContext("webgl",{preserveDrawingBuffer:true,premultipliedAlpha:false,alpha:true}); }catch(e){}
+    if(!gl){ lutGL=false; cv.remove(); return false; }
+    try{
+        const vs=lutShader(gl,gl.VERTEX_SHADER,
+            "attribute vec2 a_pos;varying vec2 v_uv;void main(){v_uv=(a_pos+1.0)*0.5;gl_Position=vec4(a_pos,0.0,1.0);}");
+        const fs=lutShader(gl,gl.FRAGMENT_SHADER,
+            "precision highp float;varying vec2 v_uv;uniform sampler2D u_video;uniform sampler2D u_lut;"
+            +"uniform float u_size,u_intensity,u_brightness,u_contrast,u_saturate,u_temp;"
+            +"vec3 lut3d(vec3 c){float s=u_size;vec3 q=clamp(c,0.0,1.0)*(s-1.0);vec3 f=floor(q),t=fract(q);"
+            +"vec3 lo=min(f,vec3(s-2.0)),hi=lo+1.0;vec3 acc=vec3(0.0);"
+            +"for(int k=0;k<2;k++){for(int j=0;j<2;j++){for(int i=0;i<2;i++){"
+            +"float r=(i==0)?lo.r:hi.r;float g=(j==0)?lo.g:hi.g;float b=(k==0)?lo.b:hi.b;"
+            +"float w=((i==0)?(1.0-t.r):t.r)*((j==0)?(1.0-t.g):t.g)*((k==0)?(1.0-t.b):t.b);"
+            +"vec2 uv=vec2((g*s+r+0.5)/(s*s),(b+0.5)/s);acc+=texture2D(u_lut,uv).rgb*w;}}}return acc;}"
+            +"void main(){vec4 src=texture2D(u_video,v_uv);vec3 c=lut3d(src.rgb);"
+            +"c+=(u_brightness+u_temp*0.25)/100.0;c=(c-0.5)*(1.0+u_contrast/100.0)+0.5;"
+            +"float l=dot(c,vec3(0.299,0.587,0.114));c=mix(vec3(l),c,1.0+u_saturate/100.0);"
+            +"c=mix(src.rgb,clamp(c,0.0,1.0),u_intensity);gl_FragColor=vec4(c,src.a);}");
+        const prog=gl.createProgram(); gl.attachShader(prog,vs); gl.attachShader(prog,fs); gl.linkProgram(prog);
+        if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog)||"LUT program 链接失败");
+        const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+        const loc=gl.getAttribLocation(prog,"a_pos"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+        const texVideo=gl.createTexture(), texLut=gl.createTexture();
+        [texVideo,texLut].forEach(t=>{
+            gl.bindTexture(gl.TEXTURE_2D,t);
+            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+        });
+        lutGL={cv:cv,gl:gl,prog:prog,texVideo:texVideo,texLut:texLut,
+            u:{size:gl.getUniformLocation(prog,"u_size"),intensity:gl.getUniformLocation(prog,"u_intensity"),
+               brightness:gl.getUniformLocation(prog,"u_brightness"),contrast:gl.getUniformLocation(prog,"u_contrast"),
+               saturate:gl.getUniformLocation(prog,"u_saturate"),temp:gl.getUniformLocation(prog,"u_temp"),
+               video:gl.getUniformLocation(prog,"u_video"),lut:gl.getUniformLocation(prog,"u_lut")},
+            lastLut:null,lastKey:""};
+        return lutGL;
+    }catch(e){
+        console.warn("LUT WebGL 不可用",e); lutGL=false; cv.remove(); return false;
+    }
+}
+function uploadLutTex(gl, tex, lut){
+    const s=lut.size, W=s*s, H=s, px=new Uint8Array(W*H*4);
+    for(let b=0;b<s;b++) for(let g=0;g<s;g++) for(let r=0;r<s;r++){
+        const src=(b*s*s+g*s+r)*3, dst=(b*W+g*s+r)*4;
+        const q=lut.data[src]||[0,0,0];
+        px[dst]=Math.max(0,Math.min(255,Math.round(Number(q[0])*255)));
+        px[dst+1]=Math.max(0,Math.min(255,Math.round(Number(q[1])*255)));
+        px[dst+2]=Math.max(0,Math.min(255,Math.round(Number(q[2])*255)));
+        px[dst+3]=255;
+    }
+    gl.bindTexture(gl.TEXTURE_2D,tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,W,H,0,gl.RGBA,gl.UNSIGNED_BYTE,px);
+}
+function drawLutFrame(){
+    const g=initLutGL();
+    if(!g){ return; }
+    const cur=currentLut();
+    if(!cur||!vEl.classList.contains("show")||vEl.readyState<2||vEl.videoWidth===0){ g.cv.hidden=true; return; }
+    const gl=g.gl, lut=cur.lut, ad=lut.adjust||{};
+    const key=lut.name+"|"+lut.size+"|"+JSON.stringify(ad);
+    g.cv.hidden=false;
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    const w=Math.max(1,Math.round(($("stage").clientWidth||640)*dpr)), h=Math.max(1,Math.round(($("stage").clientHeight||360)*dpr));
+    if(g.cv.width!==w||g.cv.height!==h){ g.cv.width=w; g.cv.height=h; }
+    gl.viewport(0,0,w,h); gl.useProgram(g.prog);
+    if(g.lastLut!==lut){ uploadLutTex(gl,g.texLut,lut); g.lastLut=lut; }
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,g.texVideo);
+    try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,vEl); }catch(e){ g.cv.hidden=true; return; }
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,g.texLut);
+    gl.uniform1i(g.u.video,0); gl.uniform1i(g.u.lut,1);
+    gl.uniform1f(g.u.size,lut.size||33);
+    gl.uniform1f(g.u.intensity,Number(ad.intensity)===0?1:Number(ad.intensity)||1);
+    gl.uniform1f(g.u.brightness,Number(ad.brightness)||0);
+    gl.uniform1f(g.u.contrast,Number(ad.contrast)||0);
+    gl.uniform1f(g.u.saturate,Number(ad.saturate)||0);
+    gl.uniform1f(g.u.temp,Number(ad.temperature)||0);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+}
+
+/* ================= LUT 文件 / 预制 / 时间轴 LUT 轨 ================= */
+const LUT_PRESET_KEY="manflows_editor_lut_presets";
+function lutPresets(){ try{ const a=JSON.parse(safeStorage.get(LUT_PRESET_KEY)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveLutPreset(l){
+    const arr=lutPresets(), i=arr.findIndex(x=>x&&x.name===l.name);
+    if(i>=0) arr[i]=l; else arr.push(l);
+    try{ safeStorage.set(LUT_PRESET_KEY,JSON.stringify(arr)); return true; }
+    catch(e){ toast("预制保存失败：本机存储空间不足，建议换更小的 LUT 文件","err"); return false; }
+}
+function parseLutFile(name, text){
+    const t=String(text||"");
+    if(/LUT_3D_SIZE/i.test(t)){
+        const lines=t.split(/\r?\n/); let size=0, data=[];
+        for(const raw of lines){
+            const line=raw.trim(); if(!line||line[0]==="#") continue;
+            const p=line.split(/\s+/);
+            if(/^LUT_3D_SIZE$/i.test(p[0])){ size=parseInt(p[1],10); continue; }
+            if(/^TITLE$/i.test(p[0])||/^DOMAIN_MIN$/i.test(p[0])||/^DOMAIN_MAX$/i.test(p[0])) continue;
+            if(/^-?\d/.test(p[0])&&p.length>=3) data.push([Number(p[0]),Number(p[1]),Number(p[2])]);
+        }
+        if(size>=2&&size<=65&&data.length===size*size*size) return {name:name,size:size,cube:t,data:data,adjust:{intensity:1,brightness:0,contrast:0,saturate:0,temperature:0}};
+    }
+    if(/^\s*\d/.test(t)){
+        const nums=t.split(/\r?\n/).map(x=>x.trim()).filter(x=>/^-?\d/.test(x)).map(x=>x.split(/\s+/).map(Number));
+        if(nums.length>=64&&nums.length<=512){
+            const sz=Math.round(Math.cbrt(nums.length));
+            if(sz*sz*sz===nums.length&&nums.every(a=>a.length>=3)) return {name:name,size:sz,cube:t,data:nums,adjust:{intensity:1,brightness:0,contrast:0,saturate:0,temperature:0}};
+        }
+    }
+    return null;
+}
+function currentLut(){
+    const tr=state.tracks.find(t=>t.kind==="lut");
+    if(!tr) return null;
+    const c=activeClipOn(tr.id);
+    return (c&&c.lut)?{c:c,lut:c.lut}:null;
+}
+/* 按指定时间取 LUT（渲染导出用，不能用当前播放头） */
+function lutAtTime(t){
+    const tr=state.tracks.find(x=>x.kind==="lut"); if(!tr) return null;
+    const c=state.clips.find(x=>x.track===tr.id && t>=x.start && t<x.start+x.duration && x.lut);
+    return c?c.lut:null;
+}
+function renderLutPresetList(sel){
+    const s=$("lutPreset"); if(!s) return;
+    const arr=lutPresets();
+    s.innerHTML=arr.length?arr.map((x,i)=>'<option value="'+i+'">'+esc(x.name)+' · '+esc(x.size||"?")+'³</option>').join(""):'<option value="">（还没有预制）</option>';
+    if(sel!=null) s.value=String(sel);
+    renderLutAdjustBox();
+}
+function renderLutAdjustBox(){
+    const box=$("lutAdjustBox"); if(!box) return;
+    const cur=currentLut(), ad=(cur&&cur.lut.adjust)||{intensity:1,brightness:0,contrast:0,saturate:0,temperature:0};
+    const rows=[["intensity","强度",0,100,100],["brightness","亮度",-50,50,0],["contrast","对比度",-50,50,0],["saturate","饱和度",-50,50,0],["temperature","色温",-50,50,0]];
+    box.innerHTML='<div class="fx-sec">LUT 调色参数'+(cur?' · '+esc(cur.lut.name):'')+'</div>'
+      +rows.map(r=>'<div class="range-row"><span style="flex:0 0 48px">'+r[1]+'</span><input type="range" id="lutA_'+r[0]+'" min="'+r[2]+'" max="'+r[3]+'" value="'+Math.round((Number(ad[r[0]])||0)*(r[0]==="intensity"?100:1))+'"><b id="lutAV_'+r[0]+'"></b></div>').join("");
+    rows.forEach(r=>{
+        const el=$("lutA_"+r[0]); if(!el) return;
+        const lab=$("lutAV_"+r[0]); if(lab) lab.textContent=el.value;
+        el.oninput=e2=>{
+            const raw=Number(e2.target.value), v=r[0]==="intensity"?raw/100:raw;
+            if(lab) lab.textContent=e2.target.value;
+            const cc=currentLut(); if(!cc) return;
+            cc.lut.adjust=cc.lut.adjust||{}; cc.lut.adjust[r[0]]=v;
+            autoSave(); drawLutFrame();
+        };
+    });
+}
+function applyLutAtPlayhead(lut){
+    if(!lut){ toast("请先加载一个 LUT 文件","err"); return; }
+    let tr=state.tracks.find(t=>t.kind==="lut");
+    if(!tr){ tr={id:"tk_lut1",kind:"lut",label:"LUT 1",order:0}; state.tracks.push(tr); }
+    pushHistory();
+    const st=state.playhead, remain=Math.max(1,totalDuration()-st);
+    const exist=state.clips.find(c=>c.track===tr.id&&st>=c.start&&st<c.start+c.duration);
+    if(exist){ exist.lut=lut; exist.name="LUT · "+lut.name; }
+    else state.clips.push({id:uid(),track:tr.id,assetId:"",start:st,duration:Math.min(5,remain),offset:0,text:"",name:"LUT · "+lut.name,fx:defaultFx(),lut:lut});
+    renderAll(); autoSave(); drawLutFrame(); toast("LUT「"+lut.name+"」已放到视频轨上方","ok");
+}
+
 const COLOR_PRESETS={
     ""      :{},
     "film"  :{brightness:104,contrast:112,saturate:88,sepia:16,fade:12},
@@ -4332,7 +4882,7 @@ async function prepareRenderOverrides(onProgress){
         "本工程含倒放 / 变速片段，导出必须由本机 FFmpeg 重新解码并重编码；"
         +"请双击「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows)，"
         +"并按导出弹窗里的指引安装 FFmpeg。预览可以临时模拟，导出绝不会用 playbackRate 冒充成品；"
-        +"智能剪口播删除的区间也必须由 FFmpeg 真实裁剪。");
+        +"智能剪口播删除的区间、时间轴 LUT 调色也必须由 FFmpeg 真实烘焙。");
     let done=0;
     for(const c of list){
         const a=assetById(c.assetId);
@@ -4343,6 +4893,8 @@ async function prepareRenderOverrides(onProgress){
         const payload={filename:String(a.name||("clip."+(k==="audio"?"m4a":"mp4"))),
             kind:k,width:sz.w,height:sz.h,fps:Number($("expFps").value)||30,
             segments:segs};
+        const lutHere=lutAtTime(c.start+0.02);
+        if(lutHere&&lutHere.cube) payload.lut={cube:lutHere.cube,size:lutHere.size,adjust:lutHere.adjust||{}};
         const u=String(a.url||"");
         if(/^https?:\/\//i.test(u)&&u.indexOf(LOCAL_SERVICE)!==0) payload.url=u;
         else payload.dataBase64=await blobToBase64(await assetBlob(a));
@@ -4649,7 +5201,7 @@ async function openExport(){
     $("exportProg").classList.remove("show"); $("exportProgFill").style.width="0%";
     await pingService(1900);
     updateExportStatus();
-    if(!coverPinned) captureCover(true);
+    captureCover(true);
     $("exportModal").classList.add("show");
     /* 不阻塞弹窗：后台尝试自动准备 ffmpeg，成功后刷新可用格式 */
     if(svcOnline && !ffmpegReady()) tryPrepareFfmpeg().then(()=>updateExportStatus());
@@ -4703,7 +5255,6 @@ async function startExport(){
 function wireExport(){
     $("exportDo").onclick=startExport;
     $("exportTitle").oninput=e=>{ $("exportTitleHead").textContent=e.target.value||todayStr(); };
-    $("coverEdit").onclick=()=>{ coverPinned=true; captureCover(false); };
     $("pickExportDir").onclick=async()=>{
         if(!window.showDirectoryPicker){ toast("当前浏览器不支持选择文件夹，将使用浏览器下载目录","err"); return; }
         try{ exportDirHandle=await window.showDirectoryPicker(); $("exportDest").value="已选择文件夹："+exportDirHandle.name; }
