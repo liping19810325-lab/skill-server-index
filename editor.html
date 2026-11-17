@@ -4392,22 +4392,23 @@ async function runAsrCore(){
     }
     resetAiPanel("sub"); lastSilences=[]; silenceCache.clear();
     scLogPush("开始 AI 字幕 · 算力档位 "+cfg.label+" · 接口 "+(cfg.endpoint||"未配置（本机服务自动探测）"));
-    /* 框选优先：用户在时间轴框选了片段时，只识别框选里的音视频（字幕/LUT/图片等非音视频自动忽略）；
-       没有框选才回退为「全时间轴所有音视频素材」。 */
-    const marquee=(state.multi&&state.multi.length)?state.multi.slice():null;
+    /* 选中优先：用户在时间轴选中了一条 / 多条片段（单选 state.selected、框选 state.multi 都算），
+       只识别选中里的音视频（字幕/LUT/图片等非音视频自动忽略）；
+       完全没选中才回退为「全时间轴所有音视频素材」。 */
+    const picked=selectedIds();
     const isAv=c=>{ const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
         return (k==="video"||k==="audio") && a && (a.type==="video"||a.type==="audio"); };
-    let list=state.clips.filter(c=>isAv(c) && (!marquee||marquee.indexOf(c.id)>=0)).sort((a,b)=>a.start-b.start);
-    if(marquee && !list.length){
-        setEdState("框选的片段里没有可识别的音视频素材（只识别视频与音频轨上的 mp4 / mp3 等带声音素材），请重新框选或清空框选后重试。","err");
-        toast("框选范围内没有音视频素材","err"); return;
+    let list=state.clips.filter(c=>isAv(c) && (!picked.length||picked.indexOf(c.id)>=0)).sort((a,b)=>a.start-b.start);
+    if(picked.length && !list.length){
+        setEdState("选中的片段里没有可识别的音视频素材（只识别视频与音频轨上的 mp4 / mp3 等带声音素材），请重新选中音视频素材，或清空选中后重试全部。","err");
+        toast("选中范围内没有音视频素材","err"); return;
     }
     if(!list.length){
         setEdState("轨道上还没有可分析的真实视频 / 音频素材：请先把带声音的 mp4 / mp3 等文件导入素材库并拖到轨道，再点「AI字幕」。","err");
         toast("轨道上没有可分析的音视频素材","err"); return;
     }
-    if(marquee) scLogPush("AI 字幕范围：按框选识别，共 "+marquee.length+" 个框选片段 → "+list.length+" 段音视频");
-    else scLogPush("AI 字幕范围：未框选，识别全时间轴全部 "+list.length+" 段音视频素材");
+    if(picked.length) scLogPush("AI 字幕范围：按选中识别，共 "+picked.length+" 个选中片段 → "+list.length+" 段音视频");
+    else scLogPush("AI 字幕范围：未选中，识别全时间轴全部 "+list.length+" 段音视频素材");
     asrBusy=true;
     const btn=$("aiSubBtn"); btn.disabled=true;
     try{
@@ -6517,9 +6518,10 @@ function wire(){
                         ns=Math.max(0,bs);
                     }
                     c.start=Math.max(0,ns);
-                    /* 上下拖过其它轨道：高亮落点；同类轨直接换，异类轨提示将新建同类轨 */
-                    markDropTarget(laneAtY(ev.clientY));
                 }
+                /* 上下拖过其它轨道：整组 / 单片段都高亮落点；
+                   同类轨直接换轨，异类轨松开时新建同类轨 */
+                markDropTarget(laneAtY(ev.clientY));
             }
             /* 视觉同步：整组拖动时把所有框选片段一起平移，单片段仅更新自己 */
             if(groupDrag){
@@ -6562,15 +6564,24 @@ function wire(){
             }
             if(!didInsert){
                 if(dropTrackId && dropTrackId!==c.track){
-                    const srcKind=trackKind(c.track), tgt=trackById(dropTrackId);
-                    if(tgt && tgt.kind===srcKind){
-                        c.track=tgt.id;
-                        toast("片段已移到「"+tgt.label+"」","ok");
-                    }else{
-                        /* 落点是其它类型轨道：新建一条同类轨（编号自动 +1）并把片段放进去 */
-                        const nt=newTrack(srcKind);
-                        c.track=nt.id;
-                        toast("已在同类轨组末尾新建「"+nt.label+"」并移入片段","ok");
+                    /* 同类素材跨同类轨道移动：整组 / 单片段都支持。
+                       逐个片段按自己的类型决定落点——目标轨与自身同类就直接换过去，
+                       异类则新建一条自身同类轨并移入（保证视频永远落在视频轨、音频落在音频轨）。 */
+                    const tgt=trackById(dropTrackId);
+                    const movers=(groupDrag?dragIds:[c.id]).map(id=>clipById(id)).filter(Boolean);
+                    if(tgt && !tgt.locked){
+                        let sameCnt=0, newCnt=0, madeTrack=null;
+                        movers.forEach(o=>{
+                            const srcKind=trackKind(o.track);
+                            if(tgt.kind===srcKind){ o.track=tgt.id; sameCnt++; }
+                            else{
+                                /* 落点是其它类型轨道：新建一条该片段同类轨（编号自动 +1）后移入 */
+                                if(!madeTrack) madeTrack=newTrack(srcKind);
+                                o.track=madeTrack.id; newCnt++;
+                            }
+                        });
+                        if(newCnt) toast("同类 "+sameCnt+" 段已移到「"+tgt.label+"」；"+newCnt+" 段异类素材已新建同类轨移入","ok");
+                        else toast((movers.length>1?"整组 "+movers.length+" 段":"片段")+"已移到「"+tgt.label+"」","ok");
                     }
                     closeMainGaps();
                 }else if(isMainTrack(c.track)){
