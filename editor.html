@@ -2304,7 +2304,10 @@ function subStyleOf(c,stackY){
     let hpos;
     if(al==="left") hpos="left:"+_sp.pad+"px;";
     else if(al==="right") hpos="right:"+_sp.pad+"px;";
-    else hpos="left:50%;translate:-50% 0;";
+    /* 居中用 left:0/right:0 + width:max-content + margin:auto，由浏览器布局完成居中。
+       旧写法 left:50% + CSS 独立属性 translate:-50% 不改变 offsetLeft，
+       导致 computeFxGeometry 用 offsetLeft 算出的拖动框偏到字幕右侧半个字宽。 */
+    else hpos="left:0;right:0;width:max-content;margin-left:auto;margin-right:auto;";
     return "bottom:"+bottomFromStage+"px;"+hpos
         +"font-size:"+(Number(q.size)||28)+"px;"+fill
         +";opacity:"+op.toFixed(3)
@@ -7345,6 +7348,7 @@ function renderAdjustPanels(){
               +'<div class="range-row"><span style="flex:0 0 52px">行高</span><input type="range" id="adjSubLine" min="0.8" max="2.4" step="0.1" value="'+V("lineHeight",1.2)+'"><b id="adjSubLineV">'+V("lineHeight",1.2)+'</b></div>'
               +'<div class="prop-row"><label>位置</label><select id="adjSubPos">'+opts([["bottom","底部"],["middle","居中"],["top","顶部"]],q.pos)+'</select></div>'
               +'<div class="prop-row"><label>对齐</label><select id="adjSubAlign">'+opts([["center","居中"],["left","左对齐"],["right","右对齐"]],q.align)+'</select></div>'
+              +'<div class="row" style="gap:5px;margin:4px 0 8px"><button class="mini-btn gray" id="adjSubResetPos" style="flex:1">↺ 恢复初始位置</button></div>'
               +'<div class="prop-row"><label style="flex:0 0 52px">中文字体</label><select id="adjSubFont">'+opts([["Microsoft YaHei","微软雅黑"],["SimHei","黑体"],["KaiTi","楷体"],["PingFang SC","苹方"],["Arial","Arial"]],q.font)+'</select></div>'
               +'<div class="prop-row"><label style="flex:0 0 52px">西文字体</label><select id="adjSubFontEn">'+opts([["Arial","Arial"],["Helvetica","Helvetica"],["Times New Roman","Times New Roman"],["Georgia","Georgia"],["Verdana","Verdana"],["Microsoft YaHei","跟随中文"]],q.fontEn||"Arial")+'</select></div>'
               +'<div class="prop-row"><label style="flex:0 0 66px">字形</label><label style="display:flex;align-items:center;gap:5px;font-size:11px"><input type="checkbox" id="adjSubBold"'+((q.bold===false)?"":" checked")+'> 粗体</label>'
@@ -7376,6 +7380,15 @@ function renderAdjustPanels(){
             $("adjSubGradient").oninput=e=>{ f.sub.gradient=e.target.value.trim(); fire(); };
             ["adjSubPos","adjSubAlign","adjSubFont","adjSubFontEn"].forEach(id=>$(id).onchange=e=>{
                 f.sub[({adjSubPos:"pos",adjSubAlign:"align",adjSubFont:"font",adjSubFontEn:"fontEn"})[id]]=e.target.value; fire(); });
+            /* 恢复初始位置：只复位落点与手动位移，字号/颜色等样式保持不变。
+               复位后所有字幕共用同一基准（底部、水平居中），参数相同即位置相同。 */
+            $("adjSubResetPos").onclick=()=>{
+                pushHistory();
+                f.sub.pos="bottom"; f.sub.align="center";
+                f.x=0; f.y=0;                 /* 清掉用变换框拖出的位移，回到统一基准 */
+                subCache=""; renderAll(); autoSave();
+                toast("已恢复初始位置（底部水平居中）","ok");
+            };
             $("adjSubBold").onchange=e=>{ f.sub.bold=e.target.checked; fire(); };
             $("adjSubItalic").onchange=e=>{ f.sub.italic=e.target.checked; fire(); };
             $("adjSubUnderline").onchange=e=>{ f.sub.underline=e.target.checked; fire(); };
@@ -7624,13 +7637,13 @@ function assStackIndex(c,arr,W,H){
    关键：arr 用「整段所有字幕」作静态基准，因此某条字幕的 y 只取决于自身样式 + 轨道顺序，
    不随「当前时刻有几条其它字幕在显示」而漂移——这正是预览忽高忽低的根源。 */
 function subStackY(c,arr,W,H){
-    const GAP=5;   /* 与预览 .subtitle-overlay 的 gap:5px 一致 */
-    const si=assStackIndex(c,arr,W,H);
-    if(si.level<=0) return subPlacement((c.fx&&c.fx.sub)||defaultFx().sub,W,H).y;
-    const grp=si.group;
-    let up=0;
-    for(let j=si.idx+1;j<grp.length;j++) up+=subLinePx((grp[j].fx&&grp[j].fx.sub)||defaultFx().sub)+GAP;
-    return subPlacement((c.fx&&c.fx.sub)||defaultFx().sub,W,H).y-up;
+    /* 统一字幕位置标准（2026-11-17）：
+       每条字幕的落点只由自身 pos/align（以及用户手动拖出的 fx.x/fx.y 位移）决定，
+       不再因为「同屏其它字幕」「轨道顺序」「时间重叠」而自动垂直堆叠。
+       这样两条参数完全相同的字幕一定落在同一像素位置（真正统一），
+       也不会再出现「两条轨都调成一样却仍一高一低」。
+       预览 CSS / 录制 Canvas / 烧录 ASS 三处共用本函数，位置严格一致。 */
+    return subPlacement((c&&c.fx&&c.fx.sub)||defaultFx().sub,W,H).y;
 }
 function assPosTag(q,stackY){
     const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
