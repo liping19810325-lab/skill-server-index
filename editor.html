@@ -515,6 +515,14 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
   color:var(--muted);font-size:10px;line-height:1.35;}
 .preset-btn:hover{background:var(--hover);color:#fff;}
 .preset-btn.active{background:var(--purple);border-color:transparent;color:#fff;}
+/* 剪映同款「预设样式」彩色 T 缩略图网格（真实按套用后的字样渲染） */
+.sub-preset-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:6px 0 8px;}
+.sub-preset-thumb{display:flex;align-items:center;justify-content:center;width:100%;height:40px;padding:0;
+  border:1px solid var(--border2);border-radius:6px;background:#11141b;cursor:pointer;overflow:hidden;
+  transition:border-color .15s,transform .1s;}
+.sub-preset-thumb:hover{border-color:var(--cyan);transform:translateY(-1px);}
+.sub-preset-thumb.active{border-color:var(--purple);box-shadow:0 0 0 2px rgba(139,92,246,.4);}
+.sub-preset-thumb .tglyph{font-family:'Microsoft YaHei',sans-serif;font-size:22px;line-height:1;user-select:none;pointer-events:none;white-space:nowrap;}
 .range-row{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted);margin:6px 0;}
 .range-row input[type=range]{flex:1;accent-color:var(--cyan);}
 .range-row b{min-width:38px;text-align:right;color:#fff;font-weight:500;}
@@ -1829,7 +1837,7 @@ function defaultFx(){
             shadow:0,shadowColor:"#000000",bg:"",bgOpacity:0,spacing:0,lineHeight:1.2,
             /* 剪映 6.0 字幕补充样式 */
             glow:0,glowColor:"#ffffff",gradient:"",vertical:false,
-            underline:false,strike:false,flower:"",bgRadius:0,bgPad:4}};
+            underline:false,strike:false,flower:"",textPreset:"",bgRadius:0,bgPad:4}};
 }
 function fxOf(c){
     if(!c) return defaultFx();
@@ -6319,6 +6327,47 @@ const SUB_FLOWER_PRESETS={
     warning:{name:"醒目黄",color:"#ffe600",glow:0,strokeW:3,stroke:"#000000",bg:"#cc0000",bgOpacity:75,bgRadius:6,bgPad:6},
     fresh:  {name:"清新绿",color:"",gradient:"#a8ff78,#00c853",glow:6,glowColor:"#00e676",strokeW:1,stroke:"#004d28"}
 };
+/* 剪映「文本 → 基础 → 预设样式」24 款彩色 T 预设（对照截图复刻配色/描边/底框）。
+   每项只写与默认 sub 不同的字段；套用时先整体复位再合并，避免上一个预设残留。 */
+const SUB_TEXT_PRESETS=[
+    {name:"无样式",        reset:true},
+    {name:"经典白",        color:"#ffffff",stroke:"#000000",strokeW:2},
+    {name:"简约白",        color:"#ffffff",stroke:"#000000",strokeW:1},
+    {name:"醒目黄",        color:"#ffe100",stroke:"#000000",strokeW:2},
+    {name:"珊瑚红",        color:"#ff5b5b",stroke:"#ffffff",strokeW:1.5},
+    {name:"天空蓝",        color:"#5ac8fa",stroke:"#ffffff",strokeW:1.5},
+    {name:"玫红",          color:"#ff3d8b",stroke:"#ffffff",strokeW:2},
+    {name:"湖蓝",          color:"#2aa9e0",stroke:"#ffffff",strokeW:2},
+    {name:"嫩芽绿",        color:"#b6d94c",stroke:"#ffffff",strokeW:1.5},
+    {name:"雾蓝",          color:"#7fb8d6",stroke:"#ffffff",strokeW:1.5},
+    {name:"正红",          color:"#f5333f",stroke:"#ffffff",strokeW:1.5},
+    {name:"棕橙",          color:"#c05621",stroke:"#ffffff",strokeW:1.5},
+    {name:"米黄",          color:"#f7e7b4",stroke:"#000000",strokeW:1.5},
+    {name:"柔粉",          color:"#f7a8c4",stroke:"#ffffff",strokeW:1.5},
+    {name:"黑底白字",      color:"#ffffff",stroke:"#000000",strokeW:1,bg:"#000000",bgOpacity:78,bgRadius:5,bgPad:6},
+    {name:"白底棕字",      color:"#a0503a",stroke:"#ffffff",strokeW:1,bg:"#ffffff",bgOpacity:90,bgRadius:5,bgPad:6},
+    {name:"黑底黄字",      color:"#ffe100",stroke:"#000000",strokeW:1,bg:"#101010",bgOpacity:82,bgRadius:5,bgPad:6},
+    {name:"白底红字",      color:"#f5333f",stroke:"#ffffff",strokeW:1,bg:"#ffffff",bgOpacity:90,bgRadius:5,bgPad:6},
+    {name:"黑底绿字",      color:"#31d97a",stroke:"#000000",strokeW:1,bg:"#000000",bgOpacity:82,bgRadius:5,bgPad:6},
+    {name:"蓝白描边",      color:"#ffffff",stroke:"#2b7de9",strokeW:2.5},
+    {name:"粉白描边",      color:"#ffffff",stroke:"#ff5fa2",strokeW:2.5},
+    {name:"黄白描边",      color:"#ffffff",stroke:"#f2b705",strokeW:2.5},
+    {name:"红白描边",      color:"#ffffff",stroke:"#e63946",strokeW:2.5},
+    {name:"绿白描边",      color:"#ffffff",stroke:"#1fa863",strokeW:2.5}
+];
+/* 按剪映预设生成缩略图 T 的字样式（与主字幕 subStyleOf 同源，确保所见即所得） */
+function subThumbCss(p){
+    if(!p||p.reset) return "color:#8b95a5;-webkit-text-stroke:1.2px #8b95a5;text-decoration:line-through;opacity:.75;";
+    const q=Object.assign({},defaultFx().sub,p);
+    const grad=String(p.gradient||"").trim();
+    const fill=grad?("background:linear-gradient(90deg,"+esc(grad)+");-webkit-background-clip:text;background-clip:text;color:transparent;")
+                   :("color:"+(q.color||"#fff")+";");
+    const sh=Number(q.glow)||0;
+    const shadow=sh>0?("text-shadow:0 0 "+sh.toFixed(0)+"px "+(q.glowColor||"#fff")+";"):"";
+    const bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
+    const bg=bgA>0?("background-color:"+hexToRgba(q.bg||"#000000",bgA)+";padding:2px 5px;border-radius:"+(Number(q.bgRadius)||3)+"px;"):"";
+    return fill+"-webkit-text-stroke:"+(Number(q.strokeW)||0)+"px "+(q.stroke||"#000")+";"+shadow+bg+"font-weight:700;";
+}
 const ANIM_IN_OPTS=[["","无"],["fade","渐显（淡入）"],["slideL","滑动进入"],["slideR","滑动进入"],["slideU","滑动进入"],
                     ["slideD","滑动进入"],["zoomIn","放大进入"],["zoomOut","缩小进入"],["rotateIn","旋转进入"]];
 const ANIM_OUT_OPTS=[["","无"],["fade","渐隐（淡出）"],["slideL","滑动退出"],["slideR","滑动退出"],
@@ -6753,6 +6802,8 @@ function renderAdjustPanels(){
               +'<div class="fx-sec">字幕背景框</div>'
               +'<div class="range-row"><span style="flex:0 0 52px">圆角</span><input type="range" id="adjSubBgRadius" min="0" max="40" step="1" value="'+V("bgRadius",0)+'"><b id="adjSubBgRadiusV">'+V("bgRadius",0)+'</b></div>'
               +'<div class="range-row"><span style="flex:0 0 52px">内边距</span><input type="range" id="adjSubBgPad" min="0" max="40" step="1" value="'+(q.bgPad!==undefined?Number(q.bgPad):4)+'"><b id="adjSubBgPadV">'+(q.bgPad!==undefined?Number(q.bgPad):4)+'</b></div>'
+              +'<div class="fx-sec">预设样式（剪映同款 · 24 款，点选即套用）</div>'
+              +'<div class="sub-preset-grid" id="adjSubTextPresets">'+SUB_TEXT_PRESETS.map((p,i)=>'<button type="button" class="sub-preset-thumb'+((q.textPreset||"")===String(i)?" active":"")+'" data-tp="'+i+'" title="套用「'+esc(p.name)+'」"><span class="tglyph" style="'+subThumbCss(p)+'">T</span></button>').join("")+'</div>'
               +'<div class="fx-sec">花字 / 文字模板（一键套用）</div>'
               +'<div class="preset-grid" id="adjSubFlower">'+Object.keys(SUB_FLOWER_PRESETS).map(k=>'<button class="preset-btn'+((q.flower||"")===k?" active":"")+'" data-fl="'+k+'" title="套用「'+SUB_FLOWER_PRESETS[k].name+'」">'+SUB_FLOWER_PRESETS[k].name+'</button>').join("")+'</div>'
               +adjNote("字幕样式全工程统一：这里改任意一项（字号 / 颜色 / 描边 / 发光等），所有字幕会一起变化，保持风格一致。预览与导出都按这里的设置绘制（含发光、渐变、竖排、下划线、背景框圆角与内边距）。渐变色填两个或多个颜色值用英文逗号隔开；花字模板会覆盖部分颜色参数，之后仍可手动微调。");
@@ -6780,7 +6831,20 @@ function renderAdjustPanels(){
                 const d=defaultFx().sub;
                 for(const key in d) f.sub[key]=d[key];   /* 先复位，避免上一个花字的残留 */
                 for(const key in p) if(key!=="name") f.sub[key]=p[key];
-                f.sub.flower=k; renderAll(); autoSave(); toast("已套用花字「"+p.name+"」","ok");
+                f.sub.flower=k; f.sub.textPreset=""; renderAll(); autoSave(); toast("已套用花字「"+p.name+"」","ok");
+            };
+            /* 剪映预设样式：先整体复位 sub，再合并该预设字段；全工程字幕同步、可撤销、导出随样式生效 */
+            const tpBox=$("adjSubTextPresets");
+            if(tpBox) tpBox.onclick=e=>{
+                const b=e.target.closest("[data-tp]"); if(!b) return;
+                const i=Number(b.dataset.tp), p=SUB_TEXT_PRESETS[i]; if(!p) return;
+                pushHistory();
+                const d=defaultFx().sub;
+                for(const key in d) f.sub[key]=d[key];          /* 复位，清掉上一预设/花字的残留 */
+                f.sub.textPreset=String(i); f.sub.flower="";
+                if(!p.reset) for(const key in p) if(key!=="name"&&key!=="reset") f.sub[key]=p[key];
+                renderAll(); autoSave();
+                toast(p.reset?"已恢复默认字幕样式":"已套用预设样式「"+p.name+"」","ok");
             };
         }
     }
