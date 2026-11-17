@@ -894,7 +894,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <ul>
                 <li>轨道不再固定六条，改为<b>按你拖入的素材类型自动生成</b>：同类素材可以有多条轨道，拖入时优先复用该类轨道上与落点不重叠的空位，都占满了就自动新建一条同类轨道；拖到类型不符的轨道会自动改放到正确类型的轨道并提示。</li>
                 <li>层级固定为<b>最上层字幕（文本）→ 图片 → 视频 → 最下层音轨</b>，新轨道自动插在所属分组里。<b>字幕层不再区分对白 / 旁白 / 内心独白</b>，全部由你自己决定放哪条字幕轨、写什么内容；单条字幕只保留一个可选「类型标签」用于颜色与 SRT 标注。</li>
-                <li>轨道名右侧的 <b>＋</b> 新建一条同类型轨道、<b>×</b> 删除该空轨道（有片段时先删片段）；工具条「＋ 轨道」可直接选类型新建。旧工程里原来的对白 / 旁白 / 内心独白三条字幕轨会自动合并成一条字幕轨，片段不丢失。</li>
+                <li>轨道名右侧的 <b>＋</b> 新建一条同类型轨道、<b>×</b> 删除该空轨道（有片段时先删片段）；工具条「＋ 轨道」可直接选类型新建。<b>LUT 调色轨同样可删除；删掉后如需再用，从「＋ 轨道」菜单选「LUT 调色轨」即可重新加回，或在调色 LUT 面板加载 / 应用 LUT 时自动重建。</b>旧工程里原来的对白 / 旁白 / 内心独白三条字幕轨会自动合并成一条字幕轨，片段不丢失。</li>
                 <li><b>跨轨拖动（新）</b>：按住时间轴上的片段<b>往上下轨道拖</b>，松开时如果落点已有同类轨道就直接移进去；如果落点是别的类型轨道，会自动新建一条同类轨（如「视频 2」「音频 2」）并把片段放进去。拖动过程中落点轨道会绿色高亮并提示。片段只能在同类轨之间自由移动。</li>
                 <li><b>主轨磁吸（新）</b>：第一条视频素材进主视频轨时自动贴到 0 秒；「🧲 磁吸」默认开启，开启时在主轨上裁剪 / 删除 / 剪断 / 粘贴 / 拖动造成中间空档，<b>后面的片段自动前移紧跟</b>（波纹前移），始终保持无间隙。其它轨道不受影响，仍可自由分布。</li>
             </ul>
@@ -1342,6 +1342,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 <div class="menu-pop" id="trackMenu">
     <button data-kind="text">＋ 字幕 / 文本轨（最上层）</button>
     <button data-kind="image">＋ 图片轨</button>
+    <button data-kind="lut">＋ LUT 调色轨（视频轨上方）</button>
     <button data-kind="video">＋ 视频轨</button>
     <button data-kind="audio">＋ 音频轨（最下层）</button>
 </div>
@@ -3740,7 +3741,7 @@ function renderProjInfo(){
     $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
     $("dateChip").textContent="当天工程 "+state.date;
 }
-function renderAll(){ if(!state.tracks.some(t=>t.kind==="lut")) state.tracks.push({id:"tk_lut1",kind:"lut",label:"LUT 1",order:0,locked:false,hidden:false,muted:false}); updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); drawLutFrame(); }
+function renderAll(){ updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); drawLutFrame(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
 function snapshot(){ state.clips.forEach(fxOf); return JSON.stringify({clips:state.clips,tracks:state.tracks,markers:state.markers}); }
