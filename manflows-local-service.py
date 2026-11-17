@@ -1456,16 +1456,20 @@ def api_transcribe(body):
     log.append("静音参数：%g dB / 最短 %.2f 秒 / 切口留白 %.2f 秒" %
                (pa["db"], pa["minSec"], pa["pad"]))
 
-    with tempfile.TemporaryDirectory(prefix="manflows-asr-") as td:
-        try:
-            in_path, _ext = _media_to_file(data, td)
-            wav = _extract_mono_wav(ff, in_path, td, clip_start, clip_duration)
-            chunks, duration = _split_wav(wav, td)
-            det = _detect_silences_ex(ff, wav, pa)
-        except subprocess.TimeoutExpired:
-            return _fail("抽取音轨超时（超过 10 分钟）", "请换短一点的素材再试。")
-        except Exception as e:
-            return _fail(_short(e), "请确认素材含有声音轨、且 ffmpeg 可读取该格式。")
+    # 临时目录必须活到转写循环结束（下面的 _post_asr 要读 chunk 文件）。
+    # 旧版用 with TemporaryDirectory 在抽音轨后就销毁，导致有转写后端时 chunk_000.wav 不存在。
+    td = tempfile.mkdtemp(prefix="manflows-asr-")
+    try:
+        in_path, _ext = _media_to_file(data, td)
+        wav = _extract_mono_wav(ff, in_path, td, clip_start, clip_duration)
+        chunks, duration = _split_wav(wav, td)
+        det = _detect_silences_ex(ff, wav, pa)
+    except subprocess.TimeoutExpired:
+        shutil.rmtree(td, ignore_errors=True)
+        return _fail("抽取音轨超时（超过 10 分钟）", "请换短一点的素材再试。")
+    except Exception as e:
+        shutil.rmtree(td, ignore_errors=True)
+        return _fail(_short(e), "请确认素材含有声音轨、且 ffmpeg 可读取该格式。")
 
     silences = []
     for z in det["silences"]:
@@ -1514,6 +1518,7 @@ def api_transcribe(body):
     if asr_error:
         hint = ("字幕转写未成功（%s），但静音/气口检测已独立完成，智能剪口播仍可使用。" %
                 asr_error[:160])
+    shutil.rmtree(td, ignore_errors=True)   # 转写完成后才清理临时音频
     return {"ok": True, "engine": engine, "asrOk": bool(segments),
             "asrError": str(asr_error)[:600], "chunks": len(chunks),
             "duration": round(duration, 2),

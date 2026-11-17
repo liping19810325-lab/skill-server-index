@@ -427,6 +427,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 /* ===== AI 剪辑弹窗 ===== */
 .ai-idea-label{flex:0 0 70px;font-size:11.5px;color:#d1d5db;}
 .ai-idea-warn{background:rgba(217,119,6,.12);border:1px solid rgba(217,119,6,.5);border-radius:8px;padding:9px 11px;color:#fcd34d;font-size:11.5px;line-height:1.75;margin:0 0 10px;}
+/* 统一「AI剪辑」弹窗的两个模式 Tab */
+.ai-mode-tabs{display:flex;gap:6px;flex:0 0 auto;padding:10px 15px 0;}
+.ai-mode-tab{padding:7px 16px;border:1px solid var(--border2);border-bottom:none;border-radius:8px 8px 0 0;background:var(--panel);color:var(--muted);font-size:12.5px;cursor:pointer;}
+.ai-mode-tab.active{background:var(--card);color:#fff;border-color:var(--purple);font-weight:600;box-shadow:inset 0 2px 0 var(--purple);}
+.ai-mode-pane{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 15px;}
+.ai-mode-pane[hidden]{display:none!important;}
 /* 剪辑思路输入框：横向铺满弹窗可用宽度，输入长提示词时能一次看到更多行 */
 .modal-body #aiIdeaText{display:block;width:100%;box-sizing:border-box;min-height:92px;resize:vertical;padding:9px 11px;line-height:1.7;font-size:12.5px;background:var(--panel);border:1px solid var(--border2);border-radius:7px;color:var(--text);outline:none;}
 .modal-body #aiIdeaText:focus{border-color:var(--blue);}
@@ -582,6 +588,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="tb-sep"></div>
         <button class="tb-btn green" id="topSave" title="保存工程 (Ctrl+S)">💾 保存工程</button>
         <button class="tb-btn" id="topOpen" title="打开工程 (Ctrl+O)">📂 打开工程</button>
+        <button class="tb-btn" id="topNew" title="新建工程：在新标签页打开一个全新的空白剪辑台，不影响当前工程">➕ 新建工程</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" id="resetLayout" title="把三栏宽度与时间轴高度恢复为初始尺寸">↺ 恢复初始化布局</button>
         <button class="tb-btn" id="topHelp">📖 使用帮助</button>
@@ -803,8 +810,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tl-tool active" id="snapBtn" title="磁吸开关：拖动片段时自动吸附到其他片段边缘 / 播放头">🧲<span>磁吸</span></button>
             </div>
             <div class="tl-tools mid">
-                <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：自动分析轨道素材并完成剪辑（需 Claude / GPT 等强多模态大模型）">✨ AI剪辑</button>
-                <button class="tb-btn purple" id="agentBtn" title="AI 对话剪辑：用自然语言对话，让 AI 调用工具读取时间轴、抽帧自检并给出剪辑提案，确认后写入轨道">🤖 对话剪辑</button>
+                <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：快速出方案 / 对话式剪辑两种模式，自动分析轨道素材并完成剪辑">✨ AI剪辑</button>
                 <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
                 <button class="tb-btn ai-rec" id="recBtn" title="录音：选择麦克风或系统声音，实时显示双声道电平，结束后自动加入音频轨">⏺ 录音</button>
                 <button class="tb-btn ai-sub" id="smartCutBtn" title="智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ 剪口播</button>
@@ -1046,7 +1052,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="modal-box" style="width:min(620px,100%)">
         <div class="modal-head">🕘 历史工作区 · <span id="histWsName" style="color:var(--muted);font-size:12px"></span><button class="mh-close" data-close="histModal">×</button></div>
         <div class="modal-body">
-            <div class="ws-hint">这里按<b>保存时间倒序</b>列出<b>当前工作区做过的全部剪辑工程</b>（跨所有日期），点「打开」就能切回那一份继续剪。切换前会自动保存当前工程。<br><b>只显示本工作区</b>，不会看到其它工作区或别人的工程；要换人请点左边的「👤 用户工作区」。</div>
+            <div class="ws-hint">这里按<b>保存时间倒序</b>列出<b>当前工作区做过的全部剪辑工程</b>——<b>不管是当天工程、"新建工程"还是以前的老工程，只要保存过都会自动收进这里</b>，点「打开」就能切回那一份继续剪。切换前会自动保存当前工程。<br><b>只显示本工作区</b>，不会看到其它工作区或别人的工程；要换人请点左边的「👤 用户工作区」。</div>
             <div id="histList"></div>
             <div class="row" style="margin-top:10px"><button class="mini-btn gray" id="histRefresh">↻ 刷新列表</button><span class="hint" style="margin:0 0 0 8px">首次打开是<b>空白工程</b>：素材库与时间轴都不带任何自带素材，导入你自己的文件即可开始。</span></div>
         </div>
@@ -1124,8 +1130,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 <!-- AI 剪辑 · 剪辑思路 / 模型选择 / 进度条 -->
 <div class="modal-overlay" id="aiIdeaModal">
     <div class="modal-box" style="width:min(720px,100%)">
-        <div class="modal-head">✨ AI 剪辑 · 剪辑思路与模型<button class="mh-close" data-close="aiIdeaModal">×</button></div>
-        <div class="modal-body">
+        <div class="modal-head">✨ AI 剪辑<button class="mh-close" data-close="aiIdeaModal">×</button></div>
+        <div class="ai-mode-tabs">
+            <button type="button" class="ai-mode-tab active" data-pane="quick">⚡ 快速剪辑</button>
+            <button type="button" class="ai-mode-tab" data-pane="chat">💬 对话剪辑</button>
+        </div>
+        <div class="ai-mode-pane" id="aiPaneQuick">
+            <div class="modal-body" style="padding-top:4px">
             <p class="ai-idea-warn">✦ <b>建议只选 Claude 或 GPT 系列之一</b>（如 claude-sonnet-4 / claude-opus-4 / gpt-4o / gpt-4.1）。AI 剪辑要把整条时间轴结构与视频抽帧交给模型自主决策，<b>需要 Claude / GPT 等综合能力强的多模态大模型</b>；小参数或纯文本模型通常无法稳定输出可执行的剪辑方案。下拉里列出的都是你已经部署好的算力里的大语言模型。</p>
             <div class="row" style="margin-top:0"><label class="ai-idea-label">当前算力</label><span class="kv" id="aiIdeaMode">第三方API</span></div>
             <div class="row"><label class="ai-idea-label">选择模型</label><select id="aiIdeaModel" style="flex:1"></select></div>
@@ -1142,10 +1153,14 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="ai-progress" id="edEditProgress" hidden><div class="ai-progress-fill" id="edEditProgressFill"></div></div>
                 <div class="ai-steps" id="edEditSteps"></div>
             </div>
+            </div><!-- /modal-body quick -->
+        </div><!-- /aiPaneQuick -->
+        <div class="ai-mode-pane" id="aiPaneChat" hidden>
+            <!-- 对话剪辑的 body 由 JS 在启动时从 agentModal 搬运进来，保留原有事件绑定 -->
         </div>
         <div class="modal-foot">
             <button class="mini-btn gray" data-close="aiIdeaModal">取消</button>
-            <button class="mini-btn purple" id="aiIdeaGoCompute">切换算力档位</button>
+            <button class="mini-btn cyan" id="aiIdeaSmartCut" title="打开智能剪口播：本地检测气口与语气词并生成剪辑候选">✂ 智能剪口播</button>
             <button class="mini-btn green" id="aiIdeaStart">▶ 开始 AI 剪辑</button>
         </div>
     </div>
@@ -1211,6 +1226,15 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="modal-head">🅰 AI 字幕 · 算力与转写模型<button class="mh-close" data-close="asrSetupModal">×</button></div>
         <div class="modal-body">
             <p class="ai-idea-warn">✦ AI 字幕需要<b>语音转写模型</b>（whisper-1 / gpt-4o-transcribe / 本机 faster-whisper）。Claude、普通 GPT / Qwen / DeepSeek 等对话模型不能直接转写；本机服务会把长音频按 60 秒切片后转发，绕开浏览器跨域。转写失败时静音/气口仍会独立返回给「剪口播」。</p>
+            <details class="fw-install-guide" style="margin:8px 0;border:1px solid var(--border2);border-radius:8px;padding:8px 10px">
+                <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">🛠 没有转写模型？点这里：在自己电脑安装本机 faster-whisper（免费、离线，Mac / Windows 都可）</summary>
+                <div style="font-size:12px;line-height:1.7;margin-top:8px">
+                    ① 先在电脑上双击<b>「启动本机服务.command」</b>（Mac）/ <b>「启动本机服务.bat」</b>（Windows），保持窗口开着。<br>
+                    ② 再双击<b>「启动本机转写服务.command」</b>（Mac）/ <b>「启动本机转写服务.bat」</b>（Windows）：会自动建虚拟环境、装 faster-whisper，首次下载约 460MB 的 small 模型，装完停在 9000 端口。<br>
+                    ③ 两个窗口都保持开着，回到本页把「转写引擎」选成<b>「仅本机 faster-whisper（9000）」</b>，点开始即可。<br>
+                    <span style="color:var(--muted)">手动安装（可选）：<code>pip install faster-whisper==1.2.0</code>，然后运行 <code>python faster-whisper-server.py</code>。模型可用环境变量 FW_MODEL 改（tiny/base/medium/large-v3）。</span>
+                </div>
+            </details>
             <div class="row" style="margin-top:0"><label style="flex:0 0 86px">当前算力</label><span class="kv" id="asrUiMode">第三方API</span></div>
             <div class="row"><label style="flex:0 0 86px">转写引擎</label><select id="asrUiEngine" style="flex:1">
                 <option value="auto">自动探测（本机 faster-whisper 优先，失败走第三方）</option>
@@ -1708,6 +1732,55 @@ function fillAiIdeaModels(){
     if(saved && list.some(m=>m.name===saved)){ sel.value=saved; $("aiIdeaModelCustom").value=""; }
     else { sel.value=""; $("aiIdeaModelCustom").value=saved; }
 }
+/* ===== 统一「AI剪辑」弹窗：快速剪辑 / 对话剪辑 两个模式，双引擎原样保留 ===== */
+let aiMergedReady=false;
+function initAiMergedModal(){
+    if(aiMergedReady) return;
+    const chatBody=document.querySelector("#agentModal .modal-body");
+    const pane=$("aiPaneChat");
+    if(chatBody && pane){
+        pane.appendChild(chatBody);   /* 移动（不是复制），保留 agentSend/agentInput 等原事件绑定 */
+    }
+    /* agentClear 原在 agentModal 的 footer，footer 不再显示：把它作为浮层按钮塞进对话 pane */
+    const clear=$("agentClear"), quick=$("agentQuick");
+    if(clear && quick && !clear.parentNode.classList.contains("ai-mode-pane")){
+        clear.style.cssText="align-self:flex-start;margin:2px 0 6px;padding:4px 10px;font-size:11px;";
+        quick.parentNode.insertBefore(clear,quick);
+    }
+    document.querySelectorAll(".ai-mode-tab").forEach(t=>{
+        t.onclick=()=>switchAiMode(t.getAttribute("data-pane"));
+    });
+    aiMergedReady=true;
+}
+function switchAiMode(pane){
+    initAiMergedModal();
+    document.querySelectorAll(".ai-mode-tab").forEach(t=>t.classList.toggle("active",t.getAttribute("data-pane")===pane));
+    const q=$("aiPaneQuick"), c=$("aiPaneChat");
+    if(q) q.hidden=(pane!=="quick");
+    if(c) c.hidden=(pane!=="chat");
+    /* 两个模式的底部按钮各自显示：快速=开始AI剪辑+智能剪口播；对话=清空对话 */
+    const foot=document.querySelector("#aiIdeaModal .modal-foot");
+    if(foot){
+        const start=$("aiIdeaStart"), smart=$("aiIdeaSmartCut"), cancel=foot.querySelector('[data-close]');
+        const clr=$("agentClear");
+        if(start) start.style.display=(pane==="quick")?"":"none";
+        if(smart) smart.style.display=(pane==="quick")?"":"none";
+        if(clr) clr.style.display="none";   /* 清空对话已在 pane 内 */
+    }
+    if(pane==="chat"){
+        const md=$("agentMode"); if(md) md.textContent=ED_COMPUTE_LABEL[state.compute]||"第三方API";
+        const sel=$("agentModel");
+        if(sel && !sel.options.length){
+            const list=collectAiModels();
+            sel.innerHTML='<option value="">沿用当前算力配置的模型</option>'+list.map(m=>'<option value="'+esc(m.name)+'">'+esc(m.name)+" · "+esc(m.from)+"</option>").join("");
+            const saved=String(safeStorage.get(AI_MODEL_KEY)||"").trim();
+            sel.value=(saved&&list.some(m=>m.name===saved))?saved:"";
+        }
+        aiAgentActiveTier="base";
+        renderAgentPanel();
+        setTimeout(()=>{ try{ $("agentInput").focus(); }catch(e){} },80);
+    }
+}
 function openAiIdea(){
     if(state.compute==="manflow") toast("当前在「漫流算力」（占位档），请先在左上「算力总控」切到本机算力或第三方API","err");
     fillAiIdeaModels();
@@ -1715,6 +1788,7 @@ function openAiIdea(){
     const st=$("aiIdeaState"); st.className="ai-state";
     st.textContent="填好思路、选好模型后点「开始 AI 剪辑」；方案生成后会先弹出来让你确认，确认后才写到轨道（可 Ctrl+Z 撤销）。";
     $("aiIdeaStart").disabled=false;
+    switchAiMode("quick");
     $("aiIdeaModal").classList.add("show");
 }
 async function startAiIdea(){
@@ -3257,7 +3331,9 @@ function syncAudioPool(){
         const pp=ov?true:!fxOf(x.c).pitchShift;
         if(o.el.preservesPitch!==pp) try{ o.el.preservesPitch=pp; }catch(e){}
         const wt=(ov?0:(x.c.offset||0))+(state.playhead-x.c.start)*asp;
-        if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>0.32 && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
+        /* 与视频预览一致：暂停时半帧容差精确定位，播放时放宽避免抖动 */
+        const atol=playing?0.32:(0.5/PLAYER_FPS);
+        if(Number.isFinite(wt) && Math.abs(o.el.currentTime-wt)>atol && o.el.readyState>0){ try{ o.el.currentTime=wt; }catch(e){} }
         /* 声音面板：片段音量(%)在预览中实时生效；降噪/变声/均衡/响度以导出 FFmpeg 成品为准 */
         const clipVol=clamp(Number((fxOf(x.c).audio||{}).volume!==undefined?(fxOf(x.c).audio||{}).volume:100)/100,0,5);
         o.el.muted=recordMuted; o.el.volume=recordMuted?0:clamp(vol*clipVol,0,1);
@@ -3299,10 +3375,15 @@ function syncMedia(){
             /* 预览级倒放：暂停视频自身播放，由播放头反向映射 currentTime */
             if(!vEl.paused) vEl.pause();
             const want=(vc.offset||0)+Math.max(0,vc.duration-(state.playhead-vc.start))*spd;
-            if(vEl.readyState>0 && Math.abs(vEl.currentTime-want)>0.05){ try{ vEl.currentTime=want; }catch(e){} }
+            /* 倒放靠播放头反向映射 currentTime；暂停时同样收紧到半帧，保证逐帧预览精准 */
+            const rtol=playing?0.05:(0.5/PLAYER_FPS);
+            if(vEl.readyState>0 && Math.abs(vEl.currentTime-want)>rtol){ try{ vEl.currentTime=want; }catch(e){} }
         }else{
             const wt=(ov?0:(vc.offset||0))+(state.playhead-vc.start)*spd;
-            if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>0.32 && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
+            /* 暂停时用半帧容差精确定位：逐帧 seek 时预览必须紧跟红线，否则会有几帧滞后，导致分割点看不准。
+               播放时放宽到 0.32s，避免每帧都触发 seek 造成卡顿/音画抖动。 */
+            const tol=playing?0.32:(0.5/PLAYER_FPS);
+            if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>tol && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
             if(playing && vEl.paused) vEl.play().catch(()=>{});
             if(!playing && !vEl.paused) vEl.pause();
         }
@@ -3355,6 +3436,12 @@ function pause(){
     renderPlayhead();
 }
 function seek(t){ if(assetPreviewId) exitAssetPreview(true); state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
+/* 逐帧步进：先按帧号取整再 ±帧，保证播放头永远落在整数帧边界（30fps），
+   预览画面与红线/时间码严格对齐，分割点才不会差几帧。 */
+function stepFrames(n){
+    const cur=Math.round(state.playhead*PLAYER_FPS);
+    seek((cur+n)/PLAYER_FPS);
+}
 
 /* ---------- 属性 / 字幕列表 / 统计 ---------- */
 function renderProps(){
@@ -3813,6 +3900,10 @@ async function serviceTranscribe(a,cfg,clip){
             silencesRaw:j.silencesRaw||j.raw||null,log:j.log||[]};
     if(silences.length) silenceCache.set(silenceKey(clip||{id:a.id,assetId:a.id,offset:off,duration:0}),
         {silences:silences,raw:got.silencesRaw,engine:got.engine});
+    /* 服务端 ok:true 但转写后端缺失/失败导致 segments 空时，标记需要走降级链。
+       否则会被上层当成「识别成功但没语音」，误报成「素材没有对白」——其实用户明明有讲话。 */
+    got.needFallback=(j.asrOk===false && !(got.segments||[]).length && j.asrError)
+        ? String(j.asrError) : "";
     return got;
 }
 /* 浏览器直连回退：仅在本机服务不可用时尝试；明确区分 CORS / 404 / 连接失败 */
@@ -4043,6 +4134,10 @@ async function runAsrCore(){
                 scLogPush("第 "+(i+1)+" 段「"+a.name+"」："+r.engine+" · 转写"
                     +(r.asrOk?"成功":"失败")+(r.asrError?"｜"+String(r.asrError).slice(0,140):"")
                     +" · 毫秒级分段 "+segs.length+" · 静音 "+(r.silences||[]).length+" 段");
+                /* 服务端只做了静音检测、没有转写后端时，segments 会是空数组但 ok:true。
+                   这属于「转写失败」而不是「素材没对白」：转入下面的降级链再试一次，
+                   并把真实原因带给用户，避免误报成「识别完成但没有语音内容」。 */
+                if(r.needFallback) throw new Error("本机服务未配转写后端："+String(r.needFallback).slice(0,120));
                 setEdProgress(2,"第 "+(i+1)+" 段 "+(r.asrOk?"识别完成":"转写失败，但静音/气口已独立检测")+"（"+r.engine+"）");
             }catch(e1){
                 const why=((e1&&e1.message)||e1);
@@ -4060,10 +4155,12 @@ async function runAsrCore(){
                             setEdProgress(2,"多模态降级失败，尝试浏览器直连已配置的转写接口…");
                             try{ segs=await remoteASR(a,cfg); }
                             catch(e3){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
-                                +"；浏览器切段 "+(chunkErr||"失败")+"；多模态降级 "+(e2.message||e2)+"；直连 "+(e3.message||e3)); }
+                                +"；浏览器切段 "+(chunkErr||"失败")+"；多模态降级 "+(e2.message||e2)+"；直连 "+(e3.message||e3)
+                                +"。要出字幕必须二选一：① 创作台/画布「算力总控→第三方API」填支持 whisper-1/gpt-4o-transcribe 的转写地址+密钥；② 本机 9000 端口启动 faster-whisper。"); }
                         }else{
                             throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
-                                +"；浏览器切段 "+(chunkErr||"失败")+"；多模态降级 "+(e2.message||e2));
+                                +"；浏览器切段 "+(chunkErr||"失败")+"；多模态降级 "+(e2.message||e2)
+                                +"。要出字幕必须二选一：① 创作台/画布「算力总控→第三方API」填支持 whisper-1/gpt-4o-transcribe 的转写地址+密钥；② 本机 9000 端口启动 faster-whisper。");
                         }
                     }
                 }
@@ -4080,8 +4177,8 @@ async function runAsrCore(){
         }
         setEdProgress(3,"真实识别共 "+all.length+" 句，正在把时间码对齐到轨道位置…");
         if(!all.length){
-            setEdProgress(3,"识别完成但没有返回任何语音内容（素材可能没有对白，或接口未返回分段时间码）；本次不生成任何字幕。",true);
-            toast("没有识别到语音，未生成字幕","err"); return;
+            setEdProgress(3,"返回的识别结果里没有可写入的字幕句：可能是这段音频确实无对白，也可能是转写模型没返回分段时间码。请展开左侧「处理日志」看每段实际用的后端与返回的句数；若日志显示 0 句且后端为「未配置/none」，请到创作台/画布「算力总控→第三方API」填 whisper-1/gpt-4o-transcribe 通道，或本机 9000 端口启动 faster-whisper。本次不生成任何演示字幕。",true);
+            toast("没有识别到可写入的字幕，请看左侧处理日志","err"); return;
         }
         const keep=($("asrUiKeep")?$("asrUiKeep").checked:!!$("asrKeep").checked);
         const n=applySegments(all,{keep:keep});
@@ -4774,20 +4871,9 @@ function renderAgentPanel(){
 }
 function openAgentPanel(){
     if(state.compute==="manflow") toast("当前在「漫流算力」（占位档），请先在左上切到本机算力或第三方API","err");
-    const sel=$("agentModel");
-    if(sel){
-        const list=collectAiModels();
-        let html='<option value="">沿用当前算力配置的模型</option>';
-        list.forEach(m=>{ html+='<option value="'+esc(m.name)+'">'+esc(m.name)+" · "+esc(m.from)+"</option>"; });
-        sel.innerHTML=html;
-        const saved=String(safeStorage.get(AI_MODEL_KEY)||"").trim();
-        sel.value=(saved&&list.some(m=>m.name===saved))?saved:"";
-    }
-    const md=$("agentMode"); if(md) md.textContent=ED_COMPUTE_LABEL[state.compute]||"第三方API";
-    aiAgentActiveTier="base";
-    renderAgentPanel();
-    $("agentModal").classList.add("show");
-    const inp=$("agentInput"); if(inp) setTimeout(()=>{ try{ inp.focus(); }catch(e){} },80);
+    /* 对话剪辑已并入统一「AI剪辑」弹窗，作为「对话剪辑」Tab */
+    switchAiMode("chat");
+    $("aiIdeaModal").classList.add("show");
 }
 /* 对话主循环：用户消息 → 模型 → 工具调用 → 结果回注 → 下一轮，直到最终答复。
    支持：渐进式工具披露（load_skill 解锁高级工具）、多模态视觉自检回注、自主验收补一次自检。 */
@@ -4882,7 +4968,7 @@ function doAgentSend(){
     runAgentChat(t);
 }
 function bindAgentEvents(){
-    const btn=$("agentBtn"); if(btn) btn.onclick=openAgentPanel;
+    /* 原「🤖 对话剪辑」按钮已并入统一「AI剪辑」弹窗，不再单独绑定 agentBtn */
     const send=$("agentSend"); if(send) send.onclick=doAgentSend;
     const inp=$("agentInput");
     if(inp) inp.onkeydown=e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); doAgentSend(); } };
@@ -5345,12 +5431,26 @@ async function loadProject(date){
         return true;
     }catch(e){ toast("工程读取失败："+e.message,"err"); return false; }
 }
+/* 工程显示名：当天日期键显示「当天工程」；「新建工程」用 todayStr()+"-"+时间戳，
+   可读成一个简短的「新建工程 HHMMSS」。所有键都原样保留在历史工作区里，随时可打开。 */
+function projLabel(d){
+    if(d===todayStr()) return "当天工程（"+d+"）";
+    const m=String(d).match(/^(\d{4}-\d{2}-\d{2})-(\d{10,})$/);
+    if(m){
+        const ms=Number(m[2]);
+        if(Number.isFinite(ms)&&ms>1e12){
+            const t=new Date(ms);
+            return "新建工程 "+t.toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
+        }
+    }
+    return d;
+}
 function listProjects(){
     const box=$("projList");
     const keys=safeStorage.keys().filter(k=>k.indexOf(PROJECT_PREFIX)===0).sort().reverse();
     if(!keys.length){ box.innerHTML='<div class="empty-line">还没有保存过工程</div>'; return; }
     box.innerHTML=keys.map(k=>{ const d=k.slice(PROJECT_PREFIX.length);
-        return '<div class="proj-item"><span class="pi-name">📅 '+esc(d)+(d===todayStr()?"（今天）":"")+'</span>'
+        return '<div class="proj-item"><span class="pi-name">📅 '+esc(projLabel(d))+(d===todayStr()?"（今天）":"")+'</span>'
           +'<button class="mini-btn" data-load="'+esc(d)+'">打开</button></div>'; }).join("");
 }
 function download(name,content,mime){
@@ -5391,11 +5491,11 @@ function setEmptyHint(){
     $("aiState").className="ai-state";
     $("aiState").textContent="空白工程已就绪：点左侧「＋ 导入素材」或「🔗 粘贴在线 URL」添加你自己的文件，再拖到下方轨道开始剪辑。想回到以前做过的工程，点顶栏「🕘 历史工作区」。";
 }
-async function loadEmptyProject(){
+async function loadEmptyProject(newDate){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
     state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
     state.subStyle=defaultFx().sub;   /* 新工程重置全工程字幕样式 */
-    state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=todayStr();
+    state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=newDate||todayStr();
     historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key=""; fxOverlayKey="";
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
     renderAll(); autoSave(); syncMedia(); applyAspect();
@@ -5434,7 +5534,7 @@ function renderHistList(){
     box.innerHTML=arr.map(p=>{
         const dt=p.savedAt?new Date(p.savedAt).toLocaleString("zh-CN",{hour12:false}):"时间未知";
         return '<div class="hist-item'+(p.date===cur?" cur":"")+'">'
-          +'<div class="hi-main"><div class="hi-name">📅 '+esc(p.date)
+          +'<div class="hi-main"><div class="hi-name">📅 '+esc(projLabel(p.date))
             +(p.date===cur?' <span style="color:#67e8f9;font-size:10.5px">（正在编辑）</span>':"")
             +(p.date===todayStr()?' <span style="color:#86efac;font-size:10.5px">今天</span>':"")+'</div>'
           +'<div class="hi-meta">'+p.clips+' 个片段 · '+p.assets+' 个素材 · 保存于 '+esc(dt)+'</div></div>'
@@ -5463,6 +5563,16 @@ function wire(){
     /* 顶栏 */
     $("topSave").onclick=()=>saveProject(false);
     $("topOpen").onclick=()=>{ listProjects(); $("projModal").classList.add("show"); };
+    $("topNew").onclick=()=>{
+        /* 先保存当前工程，避免用户以为新建会丢；再在新标签打开全新空白工程 */
+        try{ saveProject(true); }catch(e){}
+        const u=new URL(location.href);
+        u.search="?newproj="+Date.now();
+        u.hash="";
+        const w=window.open(u.toString(),"_blank");
+        if(!w) toast("浏览器拦截了弹窗，请允许本站打开新标签页后重试","err");
+        else toast("已在新标签页打开新的空白工程","ok");
+    };
     $("topExport").onclick=()=>openExport();
     $("wsBtn").onclick=openWsModal;
     $("histBtn").onclick=openHistModal;
@@ -5718,17 +5828,14 @@ function wire(){
     window.addEventListener("storage",e=>{
         if(e.key===ED_COMPUTE_KEY && e.newValue && ED_COMPUTE_LABEL[e.newValue] && e.newValue!==state.compute) applyCompute(e.newValue,true,true);
     });
-    /* AI 剪辑弹窗：模型下拉 / 手填 / 开始 / 切档 */
+    /* AI 剪辑弹窗：模型下拉 / 手填 / 开始 / 智能剪口播（替换原「切换算力档位」） */
     $("aiIdeaStart").onclick=startAiIdea;
     $("aiIdeaModel").onchange=()=>{ $("aiIdeaModelCustom").value=""; };
-    $("aiIdeaGoCompute").onclick=()=>{
+    $("aiIdeaSmartCut").onclick=()=>{
         $("aiIdeaModal").classList.remove("show");
-        const c=$("computeCard");
-        try{ c.scrollIntoView({block:"nearest"}); }catch(e){}
-        c.style.outline="2px solid var(--cyan)";
-        setTimeout(()=>{ c.style.outline=""; },1800);
-        toast("请在左上「算力总控」点选本机算力或第三方API","ok");
+        openSmartCutModal();
     };
+    initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
     /* 右栏两个并列标签 */
     $("propTabs").addEventListener("click",e=>{
         const b=e.target.closest(".prop-tab"); if(b) showPropTab(b.dataset.ptab);
@@ -5841,8 +5948,8 @@ function wire(){
 
     /* 播放控制（剪映式：逐帧 / 播放 / 比例菜单 / 全屏） */
     $("btnPlay").onclick=()=>playing?pause():play();
-    $("btnStart").onclick=()=>seek(state.playhead-1/PLAYER_FPS);   /* 上一帧 */
-    $("btnEnd").onclick=()=>seek(state.playhead+1/PLAYER_FPS);     /* 下一帧 */
+    $("btnStart").onclick=()=>stepFrames(-1);   /* 上一帧：整数帧对齐 */
+    $("btnEnd").onclick=()=>stepFrames(1);      /* 下一帧：整数帧对齐 */
     $("seekRange").oninput=e=>seek(Number(e.target.value));
     $("volRange").oninput=e=>{ const v=Number(e.target.value); vEl.volume=recordMuted?0:v; audioPool.forEach(o=>{o.el.volume=recordMuted?0:v;}); };
     vEl.volume=0.8;
@@ -6151,8 +6258,8 @@ function wire(){
         if(e.key===" "){ e.preventDefault(); playing?pause():play(); }
         else if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); deleteAction(); }
         else if(k==="s"){ e.preventDefault(); splitSelected(); }
-        else if(e.key==="ArrowLeft"){ e.preventDefault(); seek(state.playhead-(e.shiftKey?1:0.1)); }
-        else if(e.key==="ArrowRight"){ e.preventDefault(); seek(state.playhead+(e.shiftKey?1:0.1)); }
+        else if(e.key==="ArrowLeft"){ e.preventDefault(); stepFrames(e.shiftKey?-30:-1); }   /* 逐帧后退（Shift=快退1秒） */
+        else if(e.key==="ArrowRight"){ e.preventDefault(); stepFrames(e.shiftKey?30:1); }    /* 逐帧前进（Shift=快进1秒） */
         else if(e.key==="Home"){ e.preventDefault(); seek(0); }
         else if(e.key==="End"){ e.preventDefault(); seek(totalDuration()); }
         else if(k==="f"){ e.preventDefault(); $("btnFullscreen").click(); }
@@ -7303,12 +7410,20 @@ async function init(){
     showPropTab("basic");
     wireMarquee(); wireFxBox();
     window.addEventListener("resize",()=>{ applyAspect(); if(state.zoomAuto) fitZoom(); else syncZoomRange(); });
-    const saved=safeStorage.get(PROJECT_PREFIX+todayStr());
-    if(saved){
-        try{ await loadProject(todayStr()); }
-        catch(e){ await loadEmptyProject(); }
-        toast("已自动恢复今天的剪辑工程","ok");
-    }else await loadEmptyProject();
+    /* 「新建工程」在新标签页带 ?newproj=<时间戳> 打开：用独立的工程日期键建空白工程，
+       不加载也不覆盖当前页面正在编辑的当天工程；两个页面各自自动保存、互不干扰。 */
+    const newproj=(location.search.match(/[?&]newproj=([0-9]+)/)||[])[1];
+    if(newproj){
+        await loadEmptyProject(todayStr()+"-"+newproj);
+        toast("已创建新的空白工程","ok");
+    }else{
+        const saved=safeStorage.get(PROJECT_PREFIX+todayStr());
+        if(saved){
+            try{ await loadProject(todayStr()); }
+            catch(e){ await loadEmptyProject(); }
+            toast("已自动恢复今天的剪辑工程","ok");
+        }else await loadEmptyProject();
+    }
     await drainInbox();
     scanCanvasHistory();
     applyAspect();
