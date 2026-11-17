@@ -168,10 +168,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .hist-item button:hover{background:var(--hover);}
 .hist-empty{color:var(--muted);font-size:12px;text-align:center;padding:26px 10px;line-height:1.9;}
 .subtitle-overlay{position:absolute;left:0;right:0;bottom:7%;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;padding:0 24px;}
-.sub-line{font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:92%;word-break:break-word;transform-origin:center center;}
+.sub-line{font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:92%;word-break:break-word;transform-origin:center center;pointer-events:auto;cursor:text;transition:outline-color .15s;outline:1px dashed transparent;}
+.sub-line:hover{outline-color:rgba(96,165,250,.7);}
 .sub-line.dialogue{color:#fff;background:rgba(0,0,0,.42);}
 .sub-line.narration{color:#fde68a;background:rgba(0,0,0,.42);}
 .sub-line.inner{color:#f9a8d4;font-style:italic;background:rgba(0,0,0,.42);}
+.sub-line.sub-editing{outline:2px solid #60a5fa;background:rgba(30,58,138,.72)!important;cursor:text;pointer-events:auto;}
 /* 剪映式紧凑控制条：左帧号时间码 / 中播放 / 右比例·画质·全屏 */
 .seek-row{height:4px;flex:0 0 4px;background:#0b0d12;display:flex;align-items:center;padding:0;overflow:hidden;}
 .seek-row input[type=range]{width:100%;height:4px;margin:0;accent-color:var(--green);opacity:.55;transition:opacity .15s;cursor:pointer;}
@@ -755,11 +757,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </div>
             <div class="card prop-panel" id="panelSub" hidden>
                 <h2>调整 · 字幕 <span class="h2-extra" id="subCount">0 条</span></h2>
-                <div id="subStyleBox"></div>
+                <!-- 字幕列表移到最上方，方便添加新字幕与双击播放器字幕后直接修改内容 -->
                 <div class="row" style="margin-top:8px"><label style="flex:0 0 52px;font-size:11px">字幕轨</label><select id="subTrackSel" style="flex:1"></select></div>
-                <div class="hint" style="margin:0 0 5px">字幕不再按对白 / 旁白 / 内心独白分轨，全部放在字幕轨上，由你自己决定内容和位置；类型只是可选标签。</div>
+                <div class="hint" style="margin:0 0 5px">字幕不再按对白 / 旁白 / 内心独白分轨，全部放在字幕轨上，由你自己决定内容和位置；类型只是可选标签。双击播放器中的字幕可直接改字，点别处即保存。</div>
                 <div class="sub-list" id="subList"></div>
-                <div class="row"><button class="mini-btn" id="addSub" style="flex:1">＋ 新增一条空白字幕</button></div>
+                <div class="row" style="margin-bottom:8px"><button class="mini-btn" id="addSub" style="flex:1">＋ 新增一条空白字幕</button></div>
+                <div id="subStyleBox"></div>
             </div>
             <div class="card" hidden>
                 <h2>当天工程</h2>
@@ -1531,7 +1534,10 @@ let state = {
     assets:[], clips:[], tracks:defaultTracks(),
     selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1",
     compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic", zoomAuto:true,
-    snap:true, toolMode:"select", markers:[]
+    snap:true, toolMode:"select", markers:[],
+    /* 全工程共享的字幕样式：改一条字幕参数，所有字幕同步（信息互联）。
+       字幕片段的 fx.sub 会统一指向这里；旧工程加载时会用第一条字幕样式迁移过来。 */
+    subStyle: defaultFx().sub
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
@@ -1754,6 +1760,12 @@ function fxOf(c){
             if(!c.fx[k]||typeof c.fx[k]!=="object") c.fx[k]=d[k];
             else for(const kk in d[k]) if(c.fx[k][kk]===undefined) c.fx[k][kk]=d[k][kk];
         }
+    }
+    /* 字幕样式全工程统一：字幕片段的 sub 始终指向共享对象 state.subStyle，
+       因此改任一条字幕的样式参数，其它所有字幕立即同步（预览与导出都经这里读取）。 */
+    if(c && state && trackKind(c.track)==="text"){
+        if(!state.subStyle||typeof state.subStyle!=="object") state.subStyle=d.sub;
+        c.fx.sub=state.subStyle;
     }
     return c.fx;
 }
@@ -3855,18 +3867,19 @@ function micASR(){
         btn.onclick=()=>{ try{ r.stop(); }catch(e){} };
     });
 }
-/* 多模态大模型音频输入降级：转写接口不可用时，用支持音频的对话模型听音频 */
-async function chatAudioASR(a,cfg){
-    const blob=await assetBlob(a);
+/* 多模态大模型音频输入降级：转写接口不可用时，用支持音频的对话模型听音频。
+   blobOverride：浏览器已抽音轨并切好的小段 WAV（此时跳过读取素材与 20MB 检查）。 */
+async function chatAudioASR(a,cfg,blobOverride){
+    const blob=blobOverride||await assetBlob(a);
     const m=String(cfg.chatModel||"").toLowerCase();
     if(/claude|haiku|sonnet|opus|haku|qwen|deepseek|gemini/.test(m))
         throw new Error("当前模型「"+(cfg.chatModel||"未指定")+"」不支持 input_audio 音频输入；"
             +"这类文本/视觉模型能跑 AI剪辑，但不能做 AI字幕。请用转写接口（whisper-1 / gpt-4o-transcribe）或接通本机 faster-whisper。");
-    if(blob.size>20*1024*1024) throw new Error("音频文件超过 20MB，不适合整体塞给多模态模型；"
+    if(!blobOverride && blob.size>20*1024*1024) throw new Error("音频文件超过 20MB，不适合整体塞给多模态模型；"
         +"请启动本机服务（会自动抽音轨并切成 60 秒小段再识别）");
     const buf=await blob.arrayBuffer(), bytes=new Uint8Array(buf);
     let bin=""; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
-    const ext=String(a.ext||a.name||"").toLowerCase();
+    const ext=blobOverride?"wav":String(a.ext||a.name||"").toLowerCase();
     const fmt=/mp4|m4a|mov/.test(ext)?"mp4":(/wav/.test(ext)?"wav":(/mp3/.test(ext)?"mp3":"webm"));
     const ep=String(cfg.endpoint||"").replace(/\/audio\/transcriptions$/i,"/chat/completions");
     const headers={"Content-Type":"application/json"};
@@ -3890,6 +3903,76 @@ async function chatAudioASR(a,cfg){
     return arr.map(x=>({start:Number(x.start)||0,end:Number(x.end)||((Number(x.start)||0)+2),
         text:String(x.text||"").trim(),kind:guessSubKind(x.text)})).filter(x=>x.text);
 }
+/* ==================================================================
+   浏览器本地抽音轨 + 切段识别（解决「本机服务未启动 + 文件 >20MB + CORS」三重报错）
+   思路：本机服务不可用时，浏览器自己 decodeAudioData 解码 mp4/mov/mp3 音轨 →
+   按片段源保留区间拼接成 16k 单声道 → 切成 55 秒小段 WAV（约 1.7MB，远小于 20MB）
+   → 复用多模态 /chat/completions（创作台已配、支持 CORS 的接口）逐段识别 → 时间码映射回时间轴。
+   ================================================================== */
+const ASR_CHUNK_SEC=55;   /* 每段源秒数；16k 单声道 16bit ≈ 1.76MB/段，安全低于 20MB */
+async function browserChunkAsr(a,c,cfg,onProgress){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    if(!AC||!OAC) throw new Error("当前浏览器不支持 WebAudio 音频解码，请用 Chrome / Edge");
+    const src=await assetBlob(a);
+    if(!src.size) throw new Error("素材文件为空，无法抽取音轨");
+    /* ① 解码源音视频的音轨（浏览器可直接解 mp4 / mov / mp3 / wav 容器里的音轨） */
+    let decoded;
+    try{
+        const ac=new AC();
+        try{ decoded=await ac.decodeAudioData(await src.arrayBuffer()); }
+        finally{ try{ ac.close(); }catch(e){} }
+    }catch(e){ throw new Error("浏览器无法解码该素材的音轨（"+(String(e&&e.name||e)||"格式不支持")+"）：请在「算力总控」切到本机算力并启动本机服务，由 FFmpeg 抽音轨识别"); }
+    if(!decoded||!decoded.length) throw new Error("素材里没有可识别的音轨");
+    /* ② 按片段的源保留区间拼接成一条 16k 单声道（跳过被剪掉的部分，和导出一致） */
+    const kept=sourceKeptRanges(c);
+    const totalSrc=kept.reduce((s,r)=>s+(r.end-r.start),0);
+    if(totalSrc<0.2) throw new Error("片段有效音频不足 0.2 秒");
+    const SR=16000, OAClen=Math.ceil(totalSrc*SR);
+    const octx=new OAC(1,OAClen,SR);
+    let when=0;
+    for(const r of kept){
+        const len=r.end-r.start;
+        if(len<=0.01) continue;
+        const nd=octx.createBufferSource(); nd.buffer=decoded;
+        nd.connect(octx.destination);
+        /* start(when, offset, duration)：把源区间 [r.start, r.end] 拼到输出 when 处，自动重采样到 16k */
+        nd.start(when,Math.max(0,r.start)/decoded.sampleRate,len/decoded.sampleRate);
+        when+=len;
+    }
+    let joined;
+    try{ joined=await octx.startRendering(); }
+    catch(e){ throw new Error("重采样音轨失败："+String(e&&e.message||e)); }
+    /* ③ 按 55 秒切段，逐段走多模态识别，时间码按段偏移累加 */
+    const sp=clipSpeed(c), off=Math.max(0,Number(c.offset)||0);
+    const segFrames=Math.ceil(ASR_CHUNK_SEC*SR), segCount=Math.ceil(joined.length/segFrames);
+    const all=[]; let failed=0, firstErr="";
+    for(let i=0;i<segCount;i++){
+        const s0=i*segFrames, s1=Math.min(joined.length,s0+segFrames), len=s1-s0;
+        if(len<SR*0.3) continue;
+        const piece=octx.createBuffer(1,len,SR);
+        piece.copyToChannel(joined.getChannelData(0).subarray(s0,s1),0);
+        const wav=audioBufferToWav(piece);
+        if(onProgress) onProgress(i+1,segCount);
+        let segs;
+        try{ segs=await chatAudioASR(a,cfg,wav); }
+        catch(e){ failed++; if(!firstErr) firstErr=(e&&e.message)||String(e); scLogPush("浏览器切段识别 第 "+(i+1)+"/"+segCount+" 段失败："+firstErr); continue; }
+        const baseSrc=i*ASR_CHUNK_SEC;   /* 该段在「拼接音频」里的起点（源秒） */
+        for(const sg of (segs||[])){
+            /* 返回格式与本机服务一致：start = offset + 输出时间秒。
+               拼接位置(源秒) ÷ 倍率 = 输出时间秒；外层统一做 c.start+(start-offset) 映射回时间轴。
+               用 kept 拼接后的连续位置，对裁剪/变速都成立。 */
+            const outT=(baseSrc+(Number(sg.start)||0))/Math.max(0.01,sp);
+            const outE=(baseSrc+(Number(sg.end)||(Number(sg.start)||0)+2))/Math.max(0.01,sp);
+            all.push({start:off+outT,end:off+outE,text:String(sg.text||"").trim(),kind:sg.kind});
+        }
+    }
+    all.sort((x,y)=>x.start-y.start);
+    if(!all.length && failed) throw new Error("浏览器切段识别 "+(failed)+" 段全部失败："+firstErr);
+    scLogPush("浏览器切段识别完成「"+a.name+"」：源 "+totalSrc.toFixed(1)+"s → "+segCount+" 段（16k 单声道，每段 ≤"+ASR_CHUNK_SEC+"s）→ "+all.length+" 条字幕，失败 "+failed+" 段");
+    return all;
+}
+
 /* AI 字幕弹窗：与 AI 剪辑同款，先选算力 / 引擎 / 模型再开始 */
 function openAsrSetup(){
     const cfg=asrConfigForMode();
@@ -3927,14 +4010,22 @@ async function runAsrCore(){
     }
     resetAiPanel("sub"); lastSilences=[]; silenceCache.clear();
     scLogPush("开始 AI 字幕 · 算力档位 "+cfg.label+" · 接口 "+(cfg.endpoint||"未配置（本机服务自动探测）"));
-    const list=state.clips.filter(c=>{
-        const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
-        return (k==="video"||k==="audio") && a && (a.type==="video"||a.type==="audio");
-    }).sort((a,b)=>a.start-b.start);
+    /* 框选优先：用户在时间轴框选了片段时，只识别框选里的音视频（字幕/LUT/图片等非音视频自动忽略）；
+       没有框选才回退为「全时间轴所有音视频素材」。 */
+    const marquee=(state.multi&&state.multi.length)?state.multi.slice():null;
+    const isAv=c=>{ const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
+        return (k==="video"||k==="audio") && a && (a.type==="video"||a.type==="audio"); };
+    let list=state.clips.filter(c=>isAv(c) && (!marquee||marquee.indexOf(c.id)>=0)).sort((a,b)=>a.start-b.start);
+    if(marquee && !list.length){
+        setEdState("框选的片段里没有可识别的音视频素材（只识别视频与音频轨上的 mp4 / mp3 等带声音素材），请重新框选或清空框选后重试。","err");
+        toast("框选范围内没有音视频素材","err"); return;
+    }
     if(!list.length){
         setEdState("轨道上还没有可分析的真实视频 / 音频素材：请先把带声音的 mp4 / mp3 等文件导入素材库并拖到轨道，再点「AI字幕」。","err");
         toast("轨道上没有可分析的音视频素材","err"); return;
     }
+    if(marquee) scLogPush("AI 字幕范围：按框选识别，共 "+marquee.length+" 个框选片段 → "+list.length+" 段音视频");
+    else scLogPush("AI 字幕范围：未框选，识别全时间轴全部 "+list.length+" 段音视频素材");
     asrBusy=true;
     const btn=$("aiSubBtn"); btn.disabled=true;
     try{
@@ -3955,18 +4046,25 @@ async function runAsrCore(){
                 setEdProgress(2,"第 "+(i+1)+" 段 "+(r.asrOk?"识别完成":"转写失败，但静音/气口已独立检测")+"（"+r.engine+"）");
             }catch(e1){
                 const why=((e1&&e1.message)||e1);
-                setEdProgress(2,"本机服务转写不可用（"+why+"），尝试多模态音频降级…");
-                try{ segs=await chatAudioASR(a,cfg); }
-                catch(e2){
-                    /* 只有用户显式填了支持 CORS 的直连端点时才再试浏览器直连 */
-                    if(cfg.endpoint && !/^http:\/\/127\.0\.0\.1|^http:\/\/localhost/i.test(cfg.endpoint)){
-                        setEdProgress(2,"多模态降级失败，尝试浏览器直连已配置的转写接口…");
-                        try{ segs=await remoteASR(a,cfg); }
-                        catch(e3){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
-                            +"；多模态降级 "+(e2.message||e2)+"；直连 "+(e3.message||e3)); }
-                    }else{
-                        throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
-                            +"；多模态降级 "+(e2.message||e2));
+                /* 本机服务不可用：优先浏览器抽音轨 + 切段识别（绕开 >20MB 与本机服务依赖） */
+                let chunkErr="";
+                setEdProgress(2,"本机服务转写不可用，改用浏览器抽音轨 + 切段识别…");
+                try{ segs=await browserChunkAsr(a,c,cfg,(ci,cn)=>setEdProgress(2,"浏览器切段识别第 "+ci+"/"+cn+" 段「"+a.name+"」…")); }
+                catch(ec){ chunkErr=(ec&&ec.message)||String(ec); scLogPush("浏览器切段识别整体失败，尝试整体多模态降级："+chunkErr); }
+                if(!segs){
+                    setEdProgress(2,"切段识别不可用，尝试多模态音频整体降级…");
+                    try{ segs=await chatAudioASR(a,cfg); }
+                    catch(e2){
+                        /* 只有用户显式填了支持 CORS 的直连端点时才再试浏览器直连 */
+                        if(cfg.endpoint && !/^http:\/\/127\.0\.0\.1|^http:\/\/localhost/i.test(cfg.endpoint)){
+                            setEdProgress(2,"多模态降级失败，尝试浏览器直连已配置的转写接口…");
+                            try{ segs=await remoteASR(a,cfg); }
+                            catch(e3){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
+                                +"；浏览器切段 "+(chunkErr||"失败")+"；多模态降级 "+(e2.message||e2)+"；直连 "+(e3.message||e3)); }
+                        }else{
+                            throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
+                                +"；浏览器切段 "+(chunkErr||"失败")+"；多模态降级 "+(e2.message||e2));
+                        }
                     }
                 }
             }
@@ -5175,6 +5273,7 @@ function projectPayload(){
     state.clips.forEach(fxOf);      /* 旧工程的片段统一补齐变换字段再存档 */
     return {v:2,date:state.date,zoom:state.zoom,playhead:0,
         tracks:state.tracks, subTrack:state.subTrack, markers:state.markers,
+        subStyle:Object.assign({},defaultFx().sub,state.subStyle||{}),  /* 全工程共享字幕样式 */
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
             delete o.previewUrl; delete o.mkvNote;   /* 转封装副本是一次性 blob，重开工程后重新生成 */
             o.remoteUrl=(a.urlKind==="blob")?"":(a.url||""); return o; }),
@@ -5218,6 +5317,11 @@ async function loadProject(date){
             : [];
         state.subTrack=String(p.subTrack||"");
         state.clips=(Array.isArray(p.clips)?p.clips:[]).map(migrateClip);
+        /* 全工程字幕样式：新存档有 subStyle 直接用；旧存档从第一条字幕的 fx.sub 迁移，都没有则用默认 */
+        let migratedSub=null;
+        if(p.subStyle && typeof p.subStyle==="object") migratedSub=p.subStyle;
+        else { const firstSub=state.clips.find(c=>trackKind(c.track)==="text"&&c.fx&&c.fx.sub); if(firstSub) migratedSub=firstSub.fx.sub; }
+        state.subStyle=Object.assign({},defaultFx().sub,migratedSub||{});
         state.assets=[];
         for(const a of (p.assets||[])){
             const x=Object.assign({},a);
@@ -5290,6 +5394,7 @@ function setEmptyHint(){
 async function loadEmptyProject(){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
     state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
+    state.subStyle=defaultFx().sub;   /* 新工程重置全工程字幕样式 */
     state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=todayStr();
     historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key=""; fxOverlayKey="";
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
@@ -5703,6 +5808,36 @@ function wire(){
     });
     $("addSub").onclick=addBlankSubtitle;
     $("exportProject").onclick=exportProject;
+
+    /* 播放器字幕双击实时编辑：双击播放器里的字幕即可改字，点别处 / 失焦即保存 */
+    let subEditing=null;   /* {el, id, orig} */
+    const finishSubEdit=(save)=>{
+        if(!subEditing) return;
+        const {el,id,orig}=subEditing; subEditing=null;
+        el.classList.remove("sub-editing"); el.removeAttribute("contenteditable");
+        const c=clipById(id), txt=String(el.innerText||"").replace(/\u00a0/g," ").replace(/\s*\n\s*/g," ").trim();
+        if(save && c && txt && txt!==orig){
+            pushHistory(); c.text=txt; c.name=(txt||"字幕").slice(0,12);
+            renderTimeline(); renderSubList(); renderProps(); subCache=""; autoSave();
+        }else{ subCache=""; renderSubtitleOverlay(); }   /* 取消或空文本：恢复原字幕 */
+    };
+    $("subOverlay").addEventListener("dblclick",e=>{
+        const el=e.target.closest(".sub-line[data-clip]"); if(!el||subEditing) return;
+        const c=clipById(el.dataset.clip); if(!c) return;
+        e.preventDefault(); e.stopPropagation();
+        if(playing) pause();
+        subEditing={el:el,id:c.id,orig:String(c.text||"")};
+        el.classList.add("sub-editing"); el.setAttribute("contenteditable","true"); el.setAttribute("spellcheck","false");
+        el.focus();
+        try{ const r=document.createRange(); r.selectNodeContents(el); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(err){}
+    });
+    $("subOverlay").addEventListener("keydown",e=>{
+        if(!subEditing) return;
+        if(e.key==="Escape"){ e.preventDefault(); finishSubEdit(false); }
+        else if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); finishSubEdit(true); }
+        e.stopPropagation();
+    });
+    $("subOverlay").addEventListener("blur",e=>{ if(subEditing && e.target===subEditing.el) finishSubEdit(true); },true);
 
     /* 播放控制（剪映式：逐帧 / 播放 / 比例菜单 / 全屏） */
     $("btnPlay").onclick=()=>playing?pause():play();
@@ -6506,7 +6641,7 @@ function renderAdjustPanels(){
               +'<div class="range-row"><span style="flex:0 0 52px">内边距</span><input type="range" id="adjSubBgPad" min="0" max="40" step="1" value="'+(q.bgPad!==undefined?Number(q.bgPad):4)+'"><b id="adjSubBgPadV">'+(q.bgPad!==undefined?Number(q.bgPad):4)+'</b></div>'
               +'<div class="fx-sec">花字 / 文字模板（一键套用）</div>'
               +'<div class="preset-grid" id="adjSubFlower">'+Object.keys(SUB_FLOWER_PRESETS).map(k=>'<button class="preset-btn'+((q.flower||"")===k?" active":"")+'" data-fl="'+k+'" title="套用「'+SUB_FLOWER_PRESETS[k].name+'」">'+SUB_FLOWER_PRESETS[k].name+'</button>').join("")+'</div>'
-              +adjNote("样式按片段保存，每条字幕可以不同；预览与导出都按这里的设置绘制（含发光、渐变、竖排、下划线、背景框圆角与内边距）。渐变色填两个或多个颜色值用英文逗号隔开；花字模板会覆盖部分颜色参数，之后仍可手动微调。");
+              +adjNote("字幕样式全工程统一：这里改任意一项（字号 / 颜色 / 描边 / 发光等），所有字幕会一起变化，保持风格一致。预览与导出都按这里的设置绘制（含发光、渐变、竖排、下划线、背景框圆角与内边距）。渐变色填两个或多个颜色值用英文逗号隔开；花字模板会覆盖部分颜色参数，之后仍可手动微调。");
             const fire=()=>{ subCache=""; renderSubtitleOverlay(); applyClipTransforms(); autoSave(); };
             const rng=(id,key,val,suffix)=>{ $(id).oninput=e=>{ f.sub[key]=Number(e.target.value); $(val).textContent=e.target.value+(suffix||""); fire(); }; };
             rng("adjSubSize","size","adjSubSizeV"); rng("adjSubOpacity","opacity","adjSubOpacityV","%");
