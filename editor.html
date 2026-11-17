@@ -178,11 +178,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .hist-empty{color:var(--muted);font-size:12px;text-align:center;padding:26px 10px;line-height:1.9;}
 .subtitle-overlay{position:absolute;left:0;right:0;bottom:7%;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;padding:0 24px;}
 .sub-line{font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:none;white-space:nowrap;word-break:normal;overflow-wrap:normal;transform-origin:center center;pointer-events:auto;cursor:text;transition:outline-color .15s;outline:1px dashed transparent;}
-.sub-line:hover{outline-color:rgba(96,165,250,.7);}
+/* 多行字幕：用户在字幕文字里输入换行后显示成多行（单行字幕仍走 nowrap，行为不变） */
+.sub-line.sub-multiline{white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;max-width:100%;}
 .sub-line.dialogue{color:#fff;background:rgba(0,0,0,.42);}
 .sub-line.narration{color:#fde68a;background:rgba(0,0,0,.42);}
 .sub-line.inner{color:#f9a8d4;font-style:italic;background:rgba(0,0,0,.42);}
-.sub-line.sub-editing{outline:2px solid #60a5fa;background:rgba(30,58,138,.72)!important;cursor:text;pointer-events:auto;}
+.sub-line.sub-editing{outline:2px solid #60a5fa;background:rgba(30,58,138,.72)!important;cursor:text;pointer-events:auto;white-space:pre-wrap;word-break:break-word;max-width:100%;}
 /* 剪映式紧凑控制条：左帧号时间码 / 中播放 / 右比例·画质·全屏 */
 .seek-row{height:4px;flex:0 0 4px;background:#0b0d12;display:flex;align-items:center;padding:0;overflow:hidden;}
 .seek-row input[type=range]{width:100%;height:4px;margin:0;accent-color:var(--green);opacity:.55;transition:opacity .15s;cursor:pointer;}
@@ -225,8 +226,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .sub-item .si-time{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;}
 .sub-item .si-tag{font-size:9px;padding:1px 5px;border-radius:4px;color:#fff;}
 .sub-item .si-rm{margin-left:auto;border:none;background:var(--red);color:#fff;border-radius:4px;width:19px;height:19px;font-size:11px;line-height:1;padding:0;}
-.sub-item input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-size:11px;padding:5px 6px;outline:none;}
-.sub-item input:focus{border-color:var(--blue);}
+.sub-item input,.sub-item textarea{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-size:11px;padding:5px 6px;outline:none;}
+.sub-item textarea{resize:vertical;min-height:34px;line-height:1.5;white-space:pre-wrap;}
+.sub-item input:focus,.sub-item textarea:focus{border-color:var(--blue);}
 .kv{font-size:11px;color:#d1d5db;line-height:1.85;}
 .kv b{color:#93c5fd;font-weight:500;}
 
@@ -792,7 +794,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <h2>调整 · 字幕 <span class="h2-extra" id="subCount">0 条</span></h2>
                 <!-- 字幕列表移到最上方，方便添加新字幕与双击播放器字幕后直接修改内容 -->
                 <div class="row" style="margin-top:8px"><label style="flex:0 0 52px;font-size:11px">字幕轨</label><select id="subTrackSel" style="flex:1"></select></div>
-                <div class="hint" style="margin:0 0 5px">字幕不再按对白 / 旁白 / 内心独白分轨，全部放在字幕轨上，由你自己决定内容和位置；类型只是可选标签。双击播放器中的字幕可直接改字，点别处即保存。</div>
+                <div class="hint" style="margin:0 0 5px">字幕不再按对白 / 旁白 / 内心独白分轨，全部放在字幕轨上，由你自己决定内容和位置；类型只是可选标签。双击播放器中的字幕可直接改字，点别处即保存。<b>字幕默认生成一行；要改多行：在下方字幕列表的文字框或右侧「字幕文字」里按 Enter 换行，或双击播放器字幕后按 Shift+Enter 换行，导出 / 烧录都会保留多行。</b></div>
                 <div class="sub-list" id="subList"></div>
                 <div class="row" style="margin-bottom:8px"><button class="mini-btn" id="addSub" style="flex:1">＋ 新增一条空白字幕</button></div>
                 <div id="subStyleBox"></div>
@@ -2697,6 +2699,19 @@ function toSimplified(s){
     for(let i=0;i<s.length;i++){ const c=s[i]; out += (T2S_MAP[c]!==undefined?T2S_MAP[c]:c); }
     return out;
 }
+/* 字幕文字规范化（用户手动编辑用）：简体化 + 统一换行为 \n，保留用户主动输入的多行；
+   每行去掉首尾多余空格、压掉行内连续空格，并去掉所有空行（字幕多行应是连续的行）。
+   注意：AI 生成 / 文案改写默认仍走 flattenSubText 压成一行，多行只在用户主动编辑时产生。 */
+function normalizeSubText(s){
+    return toSimplified(String(s==null?"":s))
+        .replace(/\r\n?/g,"\n").replace(/[\u2028\u2029]/g,"\n")
+        .split("\n").map(x=>x.replace(/[ \t]+/g," ").trim())
+        .filter(x=>x.length>0).join("\n");
+}
+/* AI 生成 / 文案改写：默认压成一行（把任意换行与连续空白折成单个空格） */
+function flattenSubText(s){
+    return toSimplified(String(s==null?"":s)).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
+}
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function fmt(t){ t=Math.max(0,Number(t)||0); const m=Math.floor(t/60), s=t-m*60; return String(m).padStart(2,"0")+":"+s.toFixed(1).padStart(4,"0"); }
@@ -3210,7 +3225,7 @@ function applySegments(segs, opts){
         const dur=Math.max(0.4, (s.end||s.start+2)-s.start);
         /* 中文统一简体：AI字幕/文本/SRT 导入的一切字幕文字在这里归一；
            同时把段内换行符压成空格，保证每条字幕默认只占一行。 */
-        const txt=toSimplified(String(s.text||"")).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
+        const txt=flattenSubText(s.text);
         const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);   /* 新字幕复制默认模板成独立副本：初始规格统一，之后各改各的 */
         state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,(Number(s.start)||0)+shift),
             duration:dur, offset:0, text:txt, name:txt.slice(0,10), subKind:s.kind||"", fx:fx});
@@ -3573,7 +3588,7 @@ function renderSubtitleOverlay(){
     const key=active.map(c=>c.id+c.text+(c.subKind||"")).join("|");
     if(key===subCache) return;
     subCache=key;
-    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+'" data-clip="'+esc(c.id)+'" style="'+subStyleOf(c)+'">'+esc(c.text)+'</div>').join("");
+    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+(String(c.text).indexOf("\n")>=0?" sub-multiline":"")+'" data-clip="'+esc(c.id)+'" style="'+subStyleOf(c)+'">'+esc(c.text)+'</div>').join("");
 }
 function syncMedia(){
     if(assetPreviewId) return;              /* 素材库单击预览期间不覆盖预览画面 */
@@ -3706,7 +3721,7 @@ function renderProps(){
         c.start=Math.max(0,Number($("pStart").value)||0);
         c.duration=Math.max(0.2,Number($("pDur").value)||0.2);
         c.offset=Math.max(0,Number($("pOffset").value)||0);
-        if($("pText")){ c.text=toSimplified(String($("pText").value||"")).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim(); c.name=(c.text||"字幕").slice(0,12); }
+        if($("pText")){ c.text=normalizeSubText($("pText").value); c.name=(c.text.replace(/\n/g," ")||"字幕").slice(0,12); }
         if($("pKind")) c.subKind=$("pKind").value;
         subCache=""; renderAll(); autoSave(); toast("片段已更新","ok");
     };
@@ -3728,7 +3743,7 @@ function renderSubList(){
         +'<div class="si-top"><span class="si-time">'+fmt(c.start)+' → '+fmt(c.start+c.duration)+'</span>'
         +'<span class="si-tag" style="background:'+TK_COLOR.text+'">'+esc(SUB_NAME[c.subKind]||"文本")+'</span>'
         +'<button class="si-rm" data-rm="'+esc(c.id)+'" title="删除">×</button></div>'
-        +'<input type="text" data-text="'+esc(c.id)+'" value="'+esc(c.text||"")+'" placeholder="字幕文字"></div>').join("");
+        +'<textarea rows="2" data-text="'+esc(c.id)+'" placeholder="字幕文字（Enter 换行可做多行字幕）">'+esc(c.text||"")+'</textarea></div>').join("");
 }
 function renderAIStat(){
     const all=state.clips.filter(c=>trackKind(c.track)==="text");
@@ -5114,7 +5129,7 @@ function applyAgentProposal(){
                     duration:+p.duration.toFixed(4),offset:0,text:p.text,name:p.text,subKind:"",fx:defaultFx()});
                 n++;
             }else if(p.op==="applyScript"){
-                for(const ch of p.changes){ const cc=clipById(ch.id); if(cc) cc.text=toSimplified(String(ch.text||"")).replace(/[\r\n\u2028\u2029]+/g," ").trim(); }
+                for(const ch of p.changes){ const cc=clipById(ch.id); if(cc) cc.text=flattenSubText(ch.text); }
                 if(p.removed.length) state.clips=state.clips.filter(x=>p.removed.indexOf(x.id)<0);
                 n++;
             }
@@ -6243,17 +6258,17 @@ function wire(){
     $("subList").addEventListener("input",e=>{
         const inp=e.target.closest("[data-text]"); if(!inp)return;
         const c=clipById(inp.dataset.text); if(!c)return;
-        const nv=toSimplified(String(inp.value||"")).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
+        const nv=normalizeSubText(inp.value);
         if(nv===c.text) return;
         if(!inp.dataset.editing){ inp.dataset.editing="1"; pushHistory(); }
-        c.text=nv; c.name=(nv||"字幕").slice(0,12);
+        c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12);
         subCache=""; renderSubtitleOverlay();
     });
     $("subList").addEventListener("change",e=>{
         const inp=e.target.closest("[data-text]"); if(!inp)return;
         const c=clipById(inp.dataset.text); if(!c)return;
-        const nv=toSimplified(String(inp.value||"")).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
-        if(!inp.dataset.editing){ if(nv!==c.text){ pushHistory(); c.text=nv; c.name=(nv||"字幕").slice(0,12); } }
+        const nv=normalizeSubText(inp.value);
+        if(!inp.dataset.editing){ if(nv!==c.text){ pushHistory(); c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); } }
         else delete inp.dataset.editing;
         renderTimeline(); renderProps(); subCache=""; renderSubtitleOverlay(); autoSave();
     });
@@ -6266,9 +6281,9 @@ function wire(){
         if(!subEditing) return;
         const {el,id,orig}=subEditing; subEditing=null;
         el.classList.remove("sub-editing"); el.removeAttribute("contenteditable");
-        const c=clipById(id), txt=toSimplified(String(el.innerText||"").replace(/\u00a0/g," ").replace(/[\r\n\u2028\u2029]+/g," ")).replace(/\s{2,}/g," ").trim();
+        const c=clipById(id), txt=normalizeSubText(String(el.innerText||"").replace(/\u00a0/g," "));
         if(save && c && txt && txt!==orig){
-            pushHistory(); c.text=txt; c.name=(txt||"字幕").slice(0,12);
+            pushHistory(); c.text=txt; c.name=(txt.replace(/\n/g," ")||"字幕").slice(0,12);
             renderTimeline(); renderSubList(); renderProps(); subCache=""; autoSave();
         }else{ subCache=""; renderSubtitleOverlay(); }   /* 取消或空文本：恢复原字幕 */
     };
@@ -7441,7 +7456,7 @@ function buildBurnSrt(arr){
     return arr.map((c,i)=>{
         const q=(c.fx&&c.fx.sub)||defaultFx().sub;
         return (i+1)+"\n"+srtTs(c.start)+" --> "+srtTs(c.start+c.duration)
-            +"\n"+subAssOverride(q)+subTextAss(c).replace(/\\N/g," ")+"\n";
+            +"\n"+subAssOverride(q)+subTextAss(c).replace(/\\N/g,"\n")+"\n";
     }).join("\n");
 }
 function burnSubtitleClips(){
