@@ -1493,6 +1493,9 @@ let state = {
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
+/* 活动轨道：最近一次被选中素材所在的轨道。点标尺/空白清空选中时不会重置，
+   「剪辑/分割」据此优先切同一条轨道（音视频字幕等所有轨道通用）。 */
+let activeTrackId="";
 let aiExtraCandidates=[], pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
 let recMeterRaf=0, recAudioCtx=null, recAnalysers=null;
 let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
@@ -3006,6 +3009,10 @@ async function ensureClipStrips(){
     renderTimeline();
 }
 function renderTimeline(){
+    /* 活动轨道：只要有有效选中片段就记住它所在轨道；点标尺/空白把 selected 清空时
+       不更新，从而保留上一次的活动轨，供「剪辑/分割」优先作用到同一条轨道。 */
+    const _selClip=state.selected?clipById(state.selected):null;
+    if(_selClip && _selClip.track) activeTrackId=_selClip.track;
     const sc=$("tlScroll"), sl=sc.scrollLeft, st=sc.scrollTop;
     $("tlInner").style.width=(LABEL_W+contentWidth())+"px";
     renderRuler(); renderTracks(); drawAllWaves(); renderPlayhead(); syncZoomRange();
@@ -3325,13 +3332,20 @@ function deleteAction(){
     toast("请先点选片段或素材，再按删除键","err");
 }
 function splitSelected(at){
+    const t=at!=null?at:state.playhead;
+    const atClip=x=>t>x.start+0.05 && t<x.start+x.duration-0.05;
     let c=selectedClip();
-    if(!c){
-        c=state.clips.find(x=>state.playhead>x.start+0.05 && state.playhead<x.start+x.duration-0.05);
+    /* 剪辑/分割的目标轨道规则（音视频字幕等所有轨道通用）：
+       当前选中片段若就在播放头处，直接用它（点片段小剪刀 / 分割工具单击的路径）；
+       否则优先在「活动轨道」（最近一次选中素材所在的轨）上找播放头下的片段，
+       找不到再退回任意轨道。这样即使刚点标尺清空了选中，也会继续切上一条操作的轨道。 */
+    if(!c || !atClip(c)){
+        c=(activeTrackId?state.clips.find(x=>x.track===activeTrackId&&atClip(x)):null)
+          ||state.clips.find(x=>atClip(x));
         if(!c){ toast("播放头没有落在任何片段内部"); return; }
         state.selected=c.id;
+        activeTrackId=c.track;
     }
-    const t=at!=null?at:state.playhead;
     if(t<=c.start+0.08 || t>=c.start+c.duration-0.08){ toast("播放头要落在片段中间才能剪断"); return; }
     const leftDur=t-c.start, rightDur=c.duration-leftDur;
     pushHistory();
