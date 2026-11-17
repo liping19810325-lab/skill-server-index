@@ -1610,10 +1610,67 @@ def _video_filter(seg, w, h, fps, lut_path="", lut_adj=None):
     return flt
 
 
-def _audio_filter(seg, pitch):
+def _af_num(d, key, default=0.0):
+    try:
+        return float((d or {}).get(key, default) or default)
+    except Exception:
+        return float(default)
+
+
+def _audio_filter(seg, pitch, seg_index=0, seg_total=1, fade_ms=0.0):
+    """声音面板参数写进 FFmpeg 滤镜链：变调 / 倒放 / 变速 + 音量 / 片段淡入淡出 /
+    降噪 / 三段均衡 / 响度归一化。顺序：先时长与音调类，再音质与音量类。
+    淡入淡出按「片段内秒数」作用到每个分段：首段淡入、末段淡出，中间段不重复淡入淡出。"""
     flt = _atempo_expr(seg["speed"], pitch)
+    au = seg.get("audio") or {}
+
+    # 变声（音调偏移，半音）：在 atempo 之前的 asetrate 由 _atempo_expr(pitch) 处理；
+    # 这里额外叠加声音面板的 voicePitch，用 asetrate+aresample 改音调并保持时长。
+    vp = _af_num(au, "voicePitch", 0.0)
+    if abs(vp) > 0.01:
+        ratio = 2.0 ** (vp / 12.0)
+        flt += ",asetrate=48000*%.6f,aresample=48000" % ratio
+
     if seg.get("reverse"):
         flt += ",areverse,asetpts=PTS-STARTPTS"
+
+    # 降噪（afftdn：频域阈值降噪，强度映射到 nf 值，越大降噪越狠）
+    if (au.get("denoise")):
+        lvl = _af_num(au, "denoiseLevel", 50.0)
+        nf = -12.0 - (max(0.0, min(100.0, lvl)) / 100.0) * 28.0   # -12dB ~ -40dB
+        flt += ",afftdn=nf=%.2f" % nf
+
+    # 三段均衡器（lowshelf / peaking / highshelf，单位 dB）
+    lo, mid, hi = _af_num(au, "eqLow"), _af_num(au, "eqMid"), _af_num(au, "eqHigh")
+    if abs(lo) > 0.01:
+        flt += ",equalizer=f=200:t=q:w=0.7:g=%.2f" % lo
+    if abs(mid) > 0.01:
+        flt += ",equalizer=f=1000:t=q:w=0.9:g=%.2f" % mid
+    if abs(hi) > 0.01:
+        flt += ",equalizer=f=4000:t=q:w=0.7:g=%.2f" % hi
+
+    # 响度归一化（loudnorm：目标 -16 LUFS，剪映/播客常用响度）
+    if au.get("loudnorm"):
+        flt += ",loudnorm=I=-16:TP=-1.5:LRA=11"
+
+    # 片段音量（百分比，100 = 原音量）
+    vol = _af_num(au, "volume", 100.0)
+    if abs(vol - 100.0) > 0.01:
+        flt += ",volume=%.6f" % (max(0.0, vol) / 100.0)
+
+    # 片段淡入 / 淡出（秒，作用于片段时间轴；每个分段按其 outLen 只加一次，
+    # 首段加淡入、末段加淡出，避免每 2 秒内部小段都产生音量凹陷）
+    try:
+        fin = max(0.0, _af_num(au, "fadeIn"))
+        fout = max(0.0, _af_num(au, "fadeOut"))
+        out_len = max(0.04, float(seg.get("outLen", 0.04)))
+    except Exception:
+        fin, fout, out_len = 0.0, 0.0, 0.04
+    if fin > 0 and seg_index == 0:
+        flt += ",afade=t=in:st=0:d=%.3f" % min(fin, out_len)
+    if fout > 0 and seg_index == seg_total - 1:
+        flt += ",afade=t=out:st=%.3f:d=%.3f" % (max(0.0, out_len - fout), min(fout, out_len))
+
     return flt + ",aresample=48000"
 
 
@@ -1664,7 +1721,7 @@ def _render_segments(ff, td, in_path, segs, opt, jid):
         cmd = [ff, "-y", "-hide_banner", "-loglevel", "error",
                "-ss", "%.6f" % float(seg["srcStart"]),
                "-t", "%.6f" % float(seg["srcLen"]), "-i", in_path]
-        af = _audio_filter(seg, pitch)
+        af = _audio_filter(seg, pitch, seg_index=i, seg_total=len(segs))
         fade = float(opt.get("fade") or 0)
         if fade > 0:
             # 只在整段渲染的首段/末段加淡入淡出，等价于片段边界的 30ms 防爆音，
