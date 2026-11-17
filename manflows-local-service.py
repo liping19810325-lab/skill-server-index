@@ -2093,10 +2093,42 @@ def api_burn_subtitles(body):
             f.write(raw)
         with open(srt_path, "w", encoding="utf-8") as f:
             f.write("\ufeff" + srt if not srt.startswith("\ufeff") else srt)
-        # libass + fontconfig 会自动挑系统中文字体；force_style 仅定字号与描边
-        style = "FontName=PingFang SC,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=32"
-        if _plat() == "windows":
-            style = style.replace("PingFang SC", "Microsoft YaHei")
+        # 读取剪辑台传来的全工程统一字幕样式，烧录与预览规格一致
+        ss = data.get("subStyle") if isinstance(data.get("subStyle"), dict) else {}
+        def _ass_color(val, alpha=0):
+            """#RRGGBB -> libass &HAABBGGRR（AA=透明度 0 不透明）。"""
+            hx = str(val or "").lstrip("#")
+            if len(hx) != 6:
+                return "&H00FFFFFF"
+            try:
+                r, g, b = int(hx[0:2], 16), int(hx[2:4], 16), int(hx[4:6], 16)
+            except ValueError:
+                return "&H00FFFFFF"
+            return "&H%02X%02X%02X%02X" % (int(alpha) & 255, b, g, r)
+        def _num(v, default, lo, hi):
+            try:
+                return max(lo, min(hi, float(v)))
+            except (TypeError, ValueError):
+                return default
+        cn_font = str(ss.get("font") or ("Microsoft YaHei" if _plat() == "windows" else "PingFang SC"))
+        size = _num(ss.get("size"), 22, 8, 200)
+        color = _ass_color(ss.get("color", "#ffffff"))
+        outline_color = _ass_color(ss.get("stroke", "#000000"))
+        outline = _num(ss.get("strokeW"), 2, 0, 12)
+        shadow = _num(ss.get("shadow"), 0, 0, 20)
+        bold = -1 if ss.get("bold", True) else 0
+        italic = -1 if ss.get("italic") else 0
+        spacing = _num(ss.get("spacing"), 0, -10, 40)
+        # BackColour + OpaqueBox：有背景色且不透明度>0 时画字幕背景框
+        bg_opacity = _num(ss.get("bgOpacity"), 0, 0, 100)
+        back = _ass_color(ss.get("bg", "#000000"), int((100 - bg_opacity) * 255 / 100))
+        border_style = 3 if bg_opacity > 0 else 1
+        # WrapStyle=2：关闭 libass 自动换行，强制每条字幕只占一行（与预览 white-space:nowrap 一致）
+        style = ("FontName=%s,FontSize=%d,PrimaryColour=%s,OutlineColour=%s,BackColour=%s,"
+                 "BorderStyle=%d,Outline=%g,Shadow=%g,Bold=%d,Italic=%d,Spacing=%g,"
+                 "WrapStyle=2,Alignment=2,MarginV=32") % (
+                     cn_font, int(round(size)), color, outline_color, back,
+                     border_style, outline, shadow, bold, italic, spacing)
         vf = "subtitles=filename='%s':force_style='%s'" % (
             srt_path.replace("\\", "/"), style.replace("'", "\\'"))
         cmd = [info["path"], "-y", "-hide_banner", "-loglevel", "error",
