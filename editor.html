@@ -3110,8 +3110,16 @@ function addAssetToTrack(a, opts){
     toast("已加入「"+tr.label+"」轨道","ok");
 }
 function addBlankSubtitle(){
-    const tr=currentSubTrack()||newTrack("text");
     pushHistory();
+    let tr=currentSubTrack();
+    /* 当前字幕轨已经放了字幕时：优先在其上方新建一条字幕轨来放新字幕，
+       避免新字幕播放头落在旧字幕时间内、同轨重叠把原有字幕「吃掉」一部分。
+       newTrack("text") 默认插到同类字幕轨最上面；空轨则直接复用，不浪费轨道。 */
+    if(tr && state.clips.some(c=>c.track===tr.id)){
+        tr=newTrack("text");
+        state.subTrack=tr.id;   /* 切到新轨：列表/预览/下次新增都指向它 */
+    }
+    if(!tr) tr=newTrack("text");
     state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,state.playhead),
         duration:3, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:defaultFx()});
     renderAll(); autoSave();
