@@ -3955,8 +3955,9 @@ function rippleMainTrack(){
         cursor=c.start+c.duration;
     });
 }
-/* 落点让位后移（波纹插入）：把落点 dropAt 及其之后、不在 excludeIds 里的所有片段
-   （跨全部轨道）整体后移 span 秒，为拖入的片段 / 片段组腾出连续空位。
+/* 落点让位后移（波纹插入）：把落点 dropAt 及其之后的视频 / 音频轨片段
+   （不在 excludeIds 里、且轨道未锁定）整体后移 span 秒，为拖入的片段 / 片段组腾出连续空位。
+   字幕轨 / 图片轨 / LUT 轨的素材不参与让位，位置保持不动。
    返回被后移的片段数。原位置留空由调用方决定，不在这里合拢。 */
 function rippleInsertAt(dropAt, span, excludeIds){
     if(!(span>0)) return 0;
@@ -3966,6 +3967,8 @@ function rippleInsertAt(dropAt, span, excludeIds){
         if(ex.indexOf(o.id)>=0) return;
         const ot=trackById(o.track);
         if(ot&&ot.locked) return;   /* 锁定轨素材不参与让位后移，位置保持不动 */
+        /* 字幕 / 图片 / LUT 轨不参与让位：这些是叠层轨，视频 / 音频才需要腾位后移 */
+        if(ot&&(ot.kind==="text"||ot.kind==="image"||ot.kind==="lut")) return;
         if(o.start>=dropAt-0.0005){ o.start=+(o.start+span).toFixed(4); n++; }
     });
     return n;
