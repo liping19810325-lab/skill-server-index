@@ -1499,7 +1499,12 @@ let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
 let showFxBox=false, fxHover=false;
 const waveCache=new Map();   /* assetId -> {ready,peaks,error} */
 const thumbCache=new Map();  /* assetId -> dataURL（浏览器本地抽出的视频首帧） */
-const clipStripCache=new Map(); /* clipId -> dataURL[]（视频片段上部连续缩略图） */
+const clipStripCache=new Map(); /* clipId -> {sig,frames}（视频片段上部连续缩略图） */
+/* 缩略图签名：源区间（offset/duration/倍速/倒放）变了就必须重抽，否则分割后的两段会共用旧图 */
+function clipStripSig(c){
+    const f=fxOf(c)||{};
+    return [c.offset,c.duration,f.speed||1,f.reverse?1:0,f.speedMode||""].join("|");
+}
 let ctxClipId="", ctxTrackId="";
 let assetPreviewId=null, assetAudioEl=null, svcOnline=false, svcInfo=null;
 let exportBusy=false, exportDirHandle=null, exportCoverData="";
@@ -1818,11 +1823,34 @@ function drawWave(cv, c, a){
         if(a&&!w) ensureWave(a,()=>drawWave(cv,c,a));
         return;
     }
-    x.fillStyle="rgba(255,255,255,.86)";
     const p=w.peaks, n=p.length;
-    for(let i=0;i<n;i++){
-        const px=i/n*W, v=Math.max(0.025,Math.min(1,p[i]));
-        x.fillRect(px,H/2-v*H/2,Math.max(1,W/n-0.4),v*H);
+    /* 关键修复：波形必须按片段在源素材上的真实区间截取绘制，而不是把整段 peaks
+       铺满片段宽度。否则分割后左右两段各自都画整段波形，看起来像「没断开 / 只拿到
+       剪点左侧一段」。这里用 timelineToSource 做时间轴→源时间映射，自动覆盖
+       offset / 剪断 / 变速 / cutRanges 智能剪口播 / 倒放。音频轨与视频复合轨共用。 */
+    const srcDur=Math.max(0.001,Number(a&&a.duration)||Number((probeMetaCache.get(a&&a.url)||{}).duration)||0);
+    if(!c || srcDur<=0){
+        /* 源时长未知时退回整段铺满，至少不崩 */
+        x.fillStyle="rgba(255,255,255,.86)";
+        for(let i=0;i<n;i++){ const px=i/n*W, v=Math.max(0.025,Math.min(1,p[i])); x.fillRect(px,H/2-v*H/2,Math.max(1,W/n-0.4),v*H); }
+        return;
+    }
+    const span=sourceSpan(c), kept=sourceKeptRanges(c);
+    const keptTotal=kept.reduce((s,r)=>s+(r.end-r.start),0)||0.001;
+    const dur=Math.max(0.001,Number(c.duration)||0.001), sp=span.sp, rev=!!fxOf(c).reverse;
+    x.fillStyle="rgba(255,255,255,.86)";
+    for(let px=0;px<W;px++){
+        let pos=(px+0.5)/W*dur*sp;                /* 时间轴位置 → 源保留串内的位置 */
+        if(rev) pos=keptTotal-pos;
+        let src=kept.length?kept[kept.length-1].end:span.off;
+        for(const r of kept){
+            const len=r.end-r.start;
+            if(pos<=len+1e-6){ src=r.start+Math.max(0,Math.min(len,pos)); break; }
+            pos-=len;
+        }
+        const pi=Math.max(0,Math.min(n-1,Math.floor(src/srcDur*n)));
+        const v=Math.max(0.025,Math.min(1,p[pi]||0));
+        x.fillRect(px,H/2-v*H/2,1,v*H);
     }
 }
 function drawAllWaves(){
@@ -2919,7 +2947,8 @@ function clipHtml(c,t){
     const f=c.fx||{}, tag=(f.mirror?"⇋":"")+(f.reverse?"◀":"");
     const compound=t.kind==="video"&&clipHasAudio(c);
     const wave=t.kind==="audio"||compound;
-    const strip=clipStripCache.get(c.id);
+    const ce=clipStripCache.get(c.id);
+    const strip=(ce&&ce.sig===clipStripSig(c))?ce.frames:null;   /* 源区间变了就当未缓存 */
     const thumbsHtml=strip&&strip.length?'<div class="clip-thumbs">'+strip.map(d=>'<img src="'+d+'" alt="">').join('')+'</div>':'';
     const body=compound
       ? '<div class="clip-video-half">'+thumbsHtml+'<div class="clip-body">'+esc(label)+'</div>'+(tag?'<span class="clip-fx-tag">'+tag+'</span>':'')+'</div>'
@@ -2957,10 +2986,12 @@ async function ensureClipStrips(){
     const jobs=state.clips.filter(c=>{
         const t=trackById(c.track);
         const a=c.assetId?assetById(c.assetId):null;
-        return t&&t.kind==="video"&&a&&a.type==="video"&&mediaUrl(a)&&!clipStripCache.has(c.id);
+        const ce=clipStripCache.get(c.id);
+        return t&&t.kind==="video"&&a&&a.type==="video"&&mediaUrl(a)
+            &&(!ce||ce.sig!==clipStripSig(c));   /* 源区间变了重抽 */
     }).slice(0,20);
     if(!jobs.length) return;
-    jobs.forEach(c=>clipStripCache.set(c.id,[]));   /* 占位，避免重复排队 */
+    jobs.forEach(c=>clipStripCache.set(c.id,{sig:clipStripSig(c),frames:[]}));   /* 占位，避免重复排队 */
     const N=8;
     await Promise.all(jobs.map(async c=>{
         const a=assetById(c.assetId), url=mediaUrl(a), off=Number(c.offset)||0, dur=Number(c.duration)||0;
@@ -2970,7 +3001,7 @@ async function ensureClipStrips(){
             const d=await grabFrame(url,t);
             if(d) frames.push(d);
         }
-        clipStripCache.set(c.id,frames);
+        clipStripCache.set(c.id,{sig:clipStripSig(c),frames:frames});
     }));
     renderTimeline();
 }
