@@ -1037,9 +1037,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                             <div class="export-field"><span>烧录字幕</span><input type="checkbox" class="sw" id="expBurnSub" checked><span style="flex:1;font-size:10px;color:var(--muted)">把字幕轨真正烧进画面（本机 FFmpeg libass 硬字幕，中文字体可用）；关闭则只输出画面，可另在下方单独导出 SRT / VTT</span></div>
                             <div class="export-field"><span>格式</span><select id="expFormat"><option value="mp4">MP4</option><option value="mov">MOV</option><option value="webm">WebM</option></select></div>
                             <div class="export-field"><span>帧率</span><select id="expFps"><option value="24">24</option><option value="25">25</option><option value="30" selected>30</option><option value="60">60</option></select></div>
-                            <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="recommend">推荐</option><option value="low">较低</option><option value="high">较高</option><option value="8M">8 Mbps</option><option value="16M">16 Mbps</option></select></div>
+                            <div class="export-field"><span>画质</span><select id="expQuality"><option value="lossless">近无损（文件较大）</option><option value="high" selected>高画质（推荐）</option><option value="medium">标准</option><option value="low">较小体积</option></select></div>
+                            <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="low">较低 (5M)</option><option value="8M">8 Mbps</option><option value="recommend">推荐 (12M)</option><option value="16M">16 Mbps</option><option value="high">较高 (20M)</option><option value="24M">极高 (24M)</option></select></div>
                             <div class="export-field"><span>视频编码</span><select id="expCodec"><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="prores">Apple ProRes</option><option value="av1">AV1</option></select></div>
-                            <div class="export-note" id="expCodecNote">H.264 由浏览器 / 显卡直接编码；HEVC / ProRes / AV1 与 MOV 需要本机 ffmpeg。</div>
+                            <div class="export-note" id="expCodecNote">画质档位控制最终编码质量（近无损 CRF14 / 高画质 CRF17）；H.264 可由浏览器 / 显卡直接编码，HEVC / ProRes / AV1 与 MOV 需要本机 ffmpeg。开启烧录字幕时，画质档位同样作用于烧录后的成片。</div>
                             <div class="export-field"><span>网络播放优化 ⓘ</span><input type="checkbox" class="sw" id="expFaststart" checked><span style="flex:1;font-size:10px;color:var(--muted)">MP4 前置索引，边下边播</span></div>
                             <div class="export-static">色彩空间：Rec.709 SDR</div>
                             <div class="export-note">↓ 向下滚动还可勾选「音频导出 / GIF 导出 / 字幕导出」，底部「导出」按钮始终可见。</div>
@@ -1049,8 +1050,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <div class="export-sec off" id="secAudio">
                         <div class="export-sec-head"><input type="checkbox" id="expChkAudio"><span>音频导出</span><span class="caret">▲</span></div>
                         <div class="export-sec-fields">
-                            <div class="export-field"><span>格式</span><select id="expAudioFmt"><option value="wav">WAV</option><option value="mp3">MP3</option><option value="m4a">M4A</option></select></div>
-                            <div class="export-note">WAV 由浏览器直接合成；MP3 / M4A 需要本机 ffmpeg 转码。</div>
+                            <div class="export-field"><span>格式</span><select id="expAudioFmt"><option value="wav">WAV（无损）</option><option value="flac">FLAC（无损）</option><option value="alac">ALAC（无损）</option><option value="mp3">MP3 320k</option><option value="m4a">M4A / AAC 320k</option></select></div>
+                            <div class="export-note">WAV 由浏览器直接合成；FLAC / ALAC / MP3 / M4A 需要本机 ffmpeg 转码（码率已给到 320k / 无损）。</div>
                         </div>
                     </div>
 
@@ -2238,9 +2239,28 @@ function applyFxOverlay(){
         el.appendChild(d);
     }
 }
+/* ===== 字幕落点唯一真源：预览 CSS / 录制 Canvas / 烧录 ASS 三处共用 =====
+   SW,SH = 预览舞台的 CSS 像素尺寸；返回的 x/y/size 都在这个坐标系里。
+   预览 CSS 直接用；Canvas 导出按 W/SW 缩放；ASS 把 PlayResX/Y 设成 SW/SH 后直接写脚本像素。
+   这样三处位置、字号、对齐完全一致，烧录出来就等同于在播放器里看到的样子。 */
+function subPlacement(q,SW,SH){
+    q=q||defaultFx().sub;
+    const size=Math.max(8,Number(q.size)||28);
+    const align=q.align||"center";
+    const pos=q.pos||"bottom";
+    const pad=24;   /* 预览 .subtitle-overlay 的左右内边距 */
+    const an=align==="left"?1:(align==="right"?3:2);
+    const x=align==="left"?pad:(align==="right"?Math.max(pad+1,SW-pad):Math.round(SW/2));
+    /* 容器 bottom:7% => 基准底边 0.93H；pos=top/middle 再上移 34%/15% */
+    const baseY=Math.round(SH*0.93);
+    const off=pos==="top"?-Math.round(SH*0.34):(pos==="middle"?-Math.round(SH*0.15):0);
+    const y=clamp(baseY+off,1,SH);
+    return {x:x,y:y,an:an,size:size,align:align,pos:pos,pad:pad,baseY:baseY};
+}
 function subStyleOf(c){
     const q=fxOf(c).sub||{}, st=$("stage"), H=st?st.clientHeight:360;
-    const off=q.pos==="top"?-Math.round(H*0.34):(q.pos==="middle"?-Math.round(H*0.15):0);
+    const _sp=subPlacement(q,st?st.clientWidth:640,H);
+    const off=_sp.y-_sp.baseY;
     const op=clamp(q.opacity===undefined?100:Number(q.opacity),0,100)/100;
     const sh=Number(q.shadow)||0, bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
     /* 未点过颜色选择器时按剪映习惯回退黑底，否则只拖「背景透明」滑块会毫无效果 */
@@ -7376,11 +7396,12 @@ function exportSize(){
 }
 function exportBitrate(){
     const v=$("expBitrate").value;
-    if(v==="low") return 2500000;
-    if(v==="high") return 16000000;
+    if(v==="low") return 5000000;
     if(v==="8M") return 8000000;
     if(v==="16M") return 16000000;
-    return 7000000;
+    if(v==="high") return 20000000;
+    if(v==="24M") return 24000000;
+    return 12000000;   /* recommend：录制中间片给足码率，避免烧录前就先损失画质 */
 }
 function blobToBase64(b){
     return new Promise((res,rej)=>{ const r=new FileReader();
@@ -7471,7 +7492,7 @@ function buildSubtitleText(fmt){
     const arr=clipsInRange(state.clips.filter(c=>trackKind(c.track)==="text"&&c.text));
     const ms=t=>{ const x=Math.round(Math.max(0,t)*1000), h=Math.floor(x/3600000),m=Math.floor(x%3600000/60000),
         s=Math.floor(x%60000/1000),q=x%1000; return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); };
-    const line=c=>(c.subKind&&SUB_NAME[c.subKind]?"["+SUB_NAME[c.subKind]+"] ":"")+c.text;
+    const line=c=>c.text;   /* 不插类型前缀，预览/烧录/字幕文件三处文字一致 */
     if(fmt==="vtt"){
         return {count:arr.length,text:"WEBVTT\n\n"+arr.map((c,i)=>(i+1)+"\n"+ms(c.start)+"."+String(Math.round(c.start*1000)%1000).padStart(3,"0")
             +" --> "+ms(c.start+c.duration)+"."+String(Math.round((c.start+c.duration)*1000)%1000).padStart(3,"0")+"\n"+line(c)+"\n").join("\n")};
@@ -7516,17 +7537,42 @@ function subAssBottomAlign(q){
      · pos=top/middle 用 translate 上移 34%/15% 的舞台高度（off 为负，y 需加上）
      · 水平默认居中；left/right 贴容器 24px 内边距
    这样烧录出来的位置/字号与玩家预览完全一致，不再用 Alignment=8/5/2 那套抽象对齐。 */
-function assPosTag(q){
+/* 单条字幕元素的像素高度（复刻 .sub-line 的 line-height + padding + 背景内边距 + 换行行数） */
+function subLinePx(q){
+    const size=Number(q.size)||28, lh=Number(q.lineHeight)||1.2;
+    const lines=Math.max(1,(String(q.text||"").match(/\n/g)||[]).length+1);
+    const bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
+    const pad=4+(bgA>0?2*(Number(q.bgPad)||0):0);
+    return size*lh*lines+pad;
+}
+/* 与预览堆叠一致的层号：返回该字幕在「同位置 + 时间重叠」组内从底往上数是第几层。
+   预览里 .subtitle-overlay 是 flex column，最后一条贴底，往上每条让出自身高度 + gap(5px)。
+   轨道优先级复刻 orderedTracks()：text 内部按 order、再按 id。 */
+function assStackIndex(c,arr,W,H){
+    const q=(c.fx&&c.fx.sub)||defaultFx().sub, sp=subPlacement(q,W,H);
+    const key=sp.pos+"|"+sp.align;
+    const grp=arr.filter(o=>{
+        const oq=(o.fx&&o.fx.sub)||defaultFx().sub, osp=subPlacement(oq,W,H);
+        if(osp.pos+"|"+osp.align!==key) return false;
+        return o.start<c.start+c.duration && c.start<o.start+o.duration;  /* 时间重叠 */
+    });
+    grp.sort((a,b)=>{
+        const ta=trackById(a.track), tb=trackById(b.track);
+        const oa=ta?(ta.order||0):0, ob=tb?(tb.order||0):0;
+        return (oa-ob)||(String(a.id)<String(b.id)?-1:(String(a.id)>String(b.id)?1:0));
+    });
+    const idx=grp.indexOf(c);
+    return {idx:idx,level:Math.max(0,grp.length-1-idx),group:grp};
+}
+function assPosTag(q,stackY){
     const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
-    const an=subAssBottomAlign(q);
-    const x=q.align==="left"?24:(q.align==="right"?Math.max(25,W-24):Math.round(W/2));
-    const off=q.pos==="top"?-Math.round(H*0.34):(q.pos==="middle"?-Math.round(H*0.15):0);
-    const y=clamp(Math.round(H*0.93)+off,1,H);
-    return "{\\an"+an+"\\pos("+x+","+y+")}";
+    const sp=subPlacement(q,W,H);   /* 与预览/Canvas 共用同一落点真源 */
+    const y=Math.round(clamp(stackY===undefined?sp.y:stackY,1,H));
+    return "{\\an"+sp.an+"\\pos("+sp.x+","+y+")}";
 }
 function subTextAss(c){
-    const pre=(c.subKind&&SUB_NAME[c.subKind])?"["+SUB_NAME[c.subKind]+"] ":"";
-    return pre+String(c.text||"").replace(/[\r\n]+/g,"\\N").replace(/\{/g,"\\{").replace(/\}/g,"\\}");
+    /* 不插 [对白]/[旁白] 等类型前缀：预览里就没有，烧录/导出必须只显示字幕正文 */
+    return String(c.text||"").replace(/[\r\n]+/g,"\\N").replace(/\{/g,"\\{").replace(/\}/g,"\\}");
 }
 function buildBurnAss(arr){
     if(!arr||!arr.length) return "";
@@ -7534,7 +7580,19 @@ function buildBurnAss(arr){
        libass 会按脚本分辨率等比缩放到成片，从而让烧录位置/大小与预览一一对应。
        PlayResX/Y 写死为舞台尺寸；宽高比与 exportSize() 一致（都取自 stage.clientWidth/Height）。 */
     const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
+    const GAP=5;   /* 与预览 .subtitle-overlay 的 gap:5px 一致 */
     const styles=[], lines=[];
+    /* 为每条字幕算出堆叠后的 y：同位置组里从底往上，每条向上让出下方各条的高度 + gap */
+    const stackYById={};
+    arr.forEach(c=>{
+        const si=assStackIndex(c,arr,W,H);
+        if(si.level<=0){ stackYById[c.id]=subPlacement((c.fx&&c.fx.sub),W,H).y; return; }
+        // 组按轨道顺序排：idx 越大越靠底。本条要向上让出「排在它后面的所有条」的高度 + gap
+        const grp=si.group;
+        let up=0;
+        for(let j=si.idx+1;j<grp.length;j++) up+=subLinePx((grp[j].fx&&grp[j].fx.sub)||defaultFx().sub)+GAP;
+        stackYById[c.id]=subPlacement((c.fx&&c.fx.sub),W,H).y-up;
+    });
     arr.forEach((c,i)=>{
         const q=(c.fx&&c.fx.sub)||defaultFx().sub, name="MF"+i;
         const op=q.opacity===undefined?100:Number(q.opacity), bgOp=Number(q.bgOpacity)||0;
@@ -7546,10 +7604,10 @@ function buildBurnAss(arr){
             +","+(q.bold===false?0:-1)+","+(q.italic?-1:0)+","+(q.underline?-1:0)+","+(q.strike?-1:0)
             +",100,100,"+(Number(q.spacing)||0)+",0,"+borderStyle+","+(Number(q.strokeW)||0)+","+(Number(q.shadow)||0)
             +","+subAlignAss(q)+",0,0,0,1");
-        /* 每行的样式覆盖 + 精确落点：\an\pos 在前，随后是逐条字号/颜色等覆盖，
-           最后接字幕正文（含 [对白] 前缀与 \N 换行）。 */
+        /* 每行的样式覆盖 + 精确落点：\an\pos 在前（含多条同位置时的堆叠让位），
+           随后是逐条字号/颜色等覆盖，最后接纯字幕正文（无类型前缀，与预览一致）。 */
         lines.push("Dialogue: 0,"+assTs(c.start)+","+assTs(c.start+c.duration)+","+name+",,0,0,0,,"
-            +assPosTag(q)+subAssOverride(q)+subTextAss(c));
+            +assPosTag(q,stackYById[c.id])+subAssOverride(q)+subTextAss(c));
     });
     return "[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\nScaledBorderAndShadow: yes\n"
         +"PlayResX: "+W+"\nPlayResY: "+H+"\n"
@@ -7669,7 +7727,8 @@ async function exportAudioFile(){
     if(fmt==="wav"){ await saveBlob(wav,exportTitle()+".wav"); return r.failed; }
     if(!ffmpegReady()) throw new Error(fmt.toUpperCase()+" 需要本机 ffmpeg，请改选 WAV 或启动本机服务并安装 ffmpeg");
     const j=await serviceExport({action:"audio",acodec:fmt,dataBase64:await blobToBase64(wav)});
-    await saveBlob(base64ToBlob(j.dataBase64,fmt==="mp3"?"audio/mpeg":"audio/mp4"),exportTitle()+"."+fmt);
+    const mime=fmt==="mp3"?"audio/mpeg":(fmt==="flac"?"audio/flac":(fmt==="wav"?"audio/wav":"audio/mp4"));
+    await saveBlob(base64ToBlob(j.dataBase64,mime),j.filename||(exportTitle()+"."+(fmt==="alac"?"m4a":fmt)));
     return r.failed;
 }
 let mfAudioCtx=null, mfAudioSrc=null, mfAudioDest=null;
@@ -7684,7 +7743,10 @@ function previewAudioTrack(){
         return mfAudioDest.stream.getAudioTracks()[0]||null;
     }catch(e){ return null; }
 }
-function drawStageFrame(x,W,H){
+function drawStageFrame(x,W,H,opts){
+    /* noSub：录制纯净画面（不含字幕），交给后端 FFmpeg libass 独家烧录。
+       若浏览器 canvas 也画字幕、后端再烧一遍，同一条字幕会出现两层重叠。 */
+    const noSub=!!(opts&&opts.noSub);
     x.save(); x.filter="none"; x.globalAlpha=1;
     const vc=mainVisualClip(), f=vc?fxOf(vc):null;
     x.fillStyle=(f&&f.bg)?String(f.bg):"#000"; x.fillRect(0,0,W,H);
@@ -7728,20 +7790,24 @@ function drawStageFrame(x,W,H){
             x.restore();
         }
     }
-    $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
-        const c=clipById(el.dataset.clip), q=c?fxOf(c).sub:null, size=Math.max(12,Math.round((q?Number(q.size)||28:28)*W/640));
+    /* 烧录开启时录纯净画面，字幕交给后端 FFmpeg libass 烧一遍，避免 canvas+ASS 双重绘制。
+       若需要 canvas 绘制（关闭烧录 / GIF），用 subPlacement 统一真源定位置字号，与预览一致。 */
+    if(!noSub) $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
+        const c=clipById(el.dataset.clip), q=c?fxOf(c).sub:null;
+        const st=$("stage"), SW=(st&&st.clientWidth>0)?st.clientWidth:640, SH=(st&&st.clientHeight>0)?st.clientHeight:360;
+        const scale=W/SW, sp=subPlacement(q,SW,SH);
+        const size=Math.max(8,Math.round(sp.size*scale));
         const op=q?(clamp(q.opacity===undefined?100:Number(q.opacity),0,100)/100):1;
         x.save(); x.globalAlpha=op;
         x.font=(q&&q.italic?"italic ":"")+(q&&q.bold===false?"":"bold ")+size+"px '"+(q&&q.fontEn?q.fontEn:"Arial")+"','"+(q?q.font:"Microsoft YaHei")+"',sans-serif";
-        try{ x.letterSpacing=(q?Number(q.spacing)||0:0)+"px"; }catch(e){}
-        x.textAlign=q?(q.align||"center"):"center"; x.textBaseline="bottom";
-        const px=x.textAlign==="left"?12:(x.textAlign==="right"?W-12:W/2);
-        const pos=q?q.pos:"bottom";
-        const py=pos==="top"?H*0.16:(pos==="middle"?H*0.55:H*0.92);
+        try{ x.letterSpacing=((q?Number(q.spacing)||0:0)*scale)+"px"; }catch(e){}
+        x.textAlign=sp.align; x.textBaseline="bottom";
+        const px=sp.x*scale;
+        const py=sp.y*scale;
         const sh=q?Number(q.shadow)||0:0, glow=q?Number(q.glow)||0:0;
         /* 导出画布把「阴影 + 发光」合并成 shadowBlur（取较大者，发光用对应颜色） */
-        if(glow>0){ x.shadowColor=q.glowColor||"#ffffff"; x.shadowBlur=glow*W/640; }
-        else if(sh>0){ x.shadowColor=q.shadowColor||"#000"; x.shadowBlur=sh*W/640; x.shadowOffsetY=sh/2*W/640; }
+        if(glow>0){ x.shadowColor=q.glowColor||"#ffffff"; x.shadowBlur=glow*scale; }
+        else if(sh>0){ x.shadowColor=q.shadowColor||"#000"; x.shadowBlur=sh*scale; x.shadowOffsetY=sh/2*scale; }
         const bgA=q?clamp(Number(q.bgOpacity)||0,0,100)/100:0;
         const txt=el.textContent||"";
         const lineH=size*(Number(q&&q.lineHeight)||1.2);
@@ -7757,7 +7823,7 @@ function drawStageFrame(x,W,H){
                 fillStyle=gr;
             }
         }
-        x.lineWidth=Math.max(0,(q?Number(q.strokeW)||0:2))*W/640; x.strokeStyle=q?(q.stroke||"#000"):"#000";
+        x.lineWidth=Math.max(0,(q?Number(q.strokeW)||0:2))*scale; x.strokeStyle=q?(q.stroke||"#000"):"#000";
         x.fillStyle=fillStyle;
         const vertical=!!(q&&q.vertical);
         if(vertical){
@@ -7767,7 +7833,7 @@ function drawStageFrame(x,W,H){
             if(q&&bgA>0){
                 x.fillStyle=hexToRgba(q.bg||"#000000",bgA);
                 const bx=px-colW/2-8, by=py-boxH-6, bw=colW+16, bh=boxH+12;
-                const r=clamp(Number(q.bgRadius)||0,0,40)*W/640;
+                const r=clamp(Number(q.bgRadius)||0,0,40)*scale;
                 if(r>0&&x.roundRect){ x.beginPath(); x.roundRect(bx,by,bw,bh,r); x.fill(); }
                 else x.fillRect(bx,by,bw,bh);
                 x.fillStyle=fillStyle;
@@ -7783,13 +7849,13 @@ function drawStageFrame(x,W,H){
         }else{
             if(q&&bgA>0){
                 const tw=x.measureText(txt).width;
-                const padX=clamp(Number(q.bgPad)||0,0,40)*W/640;
+                const padX=clamp(Number(q.bgPad)||0,0,40)*scale;
                 const bw=tw+padX*2+16, bh=lineH+padX*0.8+8;
                 const bx=(x.textAlign==="left"?px:x.textAlign==="right"?px-bw:px-bw/2)-4;
                 const by=py-bh+4;
                 x.save(); x.shadowColor="transparent"; x.shadowBlur=0;
                 x.fillStyle=hexToRgba(q.bg||"#000000",bgA);
-                const r=clamp(Number(q.bgRadius)||0,0,40)*W/640;
+                const r=clamp(Number(q.bgRadius)||0,0,40)*scale;
                 if(r>0&&x.roundRect){ x.beginPath(); x.roundRect(bx,by,bw,bh,r); x.fill(); }
                 else x.fillRect(bx,by,bw,bh);
                 x.restore();
@@ -7863,7 +7929,7 @@ async function recordCanvas(dur,opts,onProgress){
         if(document.hidden) onVis();
         function frame(){
             if(paused){ requestAnimationFrame(frame); return; }
-            try{ drawStageFrame(x,W,H); }catch(e){ /* 单帧失败不中断整段录制 */ }
+            try{ drawStageFrame(x,W,H,opts); }catch(e){ /* 单帧失败不中断整段录制 */ }
             const p=pct();
             report(p,"正在渲染输出 "+(p*100).toFixed(0)+"%");
             if(state.playhead>=to-0.05 || performance.now()-t0>dur*1000+4000 || (!playing&&!paused)){
@@ -7895,13 +7961,20 @@ async function serviceBurnSubtitles(blob,srt,filename){
         strokeW:Number(q.strokeW)||0,shadow:Number(q.shadow)||0,
         bg:q.bg||"#000000",bgOpacity:Number(q.bgOpacity)||0,bold:q.bold!==false,italic:!!q.italic,
         spacing:Number(q.spacing)||0,lineHeight:Number(q.lineHeight)||1.2};
+    /* 画质/编码跟随导出面板：烧录这一步是最后一次有损编码，参数必须够高，否则成片发糊 */
+    const fmt=$("expFormat").value, codec=$("expCodec").value;
+    const burnContainer=(codec==="prores")?"mov":fmt;   /* ProRes 强制 mov 容器 */
+    const bitrateSel=$("expBitrate")?$("expBitrate").value:"recommend";
+    const bitrateMap={low:"5M",recommend:"12M",high:"20M","8M":"8M","16M":"16M","24M":"24M"};
     const r=await fetch(LOCAL_SERVICE+"/api/burn-subtitles",{method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({filename:String(filename||exportTitle()),srt:burnSrt,ass:ass,subStyle:subStyle,
+            vcodec:codec==="h264"?"h264":codec, container:burnContainer,
+            bitrate:bitrateMap[bitrateSel]||"12M", quality:$("expQuality")?$("expQuality").value:"high",
             dataBase64:await blobToBase64(blob)})});
     const j=await r.json();
     if(!j||!j.ok) throw new Error(j?(j.reason||"字幕烧录失败"):"本机服务返回异常");
-    return base64ToBlob(j.dataBase64,"video/mp4");
+    return base64ToBlob(j.dataBase64,burnContainer==="webm"?"video/webm":(burnContainer==="mov"?"video/quicktime":"video/mp4"));
 }
 async function exportVideoFile(recorded,onProgress){
     const fmt=$("expFormat").value, codec=$("expCodec").value;
@@ -7909,22 +7982,25 @@ async function exportVideoFile(recorded,onProgress){
     if(needFF&&!ffmpegReady()) throw new Error("MOV / "+codec.toUpperCase()+" 需要本机 ffmpeg；可改选 MP4 + H.264，或启动本机服务并安装 ffmpeg");
     const blob=await recorded();
     if(!blob||!blob.size) throw new Error("没有录到画面，请确认轨道上有视频 / 图片素材并且预览窗口能显示");
-    const ext=(fmt==="webm")?"webm":(fmt==="mov"?"mov":"mp4");
-    let finalBlob=blob, finalName=exportTitle()+"."+ext;
-    if(needFF){
+    const bitrateSel=$("expBitrate")?$("expBitrate").value:"recommend";
+    const bitrateStr={low:"5M",recommend:"12M","8M":"8M","16M":"16M",high:"20M","24M":"24M"}[bitrateSel]||"12M";
+    const burn=$("expBurnSub")&&$("expBurnSub").checked&&ffmpegReady();
+    const sr=(buildSubtitleText("srt"));
+    const hasSub=burn&&sr.count>0;
+    let finalBlob=blob, finalName=exportTitle()+"."+(fmt==="webm"?"webm":fmt==="mov"?"mov":"mp4");
+    if(hasSub){
+        /* 有烧录：直接把「转码 + 烧字幕」合并成服务端一次编码，避免先转码再烧录的二次有损。
+           烧录接口已支持 vcodec/container/bitrate/quality，输出即目标格式。 */
+        finalBlob=await serviceBurnSubtitles(blob,sr.text,finalName);
+        finalName=finalName.replace(/\.[^.]+$/,"")+"_字幕烧录."+(codec==="prores"||fmt==="mov"?"mov":fmt==="webm"?"webm":"mp4");
+    }else if(needFF){
+        /* 无烧录才走纯转码路径 */
         const size=exportSize();
         const j=await serviceExport({filename:finalName,container:fmt,vcodec:codec,
-            width:size.w,height:size.h,fps:Number($("expFps").value)||30,bitrate:$("expBitrate").value,
+            width:size.w,height:size.h,fps:Number($("expFps").value)||30,bitrate:bitrateStr,
             acodec:"aac",faststart:$("expFaststart").checked,dataBase64:await blobToBase64(blob)});
         finalBlob=base64ToBlob(j.dataBase64,fmt==="mov"?"video/quicktime":"video/mp4");
         finalName=j.filename||finalName;
-    }
-    if($("expBurnSub")&&$("expBurnSub").checked){
-        const r=buildSubtitleText("srt");
-        if(r.count){
-            finalBlob=await serviceBurnSubtitles(finalBlob,r.text,finalName);
-            finalName=finalName.replace(/\.[^.]+$/,"")+"_字幕烧录.mp4";
-        }
     }
     await saveBlob(finalBlob,finalName);
 }
@@ -8049,12 +8125,18 @@ async function startExport(){
     exportBusy=true; $("exportDo").disabled=true;
     const fill=$("exportProgFill"), steps=$("exportSteps"), prog=$("exportProg");
     prog.classList.add("show");
-    let recorded=null, renderedCount=0;
-    const getRecorded=async()=>{
-        if(!recorded) recorded=await recordCanvas(Math.max(0.1,rg.end-rg.start),
-            {size:exportSize(),fps:Number($("expFps").value)||30,from:rg.start,to:rg.end},
+    let renderedCount=0;
+    /* 分两份缓存：
+       · noSub=true  纯净画面——勾选烧录字幕时用，字幕只由后端 FFmpeg libass 烧一遍；
+       · noSub=false 画布字幕——GIF / 不烧录的视频用（画布按统一真源画一遍即可）。
+       二者不能共用，否则「烧录」会在已有画布字幕上再烧一遍造成重影。 */
+    const recCache={};
+    const getRecorded=async(noSub)=>{
+        const key=noSub?"clean":"sub";
+        if(!recCache[key]) recCache[key]=await recordCanvas(Math.max(0.1,rg.end-rg.start),
+            {size:exportSize(),fps:Number($("expFps").value)||30,from:rg.start,to:rg.end,noSub:!!noSub},
             (p,msg)=>{ fill.style.width=Math.round(p*100)+"%"; steps.textContent="🎬 "+msg; });
-        return recorded;
+        return recCache[key];
     };
     const label={sub:"生成字幕文件",audio:"混音并导出音频",gif:"生成 GIF 动图",video:"渲染并编码综合视频"};
     try{
@@ -8073,8 +8155,9 @@ async function startExport(){
             steps.textContent="["+(i+1)+"/"+jobs.length+"] "+label[j]+"…";
             if(j==="sub") await exportSubtitleFile();
             else if(j==="audio"){ const failed=await exportAudioFile(); if(failed) steps.textContent+="（"+failed+" 段在线素材因跨域跳过）"; }
-            else if(j==="gif") await exportGifFile(getRecorded);
-            else if(j==="video") await exportVideoFile(getRecorded,()=>{});
+            /* GIF 无后端烧录环节，用画布字幕；视频若勾选烧录则录纯净画面交给 FFmpeg，避免双重绘制 */
+            else if(j==="gif") await exportGifFile(()=>getRecorded(false));
+            else if(j==="video") await exportVideoFile(()=>getRecorded(!!($("expBurnSub")&&$("expBurnSub").checked)&&ffmpegReady()),()=>{});
         }
         fill.style.width="100%";
         steps.textContent="✅ 全部导出完成，文件已保存到"+(exportDirHandle?"所选文件夹":"浏览器下载目录");
@@ -8098,7 +8181,7 @@ function wireExport(){
         cb.addEventListener("change",()=>{ sync(); updateExportEstimate(); });
         sync();
     });
-    ["expRes","expFormat","expCodec","expBitrate","expFps","expAudioFmt","expGifRes","expSubFmt"].forEach(id=>{
+    ["expRes","expFormat","expCodec","expBitrate","expQuality","expFps","expAudioFmt","expGifRes","expSubFmt"].forEach(id=>{
         const el=$(id); if(el) el.addEventListener("change",updateExportEstimate);
     });
     document.querySelectorAll(".export-sec-head").forEach(h=>h.addEventListener("click",e=>{

@@ -1028,16 +1028,19 @@ def _run_video(ff, td, in_path, data, stem, avail):
 
 
 def _run_audio(ff, td, in_path, data, stem):
-    conf = {"mp3": ("libmp3lame", ".mp3"),
-            "wav": ("pcm_s16le", ".wav"),
-            "m4a": ("aac", ".m4a")}
+    # (编码器, 扩展名, 码率参数)；FLAC/ALAC/WAV 为无损，MP3/AAC 给足码率避免发闷
+    conf = {"mp3":  ("libmp3lame", ".mp3", ["-b:a", "320k"]),
+            "wav":  ("pcm_s16le",  ".wav", []),
+            "m4a":  ("aac",        ".m4a", ["-b:a", "320k"]),
+            "flac": ("flac",       ".flac", []),
+            "alac": ("alac",       ".m4a", [])}
     acodec = str(data.get("acodec") or "mp3").lower()
     if acodec not in conf:
         acodec = "mp3"
-    aenc, ext = conf[acodec]
+    aenc, ext, rate = conf[acodec]
     out_path = os.path.join(td, "output" + ext)
     cmd = [ff, "-y", "-hide_banner", "-loglevel", "error", "-i", in_path,
-           "-vn", "-c:a", aenc, out_path]
+           "-vn", "-c:a", aenc] + rate + [out_path]
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           timeout=TIMEOUT_TRANSCODE)
     if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
@@ -2098,7 +2101,6 @@ def api_burn_subtitles(body):
             raise ValueError("视频数据为空")
         in_path = os.path.join(td, "input.mp4")
         srt_path = os.path.join(td, "subs.srt")
-        out_path = os.path.join(td, "burned.mp4")
         with open(in_path, "wb") as f:
             f.write(raw)
         with open(srt_path, "w", encoding="utf-8") as f:
@@ -2154,17 +2156,80 @@ def api_burn_subtitles(body):
                 srt_path.replace("\\", "/"), style.replace("'", "\\'"))
             burn_notes = ["字幕已烧进画面像素，不依赖播放器外挂字幕"]
             engine_kind = "libass SRT 硬字幕"
+        # ---- 编码参数：跟随剪辑台的画质/编码选择，避免固定 veryfast/crf18 造成明显画质损失 ----
+        avail = set(info.get("encoders") or [])
+        vcodec = str(data.get("vcodec") or "h264").lower()
+        if vcodec not in ("h264", "hevc", "prores", "av1"):
+            vcodec = "h264"
+        container = str(data.get("container") or "mp4").lower()
+        if container not in ("mp4", "mov", "webm"):
+            container = "mp4"
+        p = _plat()
+        if vcodec == "h264":
+            cands = (["h264_videotoolbox", "h264_nvenc", "libx264"] if p == "mac"
+                     else ["h264_nvenc", "h264_videotoolbox", "libx264"])
+            venc, vn = _pick_encoder(cands, avail, "libx264")
+        elif vcodec == "hevc":
+            cands = (["hevc_videotoolbox", "hevc_nvenc", "libx265"] if p == "mac"
+                     else ["hevc_nvenc", "libx265"])
+            venc, vn = _pick_encoder(cands, avail, "libx265")
+        elif vcodec == "prores":
+            venc, vn = "prores_ks", ""
+            container = "mov"
+        else:  # av1
+            picked = next((c for c in ("libsvtav1", "libaom-av1")
+                           if (not avail or c in avail)), None)
+            venc, vn = (picked, "") if picked else ("libx264", "本机 FFmpeg 不含 AV1 编码器，已回退 H.264")
+        if vn:
+            burn_notes.append(vn)
+
+        # 画质：优先用 crf（视觉质量稳定），crf 越小画质越高；quality=lossless 走近无损。
+        quality = str(data.get("quality") or "high").lower()
+        hw_enc = "videotoolbox" in venc or "nvenc" in venc
         cmd = [info["path"], "-y", "-hide_banner", "-loglevel", "error",
-               "-i", in_path, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
-               "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy",
-               "-movflags", "+faststart", out_path]
+               "-i", in_path, "-vf", vf]
+        if vcodec == "prores":
+            cmd += ["-c:v", "prores_ks", "-profile:v", "3"]  # HQ 10-bit 保留更多层次
+        elif hw_enc:
+            # 硬件编码速度快但画质/压缩率略低，给足码率弥补
+            cmd += ["-c:v", venc, "-b:v", _bitrate(data.get("bitrate") or "16M")]
+        else:
+            cmd += ["-c:v", venc]
+            if quality == "lossless":
+                crf = "14"
+            elif quality == "medium":
+                crf = "21"
+            elif quality == "low":
+                crf = "25"
+            else:  # high（默认）
+                crf = "17"
+            cmd += ["-preset", "medium", "-crf", crf]
+            # 用户显式选了具体码率时，用 -maxrate 约束上限，兼顾画质与体积
+            br = str(data.get("bitrate") or "").strip()
+            if br and br not in ("recommend", "high", "low"):
+                cmd += ["-maxrate", _bitrate(br), "-bufsize", _bitrate(br)]
+        if container == "webm" and vcodec != "prores":
+            cmd += ["-pix_fmt", "yuv420p", "-c:a", "libopus", "-b:a", "192k"]
+        else:
+            cmd += ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k"]
+        if container == "mov":
+            cmd += ["-f", "mov"]
+        elif container == "mp4" and vcodec != "prores":
+            cmd += ["-movflags", "+faststart"]
+        ext = "mov" if vcodec == "prores" else container
+        out_path = os.path.join(td, "burned." + ext)
+        cmd += [out_path]
+        burn_notes.append("画质：%s（%s）" % (
+            {"lossless":"近无损", "high":"高画质", "medium":"标准", "low":"较小体积"}.get(quality, "高画质"),
+            "CRF " + (crf if not hw_enc and vcodec != "prores" else (vn or venc))))
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                            timeout=TIMEOUT_TRANSCODE)
         if p.returncode != 0 or not os.path.isfile(out_path) or os.path.getsize(out_path) < 128:
             err = _scrub((p.stderr or b"").decode("utf-8", "replace"), info["path"], td)[-420:]
             return _fail("字幕烧录失败：%s" % (err or "未生成输出"),
                          "请确认字幕为 UTF-8 字幕、系统已安装中文字体，并重试")
-        res = _ok_file(out_path, _safe_stem(data.get("filename") or "burned") + ".mp4",
+        out_name = _safe_stem(data.get("filename") or "burned") + "." + ext
+        res = _ok_file(out_path, out_name,
                        "ffmpeg -vf subtitles（%s）" % engine_kind, burn_notes)
         res["engine"] = "本机 FFmpeg %s（libass 字幕烧录）" % (info.get("version") or "")
         return res
