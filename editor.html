@@ -80,6 +80,14 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .lib-tab{flex:1 1 auto;padding:6px 7px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);color:var(--muted);font-size:11px;white-space:nowrap;}
 .lib-tab:hover{background:var(--hover);}
 .lib-tab.active{background:var(--blue);border-color:transparent;color:#fff;}
+.audio-subtabs{display:flex;gap:5px;margin:-2px 0 8px;padding:4px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;}
+.audio-subtabs[hidden]{display:none;}
+.audio-subtab{flex:1;padding:5px 7px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted);font-size:11px;white-space:nowrap;}
+.audio-subtab:hover{background:var(--hover);}
+.audio-subtab.active{background:var(--purple);color:#fff;}
+.audio-kind-tag{display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;font-size:9.5px;line-height:15px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted);}
+.audio-kind-tag.k-music{color:#c4b5fd;border-color:rgba(139,92,246,.5);}
+.audio-kind-tag.k-sfx{color:#fcd34d;border-color:rgba(245,158,11,.5);}
 .import-row{display:flex;gap:6px;flex-wrap:wrap;}
 .import-row .mini-btn{flex:1 1 auto;}
 .drop-zone{border:1px dashed var(--border2);border-radius:8px;padding:10px 8px;text-align:center;font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:8px;transition:border-color .15s,background .15s;}
@@ -601,11 +609,16 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <button class="lib-tab active" data-tab="all">全部</button>
                     <button class="lib-tab" data-tab="video">视频</button>
                     <button class="lib-tab" data-tab="image">图片库</button>
-                    <button class="lib-tab" data-tab="audio">音乐库</button>
+                    <button class="lib-tab" data-tab="audio">音乐/音效库</button>
                     <button class="lib-tab" data-tab="text">文本</button>
+                </div>
+                <div class="audio-subtabs" id="audioSubTabs" hidden>
+                    <button class="audio-subtab active" data-sub="music">🎵 音乐库</button>
+                    <button class="audio-subtab" data-sub="sfx">🔊 音效库</button>
                 </div>
                 <div class="import-row">
                     <button class="mini-btn" id="importFiles" title="导入素材 (Ctrl+I)">＋ 导入素材</button>
+                    <button class="mini-btn cyan" id="musicLibBtn" title="配置 NAS 音乐音效素材包地址">🎵 音乐音效库</button>
                     <button class="mini-btn purple" id="importUrl">🔗 粘贴在线 URL</button>
                 </div>
                 <div class="drop-zone" id="dropZone">把本地 <b>文本 / 图片 / 视频 / 声音</b> 拖到这里<br>也可以直接拖入一个在线文件 URL · 双击空白处导入</div>
@@ -733,6 +746,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="lut-manager" id="lutManager">
                     <div class="fx-sec">LUT 文件库 · 时间轴独立 LUT 轨</div>
                     <div class="hint" style="margin:0 0 5px">加载 <code>.cube / .3dl / .lut</code> 后可存成多个预制反复调用；LUT 片段位于视频轨上方，实时影响下方所有视频画面，导出时也会烘焙进成片。</div>
+                    <div class="row"><button class="mini-btn cyan" id="lutLibBtn" style="flex:1" title="配置 NAS LUT 文件包地址">🎨 LUT库</button></div>
                     <div class="row"><input type="file" id="lutFile" accept=".cube,.3dl,.lut" style="flex:1;font-size:10.5px"><button class="mini-btn" id="lutLoad">加载</button></div>
                     <div class="row"><select id="lutPreset" style="flex:1"></select><button class="mini-btn gray" id="lutSavePreset">存为预制</button></div>
                     <div id="lutAdjustBox"></div>
@@ -837,7 +851,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </ul>
             <h2>② 素材库：拖进轨道就能剪</h2>
             <ul>
-                <li>点「＋ 导入素材」「＋ 上传本地文件」，或把文件拖进虚线框：支持<b>文本</b>（.txt / .md / .srt / .vtt）、<b>图片</b>（.png / .jpg / .webp）、<b>视频</b>（.mp4 / .webm / .mov）、<b>声音</b>（.mp3 / .wav / .m4a）。顶部 Tab 可切「全部 / 视频 / 图片库 / 音乐库 / 文本」。点「🔗 粘贴在线 URL」可一行一个粘贴在线文件地址。</li>
+                <li>点「＋ 导入素材」「＋ 上传本地文件」，或把文件拖进虚线框：支持<b>文本</b>（.txt / .md / .srt / .vtt）、<b>图片</b>（.png / .jpg / .webp）、<b>视频</b>（.mp4 / .webm / .mov）、<b>声音</b>（.mp3 / .wav / .m4a）。顶部 Tab 可切「全部 / 视频 / 图片库 / 音乐 / 音效库 / 文本」；切到「音乐/音效库」后可用下方子目录分别看「音乐库」「音效库」，每个声音素材卡上的 🎵/🔊 标签可一键切换归类。点「🔗 粘贴在线 URL」可一行一个粘贴在线文件地址。</li>
                 <li>每个素材的预览缩略图已<b>放大一倍</b>，卡片上不再放演示、＋、播放、删除按钮：按住素材<b>拖到下方对应类型的轨道</b>即可放到鼠标落点的时间位置；<b>双击</b>则自动放到该类轨道的播放头处。</li>
                 <li><b>单击</b>选中素材（蓝色高亮），按 <code>Delete</code> / <code>Backspace</code> 删除；文本与 SRT/VTT 会自动拆成一条条字幕落到字幕轨。本地大文件只存本机 IndexedDB，不上传服务器。</li>
             </ul>
@@ -1051,6 +1065,26 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <p class="hint"><b>网页分享链接不是视频文件</b>：直接塞给播放器只会黑屏无声，所以现在会先识别再由本机服务解析。解析失败会明确告诉你是「防盗链 / 未开跨域 / 需要直链 / 本机服务未启动」中的哪一种，不会再生成一个黑屏素材。<br>在线文本文件会尝试 fetch 读取；未开跨域请改用「上传本地文件」。媒体直链（.mp4 / .webm / .mp3 / .jpg 等）可直接播放。</p>
         </div>
         <div class="modal-foot"><button class="mini-btn gray" data-close="urlModal">取消</button><button class="mini-btn green" id="urlAdd">添加到素材库</button></div>
+    </div>
+</div>
+
+<!-- NAS 资源库地址配置（音乐音效库 / LUT库 共用）-->
+<div class="modal-overlay" id="nasLibModal">
+    <div class="modal-box" style="width:min(560px,100%)">
+        <div class="modal-head"><span id="nasLibTitle">🎵 音乐音效库</span><button class="mh-close" data-close="nasLibModal">×</button></div>
+        <div class="modal-body">
+            <p class="hint" id="nasLibDesc" style="margin-top:0"></p>
+            <p class="hint" id="nasLibNotice" style="color:#fbbf24" hidden></p>
+            <div class="row"><label style="flex:0 0 96px;font-size:11.5px">资源库根地址</label>
+                <input type="text" id="nasLibUrl" placeholder="http://192.168.1.10:5000/" style="flex:1" spellcheck="false"></div>
+            <p class="hint" id="nasLibStatus"></p>
+            <p class="hint" style="color:var(--muted)">此处只保存地址配置（存在本机浏览器，不写进工程存档）。等你把资源包部署到 NAS 并与剪辑台打通后，即可在这里浏览、检索并一键导入。</p>
+        </div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" id="nasLibClear">清空</button>
+            <button class="mini-btn gray" data-close="nasLibModal">关闭</button>
+            <button class="mini-btn green" id="nasLibSave">保存地址</button>
+        </div>
     </div>
 </div>
 
@@ -1274,6 +1308,9 @@ const LAYOUT_KEY        = "manflows_ai_editor_layout";
 const AI_CFG_KEY        = "manflows_ai_editor_ai_cfg";
 const ED_COMPUTE_KEY    = "computeMode_editor";
 const AI_MODEL_KEY      = "manflows_ai_editor_ai_model";
+/* NAS 资源库根地址：音乐音效库 / LUT库，全局配置（跨工作区共用，不进工程存档） */
+const NAS_MUSIC_KEY     = "manflows_nas_music_lib_url";
+const NAS_LUT_KEY       = "manflows_nas_lut_lib_url";
 const ED_COMPUTE_LABEL  = {manflow:"漫流算力", local:"本机算力", third_party:"第三方API"};
 const LABEL_W           = 118;
 const DEF_LAYOUT        = {left:308, right:300, tl:294};
@@ -1490,7 +1527,7 @@ function defaultTracks(){
 }
 
 let state = {
-    date: todayStr(), zoom:36, playhead:0, tab:"all",
+    date: todayStr(), zoom:36, playhead:0, tab:"all", audioSub:"music",
     assets:[], clips:[], tracks:defaultTracks(),
     selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1",
     compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic", zoomAuto:true,
@@ -2653,7 +2690,7 @@ function readAsDataURL(file){
 }
 async function addAsset(o){
     const a=Object.assign({id:uid(), name:"未命名", type:"video", url:"", urlKind:"remote", duration:0, size:0,
-        source:"local", text:"", ext:"", blobId:"", ts:Date.now()}, o);
+        source:"local", text:"", ext:"", blobId:"", ts:Date.now(), audioKind:"music"}, o);
     state.assets.push(a);
     if(a.blobId){ try{ await dbPut("assets",a.id,a.blob); }catch(e){ console.warn("素材入库失败",e); } }
     delete a.blob;
@@ -2755,10 +2792,18 @@ async function ensureAssetThumbs(arr){
 let thumbFillRunning=false;
 function renderAssets(){
     const list=$("assetList");
-    const arr=state.assets.filter(a=>state.tab==="all"||a.type===state.tab);
+    const subTabs=$("audioSubTabs");
+    if(subTabs) subTabs.hidden=state.tab!=="audio";
+    const arr=state.assets.filter(a=>{
+        if(state.tab!=="all" && a.type!==state.tab) return false;
+        /* 音乐/音效库下按子目录筛选；「全部」tab 不分子类 */
+        if(state.tab==="audio" && (a.type==="audio") && (a.audioKind||"music")!==state.audioSub) return false;
+        return true;
+    });
     if(!thumbFillRunning) { thumbFillRunning=true; ensureAssetThumbs(arr).finally(()=>{ thumbFillRunning=false; }); }
     $("assetCount").textContent=state.assets.length+" 个素材";
     updateSmartCutAvailability();
+    if(subTabs) subTabs.querySelectorAll(".audio-subtab").forEach(b=>b.classList.toggle("active",b.dataset.sub===state.audioSub));
     if(!arr.length){ list.innerHTML='<div class="empty-line">这个分类还没有素材<br>上传本地文件或粘贴在线 URL</div>'; return; }
     list.innerHTML=arr.map(a=>{
         const pm=probeMetaCache.get(a.url)||null;
@@ -2767,9 +2812,11 @@ function renderAssets(){
             +" · "+typeLabel(a.type)+(a.size?" · "+fmtSize(a.size):"")
             +((a.type==="video"||a.type==="audio")&&pm&&pm.hasAudio?" · 独立音轨 ✓":"")
             +(a.mkvNote?" · "+a.mkvNote:"");
+        const kind=a.type==="audio"?(a.audioKind==="sfx"?"sfx":"music"):null;
+        const kindTag=kind?'<span class="audio-kind-tag k-'+kind+'" data-audio-kind="'+esc(a.id)+'" title="点击切换为'+(kind==="music"?"音效":"音乐")+'">'+(kind==="music"?"🎵 音乐":"🔊 音效")+'</span>':"";
         return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+(assetPreviewId===a.id?" previewing":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="单击立即在预览窗口预览（不自动入轨）；拖到下方轨道开始剪辑；双击自动加入；Delete 删除">'
           +'<div class="asset-thumb">'+assetThumbHtml(a)+'</div>'
-          +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+'</div>'
+          +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+kindTag+'</div>'
           +'<div class="asset-sub">'+esc(meta)+'</div>'
           +'<div class="asset-drag-tip">拖到轨道 · 双击加入</div></div></div>';
     }).join("");
@@ -5230,7 +5277,7 @@ function setEmptyHint(){
 }
 async function loadEmptyProject(){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
-    state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all";
+    state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
     state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=todayStr();
     historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key=""; fxOverlayKey="";
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
@@ -5349,13 +5396,78 @@ function wire(){
     $("assetList").addEventListener("dblclick",openImportIfBlank);
     $("dropZone").addEventListener("dblclick",e=>{ e.preventDefault(); $("fileInput").click(); });
     $("importUrl").onclick=()=>{$("urlModal").classList.add("show"); $("urlText").focus();};
+
+    /* NAS 资源库地址配置：音乐音效库 / LUT库 共用同一套逻辑（为将来 NAS 打通预留，当前仅保存地址） */
+    const NAS_LIBS={
+        music:{key:NAS_MUSIC_KEY,title:"🎵 音乐音效库",
+            desc:'填写 NAS 上「<b>音乐音效素材包</b>」的根地址，例如 <code>http://192.168.1.10:5000/music</code>。保存后等资源包部署完成并与剪辑台打通，即可在这里浏览、检索并一键导入音乐 / 音效。',
+            notice:"本音乐音效库仅供学习参考，商用版权请自行购买，本站不承担任何法律责任。",
+            ph:"http://192.168.1.10:5000/music"},
+        lut:{key:NAS_LUT_KEY,title:"🎨 LUT库",
+            desc:'填写 NAS 上「<b>LUT 文件包</b>」的根地址，例如 <code>http://192.168.1.10:5000/lut</code>。保存后等 <code>.cube / .3dl / .lut</code> 文件包部署完成并与剪辑台打通，即可在这里浏览并一键加载预设调色。',
+            notice:"",
+            ph:"http://192.168.1.10:5000/lut"}
+    };
+    let nasLibKind="music";
+    const nasLibRead=k=>{ try{ return String(localStorage.getItem(NAS_LIBS[k].key)||"").trim(); }catch(e){ return ""; } };
+    const nasLibWrite=(k,v)=>{ try{ if(v) localStorage.setItem(NAS_LIBS[k].key,v); else localStorage.removeItem(NAS_LIBS[k].key); return true; }catch(e){ return false; } };
+    const nasLibStatus=()=>{
+        const url=nasLibRead(nasLibKind), box=$("nasLibStatus");
+        if(url){
+            box.innerHTML='<span style="color:var(--green)">✓ 已保存：</span><code>'+esc(url)+'</code><br><span style="color:var(--muted)">状态：地址已就绪，等待 NAS 资源包部署 / 打通。</span>';
+        }else{
+            box.innerHTML='<span style="color:var(--muted)">尚未配置地址。</span>';
+        }
+    };
+    const openNasLib=k=>{
+        nasLibKind=k;
+        const m=NAS_LIBS[k];
+        $("nasLibTitle").textContent=m.title;
+        $("nasLibDesc").innerHTML=m.desc;
+        const nt=$("nasLibNotice"); nt.textContent=m.notice||""; nt.hidden=!m.notice;
+        $("nasLibUrl").placeholder=m.ph;
+        $("nasLibUrl").value=nasLibRead(k);
+        nasLibStatus();
+        $("nasLibModal").classList.add("show");
+        $("nasLibUrl").focus();
+    };
+    $("musicLibBtn").onclick=()=>openNasLib("music");
+    $("lutLibBtn").onclick=()=>openNasLib("lut");
+    $("nasLibSave").onclick=()=>{
+        const v=$("nasLibUrl").value.trim();
+        if(!v){ toast("请先填写资源库根地址","err"); return; }
+        nasLibWrite(nasLibKind,v);
+        nasLibStatus();
+        toast("已保存"+NAS_LIBS[nasLibKind].title+"地址（等待 NAS 打通）","ok");
+    };
+    $("nasLibClear").onclick=()=>{
+        nasLibWrite(nasLibKind,"");
+        $("nasLibUrl").value="";
+        nasLibStatus();
+        toast("已清空"+NAS_LIBS[nasLibKind].title+"地址","ok");
+    };
     $("libTabs").addEventListener("click",e=>{
         const b=e.target.closest(".lib-tab"); if(!b)return;
         state.tab=b.dataset.tab;
         document.querySelectorAll(".lib-tab").forEach(x=>x.classList.toggle("active",x===b));
         renderAssets();
     });
+    /* 音乐/音效库的子目录切换 */
+    if($("audioSubTabs")) $("audioSubTabs").addEventListener("click",e=>{
+        const b=e.target.closest(".audio-subtab"); if(!b)return;
+        state.audioSub=b.dataset.sub;
+        renderAssets();
+    });
+    /* 音乐/音效标记一键切换：阻止冒泡，避免触发整卡预览 */
     $("assetList").addEventListener("click",e=>{
+        const tag=e.target.closest("[data-audio-kind]");
+        if(tag){
+            e.stopPropagation();
+            const a=assetById(tag.dataset.audioKind);
+            if(a){ a.audioKind=a.audioKind==="sfx"?"music":"sfx"; autoSave(); renderAssets();
+                toast("已标记为"+(a.audioKind==="sfx"?"音效":"音乐"),"ok"); }
+            return;
+        }
         const it=e.target.closest(".asset-item"); if(!it)return;
         state.selectedAsset=it.dataset.id; state.selected=null; state.multi=[];
         document.querySelectorAll(".asset-item").forEach(x=>x.classList.toggle("sel",x.dataset.id===state.selectedAsset));

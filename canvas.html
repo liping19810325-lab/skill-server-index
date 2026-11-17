@@ -432,6 +432,7 @@
             <span class="kv" id="cvAssetState">读取中…</span>
             <button class="mini-btn gray" id="cvAssetClose" type="button">关闭</button>
         </div>
+        <div class="hint" style="color:#fbbf24;margin:0;padding:8px 16px;border-bottom:1px solid var(--border2);line-height:1.6">本资产库素材仅供学习参考，商用版权请自行购买，本站不承担任何法律责任。</div>
         <div class="cv-asset-main">
             <div class="cv-asset-cats" id="cvAssetCats"></div>
             <div class="cv-asset-grid" id="cvAssetGrid"></div>
@@ -1500,7 +1501,7 @@ function cvCommitAssetSelection(){
 function cvAddAssetEntry(body,n,mode){
     const row=document.createElement("div"); row.className="act-row";
     const b=document.createElement("button"); b.type="button";
-    b.textContent=mode==="image"?"＋ 资产库（NAS 图片）":"＋ 资产库（NAS 音色）";
+    b.textContent=mode==="image"?"＋ 资产库（图片）":"＋ 资产库（NAS 音色）";
     b.title="从绿联 NAS 的 images/thumbs 或 voices 里多选素材";
     b.addEventListener("click",e=>{ e.stopPropagation(); openAssetLibrary(n.id,mode); });
     row.appendChild(b); body.appendChild(row);
