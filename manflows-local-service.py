@@ -989,7 +989,7 @@ def _run_video(ff, td, in_path, data, stem, avail):
     out_path = os.path.join(td, "output." + ext)
     cmd = [ff, "-y", "-hide_banner", "-loglevel", "error", "-i", in_path]
     if vcodec == "prores":
-        cmd += ["-c:v", "prores_ks", "-profile:v", "2"]
+        cmd += ["-c:v", "prores_ks", "-profile:v", "3"]  # HQ 10-bit，与烧录路径一致
     else:
         cmd += ["-c:v", venc]
     w = _even(data.get("width"), None)
@@ -998,7 +998,24 @@ def _run_video(ff, td, in_path, data, stem, avail):
         cmd += ["-vf", "scale=%d:%d:flags=lanczos" % (w, h)]
     if data.get("fps") is not None:
         cmd += ["-r", _fps(data.get("fps"))]
-    cmd += ["-b:v", _bitrate(data.get("bitrate"))]
+    # 画质档位：软件编码器用 CRF 控制视觉质量（与烧录路径同一套语义），
+    # 硬件编码器靠码率，因此仍给出 -b:v；prores 用 profile 控制质量。
+    quality = str(data.get("quality") or "high").lower()
+    hw_enc = "videotoolbox" in venc or "nvenc" in venc
+    crf_map = {"lossless": "14", "high": "17", "medium": "21", "low": "25"}
+    crf = crf_map.get(quality, "17")
+    if vcodec == "prores":
+        notes.append("画质：Apple ProRes HQ（profile 3）")
+    elif hw_enc:
+        cmd += ["-b:v", _bitrate(data.get("bitrate") or "16M")]
+        notes.append("画质：%s（硬件编码按码率 %s）" % (quality, _bitrate(data.get("bitrate") or "16M")))
+    else:
+        cmd += ["-preset", "medium", "-crf", crf]
+        br = str(data.get("bitrate") or "").strip()
+        if br and br not in ("recommend", "high", "low"):
+            cmd += ["-maxrate", _bitrate(br), "-bufsize", _bitrate(br)]
+        notes.append("画质：%s（CRF %s）" % (
+            {"lossless":"近无损", "high":"高画质", "medium":"标准", "low":"较小体积"}.get(quality, "高画质"), crf))
 
     acodec = str(data.get("acodec") or "").lower()
     ac_map = {"aac": "aac", "mp3": "libmp3lame", "wav": "pcm_s16le"}
@@ -1015,7 +1032,9 @@ def _run_video(ff, td, in_path, data, stem, avail):
     if container == "mov":
         cmd += ["-f", "mov"]
     elif container == "mp4":
-        cmd += ["-movflags", "+faststart"]
+        # 网络播放优化：尊重用户选择，不再无条件写入 +faststart
+        if str(data.get("faststart", True)).lower() not in ("false", "0", "no"):
+            cmd += ["-movflags", "+faststart"]
     cmd += [out_path]
 
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -2215,7 +2234,9 @@ def api_burn_subtitles(body):
         if container == "mov":
             cmd += ["-f", "mov"]
         elif container == "mp4" and vcodec != "prores":
-            cmd += ["-movflags", "+faststart"]
+            # 网络播放优化：尊重用户在导出面板的选择
+            if str(data.get("faststart", True)).lower() not in ("false", "0", "no"):
+                cmd += ["-movflags", "+faststart"]
         ext = "mov" if vcodec == "prores" else container
         out_path = os.path.join(td, "burned." + ext)
         cmd += [out_path]

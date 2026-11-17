@@ -1635,7 +1635,22 @@ function clipStripSig(c){
 }
 let ctxClipId="", ctxTrackId="";
 let assetPreviewId=null, assetAudioEl=null, svcOnline=false, svcInfo=null;
-let exportBusy=false, exportDirHandle=null, exportCoverData="";
+let exportBusy=false, exportDirHandle=null, exportCoverData="", exportDirWarned=false;
+/* 导出目录句柄是结构化对象，无法存 localStorage，只能存 IndexedDB。
+   用独立全局库（不随工作区/日期切换），保证「一次选择、长期首选」。 */
+const EXPORT_PREF_DB="manflows_export_prefs", EXPORT_PREF_STORE="kv";
+async function expPrefPut(key,val){
+    const db=await openDB(EXPORT_PREF_DB,EXPORT_PREF_STORE);
+    return new Promise((res,rej)=>{ try{ const tx=db.transaction(EXPORT_PREF_STORE,"readwrite");
+        tx.objectStore(EXPORT_PREF_STORE).put(val,key);
+        tx.oncomplete=()=>{db.close();res(true);}; tx.onerror=()=>{db.close();rej(tx.error);}; }catch(e){ db.close(); rej(e); } });
+}
+async function expPrefGet(key){
+    const db=await openDB(EXPORT_PREF_DB,EXPORT_PREF_STORE);
+    return new Promise((res)=>{ try{ const tx=db.transaction(EXPORT_PREF_STORE,"readonly");
+        const r=tx.objectStore(EXPORT_PREF_STORE).get(key);
+        r.onsuccess=()=>{db.close();res(r.result);}; r.onerror=()=>{db.close();res(null);}; }catch(e){ db.close(); res(null); } });
+}
 let exportStopAt=null;   /* 导出录制时播放头停止的绝对时间（入点区间终点），null=用 contentEnd */
 let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
 const AI_STEPS=["模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
@@ -7482,10 +7497,25 @@ async function prepareRenderOverrides(onProgress){
 async function saveBlob(blob,name){
     if(exportDirHandle){
         try{
-            const fh=await exportDirHandle.getFileHandle(name,{create:true});
-            const w=await fh.createWritable(); await w.write(blob); await w.close();
-            return "所选文件夹";
-        }catch(e){ /* 目录权限失效时降级为普通下载 */ }
+            /* 权限可能在页面驻留期间被浏览器回收，写前先确认 readwrite 授权 */
+            let perm=await exportDirHandle.queryPermission({mode:"readwrite"});
+            if(perm!=="granted"){
+                try{ perm=await exportDirHandle.requestPermission({mode:"readwrite"}); }catch(e){}
+            }
+            if(perm==="granted"){
+                const fh=await exportDirHandle.getFileHandle(name,{create:true});
+                const w=await fh.createWritable(); await w.write(blob); await w.close();
+                return "所选文件夹";
+            }
+        }catch(e){
+            /* 写入真正失败（句柄失效/磁盘错误等）→ 落到下面降级，但必须有明确提示 */
+        }
+        /* 关键：不能再静默降级——用户以为存到了文件夹，实际却进了下载目录。
+           只在整次导出里提示一次，避免多文件时反复弹。 */
+        if(!exportDirWarned){
+            exportDirWarned=true;
+            toast("导出文件夹授权已失效，本次文件改存到浏览器下载目录；请重新点「选择」授权文件夹","err");
+        }
     }
     download(name,blob);
     return "浏览器下载目录";
@@ -8027,6 +8057,7 @@ async function serviceBurnSubtitles(blob,srt,filename){
         body:JSON.stringify({filename:String(filename||exportTitle()),srt:burnSrt,ass:ass,subStyle:subStyle,
             vcodec:codec==="h264"?"h264":codec, container:burnContainer,
             bitrate:bitrateMap[bitrateSel]||"12M", quality:$("expQuality")?$("expQuality").value:"high",
+            faststart:$("expFaststart")?$("expFaststart").checked:true,
             dataBase64:await blobToBase64(blob)})});
     const j=await r.json();
     if(!j||!j.ok) throw new Error(j?(j.reason||"字幕烧录失败"):"本机服务返回异常");
@@ -8054,6 +8085,7 @@ async function exportVideoFile(recorded,onProgress){
         const size=exportSize();
         const j=await serviceExport({filename:finalName,container:fmt,vcodec:codec,
             width:size.w,height:size.h,fps:Number($("expFps").value)||30,bitrate:bitrateStr,
+            quality:$("expQuality")?$("expQuality").value:"high",
             acodec:"aac",faststart:$("expFaststart").checked,dataBase64:await blobToBase64(blob)});
         finalBlob=base64ToBlob(j.dataBase64,fmt==="mov"?"video/quicktime":"video/mp4");
         finalName=j.filename||finalName;
@@ -8154,7 +8186,10 @@ function captureCover(silent){
 }
 async function openExport(){
     if(exportBusy) return;
+    loadExportPrefs();                       /* 恢复用户上次记忆的导出参数作为首选 */
     if(!$("exportTitle").value) $("exportTitle").value=todayStr();
+    $("exportTitleHead").textContent=$("exportTitle").value;
+    updateExportEstimate();
     const _rg=exportRange();
     $("exportTitleHead").textContent=$("exportTitle").value+(_rg.active?("  ·  入出点 "+fmt(_rg.start)+" → "+fmt(_rg.end)):"");
     $("exportSteps").textContent="";
@@ -8178,7 +8213,7 @@ async function startExport(){
     if($("expChkGif").checked) jobs.push("gif");
     if($("expChkVideo").checked) jobs.push("video");
     if(!jobs.length){ toast("请至少勾选一个导出项","err"); return; }
-    exportBusy=true; $("exportDo").disabled=true;
+    exportBusy=true; exportDirWarned=false; $("exportDo").disabled=true;
     const fill=$("exportProgFill"), steps=$("exportSteps"), prog=$("exportProg");
     prog.classList.add("show");
     let renderedCount=0;
@@ -8216,36 +8251,86 @@ async function startExport(){
             else if(j==="video") await exportVideoFile(()=>getRecorded(!!($("expBurnSub")&&$("expBurnSub").checked)&&ffmpegReady()),()=>{});
         }
         fill.style.width="100%";
-        steps.textContent="✅ 全部导出完成，文件已保存到"+(exportDirHandle?"所选文件夹":"浏览器下载目录");
-        toast("导出完成","ok");
+        const dest=(exportDirHandle&&!exportDirWarned)?"所选文件夹":"浏览器下载目录";
+        steps.textContent="✅ 全部导出完成，文件已保存到"+dest;
+        toast("导出完成（"+dest+"）","ok");
     }catch(e){
         steps.textContent="❌ 导出中断："+esc(e.message||String(e));
         toast("导出失败："+(e.message||e),"err");
     }finally{ cleanupRenderOverrides(); syncMedia(); exportBusy=false; $("exportDo").disabled=false; }
 }
+/* ---------- 导出参数记忆：用户选定后自动成为下次首选，存每个浏览器的 localStorage ----------
+   目录句柄是结构化对象，存在上面的 IndexedDB；这里只存标量控件值。 */
+const EXPORT_PREFS_KEY="manflows_ai_editor_export_prefs";
+/* [控件id, 取值属性] —— 涵盖成片/音频/GIF/字幕各栏的所有可选参数 + 各栏勾选 + 标题 */
+const EXPORT_PREF_FIELDS=[
+    "exportTitle","expChkVideo","expChkAudio","expChkGif","expChkSub",
+    "expRes","expBurnSub","expFormat","expFps","expQuality","expBitrate","expCodec","expFaststart",
+    "expAudioFmt","expGifRes","expSubFmt"
+];
+function exportPrefVal(id){
+    const el=$(id); if(!el) return undefined;
+    return el.type==="checkbox"?!!el.checked:el.value;
+}
+function saveExportPrefs(){
+    const prefs={};
+    EXPORT_PREF_FIELDS.forEach(id=>{ const v=exportPrefVal(id); if(v!==undefined) prefs[id]=v; });
+    /* 各分区折叠状态也一起记住 */
+    const folds={}; document.querySelectorAll(".export-sec").forEach(sec=>{ if(sec.id) folds[sec.id]=!!sec.querySelector(".export-sec-fields")&&sec.querySelector(".export-sec-fields").style.display!=="none"; });
+    prefs._folds=folds;
+    try{ localStorage.setItem(EXPORT_PREFS_KEY,JSON.stringify(prefs)); }catch(e){}
+}
+function loadExportPrefs(){
+    let prefs=null; try{ prefs=JSON.parse(localStorage.getItem(EXPORT_PREFS_KEY)||"null"); }catch(e){}
+    if(!prefs||typeof prefs!=="object") return;
+    EXPORT_PREF_FIELDS.forEach(id=>{
+        const el=$(id); if(!el||prefs[id]===undefined) return;
+        if(el.type==="checkbox") el.checked=!!prefs[id]; else el.value=String(prefs[id]);
+    });
+    if(prefs._folds&&typeof prefs._folds==="object"){
+        Object.keys(prefs._folds).forEach(secId=>{
+            const sec=$(secId); if(!sec) return;
+            const f=sec.querySelector(".export-sec-fields"), c=sec.querySelector(".caret");
+            if(f) f.style.display=prefs._folds[secId]?"":"none";
+            if(c) c.textContent=prefs._folds[secId]?"▲":"▼";
+        });
+    }
+}
 function wireExport(){
     $("exportDo").onclick=startExport;
-    $("exportTitle").oninput=e=>{ $("exportTitleHead").textContent=e.target.value||todayStr(); };
+    $("exportTitle").oninput=e=>{ $("exportTitleHead").textContent=e.target.value||todayStr(); saveExportPrefs(); };
     $("pickExportDir").onclick=async()=>{
         if(!window.showDirectoryPicker){ toast("当前浏览器不支持选择文件夹，将使用浏览器下载目录","err"); return; }
-        try{ exportDirHandle=await window.showDirectoryPicker(); $("exportDest").value="已选择文件夹："+exportDirHandle.name; }
+        try{
+            /* 关键：必须显式请求 readwrite，否则默认只读，getFileHandle/createWritable 会失败，
+               旧代码把异常静默吞掉后降级下载——这正是「设了位置却仍进下载目录」的根因。 */
+            exportDirHandle=await window.showDirectoryPicker({mode:"readwrite"});
+            exportDirWarned=false;
+            $("exportDest").value="已选择文件夹："+exportDirHandle.name;
+            try{ await expPrefPut("dirHandle",exportDirHandle); }catch(e){}
+            saveExportPrefs();
+            toast("已记住导出文件夹："+exportDirHandle.name,"ok");
+        }
         catch(e){ if(!e||e.name!=="AbortError") toast("选择文件夹失败："+(e.message||e),"err"); }
     };
     [["expChkVideo","secVideo"],["expChkAudio","secAudio"],["expChkGif","secGif"],["expChkSub","secSub"]].forEach(pair=>{
         const cb=$(pair[0]), box=$(pair[1]);
         const sync=()=>box.classList.toggle("off",!cb.checked);
-        cb.addEventListener("change",()=>{ sync(); updateExportEstimate(); });
+        cb.addEventListener("change",()=>{ sync(); updateExportEstimate(); saveExportPrefs(); });
         sync();
     });
-    ["expRes","expFormat","expCodec","expBitrate","expQuality","expFps","expAudioFmt","expGifRes","expSubFmt"].forEach(id=>{
-        const el=$(id); if(el) el.addEventListener("change",updateExportEstimate);
+    ["expRes","expFormat","expCodec","expBitrate","expQuality","expFps","expBurnSub","expFaststart","expAudioFmt","expGifRes","expSubFmt"].forEach(id=>{
+        const el=$(id); if(el) el.addEventListener("change",()=>{ updateExportEstimate(); saveExportPrefs(); });
     });
     document.querySelectorAll(".export-sec-head").forEach(h=>h.addEventListener("click",e=>{
         if(e.target.tagName==="INPUT") return;
         const f=h.parentElement.querySelector(".export-sec-fields"); if(!f) return;
         const hide=f.style.display!=="none"; f.style.display=hide?"none":"";
         const c=h.querySelector(".caret"); if(c) c.textContent=hide?"▼":"▲";
+        saveExportPrefs();
     }));
+    /* 展开/折叠勾选框本身也触发 change（上面已绑），这里补一层确保 sw 开关状态入库 */
+    ["expBurnSub","expFaststart"].forEach(id=>{ const el=$(id); if(el) el.addEventListener("change",saveExportPrefs); });
 }
 
 /* ---------- 启动 ---------- */
@@ -8254,6 +8339,12 @@ async function init(){
     applyLayout(loadLayout());
     wireSplitters();
     wire(); setupChannels(); loadAiCfg(); wsBoot(); wireExport();
+    /* 恢复上次选择的导出目录句柄（权限写入时再确认），只更新 UI 显示 */
+    expPrefGet("dirHandle").then(h=>{
+        if(!h) return;
+        exportDirHandle=h; exportDirWarned=false;
+        const dest=$("exportDest"); if(dest) dest.value="已记住文件夹："+(h.name||"上次目录")+"（导出时确认授权）";
+    }).catch(()=>{});
     pingService(1800);                       /* 后台探测本机服务，不阻塞页面启动 */
     state.aspect=String(safeStorage.get("manflows_ai_editor_aspect")||"auto").trim();
     applyCompute(loadCompute(),true);
