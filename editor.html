@@ -2719,11 +2719,13 @@ function clipById(id){ return state.clips.find(c=>c.id===id)||null; }
 /* 时间轴磁吸：拖动 / 裁剪片段时吸附到其他片段边缘、播放头与 0 点。
    snapHit 记录最近一次调用是否真的吸附上，供裁剪浮层显示「已吸附」反馈。 */
 let snapHit=false;
-function snapPos(v, excludeId, zoom){
+function snapPos(v, excludeIds, zoom){
     snapHit=false;
     if(!state.snap) return v;
     const th=9/Math.max(1,zoom), pts=[0,state.playhead];
-    state.clips.forEach(o=>{ if(o.id!==excludeId){ pts.push(o.start); pts.push(o.start+o.duration); } });
+    /* excludeIds 可为单个 id 或 id 数组：整组拖动时排除整组自身，避免吸到组内的片段 */
+    const exArr=Array.isArray(excludeIds)?excludeIds:(excludeIds?[excludeIds]:[]);
+    state.clips.forEach(o=>{ if(exArr.indexOf(o.id)<0){ pts.push(o.start); pts.push(o.start+o.duration); } });
     let best=v, bd=th;
     for(const p of pts){ const d=Math.abs(v-p); if(d<bd){ bd=d; best=p; } }
     if(best!==v) snapHit=true;
@@ -3656,6 +3658,19 @@ function pause(){
     renderPlayhead();
 }
 function seek(t){ if(assetPreviewId) exitAssetPreview(true); state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
+/* 播放头磁吸：拖动红线 / 标尺时，5 帧以内优先贴附到任一素材的开头或结尾。
+   受全局磁吸开关控制（关闭磁吸后红线自由移动）；只用于拖动，不影响逐帧步进精度。 */
+function snapPlayhead(t){
+    if(!state.snap) return t;
+    const tol=5/PLAYER_FPS;                 // 5 帧容差
+    let best=t, bd=tol;
+    state.clips.forEach(o=>{
+        const s=o.start, e=o.start+o.duration;
+        let d=Math.abs(t-s); if(d<bd){ bd=d; best=s; }
+        d=Math.abs(t-e); if(d<bd){ bd=d; best=e; }
+    });
+    return best;
+}
 /* 逐帧步进：先按帧号取整再 ±帧，保证播放头永远落在整数帧边界（30fps），
    预览画面与红线/时间码严格对齐，分割点才不会差几帧。 */
 function stepFrames(n){
@@ -3931,6 +3946,19 @@ function rippleMainTrack(){
         if(Math.abs(c.start-cursor)>0.0005) c.start=+cursor.toFixed(4);
         cursor=c.start+c.duration;
     });
+}
+/* 落点让位后移（波纹插入）：把落点 dropAt 及其之后、不在 excludeIds 里的所有片段
+   （跨全部轨道）整体后移 span 秒，为拖入的片段 / 片段组腾出连续空位。
+   返回被后移的片段数。原位置留空由调用方决定，不在这里合拢。 */
+function rippleInsertAt(dropAt, span, excludeIds){
+    if(!(span>0)) return 0;
+    const ex=excludeIds||[];
+    let n=0;
+    state.clips.forEach(o=>{
+        if(ex.indexOf(o.id)>=0) return;
+        if(o.start>=dropAt-0.0005){ o.start=+(o.start+span).toFixed(4); n++; }
+    });
+    return n;
 }
 /* 主轨磁吸开启时：任何编辑（裁剪 / 删除 / 剪断 / 粘贴 / 拖动）造成中间空档后，
    后面的片段自动前移紧跟。仅主轨生效，其它轨道仍可自由分布。 */
@@ -6288,7 +6316,7 @@ function wire(){
         if(e.target.closest(".clip")) return;
         if(lane||scale){
             const rect=(lane||scale).getBoundingClientRect();
-            seek(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration()));
+            seek(snapPlayhead(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration())));
             if(lane){ state.selected=null; state.multi=[]; state.selectedAsset=null; renderProps(); renderAssets(); renderTimeline(); }
         }
     });
@@ -6302,7 +6330,7 @@ function wire(){
         const base=scale||$("rulerScale");
         const moveTo=x=>{
             const rect=base.getBoundingClientRect();
-            seek(clamp((x-rect.left)/state.zoom,0,totalDuration()));
+            seek(snapPlayhead(clamp((x-rect.left)/state.zoom,0,totalDuration())));
         };
         let lastX=e.clientX;
         moveTo(lastX);
@@ -6344,15 +6372,31 @@ function wire(){
             state.selected=c.id; renderProps(); renderSubList(); renderTimeline();
             e.preventDefault(); return;
         }
-        state.selected=c.id; state.multi=[]; state.selectedAsset=null;
-        renderProps(); renderSubList(); renderAssets(); renderTimeline();
         const resize=!!e.target.closest("[data-handle]"), resizeL=!!e.target.closest("[data-handle-l]");
+        /* 整组拖动：点中的片段已在框选集合中、且不是裁剪手柄 → 保留整组框选，所有框选片段一起平移；
+           否则普通点击 / 裁剪手柄清空框选，只处理单个片段。 */
+        const inMarquee=state.multi.length>1 && state.multi.indexOf(c.id)>=0;
+        const groupDrag=inMarquee && !resize && !resizeL;
+        state.selected=c.id;
+        if(!groupDrag) state.multi=[];
+        state.selectedAsset=null;
+        renderProps(); renderSubList(); renderAssets(); renderTimeline();
         /* 裁剪时把播放头精确停在片段起点；普通点击仍用 +0.1s 偏移避免预览首帧黑。
            否则磁吸会把这个偏移当成吸附点，导致裁不到精确片头。 */
         if(!(state.playhead>=c.start && state.playhead<c.start+c.duration))
             seek(Math.max(0,c.start+(resize||resizeL?0:Math.min(0.1,c.duration/2))));
         const fresh=document.querySelector('.clip[data-id="'+c.id+'"]'); if(!fresh)return;
         const x0=e.clientX, start0=c.start, dur0=c.duration, zoom=state.zoom, offset0=Number(c.offset)||0;
+        /* 整组初始位置：id -> start/duration，并算整组包围（最早起点 / 最晚终点），
+           供整体平移时保持组内相对间隔，及落点让位时计算需后移的跨度。 */
+        const dragIds=groupDrag?state.multi.slice():[c.id];
+        const startMap={}, durMap={};
+        state.clips.forEach(o=>{ if(dragIds.indexOf(o.id)>=0){ startMap[o.id]=o.start; durMap[o.id]=o.duration; } });
+        const groupStart=Math.min.apply(null,dragIds.map(id=>startMap[id]));
+        const groupEnd=Math.max.apply(null,dragIds.map(id=>startMap[id]+durMap[id]));
+        const groupSpan=groupEnd-groupStart;
+        const dragEls=dragIds.map(id=>document.querySelector('.clip[data-id="'+id+'"]')).filter(Boolean);
+        dragEls.forEach(el=>el.classList.add("dragging"));
         /* 源时间边界：时间轴 1 秒 = 源 sp 秒；cutRanges 也占源长度。
            裁剪只能在这个源窗口内移动，不能把源起点拉成负数或越过源素材末尾。 */
         const sp=clipSpeed(c), asset=c.assetId?assetById(c.assetId):null;
@@ -6360,7 +6404,6 @@ function wire(){
         const cutSrc=mergedCutRanges(c).reduce((a,r)=>a+(r.end-r.start),0);
         const maxDur=Math.max(0.2,(srcDur-offset0-cutSrc)/sp);      // 右裁剪：时长上限
         const minLeftD=-Math.min(start0,offset0/sp);                 // 左裁剪：偏移下限（不越时间轴 0 / 源起点）
-        fresh.classList.add("dragging");
         let hint=null, dropTrackId="";
         /* 跨轨拖移：鼠标上下移动到其它轨道时，记录落点轨道并在 mouseup 时换轨 / 新建同类轨 */
         const laneAtY=y=>{
@@ -6404,27 +6447,49 @@ function wire(){
                 c.offset=+(offset0+d*sp).toFixed(4);
             }else{
                 let ns=Math.max(0,start0+dx);
-                const s1=snapPos(ns,c.id,zoom), e1=snapPos(ns+c.duration,c.id,zoom);
+                /* 整组拖动：磁吸 / 主轨吸附都以整组包围盒为参照，并排除组内片段自身 */
+                const exIds=groupDrag?dragIds:c.id;
+                const s1=snapPos(ns,exIds,zoom), e1=snapPos(ns+c.duration,exIds,zoom);
                 ns=(Math.abs(s1-ns)<=Math.abs(e1-(ns+c.duration)))?s1:(e1-c.duration);
-                /* 主视频轨：剪映式「无间隙」吸附，贴住相邻片段的首尾 */
-                if(isMainTrack(c.track)){
-                    const th=Math.max(0.4,20/Math.max(1,zoom));
-                    const others=state.clips.filter(x=>x.id!==c.id&&x.track===c.track);
-                    let bs=ns, bd=th;
-                    others.forEach(o=>{
-                        [o.start,o.start+o.duration].forEach(p=>{
-                            let d=Math.abs(ns-p); if(d<bd){ bd=d; bs=p; }
-                            d=Math.abs(ns+c.duration-p); if(d<bd){ bd=d; bs=p-c.duration; }
-                        });
+                if(groupDrag){
+                    /* 整组平移：算出被拖片段相对起点的位移 delta，整组按相同 delta 移动，
+                       保持组内各片段的相对间隔；整组最左端不能越过 0。 */
+                    let delta=ns-start0;
+                    const minDelta=-groupStart;                    // 整组最左片段不越过 0
+                    delta=Math.max(delta,minDelta);
+                    dragIds.forEach(id=>{
+                        const o=clipById(id); if(!o) return;
+                        o.start=+Math.max(0,startMap[id]+delta).toFixed(4);
                     });
-                    ns=Math.max(0,bs);
+                }else{
+                    /* 单片段主视频轨：剪映式「无间隙」吸附，贴住相邻片段的首尾 */
+                    if(isMainTrack(c.track)){
+                        const th=Math.max(0.4,20/Math.max(1,zoom));
+                        const others=state.clips.filter(x=>x.id!==c.id&&x.track===c.track);
+                        let bs=ns, bd=th;
+                        others.forEach(o=>{
+                            [o.start,o.start+o.duration].forEach(p=>{
+                                let d=Math.abs(ns-p); if(d<bd){ bd=d; bs=p; }
+                                d=Math.abs(ns+c.duration-p); if(d<bd){ bd=d; bs=p-c.duration; }
+                            });
+                        });
+                        ns=Math.max(0,bs);
+                    }
+                    c.start=Math.max(0,ns);
+                    /* 上下拖过其它轨道：高亮落点；同类轨直接换，异类轨提示将新建同类轨 */
+                    markDropTarget(laneAtY(ev.clientY));
                 }
-                c.start=Math.max(0,ns);
-                /* 上下拖过其它轨道：高亮落点；同类轨直接换，异类轨提示将新建同类轨 */
-                markDropTarget(laneAtY(ev.clientY));
             }
-            fresh.style.left=Math.round(c.start*zoom)+"px";
-            fresh.style.width=Math.max(14,Math.round(c.duration*zoom))+"px";
+            /* 视觉同步：整组拖动时把所有框选片段一起平移，单片段仅更新自己 */
+            if(groupDrag){
+                dragIds.forEach(id=>{
+                    const o=clipById(id), el=document.querySelector('.clip[data-id="'+id+'"]');
+                    if(o&&el){ el.style.left=Math.round(o.start*zoom)+"px"; }
+                });
+            }else{
+                fresh.style.left=Math.round(c.start*zoom)+"px";
+                fresh.style.width=Math.max(14,Math.round(c.duration*zoom))+"px";
+            }
             /* 与视频轨上部连续缩略图一致：裁剪拖动中实时按新源区间重绘波形，
                立刻抹掉被裁掉的部分。否则 canvas 只被 CSS 压缩、内部像素还是旧的，
                看起来像「波形没跟着裁剪走」，松手才跳变。音频轨与视频复合轨共用。 */
@@ -6435,23 +6500,41 @@ function wire(){
             showHint();
         };
         const up=()=>{
+            dragEls.forEach(el=>el.classList.remove("dragging"));
             fresh.classList.remove("dragging");
             if(hint){ hint.remove(); hint=null; }
             document.querySelectorAll("#tracks .lane.drop-target").forEach(x=>x.classList.remove("drop-target"));
-            if(dropTrackId && dropTrackId!==c.track){
-                const srcKind=trackKind(c.track), tgt=trackById(dropTrackId);
-                if(tgt && tgt.kind===srcKind){
-                    c.track=tgt.id;
-                    toast("片段已移到「"+tgt.label+"」","ok");
-                }else{
-                    /* 落点是其它类型轨道：新建一条同类轨（编号自动 +1）并把片段放进去 */
-                    const nt=newTrack(srcKind);
-                    c.track=nt.id;
-                    toast("已在同类轨组末尾新建「"+nt.label+"」并移入片段","ok");
+            /* 落位：单个 / 整组拖到新时间点后，落点及其之后的其它轨道素材整体让位后移，
+               腾出的空位正好容纳被拖片段（组）；原位置保留空档，不合拢。
+               仅水平移动且确有位移时触发，裁剪手柄、跨轨换轨、原地点击都不触发。 */
+            let didInsert=false;
+            if(!resize && !resizeL && !dropTrackId){
+                const newLeft=groupDrag
+                    ? Math.min.apply(null,dragIds.map(id=>{const o=clipById(id);return o?o.start:Infinity;}))
+                    : c.start;
+                if(Math.abs(newLeft-groupStart)>0.06){
+                    const span=groupDrag?groupSpan:dur0;
+                    const shifted=rippleInsertAt(newLeft,span,dragIds);
+                    didInsert=shifted>0;
+                    if(didInsert) toast((groupDrag?"整组落位":"片段落位")+"，"+shifted+" 个素材已让位后移","ok");
                 }
-                closeMainGaps();
-            }else if(isMainTrack(c.track)){
-                closeMainGaps();
+            }
+            if(!didInsert){
+                if(dropTrackId && dropTrackId!==c.track){
+                    const srcKind=trackKind(c.track), tgt=trackById(dropTrackId);
+                    if(tgt && tgt.kind===srcKind){
+                        c.track=tgt.id;
+                        toast("片段已移到「"+tgt.label+"」","ok");
+                    }else{
+                        /* 落点是其它类型轨道：新建一条同类轨（编号自动 +1）并把片段放进去 */
+                        const nt=newTrack(srcKind);
+                        c.track=nt.id;
+                        toast("已在同类轨组末尾新建「"+nt.label+"」并移入片段","ok");
+                    }
+                    closeMainGaps();
+                }else if(isMainTrack(c.track)){
+                    closeMainGaps();
+                }
             }
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
