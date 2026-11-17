@@ -2751,8 +2751,8 @@ function selectedClip(){ return state.selected?clipById(state.selected):null; }
 function selectedIds(){ return state.multi.length?state.multi.slice():(state.selected?[state.selected]:[]); }
 function totalDuration(){ let m=30; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return Math.ceil(m+4); }
 /* 真实素材末尾：最后一个片段的结束时间（无片段为 0）。
-   播放预览到此即停，不再空播 totalDuration() 里那 30s 保底 + 4s 留白。
-   注意：导出录制复用 play()/tick()，导出时应继续走 totalDuration()，不要被这里提前截断。 */
+   播放预览与导出成片统一在此结束：成片时长＝轨道上最后素材的结尾，
+   不再空播 totalDuration() 里那 30s 保底 + 4s 留白；无素材(返回 0)时由 startExport 拦截停止。 */
 function contentEnd(){ let m=0; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return m; }
 function contentWidth(){ return totalDuration()*state.zoom; }
 
@@ -3655,15 +3655,15 @@ function tick(ts){
     }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
     syncMedia(); renderPlayhead(); drawLutFrame();
-    /* 播放预览：走到最后一个素材结尾就停，不再空播后面的留白区。
-       导出录制（exportBusy）保持原逻辑走到 totalDuration()，避免成片被提前截断。 */
-    const end=exportBusy?totalDuration():Math.max(0,contentEnd());
+    /* 播放预览与导出成片统一：走到最后一个素材结尾就停，不再空播后面的留白区。
+       导出录制复用 play()/tick()，成片时长＝contentEnd()；无素材时 startExport 已拦截，不会走到这里。 */
+    const end=Math.max(0,contentEnd());
     if(end>0 && state.playhead>=end-0.02){
         pause();
-        if(state.playhead<end) state.playhead=end;   /* 只在跨过末尾时吸附到末尾；已停在留白区则不倒退 */
+        if(state.playhead<end) state.playhead=end;   /* 只在跨过末尾时吸附到末尾 */
         renderPlayhead();
     }
-    else if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
+    else if(end<=0 && state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
     else rafId=requestAnimationFrame(tick);
 }
 function play(){ if(playing)return; if(assetPreviewId) exitAssetPreview(true); playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=requestAnimationFrame(tick); }
@@ -7484,7 +7484,7 @@ function audioBufferToWav(buf){
     return new Blob([ab],{type:"audio/wav"});
 }
 async function renderTimelineAudio(){
-    const dur=Math.max(0.5,totalDuration()), sr=44100;
+    const dur=Math.max(0.1,contentEnd()), sr=44100;   /* 成片音频与画面同样到最后一个素材结尾 */
     const Ctx=window.OfflineAudioContext||window.webkitOfflineAudioContext;
     if(!Ctx) throw new Error("当前浏览器不支持离线音频合成，请改用 Chrome / Edge");
     const ctx=new Ctx(2,Math.ceil(dur*sr),sr);
@@ -7805,7 +7805,7 @@ async function exportGifFile(recorded){
     await saveBlob(base64ToBlob(j.dataBase64,"image/gif"),exportTitle()+".gif");
 }
 function updateExportEstimate(){
-    const d=totalDuration();
+    const d=contentEnd();   /* 成片时长＝轨道上最后素材的结尾，无素材为 0 */
     let mb=0;
     if($("expChkVideo").checked) mb+=d*0.9;
     if($("expChkAudio").checked) mb+=d*0.18;
@@ -7904,6 +7904,8 @@ async function openExport(){
 }
 async function startExport(){
     if(exportBusy) return;
+    /* 时间轴上没有任何素材：成片时长为 0，直接停止，不生成空片 */
+    if(contentEnd()<=0){ toast("时间轴上还没有素材，导入素材后再导出","err"); return; }
     const jobs=[];
     if($("expChkSub").checked) jobs.push("sub");
     if($("expChkAudio").checked) jobs.push("audio");
@@ -7915,7 +7917,7 @@ async function startExport(){
     prog.classList.add("show");
     let recorded=null, renderedCount=0;
     const getRecorded=async()=>{
-        if(!recorded) recorded=await recordCanvas(Math.max(0.5,totalDuration()),
+        if(!recorded) recorded=await recordCanvas(Math.max(0.1,contentEnd()),
             {size:exportSize(),fps:Number($("expFps").value)||30},
             (p,msg)=>{ fill.style.width=Math.round(p*100)+"%"; steps.textContent="🎬 "+msg; });
         return recorded;
