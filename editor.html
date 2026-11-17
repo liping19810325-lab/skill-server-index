@@ -5929,14 +5929,32 @@ function wire(){
         if(rm){ pushHistory(); state.clips=state.clips.filter(c=>c.id!==rm.dataset.rm); renderAll(); autoSave(); return; }
         const item=e.target.closest(".sub-item"); if(!item)return;
         state.selected=item.dataset.id; state.multi=[]; state.selectedAsset=null;
+        if(e.target.closest("[data-text]")){
+            /* 点在字幕文字输入框：只切选中高亮，绝不重建整表，否则正在编辑的 input 被销毁，无法鼠标选中/实时编辑 */
+            document.querySelectorAll("#subList .sub-item").forEach(el=>el.classList.toggle("sel",el.dataset.id===item.dataset.id));
+            renderProps(); renderTimeline();
+            const cc=clipById(item.dataset.id); if(cc) seek(cc.start);
+            return;
+        }
         renderProps(); renderSubList(); renderTimeline();
         const c=clipById(item.dataset.id); if(c) seek(c.start);
+    });
+    /* 输入即实时更新预览（不重建输入框，保住焦点与选区）；history 一次编辑只压一次，失焦 change 时正式保存 */
+    $("subList").addEventListener("input",e=>{
+        const inp=e.target.closest("[data-text]"); if(!inp)return;
+        const c=clipById(inp.dataset.text); if(!c)return;
+        const nv=toSimplified(String(inp.value||"")).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
+        if(nv===c.text) return;
+        if(!inp.dataset.editing){ inp.dataset.editing="1"; pushHistory(); }
+        c.text=nv; c.name=(nv||"字幕").slice(0,12);
+        subCache=""; renderSubtitleOverlay();
     });
     $("subList").addEventListener("change",e=>{
         const inp=e.target.closest("[data-text]"); if(!inp)return;
         const c=clipById(inp.dataset.text); if(!c)return;
         const nv=toSimplified(String(inp.value||"")).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
-        pushHistory(); c.text=nv; c.name=(nv||"字幕").slice(0,12);
+        if(!inp.dataset.editing){ if(nv!==c.text){ pushHistory(); c.text=nv; c.name=(nv||"字幕").slice(0,12); } }
+        else delete inp.dataset.editing;
         renderTimeline(); renderProps(); subCache=""; renderSubtitleOverlay(); autoSave();
     });
     $("addSub").onclick=addBlankSubtitle;
