@@ -3663,6 +3663,8 @@ function syncAudioPool(){
         if(!o){
             const el=document.createElement("audio"); el.preload="auto"; el.style.display="none";
             document.body.appendChild(el); o={el:el,aid:""}; audioPool.set(x.c.id,o);
+            /* 录制期间播放头移动后新出现的音频片段，同样要并入成片音轨 */
+            try{ if(mfRecordAudio) mfAttachAudioEl(o.el); }catch(e){}
         }
         const aid=x.a.id+(ov?"#rendered":"");
         if(o.aid!==aid){ o.el.src=ov?ov.url:mediaUrl(x.a); o.aid=aid; }
@@ -7731,18 +7733,39 @@ async function exportAudioFile(){
     await saveBlob(base64ToBlob(j.dataBase64,mime),j.filename||(exportTitle()+"."+(fmt==="alac"?"m4a":fmt)));
     return r.failed;
 }
+/* 录制音轨：把预览中所有"正在发声"的元素接进同一个 MediaStreamDestination，
+   这样成片声音＝播放器里听到的（主视频原声 + 各音频轨）。
+   旧实现只接了 vEl，audioPool 里的音频轨（BGM/配音）从未进录制流，导致成片丢音轨。
+   注意 createMediaElementSource 对每个元素只能调用一次 -> 用 WeakMap 缓存；
+   劫持元素声音后必须同时连回 ctx.destination，否则预览会失声。 */
 let mfAudioCtx=null, mfAudioSrc=null, mfAudioDest=null;
-function previewAudioTrack(){
+const mfAudioSources=new WeakMap();
+let mfRecordAudio=false;   /* 仅导出录制期间，动态接入播放头移动后新出现的音频片段 */
+function mfAttachAudioEl(el){
+    if(!el) return;
     try{
-        const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+        const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
         if(!mfAudioCtx) mfAudioCtx=new AC();
-        if(!mfAudioSrc) mfAudioSrc=mfAudioCtx.createMediaElementSource(vEl);
-        if(!mfAudioDest){ mfAudioDest=mfAudioCtx.createMediaStreamDestination();
-            mfAudioSrc.connect(mfAudioDest); mfAudioSrc.connect(mfAudioCtx.destination); }
+        if(!mfAudioDest) mfAudioDest=mfAudioCtx.createMediaStreamDestination();
+        let src=mfAudioSources.get(el);
+        if(!src){
+            src=(el===vEl&&mfAudioSrc)?mfAudioSrc:mfAudioCtx.createMediaElementSource(el);
+            if(el===vEl) mfAudioSrc=src;
+            mfAudioSources.set(el,src);
+            src.connect(mfAudioDest);             /* 进成片 */
+            src.connect(mfAudioCtx.destination);  /* 保留预览扬声器输出 */
+        }
         if(mfAudioCtx.state==="suspended") mfAudioCtx.resume();
-        return mfAudioDest.stream.getAudioTracks()[0]||null;
-    }catch(e){ return null; }
+    }catch(e){}
 }
+function previewAudioTrack(){
+    mfRecordAudio=true;
+    mfAttachAudioEl(vEl);
+    audioPool.forEach(o=>mfAttachAudioEl(o.el));
+    try{ if(mfAudioCtx&&mfAudioCtx.state==="suspended") mfAudioCtx.resume(); }catch(e){}
+    return mfAudioDest?mfAudioDest.stream.getAudioTracks()[0]||null:null;
+}
+function releaseRecordAudio(){ mfRecordAudio=false; }
 function drawStageFrame(x,W,H,opts){
     /* noSub：录制纯净画面（不含字幕），交给后端 FFmpeg libass 独家烧录。
        若浏览器 canvas 也画字幕、后端再烧一遍，同一条字幕会出现两层重叠。 */
@@ -7772,8 +7795,40 @@ function drawStageFrame(x,W,H,opts){
     }catch(e){ throw new Error("素材受跨域保护，浏览器无法把画面写入导出画布；请把该素材下载到本地后重新导入"); }
     x.restore();
     x.filter="none";
+    /* LUT 调色轨：预览里由 WebGL .lut-canvas 全屏盖在主画面上，成片必须同步绘制，
+       否则出现「预览有调色、成片没有」。lut-canvas 从 vEl 取纹理，录制期间 tick 持续刷新。 */
+    try{
+        const _st=$("stage"), lutCv=_st&&_st.querySelector(".lut-canvas");
+        if(lutCv&&!lutCv.hidden&&lutCv.width>0&&vEl.classList.contains("show")){
+            x.save(); x.globalAlpha=1; x.filter="none";
+            x.drawImage(lutCv,0,0,W,H);
+            x.restore();
+        }
+    }catch(e){}
+    /* 画中画图片轨：复刻预览中 .pip-item 的真实布局（right:14px / top:14+i*118px / width:20%
+       + contain），再叠加该片段的位移/旋转/缩放/镜像，与 elementBaseRect + fxTransform 一致。
+       旧实现把所有图都画在 W*0.06,H*0.62 同一位置且尺寸写死 28%，多图重叠、位置严重错位。 */
+    const _stg=$("stage"), SW=(_stg&&_stg.clientWidth>0)?_stg.clientWidth:640,
+          SH=(_stg&&_stg.clientHeight>0)?_stg.clientHeight:360, sc0=W/SW;
     pipLayer.querySelectorAll(".pip-item").forEach(el=>{
-        try{ if(el.complete) x.drawImage(el,W*0.06,H*0.62,W*0.28,H*0.28); }catch(e){}
+        try{
+            if(!el.complete||!el.naturalWidth) return;
+            const c=clipById(el.dataset.clip); if(!c) return;
+            const b=elementBaseRect(el,_stg), q=fxOf(c), sc=Number(q.scale)||1;
+            const cx=b.left+b.w/2, cy=b.top+b.h/2;
+            x.save();
+            x.translate((cx+Number(q.x||0))*sc0,(cy+Number(q.y||0))*sc0);
+            x.rotate(Number(q.rotate||0)*Math.PI/180);
+            x.scale((q.mirror?-1:1)*sc,sc);
+            x.globalAlpha=clamp(animOpacity(c),0,1);
+            x.filter=fxFilter(c);
+            const cr=fxCrop(c), nw=el.naturalWidth, nh=el.naturalHeight;
+            const bw=b.w*sc0, bh=b.h*sc0, fit=Math.min(bw/nw,bh/nh), dw=nw*fit, dh=nh*fit;
+            const sx=nw*cr.left/100, sy=nh*cr.top/100;
+            const sw=nw*(1-(cr.left+cr.right)/100), sh=nh*(1-(cr.top+cr.bottom)/100);
+            x.drawImage(el,sx,sy,sw,sh,
+                -dw/2+dw*cr.left/100,-dh/2+dh*cr.top/100,dw*(sw/nw),dh*(sh/nh));
+        }catch(e){}
     });
     /* 暗角 / 颗粒：与预览叠加层同一套数值，导出画布同步绘制 */
     if(f && f.color){
@@ -7941,6 +7996,7 @@ async function recordCanvas(dur,opts,onProgress){
         requestAnimationFrame(frame);
     });
     pause(); rec.stop();
+    releaseRecordAudio();    /* 停止动态接入新音频元素；已接入的保持连接，预览继续有声 */
     const blob=await done;
     state.playhead=before; seek(before);
     exportStopAt=prevStop;   /* 恢复录制前的停止点，避免影响后续播放 */
