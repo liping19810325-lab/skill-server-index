@@ -7504,12 +7504,36 @@ function subAlignAss(q){
     const base=q.pos==="top"?8:(q.pos==="middle"?5:2), d=q.align==="left"?-1:(q.align==="right"?1:0);
     return base+d;
 }
+/* ASS 水平对齐：只用底边锚点 1/2/3（左/中/右），纵向位置全部交给 \pos 精确落点。
+   预览里 text-align 只影响多行文本内部，单行字幕始终水平居中，所以默认 center。 */
+function subAssBottomAlign(q){
+    return q.align==="left"?1:(q.align==="right"?3:2);
+}
+/* 把预览里字幕的实际落点换算成 ASS 的 \pos + \an。
+   预览舞台 = ASS 脚本坐标系（buildBurnAss 里 PlayResX/Y 设成 stage 像素），
+   因此这里直接用预览的 CSS 像素坐标，libass 会等比缩放到成片分辨率：
+     · 容器 .subtitle-overlay 距底部 7%  =>  底边 y = 0.93*H
+     · pos=top/middle 用 translate 上移 34%/15% 的舞台高度（off 为负，y 需加上）
+     · 水平默认居中；left/right 贴容器 24px 内边距
+   这样烧录出来的位置/字号与玩家预览完全一致，不再用 Alignment=8/5/2 那套抽象对齐。 */
+function assPosTag(q){
+    const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
+    const an=subAssBottomAlign(q);
+    const x=q.align==="left"?24:(q.align==="right"?Math.max(25,W-24):Math.round(W/2));
+    const off=q.pos==="top"?-Math.round(H*0.34):(q.pos==="middle"?-Math.round(H*0.15):0);
+    const y=clamp(Math.round(H*0.93)+off,1,H);
+    return "{\\an"+an+"\\pos("+x+","+y+")}";
+}
 function subTextAss(c){
     const pre=(c.subKind&&SUB_NAME[c.subKind])?"["+SUB_NAME[c.subKind]+"] ":"";
     return pre+String(c.text||"").replace(/[\r\n]+/g,"\\N").replace(/\{/g,"\\{").replace(/\}/g,"\\}");
 }
 function buildBurnAss(arr){
     if(!arr||!arr.length) return "";
+    /* 关键：ASS 脚本坐标系设成预览舞台的实际像素尺寸，字号/位置全部沿用预览的 CSS 像素值。
+       libass 会按脚本分辨率等比缩放到成片，从而让烧录位置/大小与预览一一对应。
+       PlayResX/Y 写死为舞台尺寸；宽高比与 exportSize() 一致（都取自 stage.clientWidth/Height）。 */
+    const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
     const styles=[], lines=[];
     arr.forEach((c,i)=>{
         const q=(c.fx&&c.fx.sub)||defaultFx().sub, name="MF"+i;
@@ -7521,10 +7545,14 @@ function buildBurnAss(arr){
             +","+assHex(q.stroke||"#000000")+","+back
             +","+(q.bold===false?0:-1)+","+(q.italic?-1:0)+","+(q.underline?-1:0)+","+(q.strike?-1:0)
             +",100,100,"+(Number(q.spacing)||0)+",0,"+borderStyle+","+(Number(q.strokeW)||0)+","+(Number(q.shadow)||0)
-            +","+subAlignAss(q)+",10,10,32,1");
-        lines.push("Dialogue: 0,"+assTs(c.start)+","+assTs(c.start+c.duration)+","+name+",,0,0,0,,"+subTextAss(c));
+            +","+subAlignAss(q)+",0,0,0,1");
+        /* 每行的样式覆盖 + 精确落点：\an\pos 在前，随后是逐条字号/颜色等覆盖，
+           最后接字幕正文（含 [对白] 前缀与 \N 换行）。 */
+        lines.push("Dialogue: 0,"+assTs(c.start)+","+assTs(c.start+c.duration)+","+name+",,0,0,0,,"
+            +assPosTag(q)+subAssOverride(q)+subTextAss(c));
     });
     return "[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\nScaledBorderAndShadow: yes\n"
+        +"PlayResX: "+W+"\nPlayResY: "+H+"\n"
         +"\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
         +styles.join("\n")+"\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
         +lines.join("\n")+"\n";
@@ -7537,7 +7565,7 @@ function subAssOverride(q){
     s+="\\c"+assHexA(q.color||"#ffffff",op)+"\\3c"+assHex(q.stroke||"#000000");
     s+="\\bord"+(Number(q.strokeW)||0)+"\\shad"+(Number(q.shadow)||0);
     s+="\\b"+(q.bold===false?0:1)+"\\i"+(q.italic?1:0)+"\\u"+(q.underline?1:0)+"\\s"+(q.strike?1:0);
-    s+="\\fsp"+(Number(q.spacing)||0)+"\\an"+subAlignAss(q)+"\\alpha&H"+a+"&";
+    s+="\\fsp"+(Number(q.spacing)||0)+"\\an"+subAssBottomAlign(q)+"\\alpha&H"+a+"&";
     if(bgOp>0) s+="\\4c"+assHexA(q.bg||"#000000",bgOp);
     return s+"}";
 }
