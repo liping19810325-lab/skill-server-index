@@ -3789,6 +3789,8 @@ function splitSelected(at){
         activeTrackId=c.track;
     }
     if(t<=c.start+0.08 || t>=c.start+c.duration-0.08){ toast("播放头要落在片段中间才能剪断"); return; }
+    const cTrack=trackById(c.track);
+    if(cTrack&&cTrack.locked){ toast("轨道「"+cTrack.label+"」已锁定，无法剪断","err"); return; }
     const leftDur=t-c.start, rightDur=c.duration-leftDur;
     pushHistory();
     const right=cloneClip(c); right.id=uid(); right.start=t; right.duration=rightDur; right.offset=(c.offset||0)+leftDur; fxOf(right);
@@ -3805,6 +3807,10 @@ function splitSelected(at){
 function copySelection(cut){
     const ids=selectedIds();
     if(!ids.length){ toast("请先点选片段（Shift 点选可多选）"); return; }
+    if(cut){
+        const locked=ids.some(id=>{ const c=clipById(id), t=c?trackById(c.track):null; return t&&t.locked; });
+        if(locked){ toast("选中的片段所在轨道已锁定，无法剪切","err"); return; }
+    }
     clipboard=state.clips.filter(c=>ids.indexOf(c.id)>=0).map(c=>{
         const nc=cloneClip(c); nc._kind=trackKind(c.track); fxOf(nc); return nc;
     });
@@ -3941,6 +3947,7 @@ function selectSide(dir){
 /* 主视频轨：删除后波纹前移，片段按原顺序紧密排列（剪映式无间隙主轨） */
 function rippleMainTrack(){
     const mid=mainVideoTrackId(); if(!mid) return;
+    const mt=trackById(mid); if(mt&&mt.locked) return;   /* 主轨锁定：片段不前移 */
     const list=state.clips.filter(c=>c.track===mid).sort((a,b)=>a.start-b.start);
     let cursor=0;
     list.forEach(c=>{
@@ -3957,6 +3964,8 @@ function rippleInsertAt(dropAt, span, excludeIds){
     let n=0;
     state.clips.forEach(o=>{
         if(ex.indexOf(o.id)>=0) return;
+        const ot=trackById(o.track);
+        if(ot&&ot.locked) return;   /* 锁定轨素材不参与让位后移，位置保持不动 */
         if(o.start>=dropAt-0.0005){ o.start=+(o.start+span).toFixed(4); n++; }
     });
     return n;
@@ -3966,6 +3975,7 @@ function rippleInsertAt(dropAt, span, excludeIds){
 function closeMainGaps(){
     if(!state.snap) return false;
     const mid=mainVideoTrackId(); if(!mid) return false;
+    const mt=trackById(mid); if(mt&&mt.locked) return false;   /* 主轨锁定：不做波纹前移 */
     const list=state.clips.filter(c=>c.track===mid).sort((a,b)=>a.start-b.start);
     if(list.length<2) return false;
     let gap=false, cursor=0;
@@ -6398,6 +6408,9 @@ function wire(){
     sc.addEventListener("mousedown",e=>{
         const clipEl=e.target.closest(".clip"); if(!clipEl)return;
         const c=clipById(clipEl.dataset.id); if(!c)return;
+        /* 锁定轨：禁止拖动 / 裁剪 / 剪断（放在分割工具分支之前，锁定轨上任何点击都不改动素材） */
+        const ct=trackById(c.track);
+        if(ct&&ct.locked){ toast("轨道「"+ct.label+"」已锁定，先点轨道头的「锁」解锁","err"); e.preventDefault(); return; }
         /* 分割工具：单击片段即在点击位置剪断 */
         if(state.toolMode==="split" && !e.target.closest("[data-handle]") && !e.target.closest("[data-handle-l]")){
             const lane=clipEl.closest(".lane"), rect=lane.getBoundingClientRect();
@@ -6406,9 +6419,6 @@ function wire(){
             splitSelected(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration()));
             e.preventDefault(); return;
         }
-        /* 锁定轨：禁止拖动与裁剪 */
-        const ct=trackById(c.track);
-        if(ct&&ct.locked){ toast("轨道「"+ct.label+"」已锁定，先点轨道头的「锁」解锁","err"); e.preventDefault(); return; }
         if(e.shiftKey){
             const i=state.multi.indexOf(c.id);
             if(i>=0) state.multi.splice(i,1); else state.multi.push(c.id);
@@ -6432,7 +6442,10 @@ function wire(){
         const x0=e.clientX, start0=c.start, dur0=c.duration, zoom=state.zoom, offset0=Number(c.offset)||0;
         /* 整组初始位置：id -> start/duration，并算整组包围（最早起点 / 最晚终点），
            供整体平移时保持组内相对间隔，及落点让位时计算需后移的跨度。 */
-        const dragIds=groupDrag?state.multi.slice():[c.id];
+        /* 锁定轨片段不参与任何移动：整组框选里若混入锁定轨片段，一律排除，保持原位 */
+        const dragIds=(groupDrag?state.multi.slice():[c.id]).filter(id=>{
+            const o=clipById(id), ot=o?trackById(o.track):null; return !(ot&&ot.locked);
+        });
         const startMap={}, durMap={};
         state.clips.forEach(o=>{ if(dragIds.indexOf(o.id)>=0){ startMap[o.id]=o.start; durMap[o.id]=o.duration; } });
         const groupStart=Math.min.apply(null,dragIds.map(id=>startMap[id]));
