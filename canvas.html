@@ -1911,7 +1911,7 @@ function buildGenerateBody(body,n){
     const ep = inp("text","留空＝自动复用创作台接口地址"); ep.value=d.endpoint||"";
     mkAdv("接口地址（Base URL）",ep);
     const keyIn = inp("password","留空＝用创作台配置的 API Key"); keyIn.value=d.apiKey||"";
-    mkAdv("独立 API Key（可选，只存本机画布）",keyIn);
+    mkAdv("独立 API Key（可选，本站不内置，请自行填写；只存本机画布）",keyIn);
     const hdr = ta(46); hdr.value=d.headers||"";
     mkAdv("自定义请求头（JSON 对象，可选）",hdr);
 

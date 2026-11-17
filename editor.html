@@ -632,10 +632,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                  不再显示。这里只保留运行链路需要的隐藏字段，由档位自动填写，用户无需再手填。 -->
             <div id="legacyAiCfg" hidden>
                 <select id="aiSrc"><option value="profile">复用创作台 / 画布「第三方API」当前配置</option><option value="local">复用「本机算力」已接通的大语言模型</option><option value="custom">自定义接口</option></select>
-                <div id="aiCustom"><input type="text" id="aiEndpoint"><input type="text" id="aiKey"><input type="text" id="aiModel"></div>
+                <div id="aiCustom"><input type="text" id="aiEndpoint"><input type="password" id="aiKey"><input type="text" id="aiModel"></div>
                 <input type="checkbox" id="aiFrames" checked>
                 <select id="asrEngine"><option value="remote">真实转写接口（按算力档位自动填写）</option></select>
-                <div id="asrCfg"><input type="text" id="asrEndpoint"><input type="text" id="asrKey"><input type="text" id="asrModel" value="whisper-1"><input type="text" id="asrLang" value="zh"><button data-preset="local"></button><button data-preset="oai"></button></div>
+                <div id="asrCfg"><input type="text" id="asrEndpoint"><input type="password" id="asrKey"><input type="text" id="asrModel" value="whisper-1"><input type="text" id="asrLang" value="zh"><button data-preset="local"></button><button data-preset="oai"></button></div>
                 <input type="checkbox" id="asrKeep">
                 <button id="asrRun"></button>
                 <div id="aiEditState"></div><div id="aiState"></div><div id="aiStat"></div>
@@ -4992,7 +4992,7 @@ function showAiSetup(cfg){
       +'<li>左上<b>「算力总控」</b>三档点选切换：<b>本机算力</b>＝本机 llama / Ollama 与 faster-whisper；<b>第三方API</b>＝创作台 / 画布已填好的接口配置（共用键 <code>manflows_api_profiles</code>）；<b>漫流算力</b>为占位档暂未开放。</li>'
       +'<li>点「✨ AI剪辑」后，在弹窗的<b>「选择模型」</b>里挑一个你已经部署好的大语言模型，<b>建议只选 Claude 或 GPT 系列之一</b>；下拉没有就手填模型名。</li>'
       +'<li>AI 字幕由本机服务转发转写（本机 faster-whisper 9000 端口，或第三方 whisper-1 / gpt-4o-transcribe 通道）；Claude 与普通 GPT 对话模型不是转写模型，能跑 AI剪辑但不能做 AI字幕。</li></ul>'
-      +'<p class="hint">配置好后再点一次「✨ AI剪辑」即可；带图请求失败时会自动降级为纯轨道数据分析。</p>';
+      +'<p class="hint">本站不内置任何 API 密钥；请在你自己的浏览器里填写，密钥仅保存在本机，其他用户需各自填写。配置好后再点一次「✨ AI剪辑」即可；带图请求失败时会自动降级为纯轨道数据分析。</p>';
     $("aiSetupModal").classList.add("show");
 }
 function renderAiPlan(plan,cfg,nframes){
