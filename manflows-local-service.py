@@ -1461,7 +1461,17 @@ def api_transcribe(body):
     td = tempfile.mkdtemp(prefix="manflows-asr-")
     try:
         in_path, _ext = _media_to_file(data, td)
-        wav = _extract_mono_wav(ff, in_path, td, clip_start, clip_duration)
+        # 大文件场景：浏览器端已把素材抽成 16k 单声道 WAV（并已按保留区间拼接、
+        # 已裁掉 clip 区间），这里直接用它，避免对 WAV 再做一次 -ss 抽取导致时间码错位。
+        already_wav = bool(data.get("alreadyWav")) or _ext.lower() == ".wav"
+        if already_wav:
+            wav = in_path
+            # 浏览器端已按保留区间裁剪拼接成 16k WAV，无需 FFmpeg 再抽一次。
+            # 注意：WAV 起点对应片段在源素材的 offset，下面时间码仍叠加 clip_start(=offset)，
+            # 与「服务端自己抽轨」路径返回同一套「源素材绝对时间」，前端映射逻辑无需改动。
+            log.append("收到浏览器已抽取的 16k 单声道 WAV，跳过 FFmpeg 重复抽轨")
+        else:
+            wav = _extract_mono_wav(ff, in_path, td, clip_start, clip_duration)
         chunks, duration = _split_wav(wav, td)
         det = _detect_silences_ex(ff, wav, pa)
     except subprocess.TimeoutExpired:

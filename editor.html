@@ -4111,15 +4111,56 @@ function blobToBase64(blob){
         fr.readAsDataURL(blob);
     });
 }
+/* 浏览器本地抽音轨：把素材按片段保留区间拼成 16k 单声道 WAV。
+   用于给本机服务传输前瘦身——232MB 视频 base64 后 ~310MB 会超过服务 300MB body 上限、
+   且浏览器构造超大字符串极易失败；抽出音轨后通常仅几 MB。解码失败返回 null 让调用方回退原路径。 */
+async function extractTrackWav(a,c){
+    try{
+        const AC=window.AudioContext||window.webkitAudioContext;
+        const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+        if(!AC||!OAC) return null;
+        const src=await assetBlob(a);
+        if(!src.size) return null;
+        /* 超过 180MB 的原始素材先抽音轨（小文件直接传，省去解码开销） */
+        if(src.size<180*1024*1024) return null;
+        let decoded;
+        try{ const ac=new AC(); try{ decoded=await ac.decodeAudioData(await src.arrayBuffer()); }
+             finally{ try{ ac.close(); }catch(e){} } }
+        catch(e){ return null; }
+        if(!decoded||!decoded.length) return null;
+        const kept=sourceKeptRanges(c||{});
+        const totalSrc=kept.reduce((s,r)=>s+(r.end-r.start),0);
+        if(totalSrc<0.2) return null;
+        const SR=16000, octx=new OAC(1,Math.ceil(totalSrc*SR)+SR,SR);
+        let when=0;
+        for(const r of kept){
+            const len=r.end-r.start; if(len<=0.01) continue;
+            const nd=octx.createBufferSource(); nd.buffer=decoded; nd.connect(octx.destination);
+            nd.start(when,Math.max(0,r.start)/decoded.sampleRate,len/decoded.sampleRate);
+            when+=len;
+        }
+        const joined=await octx.startRendering();
+        const wav=audioBufferToWav(joined);
+        scLogPush("已在本机浏览器抽出音轨：「"+a.name+"」"+fmtSize(src.size)+" → 16k 单声道 WAV "+fmtSize(wav.size)
+            +"（"+totalSrc.toFixed(1)+"s），避免大文件传输失败");
+        return wav;
+    }catch(e){ scLogPush("浏览器抽音轨未成功，改传原素材："+String(e&&e.message||e)); return null; }
+}
 async function serviceTranscribe(a,cfg,clip){
     if(!svcOnline) await pingService(2800);
     if(!svcOnline) throw new Error("本机服务未启动（127.0.0.1:8788）：双击「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows)");
     const isRemote=/^https?:\/\//i.test(String(a.url||""));
-    let b64="", url="";
+    let b64="", url="", alreadyWav=false;
     if(isRemote) url=String(a.url);
-    else b64=await blobToBase64(await assetBlob(a));
+    else{
+        /* 大素材先在浏览器抽成小 WAV，再传给服务（服务标记 alreadyWav 后跳过重复抽取） */
+        const wav=await extractTrackWav(a,clip);
+        if(wav){ b64=await blobToBase64(wav); alreadyWav=true; }
+        else b64=await blobToBase64(await assetBlob(a));
+    }
     const pc=scConfig();
     const payload={filename:String(a.name||"audio.wav"),dataBase64:b64,url:url,
+        alreadyWav:alreadyWav,
         endpoint:String(cfg.endpoint||""),key:String(cfg.key||""),
         model:String(cfg.model||"whisper-1"),language:String(cfg.language||"zh"),
         clipStart:Number(clip&&clip.offset)||0,clipDuration:Number(clip&&clip.duration)||0,
