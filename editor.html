@@ -2472,6 +2472,10 @@ function snapPos(v, excludeId, zoom){
 function selectedClip(){ return state.selected?clipById(state.selected):null; }
 function selectedIds(){ return state.multi.length?state.multi.slice():(state.selected?[state.selected]:[]); }
 function totalDuration(){ let m=30; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return Math.ceil(m+4); }
+/* 真实素材末尾：最后一个片段的结束时间（无片段为 0）。
+   播放预览到此即停，不再空播 totalDuration() 里那 30s 保底 + 4s 留白。
+   注意：导出录制复用 play()/tick()，导出时应继续走 totalDuration()，不要被这里提前截断。 */
+function contentEnd(){ let m=0; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return m; }
 function contentWidth(){ return totalDuration()*state.zoom; }
 
 /* ---------- 本机存储 ---------- */
@@ -3320,7 +3324,15 @@ function tick(ts){
     }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
     syncMedia(); renderPlayhead(); drawLutFrame();
-    if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
+    /* 播放预览：走到最后一个素材结尾就停，不再空播后面的留白区。
+       导出录制（exportBusy）保持原逻辑走到 totalDuration()，避免成片被提前截断。 */
+    const end=exportBusy?totalDuration():Math.max(0,contentEnd());
+    if(end>0 && state.playhead>=end-0.02){
+        pause();
+        if(state.playhead<end) state.playhead=end;   /* 只在跨过末尾时吸附到末尾；已停在留白区则不倒退 */
+        renderPlayhead();
+    }
+    else if(state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
     else rafId=requestAnimationFrame(tick);
 }
 function play(){ if(playing)return; if(assetPreviewId) exitAssetPreview(true); playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=requestAnimationFrame(tick); }
