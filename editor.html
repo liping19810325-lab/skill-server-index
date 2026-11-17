@@ -1591,8 +1591,8 @@ let state = {
     selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1",
     compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic", zoomAuto:true,
     snap:true, toolMode:"select", markers:[],
-    /* 全工程共享的字幕样式：改一条字幕参数，所有字幕同步（信息互联）。
-       字幕片段的 fx.sub 会统一指向这里；旧工程加载时会用第一条字幕样式迁移过来。 */
+    /* 新建字幕的默认样式模板：仅决定“新生成的字幕”初始长什么样。
+       已有字幕各自持有独立的 fx.sub，套预设/改参数只影响选中的那一条。 */
     subStyle: defaultFx().sub
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
@@ -1859,6 +1859,9 @@ function defaultFx(){
             glow:0,glowColor:"#ffffff",gradient:"",vertical:false,
             underline:false,strike:false,flower:"",textPreset:"",bgRadius:0,bgPad:4}};
 }
+/* 字幕样式独立副本：sub 里全是基本类型，浅拷贝即互不影响。
+   新建/迁移字幕时用它从默认模板克隆一份，保证每条字幕拥有自己的样式对象。 */
+function cloneSubStyle(s){ return Object.assign({},defaultFx().sub,(s&&typeof s==="object")?s:{}); }
 function fxOf(c){
     if(!c) return defaultFx();
     if(!c.fx||typeof c.fx!=="object") c.fx=defaultFx();
@@ -1870,11 +1873,12 @@ function fxOf(c){
             else for(const kk in d[k]) if(c.fx[k][kk]===undefined) c.fx[k][kk]=d[k][kk];
         }
     }
-    /* 字幕样式全工程统一：字幕片段的 sub 始终指向共享对象 state.subStyle，
-       因此改任一条字幕的样式参数，其它所有字幕立即同步（预览与导出都经这里读取）。 */
+    /* 字幕样式逐条独立：每条字幕片段持有自己的 fx.sub，套预设/改参数只影响当前这一条，
+       其它字幕（同轨或跨轨）都不会跟着变。state.subStyle 仅作为“新建字幕的默认模板”，
+       不再被这里强制绑定到片段上；旧工程缺 sub 时才从模板补一份独立副本。 */
     if(c && state && trackKind(c.track)==="text"){
-        if(!state.subStyle||typeof state.subStyle!=="object") state.subStyle=d.sub;
-        c.fx.sub=state.subStyle;
+        if(!state.subStyle||typeof state.subStyle!=="object") state.subStyle=cloneSubStyle(d.sub);
+        if(!c.fx.sub||typeof c.fx.sub!=="object") c.fx.sub=cloneSubStyle(state.subStyle);
     }
     return c.fx;
 }
@@ -3197,7 +3201,7 @@ function applySegments(segs, opts){
         /* 中文统一简体：AI字幕/文本/SRT 导入的一切字幕文字在这里归一；
            同时把段内换行符压成空格，保证每条字幕默认只占一行。 */
         const txt=toSimplified(String(s.text||"")).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
-        const fx=defaultFx(); fx.sub=state.subStyle;   /* 所有字幕共用同一份样式，规格统一 */
+        const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);   /* 新字幕复制默认模板成独立副本：初始规格统一，之后各改各的 */
         state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,(Number(s.start)||0)+shift),
             duration:dur, offset:0, text:txt, name:txt.slice(0,10), subKind:s.kind||"", fx:fx});
     }
@@ -3259,8 +3263,9 @@ function addBlankSubtitle(){
         state.subTrack=tr.id;   /* 切到新轨：列表/预览/下次新增都指向它 */
     }
     if(!tr) tr=newTrack("text");
+    const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);   /* 新字幕继承统一默认模板的独立副本 */
     state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,state.playhead),
-        duration:3, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:defaultFx()});
+        duration:3, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:fx});
     renderAll(); autoSave();
 }
 /* ---------- 时间轴渲染（动态轨道） ---------- */
@@ -5567,7 +5572,7 @@ function projectPayload(){
     state.clips.forEach(fxOf);      /* 旧工程的片段统一补齐变换字段再存档 */
     return {v:2,date:state.date,zoom:state.zoom,playhead:0,
         tracks:state.tracks, subTrack:state.subTrack, markers:state.markers,
-        subStyle:Object.assign({},defaultFx().sub,state.subStyle||{}),  /* 全工程共享字幕样式 */
+        subStyle:Object.assign({},defaultFx().sub,state.subStyle||{}),  /* 新建字幕的默认模板；每条字幕自己的样式随 clips.fx.sub 单独保存 */
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
             delete o.previewUrl; delete o.mkvNote;   /* 转封装副本是一次性 blob，重开工程后重新生成 */
             o.remoteUrl=(a.urlKind==="blob")?"":(a.url||""); return o; }),
@@ -5611,11 +5616,19 @@ async function loadProject(date){
             : [];
         state.subTrack=String(p.subTrack||"");
         state.clips=(Array.isArray(p.clips)?p.clips:[]).map(migrateClip);
-        /* 全工程字幕样式：新存档有 subStyle 直接用；旧存档从第一条字幕的 fx.sub 迁移，都没有则用默认 */
+        /* 字幕样式默认模板：新存档有 subStyle 直接用；旧存档从第一条字幕的 fx.sub 迁移，都没有则用默认。
+           模板只用于“新建字幕时的初始规格”，不再绑定到已有片段。 */
         let migratedSub=null;
         if(p.subStyle && typeof p.subStyle==="object") migratedSub=p.subStyle;
         else { const firstSub=state.clips.find(c=>trackKind(c.track)==="text"&&c.fx&&c.fx.sub); if(firstSub) migratedSub=firstSub.fx.sub; }
-        state.subStyle=Object.assign({},defaultFx().sub,migratedSub||{});
+        state.subStyle=cloneSubStyle(migratedSub);
+        /* 关键：把每条字幕的样式重新克隆成独立对象。旧工程里所有字幕曾共用一份 sub，
+           虽然 JSON 反序列化后已不是同一引用，这里再显式隔离一次，杜绝改一条影响其它条。 */
+        state.clips.forEach(c=>{
+            if(c && trackKind(c.track)==="text" && c.fx){
+                c.fx.sub=cloneSubStyle(c.fx.sub||state.subStyle);
+            }
+        });
         state.assets=[];
         for(const a of (p.assets||[])){
             const x=Object.assign({},a);
@@ -5702,7 +5715,7 @@ function setEmptyHint(){
 async function loadEmptyProject(newDate){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
     state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
-    state.subStyle=defaultFx().sub;   /* 新工程重置全工程字幕样式 */
+    state.subStyle=defaultFx().sub;   /* 新工程重置“新建字幕的默认模板” */
     state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=newDate||todayStr();
     historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key=""; fxOverlayKey="";
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
@@ -7020,7 +7033,7 @@ function renderAdjustPanels(){
               +'<div class="sub-preset-grid" id="adjSubTextPresets">'+SUB_TEXT_PRESETS.map((p,i)=>'<button type="button" class="sub-preset-thumb'+((q.textPreset||"")===String(i)?" active":"")+'" data-tp="'+i+'" title="套用「'+esc(p.name)+'」"><span class="tglyph" style="'+subThumbCss(p)+'">T</span></button>').join("")+'</div>'
               +'<div class="fx-sec">花字 / 文字模板（一键套用）</div>'
               +'<div class="preset-grid" id="adjSubFlower">'+Object.keys(SUB_FLOWER_PRESETS).map(k=>'<button class="preset-btn'+((q.flower||"")===k?" active":"")+'" data-fl="'+k+'" title="套用「'+SUB_FLOWER_PRESETS[k].name+'」">'+SUB_FLOWER_PRESETS[k].name+'</button>').join("")+'</div>'
-              +adjNote("字幕样式全工程统一：这里改任意一项（字号 / 颜色 / 描边 / 发光等），所有字幕会一起变化，保持风格一致。预览与导出都按这里的设置绘制（含发光、渐变、竖排、下划线、背景框圆角与内边距）。渐变色填两个或多个颜色值用英文逗号隔开；花字模板会覆盖部分颜色参数，之后仍可手动微调。");
+              +adjNote("样式逐条独立：这里改任意一项（字号 / 颜色 / 描边 / 发光等）或点下方预设，只作用于当前选中的这一条字幕，其它字幕（同轨或跨轨）不受影响。预览与导出都按本条设置绘制（含发光、渐变、竖排、下划线、背景框圆角与内边距）。渐变色填两个或多个颜色值用英文逗号隔开；花字/预设会覆盖部分颜色参数，之后仍可手动微调。");
             const fire=()=>{ subCache=""; renderSubtitleOverlay(); applyClipTransforms(); autoSave(); };
             const rng=(id,key,val,suffix)=>{ $(id).oninput=e=>{ f.sub[key]=Number(e.target.value); $(val).textContent=e.target.value+(suffix||""); fire(); }; };
             rng("adjSubSize","size","adjSubSizeV"); rng("adjSubOpacity","opacity","adjSubOpacityV","%");
@@ -7047,7 +7060,7 @@ function renderAdjustPanels(){
                 for(const key in p) if(key!=="name") f.sub[key]=p[key];
                 f.sub.flower=k; f.sub.textPreset=""; renderAll(); autoSave(); toast("已套用花字「"+p.name+"」","ok");
             };
-            /* 剪映预设样式：先整体复位 sub，再合并该预设字段；全工程字幕同步、可撤销、导出随样式生效 */
+            /* 剪映预设样式：只改当前选中片段自己的 sub（先复位再合并该预设字段）；其它字幕不受影响、可撤销、导出随各自样式生效 */
             const tpBox=$("adjSubTextPresets");
             if(tpBox) tpBox.onclick=e=>{
                 const b=e.target.closest("[data-tp]"); if(!b) return;
@@ -7194,6 +7207,83 @@ function buildSubtitleText(fmt){
     return {count:arr.length,text:arr.map((c,i)=>(i+1)+"\n"+ms(c.start)+","+String(Math.round(c.start*1000)%1000).padStart(3,"0")
         +" --> "+ms(c.start+c.duration)+","+String(Math.round((c.start+c.duration)*1000)%1000).padStart(3,"0")
         +"\n"+line(c)+"\n").join("\n")};
+}
+/* ---------- 逐条字幕样式 → 烧录用 ASS / 带覆盖标签的 SRT ----------
+   每条字幕用自身的 fx.sub 生成独立 Style，套预设只影响该条，
+   导出烧录也按各自样式绘制，与预览一致。ASS 需完整样式（含背景框），
+   带覆盖标签的 SRT 供旧版本机服务兜底（逐条覆盖字号/颜色/描边等主要字段）。 */
+function assHex(hex){ /* #RRGGBB -> &H00BBGGRR */
+    let h=String(hex||"").replace("#","");
+    if(!/^[0-9a-fA-F]{6}$/.test(h)) h="FFFFFF";
+    return "&H00"+h.slice(4,6).toUpperCase()+h.slice(2,4).toUpperCase()+h.slice(0,2).toUpperCase();
+}
+function assHexA(hex,pct){ /* 带透明度字节 &HAABBGGRR；pct=不透明度百分比（100 不透明） */
+    let h=String(hex||"").replace("#","");
+    if(!/^[0-9a-fA-F]{6}$/.test(h)) h="FFFFFF";
+    const a=Math.round((1-clamp(Number(pct),0,100)/100)*255).toString(16).padStart(2,"0").toUpperCase();
+    return "&H"+a+h.slice(4,6).toUpperCase()+h.slice(2,4).toUpperCase()+h.slice(0,2).toUpperCase();
+}
+function assTs(t){
+    const x=Math.max(0,Number(t)||0), h=Math.floor(x/3600), m=Math.floor(x%3600/60),
+        s=Math.floor(x%60), c=Math.floor((x%1)*100), p=n=>String(n).padStart(2,"0");
+    return h+":"+p(m)+":"+p(s)+"."+p(c);
+}
+function subAlignAss(q){
+    const base=q.pos==="top"?8:(q.pos==="middle"?5:2), d=q.align==="left"?-1:(q.align==="right"?1:0);
+    return base+d;
+}
+function subTextAss(c){
+    const pre=(c.subKind&&SUB_NAME[c.subKind])?"["+SUB_NAME[c.subKind]+"] ":"";
+    return pre+String(c.text||"").replace(/[\r\n]+/g,"\\N").replace(/\{/g,"\\{").replace(/\}/g,"\\}");
+}
+function buildBurnAss(arr){
+    if(!arr||!arr.length) return "";
+    const styles=[], lines=[];
+    arr.forEach((c,i)=>{
+        const q=(c.fx&&c.fx.sub)||defaultFx().sub, name="MF"+i;
+        const op=q.opacity===undefined?100:Number(q.opacity), bgOp=Number(q.bgOpacity)||0;
+        const borderStyle=bgOp>0?3:1;
+        const back=bgOp>0?assHexA(q.bg||"#000000",bgOp):assHex(q.shadowColor||q.bg||"#000000");
+        styles.push("Style: "+name+","+(q.font||"Microsoft YaHei")+","+(Math.round(Number(q.size)||28))
+            +","+assHexA(q.color||"#ffffff",op)+","+assHex(q.color||"#ffffff")
+            +","+assHex(q.stroke||"#000000")+","+back
+            +","+(q.bold===false?0:-1)+","+(q.italic?-1:0)+","+(q.underline?-1:0)+","+(q.strike?-1:0)
+            +",100,100,"+(Number(q.spacing)||0)+",0,"+borderStyle+","+(Number(q.strokeW)||0)+","+(Number(q.shadow)||0)
+            +","+subAlignAss(q)+",10,10,32,1");
+        lines.push("Dialogue: 0,"+assTs(c.start)+","+assTs(c.start+c.duration)+","+name+",,0,0,0,,"+subTextAss(c));
+    });
+    return "[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\nScaledBorderAndShadow: yes\n"
+        +"\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        +styles.join("\n")+"\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        +lines.join("\n")+"\n";
+}
+function subAssOverride(q){
+    const op=q.opacity===undefined?100:Number(q.opacity), bgOp=Number(q.bgOpacity)||0;
+    const a=Math.round((1-clamp(op,0,100)/100)*255).toString(16).padStart(2,"0").toUpperCase();
+    let s="{";
+    s+="\\fn"+(q.font||"Microsoft YaHei")+"\\fs"+(Math.round(Number(q.size)||28));
+    s+="\\c"+assHexA(q.color||"#ffffff",op)+"\\3c"+assHex(q.stroke||"#000000");
+    s+="\\bord"+(Number(q.strokeW)||0)+"\\shad"+(Number(q.shadow)||0);
+    s+="\\b"+(q.bold===false?0:1)+"\\i"+(q.italic?1:0)+"\\u"+(q.underline?1:0)+"\\s"+(q.strike?1:0);
+    s+="\\fsp"+(Number(q.spacing)||0)+"\\an"+subAlignAss(q)+"\\alpha&H"+a+"&";
+    if(bgOp>0) s+="\\4c"+assHexA(q.bg||"#000000",bgOp);
+    return s+"}";
+}
+function srtTs(t){
+    const x=Math.max(0,Number(t)||0), h=Math.floor(x/3600), m=Math.floor(x%3600/60),
+        s=Math.floor(x%60), ms=Math.round((x%1)*1000), p=n=>String(n).padStart(2,"0");
+    return h+":"+p(m)+":"+p(s)+","+String(ms).padStart(3,"0");
+}
+function buildBurnSrt(arr){
+    if(!arr||!arr.length) return "";
+    return arr.map((c,i)=>{
+        const q=(c.fx&&c.fx.sub)||defaultFx().sub;
+        return (i+1)+"\n"+srtTs(c.start)+" --> "+srtTs(c.start+c.duration)
+            +"\n"+subAssOverride(q)+subTextAss(c).replace(/\\N/g," ")+"\n";
+    }).join("\n");
+}
+function burnSubtitleClips(){
+    return state.clips.filter(c=>trackKind(c.track)==="text"&&c.text).sort((a,b)=>a.start-b.start);
 }
 async function exportSubtitleFile(){
     const fmt=$("expSubFmt").value, r=buildSubtitleText(fmt);
@@ -7485,8 +7575,13 @@ async function recordCanvas(dur,opts,onProgress){
 async function serviceBurnSubtitles(blob,srt,filename){
     if(!svcOnline) await pingService(2800);
     if(!svcOnline||!ffmpegReady()) throw new Error("烧录字幕需要本机服务与 FFmpeg：请启动本机服务，或关闭「烧录字幕」改用单独导出的 SRT 外挂字幕");
-    /* 把全工程统一字幕样式交给本机服务，烧录与预览规格一致；中文/西文字体分开指定 */
-    const q=(state.subStyle)||defaultFx().sub;
+    /* 逐条字幕样式：ASS 带每条独立 Style（含背景框），带覆盖标签的 SRT 供旧服务兜底。
+       这样单条套预设后，导出烧录也只影响该条，与预览一致。 */
+    const arr=burnSubtitleClips();
+    const ass=buildBurnAss(arr);
+    const burnSrt=buildBurnSrt(arr)||String(srt||"");
+    /* 兜底的传统样式（取第一条字幕），仅旧服务在无法解析 ASS 时使用 */
+    const q=(arr[0]&&arr[0].fx&&arr[0].fx.sub)||state.subStyle||defaultFx().sub;
     const subStyle={font:q.font||"Microsoft YaHei",fontEn:q.fontEn||"Arial",
         size:Number(q.size)||28,color:q.color||"#ffffff",stroke:q.stroke||"#000000",
         strokeW:Number(q.strokeW)||0,shadow:Number(q.shadow)||0,
@@ -7494,7 +7589,7 @@ async function serviceBurnSubtitles(blob,srt,filename){
         spacing:Number(q.spacing)||0,lineHeight:Number(q.lineHeight)||1.2};
     const r=await fetch(LOCAL_SERVICE+"/api/burn-subtitles",{method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({filename:String(filename||exportTitle()),srt:String(srt||""),subStyle:subStyle,
+        body:JSON.stringify({filename:String(filename||exportTitle()),srt:burnSrt,ass:ass,subStyle:subStyle,
             dataBase64:await blobToBase64(blob)})});
     const j=await r.json();
     if(!j||!j.ok) throw new Error(j?(j.reason||"字幕烧录失败"):"本机服务返回异常");

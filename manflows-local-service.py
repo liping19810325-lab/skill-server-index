@@ -552,9 +552,9 @@ def api_guide():
             "fade": "导出时在整条成片的首尾各加 30ms afade 淡入淡出，避免开头/结尾爆音；预览不受影响。（渲染按 2 秒内部小段进行，逐段加淡入淡出会每 2 秒产生音量凹陷，故只在成片首尾加。）",
         },
         "burn": {
-            "what": "POST /api/burn-subtitles 把 SRT 字幕用 FFmpeg libass/subtitles 滤镜真正烧进画面（硬字幕）。",
-            "why": "浏览器只能录屏合成，无法把文字写进画面像素；烧录在导出阶段由本机 FFmpeg 完成，任何播放器都能看到。",
-            "input": "dataBase64=已合成视频，srt=SRT 文本，filename=导出文件名；返回 dataBase64。",
+            "what": "POST /api/burn-subtitles 把字幕用 FFmpeg libass/subtitles 滤镜真正烧进画面（硬字幕）。",
+            "why": "浏览器只能录屏合成，无法把文字写进画面像素；烧录在导出阶段由本机 FFmpeg 完成，任何播放器都能看到。字段 ass 含每条字幕独立 Style，套预设只影响选中的那一条；缺省时回退到 SRT + 统一 subStyle。",
+            "input": "dataBase64=已合成视频，ass=ASS 字幕（优先），srt=SRT 文本（兜底），subStyle=统一样式（兜底），filename=导出文件名；返回 dataBase64。",
         },
         "mkv": {
             "what": "POST /api/export 带 action=remux：把 .mkv / Matroska 用 FFmpeg 转封装成浏览器可播放的 MP4（优先 -c copy 无损流拷贝，不兼容时自动改 H.264 重编码）。",
@@ -2093,44 +2093,57 @@ def api_burn_subtitles(body):
             f.write(raw)
         with open(srt_path, "w", encoding="utf-8") as f:
             f.write("\ufeff" + srt if not srt.startswith("\ufeff") else srt)
-        # 读取剪辑台传来的全工程统一字幕样式，烧录与预览规格一致
-        ss = data.get("subStyle") if isinstance(data.get("subStyle"), dict) else {}
-        def _ass_color(val, alpha=0):
-            """#RRGGBB -> libass &HAABBGGRR（AA=透明度 0 不透明）。"""
-            hx = str(val or "").lstrip("#")
-            if len(hx) != 6:
-                return "&H00FFFFFF"
-            try:
-                r, g, b = int(hx[0:2], 16), int(hx[2:4], 16), int(hx[4:6], 16)
-            except ValueError:
-                return "&H00FFFFFF"
-            return "&H%02X%02X%02X%02X" % (int(alpha) & 255, b, g, r)
-        def _num(v, default, lo, hi):
-            try:
-                return max(lo, min(hi, float(v)))
-            except (TypeError, ValueError):
-                return default
-        cn_font = str(ss.get("font") or ("Microsoft YaHei" if _plat() == "windows" else "PingFang SC"))
-        size = _num(ss.get("size"), 22, 8, 200)
-        color = _ass_color(ss.get("color", "#ffffff"))
-        outline_color = _ass_color(ss.get("stroke", "#000000"))
-        outline = _num(ss.get("strokeW"), 2, 0, 12)
-        shadow = _num(ss.get("shadow"), 0, 0, 20)
-        bold = -1 if ss.get("bold", True) else 0
-        italic = -1 if ss.get("italic") else 0
-        spacing = _num(ss.get("spacing"), 0, -10, 40)
-        # BackColour + OpaqueBox：有背景色且不透明度>0 时画字幕背景框
-        bg_opacity = _num(ss.get("bgOpacity"), 0, 0, 100)
-        back = _ass_color(ss.get("bg", "#000000"), int((100 - bg_opacity) * 255 / 100))
-        border_style = 3 if bg_opacity > 0 else 1
-        # WrapStyle=2：关闭 libass 自动换行，强制每条字幕只占一行（与预览 white-space:nowrap 一致）
-        style = ("FontName=%s,FontSize=%d,PrimaryColour=%s,OutlineColour=%s,BackColour=%s,"
-                 "BorderStyle=%d,Outline=%g,Shadow=%g,Bold=%d,Italic=%d,Spacing=%g,"
-                 "WrapStyle=2,Alignment=2,MarginV=32") % (
-                     cn_font, int(round(size)), color, outline_color, back,
-                     border_style, outline, shadow, bold, italic, spacing)
-        vf = "subtitles=filename='%s':force_style='%s'" % (
-            srt_path.replace("\\", "/"), style.replace("'", "\\'"))
+        # 优先用剪辑台逐条生成的 ASS：每条字幕独立 Style，套预设只影响选中的那一条。
+        # 老版本剪辑台不传 ass 时，回退到「带覆盖标签的 SRT + 统一 subStyle」的旧逻辑。
+        ass = str(data.get("ass") or "")[:2000000].replace("\r\n", "\n").replace("\r", "\n")
+        use_ass = ("[Events]" in ass) and ("Dialogue:" in ass) and ("[V4+ Styles]" in ass)
+        if use_ass:
+            ass_path = os.path.join(td, "subs.ass")
+            with open(ass_path, "w", encoding="utf-8") as f:
+                f.write(ass if ass.lstrip("\ufeff").startswith("[Script Info]")
+                        else ("[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\n" + ass))
+            vf = "subtitles=filename='%s'" % ass_path.replace("\\", "/")
+            burn_notes = ["字幕已按每条独立样式烧进画面像素，套预设只影响选中的那一条"]
+            engine_kind = "libass ASS 逐条样式"
+        else:
+            # 读取剪辑台传来的统一字幕样式（兜底），烧录与预览规格一致
+            ss = data.get("subStyle") if isinstance(data.get("subStyle"), dict) else {}
+            def _ass_color(val, alpha=0):
+                """#RRGGBB -> libass &HAABBGGRR（AA=透明度 0 不透明）。"""
+                hx = str(val or "").lstrip("#")
+                if len(hx) != 6:
+                    return "&H00FFFFFF"
+                try:
+                    r, g, b = int(hx[0:2], 16), int(hx[2:4], 16), int(hx[4:6], 16)
+                except ValueError:
+                    return "&H00FFFFFF"
+                return "&H%02X%02X%02X%02X" % (int(alpha) & 255, b, g, r)
+            def _num(v, default, lo, hi):
+                try:
+                    return max(lo, min(hi, float(v)))
+                except (TypeError, ValueError):
+                    return default
+            cn_font = str(ss.get("font") or ("Microsoft YaHei" if _plat() == "windows" else "PingFang SC"))
+            size = _num(ss.get("size"), 22, 8, 200)
+            color = _ass_color(ss.get("color", "#ffffff"))
+            outline_color = _ass_color(ss.get("stroke", "#000000"))
+            outline = _num(ss.get("strokeW"), 2, 0, 12)
+            shadow = _num(ss.get("shadow"), 0, 0, 20)
+            bold = -1 if ss.get("bold", True) else 0
+            italic = -1 if ss.get("italic") else 0
+            spacing = _num(ss.get("spacing"), 0, -10, 40)
+            bg_opacity = _num(ss.get("bgOpacity"), 0, 0, 100)
+            back = _ass_color(ss.get("bg", "#000000"), int((100 - bg_opacity) * 255 / 100))
+            border_style = 3 if bg_opacity > 0 else 1
+            style = ("FontName=%s,FontSize=%d,PrimaryColour=%s,OutlineColour=%s,BackColour=%s,"
+                     "BorderStyle=%d,Outline=%g,Shadow=%g,Bold=%d,Italic=%d,Spacing=%g,"
+                     "WrapStyle=2,Alignment=2,MarginV=32") % (
+                         cn_font, int(round(size)), color, outline_color, back,
+                         border_style, outline, shadow, bold, italic, spacing)
+            vf = "subtitles=filename='%s':force_style='%s'" % (
+                srt_path.replace("\\", "/"), style.replace("'", "\\'"))
+            burn_notes = ["字幕已烧进画面像素，不依赖播放器外挂字幕"]
+            engine_kind = "libass SRT 硬字幕"
         cmd = [info["path"], "-y", "-hide_banner", "-loglevel", "error",
                "-i", in_path, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
                "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy",
@@ -2140,10 +2153,9 @@ def api_burn_subtitles(body):
         if p.returncode != 0 or not os.path.isfile(out_path) or os.path.getsize(out_path) < 128:
             err = _scrub((p.stderr or b"").decode("utf-8", "replace"), info["path"], td)[-420:]
             return _fail("字幕烧录失败：%s" % (err or "未生成输出"),
-                         "请确认字幕为 UTF-8 SRT、系统已安装中文字体，并重试")
+                         "请确认字幕为 UTF-8 字幕、系统已安装中文字体，并重试")
         res = _ok_file(out_path, _safe_stem(data.get("filename") or "burned") + ".mp4",
-                       "ffmpeg -vf subtitles（libass 硬字幕烧录）",
-                       ["字幕已烧进画面像素，不依赖播放器外挂字幕"])
+                       "ffmpeg -vf subtitles（%s）" % engine_kind, burn_notes)
         res["engine"] = "本机 FFmpeg %s（libass 字幕烧录）" % (info.get("version") or "")
         return res
     except Exception as e:
