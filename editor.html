@@ -176,8 +176,11 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .hist-item button{padding:4px 9px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:10.5px;white-space:nowrap;}
 .hist-item button:hover{background:var(--hover);}
 .hist-empty{color:var(--muted);font-size:12px;text-align:center;padding:26px 10px;line-height:1.9;}
-.subtitle-overlay{position:absolute;left:0;right:0;bottom:7%;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;padding:0 24px;}
-.sub-line{font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:none;white-space:nowrap;word-break:normal;overflow-wrap:normal;transform-origin:center center;pointer-events:auto;cursor:text;transition:outline-color .15s;outline:1px dashed transparent;}
+/* 字幕层铺满舞台，每条字幕按 subStackY 静态绝对定位（不再 flex 堆叠）。
+   flex 堆叠会让某条字幕的位置随「同屏其它字幕数量」漂移，造成预览忽高忽低、
+   且与烧录的静态 \pos 对不上。改为绝对定位后预览/烧录共用同一套坐标真源。 */
+.subtitle-overlay{position:absolute;inset:0;pointer-events:none;}
+.sub-line{position:absolute;font-size:19px;line-height:1.5;text-align:center;text-shadow:0 2px 6px #000,0 0 3px #000;padding:2px 12px;border-radius:6px;max-width:none;white-space:nowrap;word-break:normal;overflow-wrap:normal;transform-origin:center center;pointer-events:auto;cursor:text;transition:outline-color .15s;outline:1px dashed transparent;}
 /* 多行字幕：用户在字幕文字里输入换行后显示成多行（单行字幕仍走 nowrap，行为不变） */
 .sub-line.sub-multiline{white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;max-width:100%;}
 .sub-line.dialogue{color:#fff;background:rgba(0,0,0,.42);}
@@ -2272,10 +2275,13 @@ function subPlacement(q,SW,SH){
     const y=clamp(baseY+off,1,SH);
     return {x:x,y:y,an:an,size:size,align:align,pos:pos,pad:pad,baseY:baseY};
 }
-function subStyleOf(c){
-    const q=fxOf(c).sub||{}, st=$("stage"), H=st?st.clientHeight:360;
-    const _sp=subPlacement(q,st?st.clientWidth:640,H);
-    const off=_sp.y-_sp.baseY;
+function subStyleOf(c,stackY){
+    const q=fxOf(c).sub||{}, st=$("stage"), W=st?st.clientWidth:640, H=st?st.clientHeight:360;
+    const _sp=subPlacement(q,W,H);
+    /* 静态落点：bottom = H - y（y 是距顶端像素）。stackY 由 subStackY 统一算好，
+       与烧录 ASS 的 \pos 用同一个 y，因此预览与成片严格一致，且不随其它字幕漂移。 */
+    const y=(stackY===undefined)?_sp.y:stackY;
+    const bottomFromStage=clamp(H-y,0,H);
     const op=clamp(q.opacity===undefined?100:Number(q.opacity),0,100)/100;
     const sh=Number(q.shadow)||0, bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
     /* 未点过颜色选择器时按剪映习惯回退黑底，否则只拖「背景透明」滑块会毫无效果 */
@@ -2293,7 +2299,14 @@ function subStyleOf(c){
     const deco=(q.underline?"underline ":"")+(q.strike?"line-through ":"");
     const vertical=q.vertical?"writing-mode:vertical-rl;text-orientation:upright;":"";
     const bgRadius=Number(q.bgRadius)||0, bgPad=Number(q.bgPad)||0;
-    return "font-size:"+(Number(q.size)||28)+"px;"+fill
+    /* 水平：与 subPlacement 一致（left→贴24px内边距, right→贴右边, center→居中） */
+    const al=q.align||"center";
+    let hpos;
+    if(al==="left") hpos="left:"+_sp.pad+"px;";
+    else if(al==="right") hpos="right:"+_sp.pad+"px;";
+    else hpos="left:50%;translate:-50% 0;";
+    return "bottom:"+bottomFromStage+"px;"+hpos
+        +"font-size:"+(Number(q.size)||28)+"px;"+fill
         +";opacity:"+op.toFixed(3)
         +";font-weight:"+(q.bold===false?"400":"700")
         +";font-style:"+(q.italic?"italic":"normal")
@@ -2305,8 +2318,7 @@ function subStyleOf(c){
         +";-webkit-text-stroke:"+(Number(q.strokeW)||0)+"px "+(q.stroke||"#000")
         +(deco?(";text-decoration:"+deco.trim()):"")
         +";text-align:"+(q.align||"center")+";font-family:'"+(q.fontEn||"Arial")+"','"+(q.font||"Microsoft YaHei")+"',sans-serif"
-        +";"+vertical
-        +";translate:0 "+off+"px;";
+        +";"+vertical;
 }
 function hexToRgba(hex,a){
     const m=/^#?([0-9a-f]{6})$/i.exec(String(hex||""));
@@ -3708,7 +3720,16 @@ function renderSubtitleOverlay(){
     const key=active.map(c=>c.id+c.text+(c.subKind||"")).join("|");
     if(key===subCache) return;
     subCache=key;
-    $("subOverlay").innerHTML=active.map(c=>'<div class="sub-line '+(c.subKind||"dialogue")+(String(c.text).indexOf("\n")>=0?" sub-multiline":"")+'" data-clip="'+esc(c.id)+'" style="'+subStyleOf(c)+'">'+esc(c.text)+'</div>').join("");
+    /* 用整段所有字幕作为静态堆叠基准（assStackIndex 内部按「同位置+时间重叠」过滤），
+       这样每条字幕的 y 只取决于自身样式和轨道顺序，不随「此刻同屏几条字幕」漂移。
+       与烧录 buildBurnAss 用同一套 subStackY，预览即成片。 */
+    const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
+    const allText=state.clips.filter(c=>trackKind(c.track)==="text"&&c.text);
+    $("subOverlay").innerHTML=active.map(c=>{
+        const y=subStackY(c,allText,W,H);
+        return '<div class="sub-line '+(c.subKind||"dialogue")+(String(c.text).indexOf("\n")>=0?" sub-multiline":"")
+            +'" data-clip="'+esc(c.id)+'" style="'+subStyleOf(c,y)+'">'+esc(c.text)+'</div>';
+    }).join("");
 }
 function syncMedia(){
     if(assetPreviewId) return;              /* 素材库单击预览期间不覆盖预览画面 */
@@ -7574,7 +7595,10 @@ function subLinePx(q){
     const size=Number(q.size)||28, lh=Number(q.lineHeight)||1.2;
     const lines=Math.max(1,(String(q.text||"").match(/\n/g)||[]).length+1);
     const bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
-    const pad=4+(bgA>0?2*(Number(q.bgPad)||0):0);
+    /* 复刻 .sub-line 的实际盒高 = line-height×行数 + 上下 padding。
+       默认 padding 2px/边(共4)，有背景时 bgPad/边(共2×bgPad)。
+       旧公式多算了 4px，导致含背景框字幕的堆叠与文字中心定位偏差。 */
+    const pad=2*(bgA>0?(Number(q.bgPad)||0):2);
     return size*lh*lines+pad;
 }
 /* 与预览堆叠一致的层号：返回该字幕在「同位置 + 时间重叠」组内从底往上数是第几层。
@@ -7596,10 +7620,28 @@ function assStackIndex(c,arr,W,H){
     const idx=grp.indexOf(c);
     return {idx:idx,level:Math.max(0,grp.length-1-idx),group:grp};
 }
+/* 统一的静态堆叠落点：预览 CSS 与烧录 ASS 都调用它，保证「同一条字幕在画面上的 y」唯一确定。
+   关键：arr 用「整段所有字幕」作静态基准，因此某条字幕的 y 只取决于自身样式 + 轨道顺序，
+   不随「当前时刻有几条其它字幕在显示」而漂移——这正是预览忽高忽低的根源。 */
+function subStackY(c,arr,W,H){
+    const GAP=5;   /* 与预览 .subtitle-overlay 的 gap:5px 一致 */
+    const si=assStackIndex(c,arr,W,H);
+    if(si.level<=0) return subPlacement((c.fx&&c.fx.sub)||defaultFx().sub,W,H).y;
+    const grp=si.group;
+    let up=0;
+    for(let j=si.idx+1;j<grp.length;j++) up+=subLinePx((grp[j].fx&&grp[j].fx.sub)||defaultFx().sub)+GAP;
+    return subPlacement((c.fx&&c.fx.sub)||defaultFx().sub,W,H).y-up;
+}
 function assPosTag(q,stackY){
     const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
     const sp=subPlacement(q,W,H);   /* 与预览/Canvas 共用同一落点真源 */
-    const y=Math.round(clamp(stackY===undefined?sp.y:stackY,1,H));
+    const bottomY=(stackY===undefined)?sp.y:stackY;   /* 预览元素盒底边（含 padding）距顶端像素 */
+    /* libass \an(1/2/3 底边锚点) 的文字 ink 中心 ≈ posY - 0.52×字号（经 ffmpeg 实测标定）；
+       预览里文字 ink 中心 = 元素盒底 - 元素高/2。两者相等 => posY = bottomY - linePx/2 + 0.52*size。
+       这样带背景框(有 padding)与不带框的字幕,烧录文字都与预览逐像素对齐。 */
+    const size=Math.max(8,Number(q.size)||28);
+    const inkCenter=bottomY-subLinePx(q)/2;
+    const y=Math.round(clamp(inkCenter+0.52*size,1,H));
     return "{\\an"+sp.an+"\\pos("+sp.x+","+y+")}";
 }
 function subTextAss(c){
@@ -7612,19 +7654,10 @@ function buildBurnAss(arr){
        libass 会按脚本分辨率等比缩放到成片，从而让烧录位置/大小与预览一一对应。
        PlayResX/Y 写死为舞台尺寸；宽高比与 exportSize() 一致（都取自 stage.clientWidth/Height）。 */
     const st=$("stage"), W=(st&&st.clientWidth>0)?st.clientWidth:640, H=(st&&st.clientHeight>0)?st.clientHeight:360;
-    const GAP=5;   /* 与预览 .subtitle-overlay 的 gap:5px 一致 */
     const styles=[], lines=[];
-    /* 为每条字幕算出堆叠后的 y：同位置组里从底往上，每条向上让出下方各条的高度 + gap */
+    /* 与预览共用同一套静态堆叠算法，保证烧录 y 与预览字幕实际落点一致 */
     const stackYById={};
-    arr.forEach(c=>{
-        const si=assStackIndex(c,arr,W,H);
-        if(si.level<=0){ stackYById[c.id]=subPlacement((c.fx&&c.fx.sub),W,H).y; return; }
-        // 组按轨道顺序排：idx 越大越靠底。本条要向上让出「排在它后面的所有条」的高度 + gap
-        const grp=si.group;
-        let up=0;
-        for(let j=si.idx+1;j<grp.length;j++) up+=subLinePx((grp[j].fx&&grp[j].fx.sub)||defaultFx().sub)+GAP;
-        stackYById[c.id]=subPlacement((c.fx&&c.fx.sub),W,H).y-up;
-    });
+    arr.forEach(c=>{ stackYById[c.id]=subStackY(c,arr,W,H); });
     arr.forEach((c,i)=>{
         const q=(c.fx&&c.fx.sub)||defaultFx().sub, name="MF"+i;
         const op=q.opacity===undefined?100:Number(q.opacity), bgOp=Number(q.bgOpacity)||0;
@@ -7877,7 +7910,10 @@ function drawStageFrame(x,W,H,opts){
     }
     /* 烧录开启时录纯净画面，字幕交给后端 FFmpeg libass 烧一遍，避免 canvas+ASS 双重绘制。
        若需要 canvas 绘制（关闭烧录 / GIF），用 subPlacement 统一真源定位置字号，与预览一致。 */
-    if(!noSub) $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
+    if(!noSub){
+        const stg=$("stage"), SW0=(stg&&stg.clientWidth>0)?stg.clientWidth:640, SH0=(stg&&stg.clientHeight>0)?stg.clientHeight:360;
+        const allText=state.clips.filter(cc=>trackKind(cc.track)==="text"&&cc.text);  /* 静态堆叠基准，与预览/ASS 同源 */
+        $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
         const c=clipById(el.dataset.clip), q=c?fxOf(c).sub:null;
         const st=$("stage"), SW=(st&&st.clientWidth>0)?st.clientWidth:640, SH=(st&&st.clientHeight>0)?st.clientHeight:360;
         const scale=W/SW, sp=subPlacement(q,SW,SH);
@@ -7888,7 +7924,11 @@ function drawStageFrame(x,W,H,opts){
         try{ x.letterSpacing=((q?Number(q.spacing)||0:0)*scale)+"px"; }catch(e){}
         x.textAlign=sp.align; x.textBaseline="bottom";
         const px=sp.x*scale;
-        const py=sp.y*scale;
+        /* 与预览/ASS 同一落点：subStackY 得元素盒底，再换算成文字 ink 中心作为 textBaseline=bottom 的锚点。
+           canvas 文字 ink 高 ≈ 0.74*字号，ink中心 = baseline - 0.37*字号 => baseline = inkCenter + 0.37*字号。 */
+        const stackY=c?subStackY(c,allText,SW,SH):sp.y;
+        const inkCenter=stackY-subLinePx(q||defaultFx().sub)/2;
+        const py=(inkCenter+0.37*(Number(q&&q.size)||28))*scale;
         const sh=q?Number(q.shadow)||0:0, glow=q?Number(q.glow)||0:0;
         /* 导出画布把「阴影 + 发光」合并成 shadowBlur（取较大者，发光用对应颜色） */
         if(glow>0){ x.shadowColor=q.glowColor||"#ffffff"; x.shadowBlur=glow*scale; }
@@ -7953,7 +7993,8 @@ function drawStageFrame(x,W,H,opts){
             if(q&&q.strike) x.fillRect(ux,py-size*0.34,tw,Math.max(1,size*0.045));
         }
         x.restore();
-    });
+        });
+    }
 }
 let _grainTile=null;
 function grainTile(){
