@@ -1862,6 +1862,13 @@ function defaultFx(){
 /* 字幕样式独立副本：sub 里全是基本类型，浅拷贝即互不影响。
    新建/迁移字幕时用它从默认模板克隆一份，保证每条字幕拥有自己的样式对象。 */
 function cloneSubStyle(s){ return Object.assign({},defaultFx().sub,(s&&typeof s==="object")?s:{}); }
+/* 片段深拷贝：clip 的 fx 里嵌套 sub/crop/color/audio 等对象，浅拷贝会让复制/分割出的
+   新片段与原片段共享这些子对象，出现「改新的却改了旧的」。序列化克隆保证完全独立。 */
+function cloneClip(c){
+    if(!c) return c;
+    try{ return JSON.parse(JSON.stringify(c)); }
+    catch(e){ const o=Object.assign({},c); o.fx=c.fx?JSON.parse(JSON.stringify(c.fx)):defaultFx(); return o; }
+}
 function fxOf(c){
     if(!c) return defaultFx();
     if(!c.fx||typeof c.fx!=="object") c.fx=defaultFx();
@@ -3470,7 +3477,7 @@ function wireClipContextMenu(){
         if(b.dataset.ctx==="smartcut"){ state.selected=c.id; state.multi=[]; const sm=$("smartCutBtn"); if(sm&&!sm.disabled) sm.click(); else toast("请先等素材时长读取完成后再剪口播","err"); return; }
         if(b.dataset.ctx==="asr"){ $("aiSubBtn").click(); return; }
         if(b.dataset.ctx==="splitav"){ splitClipAV(c); return; }
-        if(b.dataset.ctx==="copy"){ clipboard=[Object.assign({},c,{id:uid()})]; toast("已复制片段","ok"); return; }
+        if(b.dataset.ctx==="copy"){ const nc=cloneClip(c); nc.id=uid(); clipboard=[nc]; toast("已复制片段","ok"); return; }
         if(b.dataset.ctx==="del"){ state.selected=c.id; state.multi=[]; deleteSelected(); }
     };
     tmenu.onclick=e=>{
@@ -3487,7 +3494,7 @@ function copyTrack(tr){
     nt.locked=tr.locked; nt.hidden=tr.hidden; nt.muted=tr.muted;
     const map={};
     state.clips.filter(c=>c.track===tr.id).forEach(c=>{
-        const nc=Object.assign({},c,{id:uid(),track:nt.id,fx:c.fx?JSON.parse(JSON.stringify(c.fx)):defaultFx()});
+        const nc=cloneClip(c); nc.id=uid(); nc.track=nt.id; fxOf(nc);
         map[c.id]=nc.id; state.clips.push(nc);
     });
     renderAll(); autoSave(); toast("已复制轨道「"+tr.label+"」→「"+nt.label+"」","ok");
@@ -3768,7 +3775,7 @@ function splitSelected(at){
     if(t<=c.start+0.08 || t>=c.start+c.duration-0.08){ toast("播放头要落在片段中间才能剪断"); return; }
     const leftDur=t-c.start, rightDur=c.duration-leftDur;
     pushHistory();
-    const right=Object.assign({},c,{id:uid(),start:t,duration:rightDur,offset:(c.offset||0)+leftDur,fx:Object.assign({},fxOf(c))});
+    const right=cloneClip(c); right.id=uid(); right.start=t; right.duration=rightDur; right.offset=(c.offset||0)+leftDur; fxOf(right);
     if(c.text){
         const cut=Math.max(1,Math.round(c.text.length*(leftDur/c.duration)));
         right.text=c.text.slice(cut); c.text=c.text.slice(0,cut);
@@ -3782,7 +3789,9 @@ function splitSelected(at){
 function copySelection(cut){
     const ids=selectedIds();
     if(!ids.length){ toast("请先点选片段（Shift 点选可多选）"); return; }
-    clipboard=state.clips.filter(c=>ids.indexOf(c.id)>=0).map(c=>Object.assign({},c,{_kind:trackKind(c.track),fx:Object.assign({},fxOf(c))}));
+    clipboard=state.clips.filter(c=>ids.indexOf(c.id)>=0).map(c=>{
+        const nc=cloneClip(c); nc._kind=trackKind(c.track); fxOf(nc); return nc;
+    });
     if(cut){ pushHistory(); state.clips=state.clips.filter(c=>ids.indexOf(c.id)<0); state.selected=null; state.multi=[]; renderAll(); autoSave(); }
     toast((cut?"已剪切 ":"已复制 ")+clipboard.length+" 个片段","ok");
 }
@@ -3794,7 +3803,7 @@ function pasteClips(){
         let tr=trackById(src.track);
         const kind=src._kind||"video";
         if(!tr){ tr=orderedTracks().find(t=>t.kind===kind)||newTrack(kind); }
-        const c=Object.assign({},src,{id:uid(),track:tr.id,start:base+((src.start||0)-min),fx:Object.assign({},src.fx||defaultFx())});
+        const c=cloneClip(src); c.id=uid(); c.track=tr.id; c.start=base+((src.start||0)-min); fxOf(c);
         delete c._kind;
         state.clips.push(c); added.push(c.id);
     }
@@ -4576,14 +4585,14 @@ function rippleDeleteRanges(ranges){
             /* 用原片段的映射取出该保留区间对应的源时间；正放取低端、倒放同样取低端作为 offset */
             const sa=timelineToSource(c,g.s).t, sb=timelineToSource(c,Math.min(g.e,e)).t;
             const off=Math.max(0,Math.min(sa,sb));
-            out.push(Object.assign({},c,{
-                id:uid(),
-                start:Math.max(0,g.s-shift(g.s)),
-                duration:+(g.e-g.s).toFixed(4),
-                offset:+off.toFixed(4),
-                cutRanges:[],                             /* 已物理切开，不再需要内部裁剪标记 */
-                name:String(c.name||"素材")+(segs.length>1?(" · "+(i+1)):"")
-            }));
+            const piece=cloneClip(c);
+            piece.id=uid();
+            piece.start=Math.max(0,g.s-shift(g.s));
+            piece.duration=+(g.e-g.s).toFixed(4);
+            piece.offset=+off.toFixed(4);
+            piece.cutRanges=[];                           /* 已物理切开，不再需要内部裁剪标记 */
+            piece.name=String(c.name||"素材")+(segs.length>1?(" · "+(i+1)):"");
+            out.push(piece);
             pieces++;
         });
         cutByClip.push({id:c.id,pieces:segs.length});
@@ -5007,8 +5016,9 @@ function applyAgentProposal(){
                 const rel=p.at-c.start;
                 if(rel>0.1&&rel<c.duration-0.1){
                     const sa=timelineToSource(c,c.start).t, sb=timelineToSource(c,p.at).t;
-                    const right=Object.assign({},c,{id:uid(),start:+p.at.toFixed(4),
-                        duration:+(c.duration-rel).toFixed(4),offset:+Math.max(sa,sb).toFixed(4),cutRanges:[]});
+                    const right=cloneClip(c);
+                    right.id=uid(); right.start=+p.at.toFixed(4);
+                    right.duration=+(c.duration-rel).toFixed(4); right.offset=+Math.max(sa,sb).toFixed(4); right.cutRanges=[];
                     c.duration=+rel.toFixed(4);
                     const idx=state.clips.indexOf(c); state.clips.splice(idx+1,0,right); n++;
                 }
