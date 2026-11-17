@@ -5746,6 +5746,13 @@ function wire(){
             }
             fresh.style.left=Math.round(c.start*zoom)+"px";
             fresh.style.width=Math.max(14,Math.round(c.duration*zoom))+"px";
+            /* 与视频轨上部连续缩略图一致：裁剪拖动中实时按新源区间重绘波形，
+               立刻抹掉被裁掉的部分。否则 canvas 只被 CSS 压缩、内部像素还是旧的，
+               看起来像「波形没跟着裁剪走」，松手才跳变。音频轨与视频复合轨共用。 */
+            if(resize||resizeL){
+                const wa=c.assetId?assetById(c.assetId):null;
+                if(wa) fresh.querySelectorAll("canvas.clip-wave").forEach(cv=>drawWave(cv,c,wa));
+            }
             showHint();
         };
         const up=()=>{
