@@ -49,7 +49,7 @@ button{cursor:pointer;}
 .side{overflow-y:auto;overflow-x:hidden;background:var(--bg);display:flex;flex-direction:column;gap:10px;padding:10px;min-width:0;}
 .side.left{width:var(--leftW);flex:0 0 var(--leftW);}
 .side.right{width:var(--rightW);flex:0 0 var(--rightW);}
-.center{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:10px;padding:10px;background:#0c0e14;}
+.center{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0;padding:8px;background:#0c0e14;}
 .vsplit{flex:0 0 6px;cursor:col-resize;background:var(--border);position:relative;z-index:20;touch-action:none;}
 .vsplit:hover,.vsplit.active{background:var(--green);}
 .vsplit::after{content:"";position:absolute;top:50%;left:1px;width:4px;height:36px;transform:translateY(-50%);border-radius:3px;background:rgba(255,255,255,.16);}
@@ -112,11 +112,14 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .canvas-item button:hover{filter:brightness(1.15);}
 .canvas-item button.g{background:var(--green);}
 
-/* ===== 中间预览 ===== */
-.player-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.player-head h2{font-size:13px;color:#cbd5e1;font-weight:500;}
-.player-head .ph-extra{margin-left:auto;font-size:10.5px;color:var(--muted);}
-.stage-wrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;border:1px solid var(--border2);border-radius:12px;overflow:hidden;position:relative;}
+/* ===== 中间预览（剪映 6.0 播放器样式） ===== */
+/* 顶部：文件名标签 + 播放器标签，纯深色、无圆角卡片 */
+.player-head{display:flex;align-items:center;gap:2px;height:30px;flex:0 0 30px;background:#14161b;border-bottom:1px solid #0b0d12;padding:0 8px;}
+.player-head h2{display:none;}
+.jy-file-tab{font-size:11px;color:#d1d5db;background:#23262e;padding:4px 12px;border-radius:5px 5px 0 0;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.jy-view-tab{font-size:10.5px;color:#8b93a1;padding:4px 8px;}
+.player-head .ph-extra{margin-left:auto;font-size:10px;color:#5d6573;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;}
+.stage-wrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;position:relative;}
 .stage{position:relative;flex:0 0 auto;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 #previewVideo,#previewImage{width:100%;height:100%;object-fit:contain;display:none;background:#000;transform-origin:center center;}
 #previewVideo.show,#previewImage.show{display:block;}
@@ -158,15 +161,32 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .sub-line.dialogue{color:#fff;background:rgba(0,0,0,.42);}
 .sub-line.narration{color:#fde68a;background:rgba(0,0,0,.42);}
 .sub-line.inner{color:#f9a8d4;font-style:italic;background:rgba(0,0,0,.42);}
-.seek-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.seek-row input[type=range]{flex:1 1 160px;min-width:100px;accent-color:var(--green);}
-.controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
-.ctrl{padding:6px 11px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);color:var(--text);font-size:12px;min-height:32px;}
-.ctrl:hover{background:var(--hover);}
-.ctrl.play{background:var(--green);border-color:transparent;color:#fff;min-width:64px;}
-.time-label{font-size:12px;color:#cbd5e1;font-variant-numeric:tabular-nums;white-space:nowrap;}
-.vol-row{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
-.vol-row input{width:78px;accent-color:var(--blue);}
+/* 剪映式紧凑控制条：左帧号时间码 / 中播放 / 右比例·画质·全屏 */
+.seek-row{height:4px;flex:0 0 4px;background:#0b0d12;display:flex;align-items:center;padding:0;overflow:hidden;}
+.seek-row input[type=range]{width:100%;height:4px;margin:0;accent-color:var(--green);opacity:.55;transition:opacity .15s;cursor:pointer;}
+.seek-row:hover input[type=range]{opacity:1;}
+.controls{display:flex;align-items:center;justify-content:space-between;gap:8px;height:38px;flex:0 0 38px;background:#14161b;border-top:1px solid #0b0d12;padding:0 12px;}
+.jy-tc{display:flex;align-items:baseline;gap:6px;font-size:11px;color:#d1d5db;font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:nowrap;min-width:180px;}
+.jy-tc .jy-total{color:#5d6573;font-size:10px;}
+.jy-mid{display:flex;align-items:center;gap:10px;}
+.ctrl{padding:0;border:none;background:transparent;color:#aeb6c2;font-size:12px;min-height:0;width:24px;height:24px;line-height:24px;text-align:center;border-radius:5px;}
+.ctrl:hover{background:#23262e;color:#fff;}
+.ctrl.play{background:transparent;border:none;color:#e5e7eb;min-width:30px;width:30px;height:30px;line-height:30px;font-size:15px;}
+.ctrl.play:hover{background:#23262e;color:#fff;}
+.time-label{display:none;}              /* 帧号时间码改用 #jyTimecode，保留本节点兼容旧脚本 */
+.jy-right{display:flex;align-items:center;gap:4px;min-width:180px;justify-content:flex-end;position:relative;}
+.jy-icon{padding:3px 7px;border:none;background:transparent;color:#9aa2ae;font-size:10.5px;border-radius:5px;white-space:nowrap;}
+.jy-icon:hover{background:#23262e;color:#fff;}
+.jy-icon.active{background:#2563eb;color:#fff;}
+.jy-quality{color:#6b7280;font-size:10px;padding:3px 4px;}
+.jy-aspect-menu{position:absolute;right:0;bottom:30px;background:#1b1e25;border:1px solid #2f3542;border-radius:8px;padding:5px;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,.6);z-index:30;display:flex;flex-direction:column;gap:2px;}
+.jy-aspect-menu[hidden]{display:none;}
+.jy-aspect-menu button{text-align:left;padding:5px 9px;border:none;background:transparent;color:#cbd5e1;font-size:11px;border-radius:5px;cursor:pointer;}
+.jy-aspect-menu button:hover{background:#2563eb;color:#fff;}
+.jy-aspect-menu button.active{background:#2563eb;color:#fff;}
+.jy-aspect-menu .sep{height:1px;background:#2f3542;margin:3px 0;}
+.vol-row{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280;}
+.vol-row input{width:52px;accent-color:var(--blue);}
 
 /* ===== 右侧属性 / 字幕 ===== */
 .prop-row{display:flex;gap:6px;align-items:center;margin:7px 0;flex-wrap:wrap;}
@@ -262,6 +282,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .track-label .tl-bar{height:3px;width:26px;border-radius:2px;}
 .lane{position:relative;flex:1 1 auto;min-width:0;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(var(--grid-step) - 1px),rgba(58,64,75,.5) calc(var(--grid-step) - 1px),rgba(58,64,75,.5) var(--grid-step)),#191c21;cursor:crosshair;}
 .lane.drag-over{background-color:rgba(37,99,235,.20);box-shadow:inset 0 0 0 2px #60a5fa;}
+/* 片段跨轨拖动时的落点高亮（区别于素材库拖入的 drag-over） */
+.lane.drop-target{background-color:rgba(16,185,129,.18);box-shadow:inset 0 0 0 2px #34d399;}
+.lane.drop-target::after{content:"松开移到此轨 / 新建同类轨";position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:10px;color:#6ee7b7;background:rgba(0,0,0,.7);padding:2px 8px;border-radius:4px;white-space:nowrap;pointer-events:none;z-index:9;}
 .clip{position:absolute;top:4px;height:30px;border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 3px rgba(0,0,0,.35);display:flex;align-items:center;user-select:none;cursor:grab;z-index:2;}
 .clip:hover{filter:brightness(1.12);}
 .clip.sel{border:2px solid #fff;box-shadow:0 0 0 2px rgba(96,165,250,.6),inset 0 1px 0 rgba(255,255,255,.2);z-index:3;}
@@ -559,19 +582,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <label data-mode="local"><input type="radio" name="edComputeMode" value="local"> 本机算力</label>
                     <label data-mode="third_party"><input type="radio" name="edComputeMode" value="third_party"> 第三方API</label>
                 </div>
-                <div class="hint" id="edComputeHint">AI剪辑走对话模型（/v1/chat/completions），AI字幕走转写接口（本机服务转发，不受跨域限制）；两栏状态彻底分开、互不覆盖。本页档位独立。</div>
-                <div class="ai-panel" id="edEditPanel">
-                    <div class="ai-panel-title">✨ AI 剪辑 <span class="ai-panel-tag">/v1/chat/completions</span></div>
-                    <div class="ai-state" id="edEditState">尚未运行</div>
-                    <div class="ai-progress" id="edEditProgress" hidden><div class="ai-progress-fill" id="edEditProgressFill"></div></div>
-                    <div class="ai-steps" id="edEditSteps"></div>
-                </div>
-                <div class="ai-panel" id="edSubPanel">
-                    <div class="ai-panel-title">🅰 AI 字幕 <span class="ai-panel-tag">/v1/audio/transcriptions</span></div>
-                    <div class="ai-state" id="edState">尚未运行</div>
-                    <div class="ai-progress" id="edProgress" hidden><div class="ai-progress-fill" id="edProgressFill"></div></div>
-                    <div class="ai-steps" id="edSteps"></div>
-                </div>
+                <div class="hint" id="edComputeHint">AI剪辑、对话剪辑、AI字幕现在都优先经本机服务（127.0.0.1:8788）转发：启动服务后自动探测 127.0.0.1 / localhost，绕开浏览器跨域 CORS；服务离线才尝试浏览器直连并给出明确诊断。两栏状态彻底分开、互不覆盖。本页档位独立。各自的运行状态与进度已移入点击 AI剪辑 / AI字幕 后弹出的浮窗里。</div>
             </div>
 
             <div class="card">
@@ -621,15 +632,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="vsplit" id="splitLeft" data-side="left" title="拖动调整素材库宽度"></div>
 
         <section class="center" id="centerPane">
+            <!-- 剪映式播放器顶部：文件名标签 + 播放器标签（原「预览/画幅/变换框」文字按钮已移入比例菜单） -->
             <div class="player-head">
-                <h2>预览</h2>
-                <div class="aspect-row" id="aspectRow" title="自适应＝按导入的第一条视频 / 图片的画幅决定，默认自适应">
-                    <span>画幅</span>
-                    <button class="asp-btn active" data-asp="auto">自适应</button>
-                    <button class="asp-btn" data-asp="16:9">16:9</button>
-                    <button class="asp-btn" data-asp="9:16">9:16</button>
-                    <button class="asp-btn" id="fxBoxToggle" title="显示 / 隐藏预览变换框（移动·缩放·旋转控件）">◇ 变换框</button>
-                </div>
+                <span class="jy-file-tab" id="playerTitle">未命名工程</span>
+                <span class="jy-view-tab">播放器</span>
                 <span class="ph-extra" id="playerMode">字幕 / 图片 / 视频 / 音频 多层同步预览</span>
             </div>
             <div class="stage-wrap">
@@ -652,14 +658,36 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <div class="subtitle-overlay" id="subOverlay"></div>
                 </div>
             </div>
+            <!-- 剪映式播放器底部控制条：左帧号时间码 / 中逐帧+播放 / 右比例·画质·音量·全屏 -->
             <div class="controls">
-                <button class="ctrl" id="btnStart" title="回到开头 (Home)">⏮</button>
-                <button class="ctrl play" id="btnPlay" title="播放 / 暂停 (Space)">▶ 播放</button>
-                <button class="ctrl" id="btnEnd" title="跳到结尾 (End)">⏭</button>
-                <span class="time-label" id="timeLabel">00:00.0 / 00:00.0</span>
-                <div class="vol-row">🔊<input type="range" id="volRange" min="0" max="1" step="0.01" value="0.8"></div>
+                <div class="jy-tc"><span id="jyTimecode">00:00:00:00</span><span class="jy-total" id="timeLabel">/ 00:00:00:00</span></div>
+                <div class="jy-mid">
+                    <button class="ctrl" id="btnStart" title="上一帧 (←)">◀|</button>
+                    <button class="ctrl play" id="btnPlay" title="播放 / 暂停 (Space)">▶</button>
+                    <button class="ctrl" id="btnEnd" title="下一帧 (→)">|▶</button>
+                </div>
+                <div class="jy-right">
+                    <!-- 画幅菜单：保留 .asp-btn / data-asp 以兼容原有切换逻辑 -->
+                    <div class="aspect-row" id="aspectRow" hidden title="自适应＝按导入的第一条视频 / 图片的画幅决定">
+                        <button class="asp-btn active" data-asp="auto">自适应</button>
+                        <button class="asp-btn" data-asp="16:9">16:9</button>
+                        <button class="asp-btn" data-asp="9:16">9:16</button>
+                    </div>
+                    <button class="jy-icon" id="btnAspect" title="画面比例">▣ 比例</button>
+                    <div class="jy-aspect-menu" id="aspectMenu" hidden>
+                        <button class="asp-btn active" data-asp="auto">自适应</button>
+                        <button class="asp-btn" data-asp="16:9">16:9</button>
+                        <button class="asp-btn" data-asp="9:16">9:16</button>
+                        <button class="asp-btn" data-asp="4:3">4:3</button>
+                        <button class="asp-btn" data-asp="1:1">1:1</button>
+                        <button id="fxBoxToggle" title="显示 / 隐藏预览变换框">◇ 变换框</button>
+                    </div>
+                    <span class="jy-quality" id="btnQuality" title="画质（跟随素材原始分辨率）">高清</span>
+                    <div class="vol-row" title="音量">🔊<input type="range" id="volRange" min="0" max="1" step="0.01" value="0.8"></div>
+                    <button class="jy-icon" id="btnFullscreen" title="全屏 / 退出全屏 (F)">⛶ 全屏</button>
+                </div>
             </div>
-            <div class="seek-row"><input type="range" id="seekRange" min="0" max="30" step="0.01" value="0"></div>
+            <div class="seek-row"><input type="range" id="seekRange" min="0" max="30" step="0.01" value="0" title="拖动定位播放头"></div>
         </section>
 
         <div class="vsplit" id="splitRight" data-side="right" title="拖动调整属性面板宽度"></div>
@@ -804,18 +832,26 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li>轨道不再固定六条，改为<b>按你拖入的素材类型自动生成</b>：同类素材可以有多条轨道，拖入时优先复用该类轨道上与落点不重叠的空位，都占满了就自动新建一条同类轨道；拖到类型不符的轨道会自动改放到正确类型的轨道并提示。</li>
                 <li>层级固定为<b>最上层字幕（文本）→ 图片 → 视频 → 最下层音轨</b>，新轨道自动插在所属分组里。<b>字幕层不再区分对白 / 旁白 / 内心独白</b>，全部由你自己决定放哪条字幕轨、写什么内容；单条字幕只保留一个可选「类型标签」用于颜色与 SRT 标注。</li>
                 <li>轨道名右侧的 <b>＋</b> 新建一条同类型轨道、<b>×</b> 删除该空轨道（有片段时先删片段）；工具条「＋ 轨道」可直接选类型新建。旧工程里原来的对白 / 旁白 / 内心独白三条字幕轨会自动合并成一条字幕轨，片段不丢失。</li>
+                <li><b>跨轨拖动（新）</b>：按住时间轴上的片段<b>往上下轨道拖</b>，松开时如果落点已有同类轨道就直接移进去；如果落点是别的类型轨道，会自动新建一条同类轨（如「视频 2」「音频 2」）并把片段放进去。拖动过程中落点轨道会绿色高亮并提示。片段只能在同类轨之间自由移动。</li>
+                <li><b>主轨磁吸（新）</b>：第一条视频素材进主视频轨时自动贴到 0 秒；「🧲 磁吸」默认开启，开启时在主轨上裁剪 / 删除 / 剪断 / 粘贴 / 拖动造成中间空档，<b>后面的片段自动前移紧跟</b>（波纹前移），始终保持无间隙。其它轨道不受影响，仍可自由分布。</li>
+            </ul>
+            <h2>③-2 播放器（剪映 6.0 同款）</h2>
+            <ul>
+                <li>预览栏已按剪映 6.0 播放器重做：顶部只有<b>文件名标签 + 播放器标签</b>，画面区纯黑底无多余按钮；底部控制条左边是<b>帧号时间码 HH:MM:SS:FF</b>（30fps），中间是<b>上一帧 / 播放暂停 / 下一帧</b>，右边是<b>比例 / 高清 / 音量 / 全屏</b>。</li>
+                <li><b>比例</b>菜单可选自适应 / 16:9 / 9:16 / 4:3 / 1:1，还有「◇ 变换框」开关；<b>高清</b>是画质标识（跟随素材原始分辨率，不做假超分）；<b>全屏</b>或 <code>F</code> 进入 / 退出播放器全屏；底部细条可拖动定位播放头。</li>
+                <li>原有的字幕 / 图片 / 视频 / 音频多层同步预览、LUT 调色、变换框、录音音量表等全部保留，只是入口收进了比例菜单或画面本身。</li>
             </ul>
             <h2>④ 四个 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
-                <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材元信息、独立音轨、毫秒字幕、静音区间、视频抽帧与你的思路，先做语义分析区分有效停顿 / 无效废片并给出内容优化建议；确认后删除建议会转成剪口播候选（可勾选、全选、撤销），其它裁切 / 字幕优化可直接写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b></li>
+                <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材元信息、独立音轨、毫秒字幕、静音区间、视频抽帧与你的思路，先做语义分析区分有效停顿 / 无效废片并给出内容优化建议；确认后删除建议会转成剪口播候选（可勾选、全选、撤销），其它裁切 / 字幕优化可直接写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b><b>跨域说明</b>：模型请求与「对话剪辑」一样优先经本机服务（127.0.0.1:8788）转发，服务会自动探测 127.0.0.1 / localhost 两个地址；双击启动本机服务即可绕开浏览器 CORS，服务离线时才尝试直连并给出明确诊断。</li>
                 <li><b>🤖 对话剪辑（真正由大模型驱动的 AI 剪辑）</b>：点这个按钮打开对话面板，用<b>日常自然语言</b>说需求即可，例如「删掉所有嗯啊语气词和长停顿」「把节奏加快」「挑出高光片段」「读取文稿并总结」。AI 会真正调用工具：先 <code>read_timeline</code> 读时间轴拿到准确的片段 id 和秒数，必要时 <code>read_script</code> 读出带 <code>[sN]</code> 段号的文稿，用 <code>preview_frame</code> <b>抽真实画面做视觉自检</b>（图片会回注给模型看图），改完再自检、不对就用工具继续修正。所有编辑<b>只生成提案</b>，面板底部会出现「待确认的剪辑提案」卡片，列清楚每一项改动（裁片头、删片段、移动、变速、按文稿写回等），你点「✅ 应用提案」才真正写入轨道（<code>Ctrl+Z</code> 一步撤销），点「放弃」则时间轴分毫不动。模型需要 Claude / GPT 这类能稳定输出工具调用的强模型；模型与 Key 复用左上「算力总控」，经本机服务代理转发，Key 不会暴露给第三方页面。对话支持多轮连续编辑，复杂需求可多步完成。</li>
                 <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
                 <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因。<b>删除后视频 / 音频 / 字幕 / LUT 会按同一批区间物理切成多个独立片段</b>，没剪好的段落可继续手动裁剪、变速、倒放；<b>导出成片仍是完整一条</b>，由本机 FFmpeg 按各片段真实源范围拼接重编码，不是只做预览隐藏。</li>
                 <li><b>🎨 时间轴 LUT 轨</b>：视频轨上方新增独立的 LUT 轨。在右侧「调整 · 调色 LUT」面板加载 <code>.cube / .3dl / .lut</code> 文件，可保存多个预制反复调用；LUT 自带强度 / 亮度 / 对比度 / 饱和度 / 色温参数，拖动滑块实时改变画面。LUT 片段可裁剪、可移动，只影响它覆盖时间段内下方的视频；导出时由本机 FFmpeg 的 <code>lut3d</code> 滤镜真实烘焙进成片，预览与成品一致。</li>
-                <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏「🧲 磁吸」按钮<b>高亮=开启</b>，点一下开/关（选择会记住）。开启后拖动片段或裁剪手柄时，靠近<b>其它片段首尾、播放头、0 秒</b>会自动吸附对齐，浮层显示「🧲 已吸附」；关闭则完全自由拖动。每个片段头尾各有一个可拖动手柄（鼠标移上去高亮变蓝）：<b>向右拖开头=裁掉片头；向左拖开头=在源素材范围内找回片头</b>（到源起点为止，拉不出界）；<b>向左拖结尾=裁掉片尾；向右拖结尾=找回片尾</b>（到源素材末尾为止）。裁剪时画面上方实时显示起点/终点时间码。剪刀 ✂ 按钮在手柄内侧，悬停片段才出现，点一下从播放头处剪断（等价快捷键 S）。预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点预览标题栏「◇ 变换框」常显。</li>
+                <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏「🧲 磁吸」按钮<b>高亮=开启</b>，点一下开/关（选择会记住）。开启后拖动片段或裁剪手柄时，靠近<b>其它片段首尾、播放头、0 秒</b>会自动吸附对齐，浮层显示「🧲 已吸附」；关闭则完全自由拖动。每个片段头尾各有一个可拖动手柄（鼠标移上去高亮变蓝）：<b>向右拖开头=裁掉片头；向左拖开头=在源素材范围内找回片头</b>（到源起点为止，拉不出界）；<b>向左拖结尾=裁掉片尾；向右拖结尾=找回片尾</b>（到源素材末尾为止）。裁剪时画面上方实时显示起点/终点时间码。剪刀 ✂ 按钮在手柄内侧，悬停片段才出现，点一下从播放头处剪断（等价快捷键 S）。预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点播放器右下「比例」菜单里的「◇ 变换框」常显。磁吸开启时主轨编辑后会自动波纹前移填满空档（详见第 ③ 节）。</li>
                 <li><b>🎬🔊 复合音视频轨 / 波形</b>：带声音的视频片段在时间轴上高度加倍，上半是画面、下半是音频波形；所有音频轨片段也自带波形（由浏览器 WebAudio 解码生成，不上传任何数据）。右键这类视频片段可选「拆分视频和音频轨道」，音频会下移到新音轨并与画面严格对齐，之后可单独剪辑或删除。</li>
                 <li><b>⏺ 录音</b>：点位录音按钮后先弹出输入选择窗，可选任一麦克风或「系统声音 / 当前标签页内录」；录音时预览画面与弹窗同时显示左右双声道实时电平表，再点顶栏「⏹ 停止录音」结束，录音文件自动加入音频轨。调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
-                <li><b>两栏状态彻底分开</b>：左上「算力总控」下方现在有独立的「✨ AI 剪辑」与「🅰 AI 字幕」两块状态栏，各自显示自己的进度条与报错；点其中一个按钮只清空自己那一栏，<b>不会再看到另一个任务残留的旧报错</b>。AI 剪辑的弹窗进度与左栏同步。</li>
+                <li><b>两栏状态彻底分开</b>：独立的「✨ AI 剪辑」与「🅰 AI 字幕」两块运行状态栏已分别整合进点击对应按钮后弹出的浮窗里（浮窗关闭由你自己操作，点 × 或「取消」才会关）。各自显示自己的进度条与报错，点其中一个按钮只清空自己那一栏，<b>不会再看到另一个任务残留的旧报错</b>。AI 剪辑 / AI 字幕开始运行后浮窗保持打开，进度就在浮窗内看。</li>
             </ul>
             <h2>⑤ 剪映 6.0 时间轴工具与快捷键</h2>
             <p>时间轴已按剪映 6.0 重排：左侧为工具按钮（选择 / 分割 / 撤销重做 / 分割删除复制粘贴 / 定格倒放镜像旋转 / 留右留左标记 / 导入轨道磁吸），中间 6 个 AI 按钮（AI剪辑 / 对话剪辑 / AI字幕 / 录音 / 剪口播 / 轨道数据）原样保留，右侧为缩放。轨道头新增「锁 / 眼 / 音」三个按钮，分别锁定、隐藏、静音该轨；主视频轨高亮，支持无间隙吸附与删除后波纹前移，其它轨道仍可自由分布。</p>
@@ -1041,6 +1077,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="ai-progress" id="aiProgress" hidden><div class="ai-progress-fill" id="aiProgressFill"></div></div>
             <div class="ai-steps" id="aiSteps"></div>
             <div class="ai-state" id="aiIdeaState" style="margin-top:9px">填好思路、选好模型后点「开始 AI 剪辑」；方案生成后会先弹出来让你确认，确认后才写到轨道（可 Ctrl+Z 撤销）。</div>
+            <!-- 原「算力总控」下的 AI 剪辑状态栏，已整合进本浮窗；浮窗由用户自行关闭 -->
+            <div class="ai-panel" id="edEditPanel">
+                <div class="ai-panel-title">✨ AI 剪辑 · 运行状态 <span class="ai-panel-tag">/v1/chat/completions</span></div>
+                <div class="ai-state" id="edEditState">尚未运行</div>
+                <div class="ai-progress" id="edEditProgress" hidden><div class="ai-progress-fill" id="edEditProgressFill"></div></div>
+                <div class="ai-steps" id="edEditSteps"></div>
+            </div>
         </div>
         <div class="modal-foot">
             <button class="mini-btn gray" data-close="aiIdeaModal">取消</button>
@@ -1119,7 +1162,14 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="row"><label style="flex:0 0 86px">转写模型</label><input type="text" id="asrUiModel" placeholder="whisper-1 / gpt-4o-transcribe" style="flex:1"></div>
             <div class="row"><label style="flex:0 0 86px">识别语言</label><input type="text" id="asrUiLang" value="zh" style="flex:1"></div>
             <label class="fx-switches" style="margin-top:6px"><input type="checkbox" id="asrUiKeep" checked> 保留已有字幕（不勾选则先清空字幕轨再写入）</label>
-            <div class="ai-state" id="asrUiState" style="margin-top:9px">选好后点「开始 AI 字幕」；进度与报错会显示在左栏的 AI 字幕状态区，与 AI 剪辑互不覆盖。</div>
+            <div class="ai-state" id="asrUiState" style="margin-top:9px">选好后点「开始 AI 字幕」；进度与报错会显示在本浮窗下方的 AI 字幕状态区，与 AI 剪辑互不覆盖。浮窗由用户自行关闭。</div>
+            <!-- 原「算力总控」下的 AI 字幕状态栏，已整合进本浮窗；浮窗由用户自行关闭 -->
+            <div class="ai-panel" id="edSubPanel">
+                <div class="ai-panel-title">🅰 AI 字幕 · 运行状态 <span class="ai-panel-tag">/v1/audio/transcriptions</span></div>
+                <div class="ai-state" id="edState">尚未运行</div>
+                <div class="ai-progress" id="edProgress" hidden><div class="ai-progress-fill" id="edProgressFill"></div></div>
+                <div class="ai-steps" id="edSteps"></div>
+            </div>
         </div>
         <div class="modal-foot">
             <button class="mini-btn gray" data-close="asrSetupModal">取消</button>
@@ -1297,17 +1347,80 @@ function wsDelete(id){
 /* ==================================================================
    本机小服务探测（Mac / Windows 通用）：分享链接解析 + ffmpeg 导出
    ================================================================== */
-const LOCAL_SERVICE="http://127.0.0.1:8788";
-function serviceMediaUrl(u){ return svcOnline?(LOCAL_SERVICE+"/api/media?u="+encodeURIComponent(u)):u; }
-async function pingService(ms){
-    try{
-        const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),ms||1800);
-        const r=await fetch(LOCAL_SERVICE+"/api/ping",{signal:ctl.signal,mode:"cors"});
-        clearTimeout(tm);
-        const j=await r.json(); svcOnline=!!(j&&j.ok); svcInfo=j||null;
-    }catch(e){ svcOnline=false; svcInfo=null; }
-    return svcOnline;
+/* 本机服务地址：参考创作台/画布的多地址自动发现，HTTPS 主站下若 127.0.0.1
+   被浏览器策略拦住，自动换 localhost / 用户手填地址；探测结果只存本机。 */
+const LOCAL_SERVICE_CANDIDATES=[
+    "http://127.0.0.1:8788",
+    "http://localhost:8788"
+];
+let LOCAL_SERVICE=LOCAL_SERVICE_CANDIDATES[0];
+let svcDiag="";
+function svcNormBase(v){
+    let s=String(v||"").trim().replace(/\/+$/,"");
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) s="http://"+s;
+    return s;
 }
+function svcCandidateBases(){
+    const out=[];
+    const custom=svcNormBase(safeStorage.get("manflows_local_service_base"));
+    if(custom) out.push(custom);
+    LOCAL_SERVICE_CANDIDATES.forEach(b=>{ if(!out.includes(b)) out.push(b); });
+    return out;
+}
+/* 把浏览器 fetch 的笼统 Failed to fetch 翻成用户能操作的诊断 */
+function svcFetchReason(e,base){
+    const msg=String((e&&e.message)||e||"");
+    if(e&&e.name==="AbortError") return "连接本机服务超时（"+base+"）；请确认服务窗口没有卡住";
+    if(location.protocol==="https:" && /^http:\/\//i.test(base))
+        return "浏览器可能拦截了 HTTPS 页面访问 HTTP 本机地址（"+base+"）；请确认 Chrome 允许“不安全内容”，或用 localhost 地址";
+    return "连不上本机服务（"+base+"）："+msg+"；请双击「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows) 后重试";
+}
+async function pingService(ms){
+    const timeout=ms||1800;
+    for(const base of svcCandidateBases()){
+        try{
+            const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),timeout);
+            const r=await fetch(base+"/api/ping",{signal:ctl.signal,mode:"cors",cache:"no-store"});
+            clearTimeout(tm);
+            if(!r.ok){ svcDiag="本机服务返回 HTTP "+r.status+"（"+base+"）"; continue; }
+            const j=await r.json();
+            if(j&&j.ok){
+                LOCAL_SERVICE=base; svcOnline=true; svcInfo=j; svcDiag="";
+                try{ safeStorage.set("manflows_local_service_base",base); }catch(e){}
+                return true;
+            }
+            svcDiag="本机服务返回状态异常（"+base+"）";
+        }catch(e){ svcDiag=svcFetchReason(e,base); }
+    }
+    svcOnline=false; svcInfo=null;
+    return false;
+}
+/* 带候选地址重试的 POST：网络层失败时换下一个地址，HTTP 层错误原样带回 */
+async function svcPost(path,payload,timeoutMs){
+    const bodies=svcCandidateBases();
+    let last=null;
+    for(const base of bodies){
+        const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),timeoutMs||30000);
+        try{
+            const r=await fetch(base+path,{method:"POST",headers:{"Content-Type":"application/json"},
+                body:JSON.stringify(payload),signal:ctl.signal});
+            clearTimeout(tm);
+            let j=null; try{ j=await r.json(); }catch(e){}
+            if(!r.ok) throw new Error("本机服务 HTTP "+r.status+(j&&j.reason?"："+j.reason:""));
+            if(!j) throw new Error("本机服务返回的不是 JSON（"+base+"）");
+            LOCAL_SERVICE=base; svcOnline=true; svcDiag="";
+            return j;
+        }catch(e){
+            clearTimeout(tm); last=e;
+            if(e&&e.name==="AbortError") { svcDiag="本机服务请求超时（"+base+"）"; continue; }
+            if(/HTTP \d+/.test(String(e&&e.message||e))) throw e; /* 服务端明确报错，无需换地址 */
+            svcDiag=svcFetchReason(e,base);
+        }
+    }
+    throw new Error(svcDiag||((last&&last.message)||"本机服务不可用"));
+}
+function serviceMediaUrl(u){ return svcOnline?(LOCAL_SERVICE+"/api/media?u="+encodeURIComponent(u)):u; }
 async function resolveWebpage(u){
     if(!svcOnline) await pingService(2800);
     if(!svcOnline) return {ok:false,
@@ -2001,7 +2114,7 @@ function previewAsset(a){
         vEl.src=mediaUrl(a); vEl.dataset.aid=""; vEl.muted=false; vEl.playbackRate=1;
         vEl.classList.add("show");
         try{ vEl.currentTime=0; }catch(e){}
-        vEl.play().catch(()=>{ if(tip) tip.innerHTML+='<br><span style="color:#fca5a5">自动播放被浏览器拦截，可点下方「▶ 播放」重试。</span>'; });
+        vEl.play().catch(()=>{ if(tip) tip.innerHTML+='<br><span style="color:#fca5a5">自动播放被浏览器拦截，可点播放条中间的「▶」重试。</span>'; });
     }else if(a.type==="image" && mediaUrl(a)){
         imgEl.style.transform=""; imgEl.style.filter="none"; imgEl.style.opacity=1;
         imgEl.src=mediaUrl(a); imgEl.dataset.aid=""; imgEl.classList.add("show");
@@ -2097,7 +2210,8 @@ function autoRatio(){
 }
 function applyAspect(){
     const mode=state.aspect||"auto";
-    const r=clamp(mode==="9:16"?9/16:(mode==="16:9"?16/9:autoRatio()),0.3,4);
+    const ASPECT_MAP={"9:16":9/16,"16:9":16/9,"4:3":4/3,"1:1":1};
+    const r=clamp(ASPECT_MAP[mode]||autoRatio(),0.3,4);
     const st=$("stage"), wrap=st.parentElement;
     const W=Math.max(120,wrap.clientWidth-8), H=Math.max(90,wrap.clientHeight-8);
     let w=W,h=W/r;
@@ -2699,7 +2813,9 @@ function addAssetToTrack(a, opts){
     /* 音视频素材按它本身的实际时长完整展开（不再截到 60 秒）；图片等静态素材默认 3 秒 */
     const dur=a.type==="image" ? 3 : (Number(a.duration)>0 ? Number(a.duration) : 8);
     if(!tr) tr=pickTrackFor(kind,opts.at,dur);
-    const base=Math.max(0,opts.at!=null?Number(opts.at):state.playhead);
+    let base=Math.max(0,opts.at!=null?Number(opts.at):state.playhead);
+    /* 剪映式主轨：第一条视频素材进主轨时自动磁吸到最开头（0 秒） */
+    if(kind==="video" && isMainTrack(tr.id) && !state.clips.some(c=>c.track===tr.id)) base=0;
     pushHistory();
     const c={id:uid(), track:tr.id, assetId:a.id, start:base, duration:dur, offset:0, text:"", name:a.name, fx:defaultFx()};
     state.clips.push(c); state.selected=c.id; state.multi=[]; state.selectedAsset=null;
@@ -2770,12 +2886,22 @@ function clipHtml(c,t){
       +'<button class="clip-split" data-split="'+esc(c.id)+'" title="在此剪断">✂</button>'
       +'<div class="clip-handle" data-handle="'+esc(c.id)+'" title="按住拖动裁掉片段结尾"></div></div>';
 }
+/* 剪映式帧号时间码：HH:MM:SS:FF（30fps），左下显示当前帧，旁边显示总长 */
+const PLAYER_FPS=30;
+function timecode(t){
+    t=Math.max(0,Number(t)||0);
+    const total=Math.round(t*PLAYER_FPS);
+    const ff=total%PLAYER_FPS, rest=Math.floor(total/PLAYER_FPS);
+    const ss=rest%60, mm=Math.floor(rest/60)%60, hh=Math.floor(rest/3600);
+    return [hh,mm,ss,ff].map(n=>String(n).padStart(2,"0")).join(":");
+}
 function renderPlayhead(){
     const ph=$("playhead"); ph.style.left=(LABEL_W+state.playhead*state.zoom)+"px";
-    $("timeLabel").textContent=fmt(state.playhead)+" / "+fmt(totalDuration());
+    const tc=$("jyTimecode"); if(tc) tc.textContent=timecode(state.playhead);
+    $("timeLabel").textContent="/ "+timecode(totalDuration());
     $("seekRange").max=totalDuration();
     if(document.activeElement!==$("seekRange")) $("seekRange").value=state.playhead;
-    $("btnPlay").textContent=playing?"⏸ 暂停":"▶ 播放";
+    $("btnPlay").textContent=playing?"⏸":"▶";
 }
 function renderTimeline(){
     const sc=$("tlScroll"), sl=sc.scrollLeft, st=sc.scrollTop;
@@ -3074,6 +3200,7 @@ function splitSelected(at){
     }
     c.duration=leftDur;
     state.clips.push(right); state.selected=right.id; state.multi=[];
+    closeMainGaps();
     renderAll(); autoSave(); toast("已在 "+fmt(t)+" 剪断","ok");
 }
 function copySelection(cut){
@@ -3096,6 +3223,7 @@ function pasteClips(){
         state.clips.push(c); added.push(c.id);
     }
     state.selected=added[added.length-1]||null; state.multi=[];
+    closeMainGaps();
     renderAll(); autoSave(); toast("已粘贴 "+added.length+" 个片段到播放头处","ok");
 }
 function selectAllClips(){
@@ -3181,6 +3309,7 @@ function trimToPlayhead(side){
         n++;
     });
     if(!n){ toast("没有可裁剪的片段（轨道可能已锁定）","err"); return; }
+    closeMainGaps();
     renderAll(); autoSave();
     toast((side==="right"?"已保留播放头右侧":"已保留播放头左侧")+" · 共 "+n+" 段","ok");
 }
@@ -3215,6 +3344,22 @@ function rippleMainTrack(){
         if(Math.abs(c.start-cursor)>0.0005) c.start=+cursor.toFixed(4);
         cursor=c.start+c.duration;
     });
+}
+/* 主轨磁吸开启时：任何编辑（裁剪 / 删除 / 剪断 / 粘贴 / 拖动）造成中间空档后，
+   后面的片段自动前移紧跟。仅主轨生效，其它轨道仍可自由分布。 */
+function closeMainGaps(){
+    if(!state.snap) return false;
+    const mid=mainVideoTrackId(); if(!mid) return false;
+    const list=state.clips.filter(c=>c.track===mid).sort((a,b)=>a.start-b.start);
+    if(list.length<2) return false;
+    let gap=false, cursor=0;
+    for(const c of list){
+        if(c.start-cursor>0.0005){ gap=true; break; }
+        cursor=c.start+c.duration;
+    }
+    if(!gap) return false;
+    rippleMainTrack();
+    return true;
 }
 
 /* ---------- AI 语音识别 → 统一字幕轨 ---------- */
@@ -3364,15 +3509,12 @@ async function serviceTranscribe(a,cfg,clip){
         model:String(cfg.model||"whisper-1"),language:String(cfg.language||"zh"),
         clipStart:Number(clip&&clip.offset)||0,clipDuration:Number(clip&&clip.duration)||0,
         silenceDb:pc.db,silenceMin:pc.min,keepPad:pc.pad};
-    const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),600000);
     let j;
-    try{
-        const r=await fetch(LOCAL_SERVICE+"/api/transcribe",{method:"POST",
-            headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal:ctl.signal});
-        j=await r.json();
-    }catch(e){ throw new Error("调用本机转写接口失败："+(e.name==="AbortError"?"超时（超过 10 分钟）":e.message)); }
-    finally{ clearTimeout(tm); }
+    try{ j=await svcPost("/api/transcribe",payload,600000); }
+    catch(e){ throw new Error("调用本机转写接口失败："+((e&&e.message)||e)); }
     if(!j||!j.ok) throw new Error(String(j&&j.reason||"转写失败")+(j&&j.hint?"｜"+j.hint:""));
+    if(svcInfo && svcInfo.asrLocal===false && !cfg.endpoint)
+        scLogPush("本机未检测到 faster-whisper 且未配置第三方转写地址：本次只返回静音/气口数据；要生成字幕请在「算力总控 → 第三方API」填 whisper-1 / gpt-4o-transcribe 通道，或本机 9000 端口启动 faster-whisper");
     (Array.isArray(j.log)?j.log:[]).forEach(x=>scLogPush("Whisper 链路 · "+x));
     scLogPush("Whisper API 状态「"+a.name+"」："+(j.engine||"未知后端")
         +" · 转写"+((j.asrOk===false)?"失败":"成功")+(j.asrError?"｜"+String(j.asrError).slice(0,180):"")
@@ -3407,9 +3549,9 @@ async function remoteASR(a,cfg){
     let r;
     try{ r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:fd}); }
     catch(e){
-        throw new Error("Failed to fetch（浏览器跨域 CORS 拦截或接口不通）。"
-            +"直连第三方 API 几乎都会被 CORS 拦截，请启动本机服务由它转发；"
-            +"或在创作台/画布把接口换成支持 /v1/audio/transcriptions 的地址。");
+        throw new Error("直连转写接口失败："+String((e&&e.message)||e)
+            +"。浏览器直连第三方 API 通常会被 CORS 拦截；建议改用本机服务转发"
+            +"（双击启动本机服务，或在创作台/画布「算力总控 → 第三方API」填支持 /v1/audio/transcriptions 的地址）。");
     }
     if(r.status===404||r.status===405) throw new Error("转写接口 HTTP "+r.status
         +"：该服务商没有 /v1/audio/transcriptions 通道。Claude / 普通 GPT 对话模型不是语音转写模型，"
@@ -3546,13 +3688,20 @@ async function runAsrCore(){
                     +" · 毫秒级分段 "+segs.length+" · 静音 "+(r.silences||[]).length+" 段");
                 setEdProgress(2,"第 "+(i+1)+" 段 "+(r.asrOk?"识别完成":"转写失败，但静音/气口已独立检测")+"（"+r.engine+"）");
             }catch(e1){
-                setEdProgress(2,"本机服务转写不可用（"+((e1&&e1.message)||e1)+"），尝试浏览器直连…");
-                try{ segs=await remoteASR(a,cfg); }
-                catch(e){
-                    setEdProgress(2,"直连转写也失败，尝试多模态大模型降级…");
-                    try{ segs=await chatAudioASR(a,cfg); }
-                    catch(e2){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+(e1.message||e1)
-                        +"；直连 "+(e.message||e)+"；多模态音频降级也失败："+(e2.message||e2)); }
+                const why=((e1&&e1.message)||e1);
+                setEdProgress(2,"本机服务转写不可用（"+why+"），尝试多模态音频降级…");
+                try{ segs=await chatAudioASR(a,cfg); }
+                catch(e2){
+                    /* 只有用户显式填了支持 CORS 的直连端点时才再试浏览器直连 */
+                    if(cfg.endpoint && !/^http:\/\/127\.0\.0\.1|^http:\/\/localhost/i.test(cfg.endpoint)){
+                        setEdProgress(2,"多模态降级失败，尝试浏览器直连已配置的转写接口…");
+                        try{ segs=await remoteASR(a,cfg); }
+                        catch(e3){ throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
+                            +"；多模态降级 "+(e2.message||e2)+"；直连 "+(e3.message||e3)); }
+                    }else{
+                        throw new Error("第 "+(i+1)+" 段「"+a.name+"」识别失败：本机服务 "+why
+                            +"；多模态降级 "+(e2.message||e2));
+                    }
                 }
             }
             /* 静音检测独立于转写：即使上面整段识别失败，也要拿到气口数据 */
@@ -3575,7 +3724,7 @@ async function runAsrCore(){
         setEdProgress(4,"已把 "+n+" 条真实字幕写入字幕轨（分析 "+list.length+" 段音视频素材）");
         toast("AI 字幕完成：真实识别 "+list.length+" 段素材，生成 "+n+" 条字幕","ok");
     }catch(e){
-        setEdProgress(2,"识别失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（本机 faster-whisper 或第三方转写接口都由它转发，不受浏览器跨域限制）；② 确认服务商提供 whisper-1 / gpt-4o-transcribe 转写通道。本次不会生成任何演示字幕。",true);
+        setEdProgress(2,"识别失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（本机 8788 端口，本机 faster-whisper 或第三方转写接口都由它转发，不受浏览器跨域限制）；② 若没装 faster-whisper，请在「算力总控 → 第三方API」填支持 whisper-1 / gpt-4o-transcribe 的转写地址与密钥；③ 启动后重开本页面（会自动重新探测 127.0.0.1 / localhost 两个地址）。本次不会生成任何演示字幕。",true);
         toast("AI 字幕失败，请看左侧状态说明","err");
     }finally{
         asrBusy=false; btn.disabled=false;
@@ -4033,10 +4182,10 @@ async function serviceLlmChat(cfg,messages,temperature,maxTokens,tools){
     const body={endpoint:cfg.endpoint,model:cfg.model,key:cfg.key||"",
         messages:messages,tools:tools||[],temperature:temperature==null?0.3:temperature,
         maxTokens:maxTokens||4096};
-    const r=await fetch(LOCAL_SERVICE+"/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(body)});
-    const j=await r.json().catch(()=>({}));
-    if(!j.ok) throw new Error(j.reason||("HTTP "+r.status));
+    let j;
+    try{ j=await svcPost("/api/ai/chat",body,180000); }
+    catch(e){ throw new Error("本机服务模型代理失败："+((e&&e.message)||e)); }
+    if(!j.ok) throw new Error(String(j.reason||"模型调用失败")+(j.hint?"｜"+j.hint:""));
     return j;
 }
 /* 高光挑选：轻量 LLM 定向调用；失败时按信息密度启发式降级 */
@@ -4401,23 +4550,49 @@ function buildAiMessages(frames,idea){
         : txt;
     return [{role:"system",content:AI_SYS_PROMPT},{role:"user",content:content}];
 }
+function aiChatContent(j){
+    const ch=(j&&Array.isArray(j.choices)&&j.choices[0])||{};
+    const msg=ch.message||ch.delta||{};
+    let c=msg.content;
+    if(Array.isArray(c)) c=c.map(x=>(x&&typeof x==="object")?(x.text||""):String(x||"")).join("");
+    if(!c) c=msg.reasoning_content||ch.text||(j&&j.output_text)||(j&&j.text)||"";
+    return String(c||"");
+}
+/* AI剪辑主路径：先经本机服务代理（绕开浏览器 CORS），服务不可用才直连兜底。
+   本机服务在线时也能统一转发 Claude / GPT / 兼容接口，失败原因可诊断。 */
 async function aiChat(cfg,messages){
+    if(!svcOnline) await pingService(2200);
+    if(svcOnline){
+        try{
+            const r=await serviceLlmChat(cfg,messages,0.3,4096,null);
+            const text=aiChatContent(r);
+            if(text) return text;
+            if(r&&r.content) return String(r.content);
+            throw new Error("模型没有返回文本内容");
+        }catch(e){
+            /* 服务端明确报错（HTTP/模型/配置）就别再直连重试，直接把原因给用户 */
+            if(/HTTP \d+|模型|reason|代理失败/.test(String((e&&e.message)||e))){
+                throw new Error("本机服务代理调用失败："+((e&&e.message)||e)
+                    +"。请确认本机服务已启动（127.0.0.1:8788），且接口是 OpenAI 兼容 /v1/chat/completions");
+            }
+        }
+    }
+    /* 浏览器直连兜底：服务离线或网络层不可达时尝试，失败给出明确 CORS 诊断 */
     const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),120000);
     try{
         const body={model:cfg.model,messages:messages,stream:false,temperature:0.3};
         const headers={"Content-Type":"application/json"};
         if(cfg.key) headers.Authorization="Bearer "+cfg.key;
-        const r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:JSON.stringify(body),signal:ctrl.signal});
+        let r;
+        try{ r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:JSON.stringify(body),signal:ctrl.signal}); }
+        catch(e){ throw new Error("浏览器直连模型失败："+String((e&&e.message)||e)
+            +"。第三方 API 通常不允许浏览器跨域直连，请双击启动本机服务由它转发（127.0.0.1:8788）。"); }
         const raw=await r.text();
         if(!r.ok) throw new Error("HTTP "+r.status+"："+raw.slice(0,300));
         let j; try{ j=JSON.parse(raw); }catch(e){ throw new Error("接口返回的不是 JSON："+raw.slice(0,200)); }
-        const ch=(j&&Array.isArray(j.choices)&&j.choices[0])||{};
-        const msg=ch.message||ch.delta||{};
-        let c=msg.content;
-        if(Array.isArray(c)) c=c.map(x=>(x&&typeof x==="object")?(x.text||""):String(x||"")).join("");
-        if(!c) c=msg.reasoning_content||ch.text||j.output_text||j.text||"";
+        const c=aiChatContent(j);
         if(!c) throw new Error("模型没有返回文本内容："+raw.slice(0,300));
-        return String(c);
+        return c;
     }finally{ clearTimeout(timer); }
 }
 function parseAiPlan(s){
@@ -4442,7 +4617,7 @@ function parseAiPlan(s){
 }
 function aiEditFail(e,st){
     st.className="ai-state err";
-    st.textContent="AI 剪辑失败："+((e&&e.message)?e.message:e)+"。请确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态（Claude / GPT-4o / Gemini 等综合能力强的模型），跨域服务需自行放行 CORS。";
+    st.textContent="AI 剪辑失败："+((e&&e.message)?e.message:e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态（Claude / GPT-4o / Gemini 等）。";
     toast("AI 剪辑失败，请看左侧状态说明","err");
 }
 function showAiSetup(cfg){
@@ -4563,10 +4738,10 @@ async function runAiEdit(idea,overrideModel){
         }
         setAiProgress(5,"方案已生成（"+plan.actions.length+" 项操作 / "+plan.newSubtitles.length+" 条新字幕），请在弹窗里确认后应用");
         pendingPlan=plan; renderAiPlan(plan,cfg,frames.length);
-        $("aiIdeaModal").classList.remove("show");
+        /* 浮窗关闭交给用户：方案弹窗叠在上面，用户关掉方案后仍可在原浮窗查看运行状态 */
         $("aiPlanModal").classList.add("show");
     }catch(e){
-        setAiProgress(3,"AI 剪辑失败："+((e&&e.message)||e)+"。请确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
+        setAiProgress(3,"AI 剪辑失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域 CORS）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
         toast("AI 剪辑失败，请看弹窗里的状态说明","err");
     }finally{ btn.disabled=false; }
 }
@@ -5060,7 +5235,8 @@ function wire(){
     $("dumpStructBtn").onclick=showTimelineStructure;
     $("structRefresh").onclick=showTimelineStructure;
     $("structDownload").onclick=downloadTimelineStructure;
-    $("asrUiStart").onclick=()=>{ $("asrSetupModal").classList.remove("show"); runAsrCore(); };
+    /* 浮窗关闭交给用户：开始后保持浮窗打开，进度/报错直接显示在浮窗内的 AI 字幕状态区 */
+    $("asrUiStart").onclick=()=>{ runAsrCore(); };
     $("asrUiGoCompute").onclick=()=>{ $("asrSetupModal").classList.remove("show"); $("edComputeHint").scrollIntoView({behavior:"smooth",block:"center"}); toast("请在上方「算力总控」切换档位后重新点 AI字幕","ok"); };
     $("recStart").onclick=startRecord;
     $("smartCutBtn").onclick=openSmartCutModal;
@@ -5118,13 +5294,15 @@ function wire(){
         const b=e.target.closest(".prop-tab"); if(b) showPropTab(b.dataset.ptab);
     });
     /* 预览画幅比例 */
-    $("aspectRow").addEventListener("click",e=>{
+    const onAspectPick=e=>{
         const b=e.target.closest(".asp-btn"); if(!b) return;
         state.aspect=b.dataset.asp;
         safeStorage.set("manflows_ai_editor_aspect",state.aspect);
         applyAspect();
         toast("预览画幅已切换为「"+b.textContent.trim()+"」","ok");
-    });
+    };
+    $("aspectRow").addEventListener("click",onAspectPick);
+    $("aspectMenu").addEventListener("click",onAspectPick);
     /* 镜像 / 倒放 */
     $("mirrorBtn").onclick=toggleMirror;
     $("reverseBtn").onclick=toggleReverse;
@@ -5191,13 +5369,42 @@ function wire(){
     $("addSub").onclick=addBlankSubtitle;
     $("exportProject").onclick=exportProject;
 
-    /* 播放控制 */
+    /* 播放控制（剪映式：逐帧 / 播放 / 比例菜单 / 全屏） */
     $("btnPlay").onclick=()=>playing?pause():play();
-    $("btnStart").onclick=()=>seek(0);
-    $("btnEnd").onclick=()=>seek(totalDuration());
+    $("btnStart").onclick=()=>seek(state.playhead-1/PLAYER_FPS);   /* 上一帧 */
+    $("btnEnd").onclick=()=>seek(state.playhead+1/PLAYER_FPS);     /* 下一帧 */
     $("seekRange").oninput=e=>seek(Number(e.target.value));
     $("volRange").oninput=e=>{ const v=Number(e.target.value); vEl.volume=recordMuted?0:v; audioPool.forEach(o=>{o.el.volume=recordMuted?0:v;}); };
     vEl.volume=0.8;
+    /* 比例菜单：点击展开 / 收起，点选项切换画幅后自动收起 */
+    $("btnAspect").onclick=e=>{ e.stopPropagation(); const m=$("aspectMenu"); m.hidden=!m.hidden; $("btnAspect").classList.toggle("active",!m.hidden); };
+    $("aspectMenu").addEventListener("click",e=>{
+        if(e.target.id==="fxBoxToggle") return;                 /* 变换框交给原绑定，不关菜单 */
+        const b=e.target.closest(".asp-btn"); if(!b) return;
+        $("aspectMenu").hidden=true; $("btnAspect").classList.remove("active");
+    });
+    document.addEventListener("click",e=>{
+        const m=$("aspectMenu"); if(m && !m.hidden && !e.target.closest("#aspectMenu") && !e.target.closest("#btnAspect")){
+            m.hidden=true; $("btnAspect").classList.remove("active");
+        }
+    });
+    /* 全屏：进入 / 退出播放器容器 */
+    const toggleFs=()=>{
+        const el=$("centerPane");
+        try{
+            if(document.fullscreenElement) document.exitFullscreen();
+            else if(el.requestFullscreen) el.requestFullscreen();
+            else toast("当前浏览器不支持全屏 API","err");
+        }catch(err){ toast("全屏切换失败："+(err&&err.message||err),"err"); }
+    };
+    $("btnFullscreen").onclick=toggleFs;
+    /* 文件名标签：跟随当前工程 / 正在预览的素材 */
+    const refreshPlayerTitle=()=>{
+        const a=assetPreviewId?assetById(assetPreviewId):null;
+        $("playerTitle").textContent=(a?a.name:(wsName()+" · 工程"));
+    };
+    refreshPlayerTitle();
+    document.addEventListener("manflows:project-change",refreshPlayerTitle);
 
     /* 时间轴工具条 */
     $("quickImport").onclick=()=>$("fileInput").click();
@@ -5326,7 +5533,21 @@ function wire(){
         const maxDur=Math.max(0.2,(srcDur-offset0-cutSrc)/sp);      // 右裁剪：时长上限
         const minLeftD=-Math.min(start0,offset0/sp);                 // 左裁剪：偏移下限（不越时间轴 0 / 源起点）
         fresh.classList.add("dragging");
-        let hint=null;
+        let hint=null, dropTrackId="";
+        /* 跨轨拖移：鼠标上下移动到其它轨道时，记录落点轨道并在 mouseup 时换轨 / 新建同类轨 */
+        const laneAtY=y=>{
+            const lanes=document.querySelectorAll("#tracks .lane");
+            for(const ln of lanes){ const r=ln.getBoundingClientRect(); if(y>=r.top&&y<=r.bottom) return ln; }
+            return null;
+        };
+        const markDropTarget=ln=>{
+            document.querySelectorAll("#tracks .lane.drop-target").forEach(x=>x.classList.remove("drop-target"));
+            dropTrackId="";
+            if(ln && ln.dataset.track!==c.track){
+                const t=trackById(ln.dataset.track);
+                if(t && !t.locked){ ln.classList.add("drop-target"); dropTrackId=t.id; }
+            }
+        };
         if(resize||resizeL){
             hint=document.createElement("div"); hint.className="trim-hint"; hint.hidden=true;
             document.body.appendChild(hint);
@@ -5371,6 +5592,8 @@ function wire(){
                     ns=Math.max(0,bs);
                 }
                 c.start=Math.max(0,ns);
+                /* 上下拖过其它轨道：高亮落点；同类轨直接换，异类轨提示将新建同类轨 */
+                markDropTarget(laneAtY(ev.clientY));
             }
             fresh.style.left=Math.round(c.start*zoom)+"px";
             fresh.style.width=Math.max(14,Math.round(c.duration*zoom))+"px";
@@ -5379,6 +5602,22 @@ function wire(){
         const up=()=>{
             fresh.classList.remove("dragging");
             if(hint){ hint.remove(); hint=null; }
+            document.querySelectorAll("#tracks .lane.drop-target").forEach(x=>x.classList.remove("drop-target"));
+            if(dropTrackId && dropTrackId!==c.track){
+                const srcKind=trackKind(c.track), tgt=trackById(dropTrackId);
+                if(tgt && tgt.kind===srcKind){
+                    c.track=tgt.id;
+                    toast("片段已移到「"+tgt.label+"」","ok");
+                }else{
+                    /* 落点是其它类型轨道：新建一条同类轨（编号自动 +1）并把片段放进去 */
+                    const nt=newTrack(srcKind);
+                    c.track=nt.id;
+                    toast("已在同类轨组末尾新建「"+nt.label+"」并移入片段","ok");
+                }
+                closeMainGaps();
+            }else if(isMainTrack(c.track)){
+                closeMainGaps();
+            }
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
         };
@@ -5439,6 +5678,7 @@ function wire(){
         else if(e.key==="ArrowRight"){ e.preventDefault(); seek(state.playhead+(e.shiftKey?1:0.1)); }
         else if(e.key==="Home"){ e.preventDefault(); seek(0); }
         else if(e.key==="End"){ e.preventDefault(); seek(totalDuration()); }
+        else if(k==="f"){ e.preventDefault(); $("btnFullscreen").click(); }
         else if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(state.zoom*1.3,true); }
         else if(e.key==="-"||e.key==="_"){ e.preventDefault(); setZoom(state.zoom/1.3,true); }
         /* 剪映 6.0 时间轴快捷键 */
@@ -6132,12 +6372,38 @@ async function recordCanvas(dur,opts,onProgress){
         },100);
     });
     await new Promise(resolve=>{
-        const t0=performance.now();
+        let t0=performance.now(), paused=false, hiddenWaiter=null;
+        const report=(p,msg)=>{ if(onProgress) onProgress(p,msg); };
+        const pct=()=>clamp(state.playhead/Math.max(0.1,dur),0,1);
+        /* 浏览器在标签页进后台后会暂停/降频 requestAnimationFrame，
+           canvas 画面不再更新，MediaRecorder 会录进黑帧。
+           这里在切后台时暂停录制与播放，切回后自动继续，避免黑屏且不打乱时间轴。 */
+        const onVis=()=>{
+            if(document.hidden && !paused){
+                paused=true;
+                try{ if(rec.state==="recording"&&rec.pause) rec.pause(); }catch(e){}
+                try{ vEl.pause(); }catch(e){}
+                report(pct(),"导出已暂停：页面切到后台，请切回浏览器窗口继续");
+                toast("导出已暂停：请保持本页面在前台","err");
+            }else if(!document.hidden && paused){
+                paused=false;
+                t0=performance.now();
+                try{ if(rec.state==="paused"&&rec.resume) rec.resume(); }catch(e){}
+                try{ if(!playing) play(); }catch(e){}
+                report(pct(),"正在渲染输出 "+(pct()*100).toFixed(0)+"%");
+            }
+        };
+        document.addEventListener("visibilitychange",onVis);
+        if(document.hidden) onVis();
         function frame(){
+            if(paused){ requestAnimationFrame(frame); return; }
             try{ drawStageFrame(x,W,H); }catch(e){ /* 单帧失败不中断整段录制 */ }
-            const p=clamp(state.playhead/Math.max(0.1,dur),0,1);
-            if(onProgress) onProgress(p,"正在录制画面 "+(p*100).toFixed(0)+"%");
-            if(state.playhead>=dur-0.05 || performance.now()-t0>dur*1000+4000 || !playing){ resolve(); return; }
+            const p=pct();
+            report(p,"正在渲染输出 "+(p*100).toFixed(0)+"%");
+            if(state.playhead>=dur-0.05 || performance.now()-t0>dur*1000+4000 || (!playing&&!paused)){
+                document.removeEventListener("visibilitychange",onVis);
+                resolve(); return;
+            }
             requestAnimationFrame(frame);
         }
         requestAnimationFrame(frame);
@@ -6249,7 +6515,8 @@ function updateExportStatus(){
    不读 stage 的取整像素，避免小窗口下几像素的舍入误差。 */
 function coverRatio(){
     const mode=state.aspect||"auto";
-    return clamp(mode==="9:16"?9/16:(mode==="16:9"?16/9:autoRatio()),0.3,4);
+    const ASPECT_MAP={"9:16":9/16,"16:9":16/9,"4:3":4/3,"1:1":1};
+    return clamp(ASPECT_MAP[mode]||autoRatio(),0.3,4);
 }
 function applyExportCoverRatio(){
     const box=$("exportCover"); if(!box) return;
@@ -6305,7 +6572,7 @@ async function startExport(){
             (p,msg)=>{ fill.style.width=Math.round(p*100)+"%"; steps.textContent="🎬 "+msg; });
         return recorded;
     };
-    const label={sub:"生成字幕文件",audio:"混音并导出音频",gif:"生成 GIF 动图",video:"录制并编码综合视频"};
+    const label={sub:"生成字幕文件",audio:"混音并导出音频",gif:"生成 GIF 动图",video:"渲染并编码综合视频"};
     try{
         /* 先做真渲染（占进度 0~55%），再走原有合成录制；中途每段都会回报进度 */
         renderedCount=await prepareRenderOverrides((p,msg)=>{
