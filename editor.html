@@ -2269,10 +2269,12 @@ function subPlacement(q,SW,SH){
     const pad=24;   /* 预览 .subtitle-overlay 的左右内边距 */
     const an=align==="left"?1:(align==="right"?3:2);
     const x=align==="left"?pad:(align==="right"?Math.max(pad+1,SW-pad):Math.round(SW/2));
-    /* 容器 bottom:7% => 基准底边 0.93H；pos=top/middle 再上移 34%/15% */
+    /* 容器 bottom:7% => 基准底边 0.93H；pos=top/middle 再上移 34%/15%。
+       center：字幕文字 ink 中心落在舞台正中央。预览 bottom 定位的盒底 y = 半屏 + 半个行盒高，
+       与烧录 ASS \pos、Canvas 绘制共用同一个 y，三处严格一致。 */
     const baseY=Math.round(SH*0.93);
     const off=pos==="top"?-Math.round(SH*0.34):(pos==="middle"?-Math.round(SH*0.15):0);
-    const y=clamp(baseY+off,1,SH);
+    const y=pos==="center"?clamp(Math.round(SH/2+subLinePx(q)/2),1,SH):clamp(baseY+off,1,SH);
     return {x:x,y:y,an:an,size:size,align:align,pos:pos,pad:pad,baseY:baseY};
 }
 function subStyleOf(c,stackY){
@@ -7150,9 +7152,11 @@ function opts(list,cur){ return list.map(o=>'<option value="'+o[0]+'"'+(String(c
 function adjNote(txt){ return '<div class="fx-note">'+txt+'</div>'; }
 function adjCommit(msg){ renderAll(); autoSave(); if(msg) toast(msg,"ok"); }
 function renderAdjustPanels(){
-    /* 正在拖滑块时不重建 DOM，避免打断输入 */
+    /* 正在拖滑块/输入时不重建 DOM，避免打断输入；
+       但按钮（BUTTON）点击是瞬时操作，必须允许重建——否则点完「恢复初始位置」
+       后焦点留在按钮上，会让后续切换字幕时整个调整面板不刷新，看起来像位置参数消失。 */
     const ae=document.activeElement;
-    if(ae && ae.id && /^adj/.test(ae.id)) return;
+    if(ae && ae.id && /^adj/.test(ae.id) && ae.tagName!=="BUTTON") return;
     const c=selectedClip();
     const auBox=$("audioBox"), aBox=$("animBox"), sBox=$("speedBox"), oBox=$("colorBox"), uBox=$("subStyleBox");
     if($("audioHint")) $("audioHint").textContent=c?(trackKind(c.track)==="audio"?"音频片段":"视频自带音频"):"音频 / 视频片段";
@@ -7346,8 +7350,9 @@ function renderAdjustPanels(){
               +'<div class="range-row"><span style="flex:0 0 52px">背景透明</span><input type="range" id="adjSubBgOpacity" min="0" max="100" step="1" value="'+V("bgOpacity",0)+'"><b id="adjSubBgOpacityV">'+V("bgOpacity",0)+'%</b></div>'
               +'<div class="range-row"><span style="flex:0 0 52px">字间距</span><input type="range" id="adjSubSpacing" min="-2" max="12" step="0.5" value="'+V("spacing",0)+'"><b id="adjSubSpacingV">'+V("spacing",0)+'</b></div>'
               +'<div class="range-row"><span style="flex:0 0 52px">行高</span><input type="range" id="adjSubLine" min="0.8" max="2.4" step="0.1" value="'+V("lineHeight",1.2)+'"><b id="adjSubLineV">'+V("lineHeight",1.2)+'</b></div>'
-              +'<div class="prop-row"><label>位置</label><select id="adjSubPos">'+opts([["bottom","底部"],["middle","居中"],["top","顶部"]],q.pos)+'</select></div>'
+              +'<div class="prop-row"><label>位置</label><select id="adjSubPos">'+opts([["bottom","底部"],["center","正中"],["middle","居中"],["top","顶部"]],q.pos)+'</select></div>'
               +'<div class="prop-row"><label>对齐</label><select id="adjSubAlign">'+opts([["center","居中"],["left","左对齐"],["right","右对齐"]],q.align)+'</select></div>'
+              +'<div class="row" style="gap:5px;margin:4px 0 0"><button class="mini-btn" id="adjSubCenter" style="flex:1">⊕ 字幕居中</button></div>'
               +'<div class="row" style="gap:5px;margin:4px 0 8px"><button class="mini-btn gray" id="adjSubResetPos" style="flex:1">↺ 恢复初始位置</button></div>'
               +'<div class="prop-row"><label style="flex:0 0 52px">中文字体</label><select id="adjSubFont">'+opts([["Microsoft YaHei","微软雅黑"],["SimHei","黑体"],["KaiTi","楷体"],["PingFang SC","苹方"],["Arial","Arial"]],q.font)+'</select></div>'
               +'<div class="prop-row"><label style="flex:0 0 52px">西文字体</label><select id="adjSubFontEn">'+opts([["Arial","Arial"],["Helvetica","Helvetica"],["Times New Roman","Times New Roman"],["Georgia","Georgia"],["Verdana","Verdana"],["Microsoft YaHei","跟随中文"]],q.fontEn||"Arial")+'</select></div>'
@@ -7380,12 +7385,23 @@ function renderAdjustPanels(){
             $("adjSubGradient").oninput=e=>{ f.sub.gradient=e.target.value.trim(); fire(); };
             ["adjSubPos","adjSubAlign","adjSubFont","adjSubFontEn"].forEach(id=>$(id).onchange=e=>{
                 f.sub[({adjSubPos:"pos",adjSubAlign:"align",adjSubFont:"font",adjSubFontEn:"fontEn"})[id]]=e.target.value; fire(); });
+            /* 字幕居中：把字幕文字的 ink 中心移到播放器整个窗口正中央（pos=center, align=center），
+               同时清掉手动位移；字号/颜色等样式保持不变。位置参数下拉框仍可继续微调。 */
+            $("adjSubCenter").onclick=()=>{
+                pushHistory();
+                f.sub.pos="center"; f.sub.align="center";
+                f.x=0; f.y=0;
+                if(document.activeElement&&document.activeElement.blur) document.activeElement.blur();
+                subCache=""; renderAll(); autoSave();
+                toast("字幕已移到播放器正中央","ok");
+            };
             /* 恢复初始位置：只复位落点与手动位移，字号/颜色等样式保持不变。
                复位后所有字幕共用同一基准（底部、水平居中），参数相同即位置相同。 */
             $("adjSubResetPos").onclick=()=>{
                 pushHistory();
                 f.sub.pos="bottom"; f.sub.align="center";
                 f.x=0; f.y=0;                 /* 清掉用变换框拖出的位移，回到统一基准 */
+                if(document.activeElement&&document.activeElement.blur) document.activeElement.blur();
                 subCache=""; renderAll(); autoSave();
                 toast("已恢复初始位置（底部水平居中）","ok");
             };
