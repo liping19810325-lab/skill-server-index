@@ -104,7 +104,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .asset-item:hover{border-color:#3b82f6;}
 .asset-item.sel{border-color:#60a5fa;background:#1b2740;box-shadow:0 0 0 1px rgba(96,165,250,.45) inset;}
 .asset-item.dragging{opacity:.45;cursor:grabbing;}
-.asset-thumb{width:100%;height:76px;border-radius:6px;flex-shrink:0;object-fit:contain;background:#0b0d13;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:#93c5fd;overflow:hidden;}
+.asset-thumb{width:100%;height:76px;border-radius:6px;flex-shrink:0;object-fit:contain;background:#0b0d13;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:#93c5fd;overflow:hidden;position:relative;}
+/* 已加入时间轴的素材：缩略图左上角绿色小圆点（未入轨则不显示） */
+.asset-on-track{position:absolute;left:6px;top:6px;width:11px;height:11px;border-radius:50%;background:#22c55e;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 1px 4px rgba(0,0,0,.6);z-index:2;pointer-events:none;}
 .asset-thumb img,.asset-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
 .asset-meta{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:4px;}
 .asset-name{font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -2917,6 +2919,9 @@ function renderAssets(){
     updateSmartCutAvailability();
     if(subTabs) subTabs.querySelectorAll(".audio-subtab").forEach(b=>b.classList.toggle("active",b.dataset.sub===state.audioSub));
     if(!arr.length){ list.innerHTML='<div class="empty-line">这个分类还没有素材<br>上传本地文件或粘贴在线 URL</div>'; return; }
+    /* 已添加到时间轴的素材集合：轨道片段通过 assetId 引用素材库素材 */
+    const usedAssetIds=new Set();
+    for(const c of state.clips){ if(c.assetId) usedAssetIds.add(c.assetId); }
     list.innerHTML=arr.map(a=>{
         const pm=probeMetaCache.get(a.url)||null;
         const durTxt=a.duration?fmt(a.duration):"时长读取中 / 0.00";
@@ -2926,8 +2931,9 @@ function renderAssets(){
             +(a.mkvNote?" · "+a.mkvNote:"");
         const kind=a.type==="audio"?(a.audioKind==="sfx"?"sfx":"music"):null;
         const kindTag=kind?'<span class="audio-kind-tag k-'+kind+'" data-audio-kind="'+esc(a.id)+'" title="点击切换为'+(kind==="music"?"音效":"音乐")+'">'+(kind==="music"?"🎵 音乐":"🔊 音效")+'</span>':"";
+        const onTrack=usedAssetIds.has(a.id);
         return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+(assetPreviewId===a.id?" previewing":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="单击立即在预览窗口预览（不自动入轨）；拖到下方轨道开始剪辑；双击自动加入；Delete 删除">'
-          +'<div class="asset-thumb">'+assetThumbHtml(a)+'</div>'
+          +'<div class="asset-thumb">'+assetThumbHtml(a)+(onTrack?'<span class="asset-on-track" title="已添加到时间轴轨道"></span>':'')+'</div>'
           +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+kindTag+'</div>'
           +'<div class="asset-sub">'+esc(meta)+'</div>'
           +'<div class="asset-drag-tip">拖到轨道 · 双击加入</div></div></div>';
