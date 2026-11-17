@@ -271,6 +271,15 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ruler-mark{position:absolute;top:0;width:11px;height:11px;background:#fbbf24;clip-path:polygon(0 0,100% 0,50% 100%);transform:translateX(-5px);z-index:7;cursor:pointer;}
 .ruler-mark:hover{background:#fde68a;}
 .ruler-marks{position:absolute;left:118px;right:0;top:0;height:100%;pointer-events:none;z-index:7;}
+/* 入点 / 出点标记：贯穿标尺的竖线 + 字母标签（入点绿 I、出点红 O） */
+.ruler-io{position:absolute;top:0;bottom:0;width:2px;z-index:9;pointer-events:none;}
+.ruler-io.in{background:#22c55e;box-shadow:0 0 4px rgba(34,197,94,.7);}
+.ruler-io.out{background:#ef4444;box-shadow:0 0 4px rgba(239,68,68,.7);}
+.ruler-io b{position:absolute;top:0;left:-1px;font-size:9px;font-weight:700;line-height:12px;padding:0 3px;border-radius:0 0 4px 4px;color:#06120a;background:#22c55e;}
+.ruler-io.out b{left:auto;right:-1px;color:#1a0606;background:#ef4444;}
+/* 入出点之间的导出区间高亮条（覆盖在时间轴轨道区域上） */
+#tracks{position:relative;}
+.io-range-band{position:absolute;top:0;bottom:0;background:rgba(56,189,248,.07);border-left:1px dashed rgba(34,197,94,.5);border-right:1px dashed rgba(239,68,68,.5);pointer-events:none;z-index:2;}
 .track-row{display:flex;height:38px;border-bottom:1px solid #0b0d12;}
 .track-row.compound{height:66px;}
 .track-row.compound .clip{height:60px;top:3px;}
@@ -832,6 +841,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tl-tool" id="trimRightBtn" title="删除播放头右侧部分 (E)：保留左半段">|▶<span>留左</span></button>
                 <button class="tl-tool" id="markBtn" title="在播放头添加标记 (Shift+M)">⚑<span>标记</span></button>
                 <button class="tl-tool" id="clearMarksBtn" title="清除全部标记">✕<span>清标</span></button>
+                <button class="tl-tool" id="inPointBtn" title="设入点 (I)：导出从此处开始；Shift+I 清除">[<span>入点</span></button>
+                <button class="tl-tool" id="outPointBtn" title="设出点 (O)：导出到此结束；Shift+O 清除">]<span>出点</span></button>
+                <button class="tl-tool" id="clearIOBtn" title="清除入点 / 出点 (Shift+U)：导出恢复整条素材">✕<span>清IO</span></button>
                 <span class="tl-sep"></span>
                 <button class="tl-tool" id="quickImport" title="导入素材 (Ctrl/⌘+I)">＋<span>导入</span></button>
                 <button class="tl-tool" id="addTrackBtn" title="新建一条轨道">▤<span>轨道</span></button>
@@ -933,8 +945,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <tr><td>选择工具 / 分割工具</td><td><code>V</code> / <code>B</code></td><td>定格当前画面到图片轨</td><td><code>T</code></td></tr>
                 <tr><td>删左留右 / 删右留左</td><td><code>Q</code> / <code>E</code></td><td>在播放头添加标记</td><td><code>Shift + M</code></td></tr>
                 <tr><td>选中播放头左侧 / 右侧</td><td><code>[</code> / <code>]</code></td><td>旋转选中片段 90°</td><td>工具条「旋转」</td></tr>
+                <tr><td><b>设入点 / 出点</b>（导出区间）</td><td><code>I</code> / <code>O</code></td><td>清除入点 / 出点 / 全部</td><td><code>Shift + I</code> / <code>Shift + O</code> / <code>Shift + U</code></td></tr>
             </table>
             <p>分割工具开启后，直接单击片段即可在点击处剪断（不必先移动播放头）。<b>定格</b>会截取当前主画面存成图片并放到图片轨；<b>留右 / 留左</b>按播放头把片段裁成一半；<b>标记</b>打点显示在标尺上，可用「清标」一次清除。锁定的轨道不能拖动、裁剪或删除；隐藏的轨道不参与预览；静音的轨道不出声。</p>
+            <p><b>🎯 入点 / 出点区间导出</b>：把播放头移到想要的位置按 <code>I</code> 设入点（标尺显示绿色 I），再移到结尾按 <code>O</code> 设出点（红色 O）；两点之间会高亮显示。之后点「⬆ 导出成片」，<b>成片只导出入点到出点之间的素材</b>（画面 / 音频 / 字幕 / GIF 都按此区间裁切，字幕时间码也平移到从入点开始）。也可用工具条「[ 入点」「] 出点」按钮设置，「✕ 清IO」或 <code>Shift+U</code> 清除、恢复导出整条素材。出点必须晚于入点；只设一个点或都没设时，导出回退为整条素材（到最后素材结尾）。入出点随工程一起保存。</p>
             <p>点标尺或轨道空白处移动播放头；片段上的小剪刀可在点击位置直接剪断。预览区会同步播放主画面视频、混播所有音频轨、叠加所有图片层与字幕层。<b>点顶栏「⬆ 导出成片」</b>可一次勾选导出综合视频、单独音频、GIF 动图与单独字幕（原「导出字幕 SRT」按钮已并入这里）。</p>
             <h2>⑥ 从导演画布一键转入</h2>
             <p>左侧「⇢ 扫描画布生成结果」会读取本机画布的 IndexedDB 历史结果（<code>manflows_canvas_db / canvas / __global__ / history</code>），列出生成过的视频与图片，每项可<b>转入素材库</b>或<b>直接放进当天剪辑轨道</b>。画布结果页后续要加的转入按钮，也会走下面这个通道（三页已同域，通道现已生效）：</p>
@@ -1593,7 +1607,9 @@ let state = {
     assets:[], clips:[], tracks:defaultTracks(),
     selected:null, multi:[], selectedAsset:null, subTrack:"tk_text1",
     compute:"third_party", aspect:"auto", aiModel:"", propTab:"basic", zoomAuto:true,
-    snap:true, toolMode:"select", markers:[],
+    snap:true, toolMode:"select", markers:[], inPoint:null, outPoint:null,
+    /* 入点 / 出点（秒）：i 设入点、o 设出点，导出成片只导出两点之间的素材；
+       null=未设置。两点均未设或区间无效时回退为「整条素材」（0 ~ contentEnd）。 */
     /* 新建字幕的默认样式模板：仅决定“新生成的字幕”初始长什么样。
        已有字幕各自持有独立的 fx.sub，套预设/改参数只影响选中的那一条。 */
     subStyle: defaultFx().sub
@@ -1619,6 +1635,7 @@ function clipStripSig(c){
 let ctxClipId="", ctxTrackId="";
 let assetPreviewId=null, assetAudioEl=null, svcOnline=false, svcInfo=null;
 let exportBusy=false, exportDirHandle=null, exportCoverData="";
+let exportStopAt=null;   /* 导出录制时播放头停止的绝对时间（入点区间终点），null=用 contentEnd */
 let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
 const AI_STEPS=["模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
 const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
@@ -2756,6 +2773,51 @@ function totalDuration(){ let m=30; state.clips.forEach(c=>{ m=Math.max(m, c.sta
 function contentEnd(){ let m=0; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return m; }
 function contentWidth(){ return totalDuration()*state.zoom; }
 
+/* ---------- 入点 / 出点：i 设入点、o 设出点，导出只取两点之间的素材 ----------
+   仅当两个点都设置了且 out>in 时构成「有效区间」；否则导出回退到整条素材 [0, contentEnd]。
+   区间坐标一律 clamp 到 [0, contentEnd()]，避免落点在素材外时导出空片。 */
+function hasExportRange(){ return Number.isFinite(state.inPoint)&&Number.isFinite(state.outPoint)&&state.outPoint>state.inPoint; }
+function exportRange(){
+    const ce=contentEnd();
+    if(hasExportRange()){
+        const a=clamp(state.inPoint,0,ce), b=clamp(state.outPoint,0,ce);
+        if(b>a) return {start:a,end:b,active:true};
+    }
+    return {start:0,end:ce,active:false};
+}
+function setInPoint(){
+    const t=clamp(state.playhead,0,Math.max(0,contentEnd()));
+    if(Number.isFinite(state.outPoint)&&t>=state.outPoint){ toast("入点必须早于出点（当前出点 "+fmt(state.outPoint)+"）","err"); return; }
+    state.inPoint=+t.toFixed(4); autoSave(); renderAll();
+    toast("入点已设为 "+timecode(t)+"，导出将从此开始","ok");
+}
+function setOutPoint(){
+    const t=clamp(state.playhead,0,Math.max(0,contentEnd()));
+    if(Number.isFinite(state.inPoint)&&t<=state.inPoint){ toast("出点必须晚于入点（当前入点 "+fmt(state.inPoint)+"）","err"); return; }
+    state.outPoint=+t.toFixed(4); autoSave(); renderAll();
+    toast("出点已设为 "+timecode(t)+"，导出将到此结束","ok");
+}
+function clearInOut(){
+    if(!Number.isFinite(state.inPoint)&&!Number.isFinite(state.outPoint)){ toast("当前没有设置入点 / 出点"); return; }
+    state.inPoint=null; state.outPoint=null; autoSave(); renderAll();
+    toast("已清除入点 / 出点，导出恢复整条素材","ok");
+}
+/* 按导出区间裁剪片段：与 [start,end] 相交的部分保留，start 平移到区间内相对时间。
+   用于视频/音频画面同步、字幕导出与烧录——保证成片从入点开始、到出点结束。 */
+function clipsInRange(list){
+    const rg=exportRange();
+    const out=[];
+    for(const c of (list||[])){
+        const s=Number(c.start)||0, e=s+(Number(c.duration)||0);
+        const a=Math.max(s,rg.start), b=Math.min(e,rg.end);
+        if(!(b>a+0.0005)) continue;
+        const q=Object.assign({},c,{start:+(a-rg.start).toFixed(4),duration:+(b-a).toFixed(4)});
+        q._srcSkip=+(a-s).toFixed(4);   /* 被入点裁掉的前段（时间轴秒），音频消费源时据此前移 */
+        out.push(q);
+    }
+    return out.sort((x,y)=>x.start-y.start);
+}
+
 /* ---------- 本机存储 ---------- */
 const safeStorage = {
     /* 工作区隔离：只有工程 / 布局 / 本页配置 / 画幅这些键加工作区前缀；
@@ -3303,8 +3365,29 @@ function renderRuler(){
     }
     sc.innerHTML=html;
     const mk=$("rulerMarks");
-    if(mk) mk.innerHTML=state.markers.map((m,i)=>
-        '<div class="ruler-mark" style="left:'+(Number(m.t)*state.zoom)+'px" title="'+esc(m.label||("标记 "+(i+1)))+' · '+fmt(m.t)+'"></div>').join("");
+    if(mk){
+        let h=state.markers.map((m,i)=>
+            '<div class="ruler-mark" style="left:'+(Number(m.t)*state.zoom)+'px" title="'+esc(m.label||("标记 "+(i+1)))+' · '+fmt(m.t)+'"></div>').join("");
+        if(Number.isFinite(state.inPoint)) h+='<div class="ruler-io in" style="left:'+(state.inPoint*state.zoom)+'px" title="入点 '+fmt(state.inPoint)+'（Shift+I 清除）"><b>I 入</b></div>';
+        if(Number.isFinite(state.outPoint)) h+='<div class="ruler-io out" style="left:'+(state.outPoint*state.zoom)+'px" title="出点 '+fmt(state.outPoint)+'（Shift+O 清除）"><b>出 O</b></div>';
+        mk.innerHTML=h;
+    }
+    /* 入出点按钮高亮 */
+    const ib=$("inPointBtn"), ob=$("outPointBtn");
+    if(ib) ib.classList.toggle("active",Number.isFinite(state.inPoint));
+    if(ob) ob.classList.toggle("active",Number.isFinite(state.outPoint));
+    /* 入出点之间的导出区间高亮条：画在 #tracks 里，覆盖整个时间轴高度 */
+    const tkBox=$("tracks");
+    if(tkBox){
+        const old=tkBox.querySelector(".io-range-band"); if(old) old.remove();
+        if(hasExportRange()){
+            const rg=exportRange(), band=document.createElement("div");
+            band.className="io-range-band";
+            band.style.left=(rg.start*state.zoom)+"px";
+            band.style.width=((rg.end-rg.start)*state.zoom)+"px";
+            tkBox.appendChild(band);
+        }
+    }
 }
 function renderTracks(){
     const box=$("tracks"); const w=contentWidth(); const list=orderedTracks(); const mainVid=mainVideoTrackId();
@@ -3655,9 +3738,8 @@ function tick(ts){
     }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
     syncMedia(); renderPlayhead(); drawLutFrame();
-    /* 播放预览与导出成片统一：走到最后一个素材结尾就停，不再空播后面的留白区。
-       导出录制复用 play()/tick()，成片时长＝contentEnd()；无素材时 startExport 已拦截，不会走到这里。 */
-    const end=Math.max(0,contentEnd());
+    /* 播放预览走到最后素材结尾即停；导出录制则停在本次区间的终点 exportStopAt（入点/出点之间）。 */
+    const end=Math.max(0,Number.isFinite(exportStopAt)?exportStopAt:contentEnd());
     if(end>0 && state.playhead>=end-0.02){
         pause();
         if(state.playhead<end) state.playhead=end;   /* 只在跨过末尾时吸附到末尾 */
@@ -5681,6 +5763,7 @@ function projectPayload(){
     state.clips.forEach(fxOf);      /* 旧工程的片段统一补齐变换字段再存档 */
     return {v:2,date:state.date,zoom:state.zoom,playhead:0,
         tracks:state.tracks, subTrack:state.subTrack, markers:state.markers,
+        inPoint:(Number.isFinite(state.inPoint)?state.inPoint:null), outPoint:(Number.isFinite(state.outPoint)?state.outPoint:null),
         subStyle:Object.assign({},defaultFx().sub,state.subStyle||{}),  /* 新建字幕的默认模板；每条字幕自己的样式随 clips.fx.sub 单独保存 */
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
             delete o.previewUrl; delete o.mkvNote;   /* 转封装副本是一次性 blob，重开工程后重新生成 */
@@ -5723,6 +5806,8 @@ async function loadProject(date){
         state.markers=Array.isArray(p.markers)
             ? p.markers.filter(m=>Number.isFinite(Number(m.t))).map(m=>({t:Number(m.t),label:String(m.label||"")}))
             : [];
+        state.inPoint=(p.inPoint===null||p.inPoint===undefined||!Number.isFinite(Number(p.inPoint)))?null:Number(p.inPoint);
+        state.outPoint=(p.outPoint===null||p.outPoint===undefined||!Number.isFinite(Number(p.outPoint)))?null:Number(p.outPoint);
         state.subTrack=String(p.subTrack||"");
         state.clips=(Array.isArray(p.clips)?p.clips:[]).map(migrateClip);
         /* 字幕样式默认模板：新存档有 subStyle 直接用；旧存档从第一条字幕的 fx.sub 迁移，都没有则用默认。
@@ -5823,6 +5908,7 @@ function setEmptyHint(){
 }
 async function loadEmptyProject(newDate){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
+    state.inPoint=null; state.outPoint=null;   /* 新工程清空入点 / 出点 */
     state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
     state.subStyle=defaultFx().sub;   /* 新工程重置“新建字幕的默认模板” */
     state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=newDate||todayStr();
@@ -6202,6 +6288,9 @@ function wire(){
     $("trimRightBtn").onclick=()=>trimToPlayhead("left");
     $("markBtn").onclick=addMarker;
     $("clearMarksBtn").onclick=clearMarkers;
+    $("inPointBtn").onclick=setInPoint;
+    $("outPointBtn").onclick=setOutPoint;
+    $("clearIOBtn").onclick=clearInOut;
     $("aiGoIndex").onclick=()=>window.open("./index.html","_blank","noopener");
     $("aiGoLocal").onclick=()=>window.open("./canvas.html","_blank","noopener");
     $("asrEngine").onchange=()=>{ $("asrCfg").style.display=$("asrEngine").value==="remote"?"block":"none"; };
@@ -6683,6 +6772,12 @@ function wire(){
         else if(k==="f"){ e.preventDefault(); $("btnFullscreen").click(); }
         else if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(state.zoom*1.3,true); }
         else if(e.key==="-"||e.key==="_"){ e.preventDefault(); setZoom(state.zoom/1.3,true); }
+        /* 入点 / 出点：i 设入点、o 设出点；Shift+I / Shift+O 分别清除；Shift+U 同时清除 */
+        else if(e.shiftKey && k==="i"){ e.preventDefault(); state.inPoint=null; autoSave(); renderAll(); toast("入点已清除","ok"); }
+        else if(e.shiftKey && k==="o"){ e.preventDefault(); state.outPoint=null; autoSave(); renderAll(); toast("出点已清除","ok"); }
+        else if(e.shiftKey && k==="u"){ e.preventDefault(); clearInOut(); }
+        else if(k==="i"){ e.preventDefault(); setInPoint(); }
+        else if(k==="o"){ e.preventDefault(); setOutPoint(); }
         /* 剪映 6.0 时间轴快捷键 */
         else if(e.shiftKey && k==="m"){ e.preventDefault(); addMarker(); }
         else if(k==="v"){ e.preventDefault(); setToolMode("select"); }
@@ -7373,7 +7468,7 @@ async function saveBlob(blob,name){
     return "浏览器下载目录";
 }
 function buildSubtitleText(fmt){
-    const arr=state.clips.filter(c=>trackKind(c.track)==="text"&&c.text).sort((a,b)=>a.start-b.start);
+    const arr=clipsInRange(state.clips.filter(c=>trackKind(c.track)==="text"&&c.text));
     const ms=t=>{ const x=Math.round(Math.max(0,t)*1000), h=Math.floor(x/3600000),m=Math.floor(x%3600000/60000),
         s=Math.floor(x%60000/1000),q=x%1000; return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); };
     const line=c=>(c.subKind&&SUB_NAME[c.subKind]?"["+SUB_NAME[c.subKind]+"] ":"")+c.text;
@@ -7460,7 +7555,8 @@ function buildBurnSrt(arr){
     }).join("\n");
 }
 function burnSubtitleClips(){
-    return state.clips.filter(c=>trackKind(c.track)==="text"&&c.text).sort((a,b)=>a.start-b.start);
+    /* 烧录字幕也遵循入点 / 出点：只取区间内字幕，时间码平移到成片相对时间 */
+    return clipsInRange(state.clips.filter(c=>trackKind(c.track)==="text"&&c.text));
 }
 async function exportSubtitleFile(){
     const fmt=$("expSubFmt").value, r=buildSubtitleText(fmt);
@@ -7484,12 +7580,13 @@ function audioBufferToWav(buf){
     return new Blob([ab],{type:"audio/wav"});
 }
 async function renderTimelineAudio(){
-    const dur=Math.max(0.1,contentEnd()), sr=44100;   /* 成片音频与画面同样到最后一个素材结尾 */
+    const rg=exportRange();
+    const dur=Math.max(0.1,rg.end-rg.start), sr=44100;   /* 成片音频与画面同样到入点/出点区间 */
     const Ctx=window.OfflineAudioContext||window.webkitOfflineAudioContext;
     if(!Ctx) throw new Error("当前浏览器不支持离线音频合成，请改用 Chrome / Edge");
     const ctx=new Ctx(2,Math.ceil(dur*sr),sr);
     let added=0, failed=0;
-    for(const c of state.clips){
+    for(const c of clipsInRange(state.clips)){
         const k=trackKind(c.track); if(k!=="audio"&&k!=="video") continue;
         if(clipTrackMuted(c)) continue;      /* 轨道静音 / 隐藏在导出成片里同样生效 */
         const a=c.assetId?assetById(c.assetId):null; if(!a||!mediaUrl(a)) continue;
@@ -7498,7 +7595,10 @@ async function renderTimelineAudio(){
             const r=await fetch(ov?ov.url:mediaUrl(a)); if(!r.ok) throw new Error("HTTP "+r.status);
             const audio=await ctx.decodeAudioData(await r.arrayBuffer());
             /* 中间片已由 FFmpeg atempo 做过时间拉伸并保持音调，这里不能再改 playbackRate */
-            const sp=ov?1:localSpeed(c), off=ov?0:Math.max(0,Number(c.offset)||0);
+            const sp=ov?1:localSpeed(c);
+            /* 源偏移：原有 offset + 入点裁掉的前段（按变速换算），再受源时长约束 */
+            const skipSrc=ov?0:(Number(c._srcSkip)||0)*sp;
+            const off=Math.max(0,(ov?0:Math.max(0,Number(c.offset)||0))+skipSrc);
             const len=Math.min(Math.max(0.05,c.duration*sp),Math.max(0,audio.duration-off));
             if(len<=0) continue;
             const src=ctx.createBufferSource(); src.buffer=audio; src.playbackRate.value=sp;
@@ -7686,6 +7786,7 @@ function grainTile(){
 }
 async function recordCanvas(dur,opts,onProgress){
     const size=opts.size, W=size.w, H=size.h, fps=Number(opts.fps)||30;
+    const from=Number(opts.from)||0, to=from+dur;   /* 入点 / 出点：只录制 [from,to] 区间 */
     const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
     const x=cv.getContext("2d",{alpha:false});
     x.fillStyle="#000"; x.fillRect(0,0,W,H);
@@ -7698,9 +7799,10 @@ async function recordCanvas(dur,opts,onProgress){
     const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:exportBitrate()});
     const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
     const done=new Promise(res=>{ rec.onstop=()=>res(new Blob(chunks,{type:mime})); });
-    const before=state.playhead;
+    const before=state.playhead, prevStop=exportStopAt;
+    exportStopAt=to;   /* 让 tick 在出点处停，不空播到 contentEnd */
     rec.start(250);
-    state.playhead=0; seek(0); play();
+    state.playhead=from; seek(from); play();
     /* 中间片是 Blob URL，等首帧解码完再开始画，避免录进黑帧 */
     if(renderOverrides.size) await new Promise(res=>{
         let n=0; const tm=setInterval(()=>{
@@ -7710,7 +7812,7 @@ async function recordCanvas(dur,opts,onProgress){
     await new Promise(resolve=>{
         let t0=performance.now(), paused=false, hiddenWaiter=null;
         const report=(p,msg)=>{ if(onProgress) onProgress(p,msg); };
-        const pct=()=>clamp(state.playhead/Math.max(0.1,dur),0,1);
+        const pct=()=>clamp((state.playhead-from)/Math.max(0.1,dur),0,1);
         /* 浏览器在标签页进后台后会暂停/降频 requestAnimationFrame，
            canvas 画面不再更新，MediaRecorder 会录进黑帧。
            这里在切后台时暂停录制与播放，切回后自动继续，避免黑屏且不打乱时间轴。 */
@@ -7736,7 +7838,7 @@ async function recordCanvas(dur,opts,onProgress){
             try{ drawStageFrame(x,W,H); }catch(e){ /* 单帧失败不中断整段录制 */ }
             const p=pct();
             report(p,"正在渲染输出 "+(p*100).toFixed(0)+"%");
-            if(state.playhead>=dur-0.05 || performance.now()-t0>dur*1000+4000 || (!playing&&!paused)){
+            if(state.playhead>=to-0.05 || performance.now()-t0>dur*1000+4000 || (!playing&&!paused)){
                 document.removeEventListener("visibilitychange",onVis);
                 resolve(); return;
             }
@@ -7747,6 +7849,7 @@ async function recordCanvas(dur,opts,onProgress){
     pause(); rec.stop();
     const blob=await done;
     state.playhead=before; seek(before);
+    exportStopAt=prevStop;   /* 恢复录制前的停止点，避免影响后续播放 */
     return blob;
 }
 async function serviceBurnSubtitles(blob,srt,filename){
@@ -7805,7 +7908,7 @@ async function exportGifFile(recorded){
     await saveBlob(base64ToBlob(j.dataBase64,"image/gif"),exportTitle()+".gif");
 }
 function updateExportEstimate(){
-    const d=contentEnd();   /* 成片时长＝轨道上最后素材的结尾，无素材为 0 */
+    const rg=exportRange(), d=rg.end-rg.start;   /* 成片时长＝入点/出点区间（未设则为整条素材），无素材为 0 */
     let mb=0;
     if($("expChkVideo").checked) mb+=d*0.9;
     if($("expChkAudio").checked) mb+=d*0.18;
@@ -7892,7 +7995,8 @@ function captureCover(silent){
 async function openExport(){
     if(exportBusy) return;
     if(!$("exportTitle").value) $("exportTitle").value=todayStr();
-    $("exportTitleHead").textContent=$("exportTitle").value;
+    const _rg=exportRange();
+    $("exportTitleHead").textContent=$("exportTitle").value+(_rg.active?("  ·  入出点 "+fmt(_rg.start)+" → "+fmt(_rg.end)):"");
     $("exportSteps").textContent="";
     $("exportProg").classList.remove("show"); $("exportProgFill").style.width="0%";
     await pingService(1900);
@@ -7906,6 +8010,8 @@ async function startExport(){
     if(exportBusy) return;
     /* 时间轴上没有任何素材：成片时长为 0，直接停止，不生成空片 */
     if(contentEnd()<=0){ toast("时间轴上还没有素材，导入素材后再导出","err"); return; }
+    const rg=exportRange();
+    if(rg.active) toast("按入点 / 出点导出："+fmt(rg.start)+" → "+fmt(rg.end)+"（时长 "+fmt(rg.end-rg.start)+"）","ok");
     const jobs=[];
     if($("expChkSub").checked) jobs.push("sub");
     if($("expChkAudio").checked) jobs.push("audio");
@@ -7917,8 +8023,8 @@ async function startExport(){
     prog.classList.add("show");
     let recorded=null, renderedCount=0;
     const getRecorded=async()=>{
-        if(!recorded) recorded=await recordCanvas(Math.max(0.1,contentEnd()),
-            {size:exportSize(),fps:Number($("expFps").value)||30},
+        if(!recorded) recorded=await recordCanvas(Math.max(0.1,rg.end-rg.start),
+            {size:exportSize(),fps:Number($("expFps").value)||30,from:rg.start,to:rg.end},
             (p,msg)=>{ fill.style.width=Math.round(p*100)+"%"; steps.textContent="🎬 "+msg; });
         return recorded;
     };
