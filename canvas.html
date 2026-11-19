@@ -103,9 +103,12 @@
     .node-ai-btn{border:none;border-radius:5px;background:#7c3aed;color:#fff;font-size:10px;height:22px;line-height:1;cursor:pointer;padding:0 7px;white-space:nowrap;flex-shrink:0;margin-right:auto;}
     .node-ai-btn:hover{background:#8b5cf6;}
     .node-ai-btn:disabled{opacity:.55;cursor:not-allowed;}
-    .ai-foot{display:flex;align-items:flex-start;gap:8px;margin-top:7px;}
+    .ai-foot{display:flex;align-items:center;gap:8px;margin-top:7px;}
     .ai-foot .mini-btn{flex-shrink:0;}
-    .ai-foot-tip{flex:1;min-width:0;font-size:10px;line-height:1.5;color:#9ca3af;word-break:break-word;}
+    /* 原来平铺的 AI提示词说明小字收进「?」图标，鼠标悬停(title)显示全文，节省节点空间 */
+    .ai-foot-tip{flex:0 0 auto;width:16px;height:16px;line-height:16px;text-align:center;border-radius:50%;
+        background:var(--panel);border:1px solid var(--border2);color:#9ca3af;font-size:10px;cursor:help;user-select:none;}
+    .ai-foot-tip:hover{color:#fff;border-color:#6d28d9;}
     .node-actions button{border:none;border-radius:5px;background:var(--hover);color:#fff;font-size:11px;width:22px;height:22px;line-height:1;cursor:pointer;padding:0;}
     .node-actions button:hover{background:#4b5563;}
     .node-actions button.act-run{background:var(--green);}
@@ -175,6 +178,14 @@
     .media-lightbox .lb-title{position:fixed;left:0;right:0;top:20px;text-align:center;color:#cbd5e1;font-size:13px;pointer-events:none;}
     .media-lightbox .lb-close{position:fixed;right:22px;top:18px;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer;line-height:1;}
     .media-lightbox .lb-close:hover{background:rgba(255,255,255,.28);}
+    /* 提示词全文浮窗：底部工具条 + 可编辑 textarea（编辑/保存按钮） */
+    .media-lightbox .lb-tools{position:fixed;left:0;right:0;bottom:20px;display:flex;justify-content:center;gap:10px;z-index:2;pointer-events:none;}
+    .media-lightbox .lb-tools button{pointer-events:auto;padding:8px 18px;border:none;border-radius:8px;font-size:13px;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.4);}
+    .media-lightbox .lb-edit-btn{background:#6d28d9;color:#fff;}
+    .media-lightbox .lb-edit-btn:hover{background:#7c3aed;}
+    .media-lightbox .lb-save-btn{background:var(--green,#16a34a);color:#fff;}
+    .media-lightbox .lb-save-btn:hover{filter:brightness(1.1);}
+    .media-lightbox .lb-edit-area{width:min(860px,90vw);height:62vh;overflow:auto;background:var(--card);border:1px solid #6d28d9;border-radius:12px;padding:18px 22px;color:var(--text);font-size:14px;line-height:1.9;white-space:pre-wrap;word-break:break-word;box-shadow:0 18px 60px rgba(0,0,0,.7);resize:none;}
     /* ===== 历史结果面板 ===== */
     .history-panel{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1100;padding:24px;}
     .history-panel.show{display:flex;}
@@ -1221,9 +1232,16 @@ function buildNode(n){
 }
 function buildPromptBody(body,n){
     const ta = document.createElement("textarea");
-    ta.placeholder = "粘贴剧本 / 生视频提示词 / 生图提示词…";
+    ta.placeholder = "粘贴剧本 / 生视频提示词 / 生图提示词…（双击本框可浮窗查看全文并编辑）";
     ta.value = n.data.text || "";
     ta.addEventListener("input",()=>{ n.data.text = ta.value; updateCharCount(); scheduleSave(true); });
+    /* 在提示词输入框内双击：弹出浮窗查看全部提示词（可编辑/保存），不影响节点头部双击重命名 */
+    ta.addEventListener("dblclick",e=>{
+        e.stopPropagation();
+        const t=String(n.data.text||"");
+        if(!t){ setStatus("提示词还是空的，先写点内容","busy"); return; }
+        openLightbox({kind:"text",text:t,title:"提示词全文（"+t.length+" 字）",editable:true,node:n});
+    });
     body.appendChild(ta);
     const line = document.createElement("div"); line.className="mini-line";
     const cnt = document.createElement("span"); const tip = document.createElement("span");
@@ -1245,17 +1263,18 @@ function buildPromptBody(body,n){
     cvPaintNote(note,n,(nt && !(nt.kind==="busy" && !cvHasActiveTask(n))) ? nt : null);
     body.appendChild(note);
     const pv=document.createElement("button"); pv.className="mini-btn gray"; pv.textContent="🔍 浮窗预览";
-    pv.title="放大查看提示词全文，方便对照参考";
+    pv.title="放大查看提示词全文，可编辑并保存";
     pv.addEventListener("click",e=>{
         e.stopPropagation();
         const t=String(n.data.text||"").trim();
         if(!t){ setStatus("提示词还是空的，先写点内容","busy"); return; }
-        openLightbox({kind:"text",text:t,title:"提示词全文（"+t.length+" 字）"});
+        openLightbox({kind:"text",text:t,title:"提示词全文（"+t.length+" 字）",editable:true,node:n});
     });
     const foot=document.createElement("div"); foot.className="ai-foot";
     foot.appendChild(pv);
-    const aiTip=document.createElement("div"); aiTip.className="ai-foot-tip";
-    aiTip.innerHTML='<div>&quot;AI提示词&quot;先在生成节点选定模型 / 工作流</div><div>把非标提示词转为该模型专用格式：第三方算力如 gpt image、midjourney、seedance、minimax h3；本机算力会识别所选 ComfyUI 工作流（FLUX / SDXL / Qwen Image / Wan / 可灵 / 混元 / Minimax H3 等）并套用其专用格式</div>';
+    /* 原说明小字收进「?」图标，hover 显示全文，节省节点空间 */
+    const aiTip=document.createElement("div"); aiTip.className="ai-foot-tip"; aiTip.textContent="?";
+    aiTip.title='"AI提示词"先在生成节点选定模型 / 工作流。把非标提示词转为该模型专用格式：第三方算力如 gpt image、midjourney、seedance、minimax h3；本机算力会识别所选 ComfyUI 工作流（FLUX / SDXL / Qwen Image / Wan / 可灵 / 混元 / Minimax H3 等）并套用其专用格式。';
     foot.appendChild(aiTip);
     body.appendChild(foot);
     function updateCharCount(){ cnt.textContent = (n.data.text||"").length + " 字"; }
@@ -2235,6 +2254,7 @@ function openLightbox(d){
     if(!lb||!h) return;
     h.innerHTML="";
     const oldCap=lb.querySelector(".lb-title"); if(oldCap) oldCap.remove();
+    const oldTools=lb.querySelector(".lb-tools"); if(oldTools) oldTools.remove();
     if(d.title){ const cap=document.createElement("div"); cap.className="lb-title"; cap.textContent=d.title; lb.appendChild(cap); }
     if(d.kind==="video"){
         const v=document.createElement("video"); v.controls=true; v.autoplay=true; v.loop=true; h.appendChild(v);
@@ -2243,6 +2263,37 @@ function openLightbox(d){
         const a=document.createElement("audio"); a.src=d.url; a.controls=true; a.autoplay=true; h.appendChild(a);
     }else if(d.kind==="text"){
         const pre=document.createElement("pre"); pre.className="lb-text"; pre.textContent=d.text||""; h.appendChild(pre);
+        /* 提示词全文浮窗：可点「编辑」实时修改、点「保存」写回节点（仅 editable + node 时显示） */
+        if(d.editable && d.node){
+            const node=d.node;
+            const tools=document.createElement("div"); tools.className="lb-tools";
+            const editBtn=document.createElement("button"); editBtn.className="lb-edit-btn"; editBtn.textContent="✎ 编辑";
+            const saveBtn=document.createElement("button"); saveBtn.className="lb-save-btn"; saveBtn.textContent="💾 保存";
+            tools.appendChild(editBtn); tools.appendChild(saveBtn); lb.appendChild(tools);
+            let editor=null;
+            editBtn.addEventListener("click",e=>{
+                e.stopPropagation();
+                if(editor) return;
+                editor=document.createElement("textarea"); editor.className="lb-edit-area"; editor.value=node.data.text||"";
+                pre.replaceWith(editor); editor.focus();
+                const cap=lb.querySelector(".lb-title"); if(cap) cap.textContent="编辑提示词（修改后点保存）";
+            });
+            saveBtn.addEventListener("click",e=>{
+                e.stopPropagation();
+                const val=editor?editor.value:pre.textContent;
+                node.data.text=val;                       /* 写回节点数据 */
+                const box=document.querySelector('.node[data-id="'+node.id+'"]');
+                const ta=box&&box.querySelector(".node-body textarea");
+                if(ta) ta.value=val;                      /* 同步节点内输入框 */
+                if(box){ const c=box.querySelector(".mini-line span"); if(c) c.textContent=val.length+" 字"; }
+                scheduleSave(true);                       /* 持久化到画布存档 */
+                if(editor){ const p=document.createElement("pre"); p.className="lb-text"; p.textContent=val; editor.replaceWith(p); editor=null; }
+                else pre.textContent=val;
+                d.text=val;
+                const cap=lb.querySelector(".lb-title"); if(cap) cap.textContent="提示词全文（"+val.length+" 字）· 已保存";
+                setStatus("提示词已保存（"+val.length+" 字）","ok");
+            });
+        }
     }else{
         const img=document.createElement("img"); img.src=d.url; img.alt="预览"; h.appendChild(img);
     }
@@ -2250,7 +2301,10 @@ function openLightbox(d){
 }
 function closeLightbox(){
     const lb=el("mediaLightbox"), h=el("lbHolder");
-    if(lb){ lb.classList.remove("show"); const c=lb.querySelector(".lb-title"); if(c) c.remove(); }
+    if(lb){ lb.classList.remove("show");
+        const c=lb.querySelector(".lb-title"); if(c) c.remove();
+        const t=lb.querySelector(".lb-tools"); if(t) t.remove();   /* 清掉提示词浮窗的编辑/保存按钮 */
+    }
     if(h) h.innerHTML="";   /* 停掉视频 / 音频播放 */
 }
 /* ===== 历史结果面板（跨画布全局存档，存 IndexedDB） ===== */
