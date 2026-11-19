@@ -302,7 +302,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ab-stat{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#cbd5e1;margin:6px 0;}
 .ab-stat b{color:#fff;font-size:14px;font-variant-numeric:tabular-nums;}
 /* 播放器字幕逐字动画层：由 updateWordAnimFrame 逐帧写 style，不走 subCache */
-.sub-line .aw{display:inline-block;transform-origin:50% 80%;will-change:transform,opacity,color;}
+/* 去掉 will-change：字级动画每帧写 transform/opacity，若每个字都常驻合成层，
+   Windows 浏览器会按层分配 GPU 纹理，几十上百个字直接把显存吃满。
+   浏览器仍会按需为正在变化的 transform/opacity 自动提升图层，动画不受影响。 */
+.sub-line .aw{display:inline-block;transform-origin:50% 80%;}
 .sub-line .aw.kw-emo{color:inherit;}
 .tl-info{font-size:10.5px;color:var(--muted);white-space:nowrap;}
 .tl-scroll{flex:1 1 auto;min-height:0;overflow:auto;position:relative;background:#181b20;}
@@ -3906,6 +3909,14 @@ function renderPlayhead(){
      等于几十上百次解码+seek+toDataURL，后台持续抢占解码器，播放预览几乎冻住。
    · 现在：播放期间直接暂停生成并作废旧任务；每批 8 段、每段 5 帧；全部完成后只重建一次时间轴。 */
 let stripFillRunning=false, stripGenToken=0;
+/* 同一源素材、同一 2 秒源区间的剪口播小片段共用一份缩略图，避免 N 个片段各存一套图片
+   把 GPU 纹理/显存吃满（用户实测 Windows 一播放就占满 4GB 显存）。 */
+const stripFramesBySig=new Map();
+function stripSharedSig(c){
+    const a=c.assetId?assetById(c.assetId):null, f=fxOf(c)||{};
+    return String(a?a.id:"noasset")+"|"+Math.floor((Number(c.offset)||0)/2)
+        +"|"+Number(f.speed||1)+(f.reverse?"r":"");
+}
 async function ensureClipStrips(){
     if(stripFillRunning) return;
     stripFillRunning=true;
@@ -3913,28 +3924,46 @@ async function ensureClipStrips(){
     try{
         for(let batch=0;batch<20;batch++){
             if(playing || myToken!==stripGenToken) break;
-            const jobs=state.clips.filter(c=>{
+            const need=state.clips.filter(c=>{
                 const t=trackById(c.track);
                 const a=c.assetId?assetById(c.assetId):null;
                 const ce=clipStripCache.get(c.id);
                 return t&&t.kind==="video"&&a&&a.type==="video"&&mediaUrl(a)
                     &&(Number(c.duration)||0)>=0.6          /* 剪口播产生的极短片段不抽帧 */
                     &&(!ce||ce.sig!==clipStripSig(c));      /* 源区间变了重抽 */
-            }).slice(0,8);
-            if(!jobs.length) break;
-            jobs.forEach(c=>clipStripCache.set(c.id,{sig:clipStripSig(c),frames:[]})); /* 占位防重复排队 */
-            const N=5;
-            await Promise.all(jobs.map(async c=>{
-                const a=assetById(c.assetId), url=mediaUrl(a), off=Number(c.offset)||0, dur=Number(c.duration)||0;
-                const frames=[];
-                for(let i=0;i<N;i++){
-                    if(playing || myToken!==stripGenToken){ clipStripCache.delete(c.id); return; }
-                    const t=off+dur*(i+0.5)/N;
-                    const d=await grabFrame(url,t);
-                    if(d) frames.push(d);
+            });
+            if(!need.length) break;
+            const groups=new Map();
+            for(const c of need){
+                const k=stripSharedSig(c);
+                if(!groups.has(k)) groups.set(k,[]);
+                groups.get(k).push(c);
+            }
+            const todo=Array.from(groups.entries()).slice(0,8);
+            if(!todo.length) break;
+            await Promise.all(todo.map(async ([k,clips])=>{
+                const c0=clips[0], a=assetById(c0.assetId), url=mediaUrl(a);
+                let frames=stripFramesBySig.get(k);
+                if(!frames){
+                    frames=[];
+                    const N=4, off=Math.floor((Number(c0.offset)||0)/2)*2, dur=2;
+                    for(let i=0;i<N;i++){
+                        if(playing || myToken!==stripGenToken) return;
+                        const d=await grabFrame(url,off+dur*(i+0.5)/N,256);  /* 256px 足够时间轴缩略图 */
+                        if(d) frames.push(d);
+                    }
+                    if(frames.length){
+                        if(stripFramesBySig.size>120){
+                            const k0=stripFramesBySig.keys().next().value; stripFramesBySig.delete(k0);
+                        }
+                        stripFramesBySig.set(k,frames);
+                    }
                 }
-                if(myToken===stripGenToken && frames.length) clipStripCache.set(c.id,{sig:clipStripSig(c),frames:frames});
-                else clipStripCache.delete(c.id);
+                for(const c of clips){
+                    if(playing || myToken!==stripGenToken){ clipStripCache.delete(c.id); continue; }
+                    if(frames.length) clipStripCache.set(c.id,{sig:clipStripSig(c),frames:frames});
+                    else clipStripCache.delete(c.id);
+                }
             }));
         }
     }finally{ stripFillRunning=false; }
@@ -5454,7 +5483,8 @@ function shrinkImage(url){
         }catch(e){ fin(""); }
     });
 }
-function grabFrame(url,t){
+function grabFrame(url,t,maxSize){
+    const MAX=Number(maxSize)||512;
     return new Promise(res=>{
         let done=false; const fin=v=>{ if(done)return; done=true; res(v||""); };
         try{
@@ -5463,7 +5493,7 @@ function grabFrame(url,t){
             v.onseeked=()=>{
                 try{
                     const c=document.createElement("canvas");
-                    const s=Math.min(1,512/Math.max(v.videoWidth,v.videoHeight,1));
+                    const s=Math.min(1,MAX/Math.max(v.videoWidth,v.videoHeight,1));
                     c.width=Math.max(1,Math.round(v.videoWidth*s)); c.height=Math.max(1,Math.round(v.videoHeight*s));
                     c.getContext("2d").drawImage(v,0,0,c.width,c.height);
                     fin(c.toDataURL("image/jpeg",0.68));
