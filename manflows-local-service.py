@@ -1523,6 +1523,25 @@ def api_transcribe(body):
             wav = _extract_mono_wav(ff, in_path, td, clip_start, clip_duration)
         chunks, duration = _split_wav(wav, td)
         det = _detect_silences_ex(ff, wav, pa)
+        # 诊断：记录待转写 WAV 的时长与音量峰值，判断「0 句」是否因抽出的音轨本身是静音。
+        try:
+            import audioop as _ao
+            with wave.open(wav, "rb") as _wf:
+                _n = _wf.getnframes(); _rate = _wf.getframerate()
+                _data = _wf.readframes(_n)
+            _peak = _ao.max(_data, 2) if _data else 0
+            log.append("待转写WAV诊断：时长 %.2fs · 采样率 %d · 音量峰值 %d/32768（<500 视为近乎静音）"
+                       % (_n / float(_rate or 16000), _rate, _peak))
+            if _peak < 500:
+                # 静音时把这段 WAV 额外留一份到桌面，便于人工确认浏览器抽轨是否抽错区间
+                try:
+                    _dbg = os.path.join(os.path.expanduser("~"), "Desktop", "asr_debug_silent.wav")
+                    shutil.copyfile(wav, _dbg)
+                    log.append("疑似静音，已留存样本：~/Desktop/asr_debug_silent.wav")
+                except Exception:
+                    pass
+        except Exception:
+            pass
     except subprocess.TimeoutExpired:
         shutil.rmtree(td, ignore_errors=True)
         return _fail("抽取音轨超时（超过 10 分钟）", "请换短一点的素材再试。")
