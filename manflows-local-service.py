@@ -41,6 +41,7 @@ import time
 import uuid
 import urllib.error
 import urllib.request
+import urllib.parse
 import wave
 import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -1184,7 +1185,19 @@ def _detect_silences(ff, wav_path):
 
 
 def _media_to_file(data, td):
-    """把前端提交的素材（dataBase64 或公网直链）落到临时文件，供探测/静音/转写共用。"""
+    """把前端提交的素材（原始字节 / dataBase64 / 公网直链）落到临时文件，供探测/静音/转写共用。"""
+    raw_bytes = data.get("__raw_media__")
+    if isinstance(raw_bytes, (bytes, bytearray)) and raw_bytes:
+        ext = ".mp4"
+        fname = _safe_stem(str(data.get("filename") or "audio.mp4"))
+        if "." in os.path.basename(fname):
+            e2 = "." + os.path.basename(fname).rsplit(".", 1)[-1].lower()
+            if re.fullmatch(r"\.[a-z0-9]{1,5}", e2):
+                ext = e2
+        path = os.path.join(td, "input" + ext)
+        with open(path, "wb") as f:
+            f.write(raw_bytes)
+        return path, ext
     b64 = str(data.get("dataBase64") or "")
     if "," in b64 and b64.strip().lower().startswith("data:"):
         b64 = b64.split(",", 1)[1]
@@ -1460,12 +1473,16 @@ def _post_asr(ep, key, model, language, chunk_path, log=None):
     return out
 
 
-def api_transcribe(body):
-    """抽音轨 → 静音检测（必做）→ 转写（尽力而为）；转写失败也返回静音数据。"""
-    try:
-        data = json.loads(body.decode("utf-8")) if body else {}
-    except Exception as e:
-        return _fail("请求体不是合法 JSON：%s" % _short(e))
+def api_transcribe(body, raw_media=None):
+    """抽音轨 → 静音检测（必做）→ 转写（尽力而为）；转写失败也返回静音数据。
+    raw_media：可选的 dict，含原始媒体字节(__raw_media__)与参数，走二进制上传路径。"""
+    if raw_media is not None:
+        data = raw_media
+    else:
+        try:
+            data = json.loads(body.decode("utf-8")) if body else {}
+        except Exception as e:
+            return _fail("请求体不是合法 JSON：%s" % _short(e))
     if not isinstance(data, dict):
         return _fail("请求体必须是 JSON 对象")
 
@@ -2723,6 +2740,28 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_resolve(url))
             elif path == "/api/export":
                 self._send_json(api_export(body))
+            elif path == "/api/transcribe/file":
+                # 二进制上传：原始媒体字节作为 body（不经 base64，避免大视频膨胀超限），
+                # 参数走请求头。用 FFmpeg 抽轨，绕开浏览器 decodeAudioData 对某些视频解出静音的问题。
+                try:
+                    _h = self.headers
+                    _data = {
+                        "filename": urllib.parse.unquote(_h.get("X-Filename", "audio.mp4")),
+                        "endpoint": _h.get("X-Endpoint", ""), "key": _h.get("X-Key", ""),
+                        "model": _h.get("X-Model", "whisper-1"),
+                        "language": _h.get("X-Language", "zh"),
+                        "clipStart": _h.get("X-ClipStart", "0"),
+                        "clipDuration": _h.get("X-ClipDuration", "0"),
+                        "silenceDb": _h.get("X-SilenceDb", "-35"),
+                        "silenceMin": _h.get("X-SilenceMin", "0.5"),
+                        "keepPad": _h.get("X-KeepPad", "0.12"),
+                        "__raw_media__": body,
+                    }
+                except Exception:
+                    _data = {"__raw_media__": body}
+                result = api_transcribe(None, raw_media=_data)
+                self._send_json(result)
+                return
             elif path == "/api/transcribe":
                 result = api_transcribe(body)
                 # 诊断日志：把本次转写的入参摘要与返回句数落到文件，便于定位「0 句」的真实原因
