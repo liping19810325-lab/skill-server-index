@@ -143,6 +143,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .jy-file-tab{font-size:11px;color:#d1d5db;background:#23262e;padding:4px 12px;border-radius:5px 5px 0 0;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .jy-view-tab{font-size:10.5px;color:#8b93a1;padding:4px 8px;}
 .player-head .ph-extra{margin-left:auto;font-size:10px;color:#5d6573;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;}
+/* 播放器标题栏右侧三个开关：变换框 / 安全框 / 裁剪 */
+.player-head .ph-toggle{padding:3px 9px;border:1px solid var(--border2);border-radius:6px;background:var(--panel);color:var(--muted);font-size:10.5px;white-space:nowrap;cursor:pointer;}
+.player-head .ph-toggle:hover{background:var(--hover);color:#e5e7eb;}
+.player-head .ph-toggle.active{background:var(--cyan);border-color:transparent;color:#fff;}
 .stage-wrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;position:relative;}
 /* 画幅边缘始终显示细框，方便判断素材是否超出 / 不足画幅 */
 .stage{position:relative;flex:0 0 auto;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 1px rgba(148,163,184,.55),inset 0 0 0 1px rgba(148,163,184,.35);}
@@ -435,6 +439,21 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .center-cross::before,.center-cross::after{content:"";position:absolute;background:#fff;}
 .center-cross::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-50%);}
 .center-cross::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-50%);}
+.center-cross[hidden]{display:none;}
+/* ===== 画面裁剪：真实裁剪预览框（拖拽四边调整裁剪区域），仅 editing 显示，不写入成片 ===== */
+.crop-frame{position:absolute;z-index:13;pointer-events:none;border:1px dashed #34d399;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 0 9999px rgba(0,0,0,.42);box-sizing:border-box;}
+.crop-frame[hidden]{display:none;}
+.crop-frame .crop-h{position:absolute;width:11px;height:11px;background:#34d399;border:2px solid #fff;border-radius:2px;pointer-events:auto;z-index:2;}
+.crop-frame .crop-h[data-ch="nw"]{left:-6px;top:-6px;cursor:nwse-resize;}
+.crop-frame .crop-h[data-ch="n"]{left:50%;top:-6px;margin-left:-6px;cursor:ns-resize;}
+.crop-frame .crop-h[data-ch="ne"]{right:-6px;top:-6px;cursor:nesw-resize;}
+.crop-frame .crop-h[data-ch="e"]{right:-6px;top:50%;margin-top:-6px;cursor:ew-resize;}
+.crop-frame .crop-h[data-ch="se"]{right:-6px;bottom:-6px;cursor:nwse-resize;}
+.crop-frame .crop-h[data-ch="s"]{left:50%;bottom:-6px;margin-left:-6px;cursor:ns-resize;}
+.crop-frame .crop-h[data-ch="sw"]{left:-6px;bottom:-6px;cursor:nesw-resize;}
+.crop-frame .crop-h[data-ch="w"]{left:-6px;top:50%;margin-top:-6px;cursor:ew-resize;}
+.crop-frame .crop-fill{position:absolute;inset:0;pointer-events:auto;cursor:move;}
+.crop-frame .crop-badge{position:absolute;left:3px;top:2px;font-size:9px;color:#fff;background:rgba(0,0,0,.6);border-radius:4px;padding:1px 5px;white-space:nowrap;z-index:3;}
 /* ===== 预览窗口变换框（移动 / 缩放 / 旋转） ===== */
 .fx-box{position:absolute;left:50%;top:50%;width:62%;height:62%;border:1px dashed #60a5fa;box-shadow:0 0 0 1px rgba(0,0,0,.4);transform-origin:center center;z-index:12;cursor:move;box-sizing:border-box;transition:opacity .16s,left .08s,top .08s,width .08s,height .08s;}
 .fx-box[hidden]{display:none;}
@@ -717,6 +736,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="player-head">
                 <span class="jy-file-tab" id="playerTitle">未命名工程</span>
                 <span class="jy-view-tab">播放器</span>
+                <button class="ph-toggle" id="fxBoxToggle" title="显示 / 隐藏预览变换框（拖动移动 / 四角缩放 / 顶部圆点旋转；仅预览参考，不写入成片）">◇ 变换框</button>
+                <button class="ph-toggle" id="safeFrameToggle" title="显示 / 隐藏安全框（内缩 10% 虚线 + 中心 + 标；仅预览参考，不写入成片）">▧ 安全框</button>
+                <button class="ph-toggle" id="cropToggle" title="开启 / 关闭画面裁剪：拖动预览里的裁剪框四边或四角，画面与成片都会真实裁剪">✂ 裁剪</button>
                 <span class="ph-extra" id="playerMode">字幕 / 图片 / 视频 / 音频 多层同步预览</span>
             </div>
             <div class="stage-wrap">
@@ -732,6 +754,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     </div>
                     <div class="safe-frame" id="safeFrame" hidden aria-hidden="true"><div class="safe-frame-inner"></div></div>
                     <div class="center-cross" id="centerCross" aria-hidden="true"></div>
+                    <div class="crop-frame" id="cropFrame" hidden aria-hidden="true">
+                        <div class="crop-fill"></div><span class="crop-badge">拖动四边裁剪 · 拖动内部移动裁剪区</span>
+                        <div class="crop-h" data-ch="nw"></div><div class="crop-h" data-ch="n"></div><div class="crop-h" data-ch="ne"></div>
+                        <div class="crop-h" data-ch="w"></div><div class="crop-h" data-ch="e"></div>
+                        <div class="crop-h" data-ch="sw"></div><div class="crop-h" data-ch="s"></div><div class="crop-h" data-ch="se"></div>
+                    </div>
                     <div class="fx-box" id="fxBox" hidden>
                         <span class="fx-badge" id="fxBadge">拖动移动 · 四角缩放 · 顶部圆点旋转 · 滚轮缩放</span>
                         <div class="fx-rot" id="fxRot" title="按住拖动旋转"></div>
@@ -763,8 +791,6 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                         <button class="asp-btn" data-asp="9:16">9:16</button>
                         <button class="asp-btn" data-asp="4:3">4:3</button>
                         <button class="asp-btn" data-asp="1:1">1:1</button>
-                        <button id="fxBoxToggle" title="显示 / 隐藏预览变换框">◇ 变换框</button>
-                        <button id="safeFrameToggle" title="显示 / 隐藏安全框（边框内缩 10%，50% 透明虚线，不写入成片）">▧ 安全框</button>
                     </div>
                     <span class="jy-quality" id="btnQuality" title="画质（跟随素材原始分辨率）">高清</span>
                     <div class="vol-row" title="音量">🔊<input type="range" id="volRange" min="0" max="1" step="0.01" value="0.8"></div>
@@ -843,18 +869,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tl-tool" id="undoBtn" title="撤销 (Ctrl/⌘+Z)">↶<span>撤销</span></button>
                 <button class="tl-tool" id="redoBtn" title="重做 (Ctrl/⌘+Shift+Z)">↷<span>重做</span></button>
                 <span class="tl-sep"></span>
-                <button class="tl-tool" id="splitBtn" title="在播放头分割 (Ctrl/⌘+B，兼容 S)">✂<span>分割</span></button>
-                <button class="tl-tool" id="delBtn" title="删除选中 (Delete)；主视频轨删除后自动波纹前移">🗑<span>删除</span></button>
-                <button class="tl-tool" id="copyBtn" title="复制 (Ctrl/⌘+C)">⧉<span>复制</span></button>
-                <button class="tl-tool" id="pasteBtn" title="粘贴 (Ctrl/⌘+V)">📋<span>粘贴</span></button>
-                <span class="tl-sep"></span>
                 <button class="tl-tool" id="freezeBtn" title="定格 (T)：截取当前画面，作为图片素材放到图片轨">⏸<span>定格</span></button>
                 <button class="tl-tool" id="reverseBtn" title="倒放 (R)：反向播放选中片段">◀<span>倒放</span></button>
                 <button class="tl-tool" id="mirrorBtn" title="镜像 (M)：水平翻转选中片段画面">⇋<span>镜像</span></button>
                 <button class="tl-tool" id="rotateBtn" title="旋转：选中片段画面旋转 90°">↻<span>旋转</span></button>
-                <span class="tl-sep"></span>
-                <button class="tl-tool" id="trimLeftBtn" title="删除播放头左侧部分 (Q)：保留右半段">◀|<span>留右</span></button>
-                <button class="tl-tool" id="trimRightBtn" title="删除播放头右侧部分 (E)：保留左半段">|▶<span>留左</span></button>
                 <button class="tl-tool" id="markBtn" title="在播放头添加标记 (Shift+M)">⚑<span>标记</span></button>
                 <button class="tl-tool" id="clearMarksBtn" title="清除全部标记">✕<span>清标</span></button>
                 <button class="tl-tool" id="inPointBtn" title="设入点 (I)：导出从此处开始；Shift+I 清除">[<span>入点</span></button>
@@ -1671,6 +1689,16 @@ async function expPrefGet(key){
         r.onsuccess=()=>{db.close();res(r.result);}; r.onerror=()=>{db.close();res(null);}; }catch(e){ db.close(); res(null); } });
 }
 let exportStopAt=null;   /* 导出录制时播放头停止的绝对时间（入点区间终点），null=用 contentEnd */
+/* 导出录制标志：录制期间即使切到别的软件/标签页（隐藏后浏览器会暂停 requestAnimationFrame），
+   也要让播放头按真实墙钟时间继续推进、并改用 setTimeout 兜底调度帧，保证导出不中断、无黑帧、声音正常。 */
+let exportRecording=false;
+/* 后台可用的帧调度：可见时用 rAF（流畅省电），隐藏时用 setTimeout（rAF 在后台会被浏览器完全暂停）。
+   setTimeout 在后台会被降频到约 1 次/秒，但播放头按 currentTime / 墙钟推进，帧内容始终是当前画面，
+   只是后台帧率降低，绝不出现黑帧或中断。 */
+function schedulePlayFrame(fn){
+    if(exportRecording && document.hidden) return setTimeout(()=>fn(performance.now()),40);
+    return requestAnimationFrame(fn);
+}
 let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
 const AI_STEPS=["模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
 const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
@@ -2367,6 +2395,7 @@ function applyClipTransforms(){
     applyCropClip();
     applyFxOverlay();
     updateFxBox();
+    updateCropFrame();
 }
 /* 取元素相对 stage 的「未变换」基准矩形（offset 链不受 transform 影响，避免框二次偏移） */
 function elementBaseRect(el, st){
@@ -2380,6 +2409,13 @@ function fxCrop(c){
     return {on:!!q.on,
         top:clamp(Number(q.top)||0,0,45), right:clamp(Number(q.right)||0,0,45),
         bottom:clamp(Number(q.bottom)||0,0,45), left:clamp(Number(q.left)||0,0,45)};
+}
+/* 实际生效的裁剪：开关关闭时四边归零。预览 clip-path、变换框尺寸、画布导出统一用它，
+   避免「裁剪已关但成片仍被裁掉 / 框尺寸不对」这类预览与成片不一致。 */
+function fxCropEff(c){
+    const q=fxCrop(c);
+    if(!q.on){ q.top=q.right=q.bottom=q.left=0; }
+    return q;
 }
 /* 计算可视化素材的「基准几何」：完整画面矩形 + 裁剪后可见矩形 + clip-path。
    full* 为未裁剪的完整画面（相对 stage 左上），cx/cy/w/h 为裁剪后可见区（供虚线框贴合），
@@ -2424,7 +2460,7 @@ function computeFxGeometry(c){
         fullLeft=b.left;fullTop=b.top;fullW=b.w;fullH=b.h;
     }
     else return null;   /* 音频等非可视化素材 */
-    const crop=fxCrop(c);
+    const crop=fxCropEff(c);
     const vL=fullLeft+fullW*crop.left/100, vT=fullTop+fullH*crop.top/100;
     const vR=fullLeft+fullW*(1-crop.right/100), vB=fullTop+fullH*(1-crop.bottom/100);
     const clip="inset("+Math.max(0,vT-boxTop)+"px "+Math.max(0,boxLeft+boxW-vR)+"px "
@@ -2458,6 +2494,76 @@ function updateFxBox(){
     box.style.transform="translate(-50%,-50%) "+fxTransform(c);
     const f=fxOf(c), bg=$("fxBadge");
     if(bg) bg.textContent=(f.mirror?"⇋ 镜像 ":"")+(f.reverse?"◀ 倒放 ":"")+"拖动移动 · 四角缩放 · 圆点旋转 · 滚轮缩放";
+}
+/* ===== 真实画面裁剪：选中/主画面的视频或图片上叠加一个可拖动四边+整体的裁剪框。
+   裁剪值写回片段 fx.crop（与右侧「画面裁剪」四个滑块、右键菜单完全同一份数据），
+   预览用 clip-path 遮盖、导出用 drawStageFrame 源矩形真裁剪，两处严格一致。
+   裁剪框本身是 DOM 预览辅助层，drawStageFrame 不会绘制它，绝不会烧进成片。 */
+function cropTargetClip(){
+    const s=selectedClip();
+    if(s && (trackKind(s.track)==="video"||trackKind(s.track)==="image")) return s;
+    return mainVisualClip();
+}
+function updateCropFrame(){
+    const box=$("cropFrame"), btn=$("cropToggle");
+    const c=cropTargetClip(), cr=c?fxCrop(c):null;
+    if(btn) btn.classList.toggle("active", !!(cr&&cr.on));
+    if(!box) return;
+    if(!c||!cr||!cr.on){ box.hidden=true; return; }
+    const g=computeFxGeometry(c);
+    if(!g||!g.el){ box.hidden=true; return; }
+    box.hidden=false;
+    box.style.left=g.cx+"px"; box.style.top=g.cy+"px";
+    box.style.width=g.w+"px"; box.style.height=g.h+"px";
+    box.style.transform="translate(-50%,-50%) "+fxTransform(c);
+    const badge=box.querySelector(".crop-badge");
+    if(badge) badge.textContent="上"+cr.top+"% 下"+cr.bottom+"% 左"+cr.left+"% 右"+cr.right+"% · 拖四边/内部调整";
+}
+/* 统一的裁剪开关：开启时若四边都是 0，给一个可见的默认裁剪（各 8%），
+   这样「开启裁剪」会真的裁掉画面边缘，而不是打开后毫无变化。 */
+function toggleCropFor(c){
+    if(!c){ toast("先选中一段视频或图片，再开启裁剪","err"); return; }
+    pushHistory();
+    const cr=fxCrop(c);
+    cr.on=!cr.on;
+    if(cr.on && cr.top===0&&cr.right===0&&cr.bottom===0&&cr.left===0){
+        cr.top=cr.bottom=cr.left=cr.right=8;
+    }
+    fxOf(c).crop=cr;
+    applyClipTransforms(); renderBasicBox(); renderAll(); autoSave();
+    toast("画面裁剪已"+(cr.on?"开启：拖动预览里的裁剪框四边或内部即可真实裁剪画面与成片":"关闭"),"ok");
+}
+function wireCropFrame(){
+    const box=$("cropFrame"); if(!box) return;
+    box.addEventListener("mousedown",e=>{
+        const c=cropTargetClip(); if(!c||!fxCrop(c).on) return;
+        const g=computeFxGeometry(c); if(!g||g.fullW<=0||g.fullH<=0) return;
+        e.preventDefault(); e.stopPropagation();
+        pushHistory();
+        const snap=fxCrop(c);
+        const h=e.target.closest(".crop-h"), mode=h?h.dataset.ch:"move";
+        const x0=e.clientX,y0=e.clientY, fullW=g.fullW, fullH=g.fullH;
+        const mv=ev=>{
+            const dxPct=(ev.clientX-x0)/Math.max(1,fullW)*100;
+            const dyPct=(ev.clientY-y0)/Math.max(1,fullH)*100;
+            const cr=fxCrop(c);
+            if(mode==="move"){
+                const nl=clamp(snap.left+dxPct,0,90-snap.right);
+                const nt=clamp(snap.top+dyPct,0,90-snap.bottom);
+                cr.right=snap.right+(snap.left-nl); cr.left=nl;
+                cr.bottom=snap.bottom+(snap.top-nt); cr.top=nt;
+            }else{
+                if(mode.indexOf("n")>=0) cr.top=clamp(snap.top+dyPct,0,90-snap.bottom);
+                if(mode.indexOf("s")>=0) cr.bottom=clamp(snap.bottom-dyPct,0,90-snap.top);
+                if(mode.indexOf("w")>=0) cr.left=clamp(snap.left+dxPct,0,90-snap.right);
+                if(mode.indexOf("e")>=0) cr.right=clamp(snap.right-dxPct,0,90-snap.left);
+            }
+            cr.on=true; fxOf(c).crop=cr;
+            applyClipTransforms(); renderBasicBox();
+        };
+        const up=()=>{ document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up); renderAll(); autoSave(); };
+        document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+    });
 }
 function updateFxInputs(f){
     const map={fxX:Math.round(f.x||0),fxY:Math.round(f.y||0),
@@ -3304,9 +3410,10 @@ function textToSegments(txt, name){
 }
 function newTrack(kind,opt){
     const same=state.tracks.filter(t=>t.kind===kind);
-    /* 新增视频 / LUT / 图片 / 字幕轨：默认插到同类轨最上面（order 更小排在前面）；
-       只有音频轨沿用原来的向下新增。跨轨拖动落点新建同类轨时也是这个规则。 */
-    const insertAbove = kind!=="audio" && !(opt&&opt.below);
+    /* 视频轨按「视频1、视频2、视频3…」顺序在已有视频轨下面新增：始终保持向下插（order 更大），
+       已有视频轨（含视频1）的 order 不变、位置不动。
+       LUT / 图片 / 字幕轨仍默认插到同类轨最上面；音频轨沿用向下新增。跨轨拖动落点新建同类轨时同规则。 */
+    const insertAbove = kind!=="audio" && kind!=="video" && !(opt&&opt.below);
     const minOrder=same.length?Math.min.apply(null,same.map(x=>Number(x.order)||0)):0;
     const maxOrder=same.length?Math.max.apply(null,same.map(x=>Number(x.order)||0)):0;
     if(insertAbove && same.length) same.forEach(x=>{ x.order=(Number(x.order)||0)+1; });
@@ -3419,6 +3526,8 @@ function addBlankSubtitle(){
     }
     if(!tr) tr=newTrack("text");
     const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);   /* 新字幕继承统一默认模板的独立副本 */
+    /* 「＋新增一条空白字幕」默认落在画面正中央；AI字幕/导入字幕仍沿用各自原有位置，不受影响。 */
+    fx.sub.pos="center";
     state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,state.playhead),
         duration:3, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:fx});
     renderAll(); autoSave();
@@ -3781,8 +3890,9 @@ function syncMedia(){
         }else{
             const wt=(ov?0:(vc.offset||0))+(state.playhead-vc.start)*spd;
             /* 暂停时用半帧容差精确定位：逐帧 seek 时预览必须紧跟红线，否则会有几帧滞后，导致分割点看不准。
-               播放时放宽到 0.32s，避免每帧都触发 seek 造成卡顿/音画抖动。 */
-            const tol=playing?0.32:(0.5/PLAYER_FPS);
+               播放时放宽到 0.32s，避免每帧都触发 seek 造成卡顿/音画抖动。
+               后台导出时进一步放宽到 0.6s：墙钟播放头与视频解码时钟允许更大偏差，减少后台频繁 seek。 */
+            const tol=(exportRecording&&document.hidden)?0.6:(playing?0.32:(0.5/PLAYER_FPS));
             if(Number.isFinite(wt) && Math.abs(vEl.currentTime-wt)>tol && vEl.readyState>0){ try{ vEl.currentTime=wt; }catch(e){} }
             if(playing && vEl.paused) vEl.play().catch(()=>{});
             if(!playing && !vEl.paused) vEl.pause();
@@ -3806,12 +3916,23 @@ function syncMedia(){
 function tick(ts){
     if(!playing) return;
     if(!lastTs) lastTs=ts;
-    const dt=(ts-lastTs)/1000; lastTs=ts;
+    let dt=(ts-lastTs)/1000; lastTs=ts;
+    /* 后台导出：切到别的软件后 rAF 停摆、<video> 解码也被浏览器节流，currentTime 不再可靠推进。
+       这时改用真实墙钟时间推进播放头，并按墙钟间隔去 seek 视频，保证音画按真实时间线走、不中断。 */
+    const bg=exportRecording && document.hidden;
+    /* 后台按真实墙钟推进（后台 setTimeout 可能被节流到 1 秒/次，若截断到 0.5 会使播放头落后墙钟一半，
+       导致录制按墙钟超时提前收尾、成片时长变短）。给一个宽松上界仅为过滤异常尖峰。 */
+    if(bg) dt=clamp(dt,0,5);
     const vc=mainVisualClip(), va=vc&&vc.assetId?assetById(vc.assetId):null;
     const ov=renderedClip(vc);
     const rev=ov?false:!!(vc && fxOf(vc).reverse);
     let t;
-    if(rev) t=state.playhead+Math.min(dt,0.25);
+    if(bg){
+        /* 后台：完全按墙钟推进时间轴播放头（不依赖 video.currentTime），
+           并在下方 syncMedia 里按较大容差 seek，让画面跟随播放头而非视频自身时钟。 */
+        t=state.playhead+dt;
+    }
+    else if(rev) t=state.playhead+Math.min(dt,0.25);
     else if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
         t=vc.start+(ov?vEl.currentTime:(vEl.currentTime-(vc.offset||0)));
     }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
@@ -3825,9 +3946,9 @@ function tick(ts){
         renderPlayhead();
     }
     else if(end<=0 && state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
-    else rafId=requestAnimationFrame(tick);
+    else rafId=schedulePlayFrame(tick);
 }
-function play(){ if(playing)return; if(assetPreviewId) exitAssetPreview(true); playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=requestAnimationFrame(tick); }
+function play(){ if(playing)return; if(assetPreviewId) exitAssetPreview(true); playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=schedulePlayFrame(tick); }
 function pause(){
     playing=false; cancelAnimationFrame(rafId);
     if(!vEl.paused) vEl.pause();
@@ -3856,7 +3977,23 @@ function stepFrames(n){
 }
 
 /* ---------- 属性 / 字幕列表 / 统计 ---------- */
+/* 多轨字幕联动：用户只要选中了某条字幕片段，就把右侧字幕栏的轨道下拉自动切到它所在的轨道，
+   不必再手动切「字幕1 / 字幕2」才能看到。「调整字幕」面板本身用 selectedClip()，天然跟随选中条。
+   放在 renderProps 入口——几乎所有"选中片段"路径都会调用它；而手动切下拉只调 renderSubList、
+   不走这里，所以不会把用户手动选择的轨道拉回。 */
+function syncSubTrackToSelection(){
+    const c=selectedClip(); if(!c) return;
+    if(trackKind(c.track)!=="text") return;
+    if(state.subTrack!==c.track) state.subTrack=c.track;
+    const sel=$("subTrackSel"); if(!sel) return;
+    /* 若该轨的 option 尚未在下拉里（如刚新建、或只走了 renderProps 未走 renderAll），先重建下拉再选中，
+       否则 sel.value 赋值会失败、下拉仍停在旧轨道。 */
+    let hasOpt=false; for(const o of sel.options){ if(o.value===c.track){ hasOpt=true; break; } }
+    if(!hasOpt) renderSubTrackSel();
+    if(sel.value!==c.track) sel.value=c.track;
+}
 function renderProps(){
+    syncSubTrackToSelection();
     const c=selectedClip(); const box=$("propBox");
     if(!c){
         let html='<div class="prop-empty">点时间轴上任意一个片段，可在这里改名称、起止时间、时长、素材切入点，以及字幕文字与类型标签。</div>';
@@ -6274,15 +6411,20 @@ function wire(){
         showFxBox=!showFxBox; $("fxBoxToggle").classList.toggle("active",showFxBox); updateFxBox();
         toast("变换框已"+(showFxBox?"常显":"仅鼠标移到预览上时显示"),"ok");
     };
-    /* 安全框开关（内缩10%间隔虚线，仅预览参考，不写入成片） */
+    /* 安全框开关（内缩10%间隔虚线 + 中心十字，仅预览参考，不写入成片） */
     try{ showSafeFrame=(safeStorage.get("manflows_show_safe_frame")==="1"); }catch(e){}
-    const syncSafeFrame=()=>{ const sf=$("safeFrame"); if(sf) sf.hidden=!showSafeFrame;
+    const syncSafeFrame=()=>{ const sf=$("safeFrame"), cc=$("centerCross");
+        if(sf) sf.hidden=!showSafeFrame; if(cc) cc.hidden=!showSafeFrame;
         $("safeFrameToggle").classList.toggle("active",showSafeFrame); };
     syncSafeFrame();
     $("safeFrameToggle").onclick=()=>{
         showSafeFrame=!showSafeFrame; safeStorage.set("manflows_show_safe_frame",showSafeFrame?"1":"0");
         syncSafeFrame(); toast("安全框已"+(showSafeFrame?"显示":"隐藏"),"ok");
     };
+    /* 裁剪开关（播放器标题栏）：真实裁剪预览与成片；裁剪框拖拽交互 */
+    wireCropFrame();
+    $("cropToggle").onclick=()=>{ toggleCropFor(cropTargetClip()); };
+    updateCropFrame();
     $("stage").addEventListener("mouseenter",()=>{ fxHover=true; updateFxBox(); });
     $("stage").addEventListener("mouseleave",()=>{ fxHover=false; updateFxBox(); });
 
@@ -6368,8 +6510,7 @@ function wire(){
     $("splitToolBtn").onclick=()=>setToolMode("split");
     $("freezeBtn").onclick=()=>{ freezeFrame(); };
     $("rotateBtn").onclick=rotateSelected;
-    $("trimLeftBtn").onclick=()=>trimToPlayhead("right");
-    $("trimRightBtn").onclick=()=>trimToPlayhead("left");
+    /* 分割 / 删除 / 复制 / 粘贴 / 留右 / 留左 已从工具条移除，改用快捷键（见下方 keydown），函数保留供快捷键调用 */
     $("markBtn").onclick=addMarker;
     $("clearMarksBtn").onclick=clearMarkers;
     $("inPointBtn").onclick=setInPoint;
@@ -6517,10 +6658,6 @@ function wire(){
 
     /* 时间轴工具条 */
     $("quickImport").onclick=()=>$("fileInput").click();
-    $("splitBtn").onclick=()=>splitSelected();
-    $("delBtn").onclick=deleteAction;
-    $("copyBtn").onclick=()=>copySelection(false);
-    $("pasteBtn").onclick=pasteClips;
     $("undoBtn").onclick=undo; $("redoBtn").onclick=redo;
     $("zoomIn").onclick=()=>setZoom(state.zoom*1.3,true);
     $("zoomOut").onclick=()=>setZoom(state.zoom/1.3,true);
@@ -7909,7 +8046,7 @@ function drawStageFrame(x,W,H,opts){
             const nw=src.videoWidth||src.naturalWidth||W, nh=src.videoHeight||src.naturalHeight||H;
             /* 与预览一致按 contain 完整放入画布（不再拉伸铺满），并在源图上应用四边裁剪 */
             const s=Math.min(W/nw,H/nh), dw=nw*s, dh=nh*s;
-            const cr=fxCrop(vc);
+            const cr=fxCropEff(vc);
             const sx=nw*cr.left/100, sy=nh*cr.top/100;
             const sw=nw*(1-(cr.left+cr.right)/100), sh=nh*(1-(cr.top+cr.bottom)/100);
             const ox=(W-dw)/2+dw*cr.left/100, oy=(H-dh)/2+dh*cr.top/100;
@@ -7946,7 +8083,7 @@ function drawStageFrame(x,W,H,opts){
             x.scale((q.mirror?-1:1)*sc,sc);
             x.globalAlpha=clamp(animOpacity(c),0,1);
             x.filter=fxFilter(c);
-            const cr=fxCrop(c), nw=el.naturalWidth, nh=el.naturalHeight;
+            const cr=fxCropEff(c), nw=el.naturalWidth, nh=el.naturalHeight;
             const bw=b.w*sc0, bh=b.h*sc0, fit=Math.min(bw/nw,bh/nh), dw=nw*fit, dh=nh*fit;
             const sx=nw*cr.left/100, sy=nh*cr.top/100;
             const sw=nw*(1-(cr.left+cr.right)/100), sh=nh*(1-(cr.top+cr.bottom)/100);
@@ -8092,48 +8229,31 @@ async function recordCanvas(dur,opts,onProgress){
             if((vEl.readyState>=2&&vEl.videoWidth>0)||++n>40){ clearInterval(tm); res(); }
         },100);
     });
+    exportRecording=true;
     await new Promise(resolve=>{
-        let t0=performance.now(), paused=false, hiddenWaiter=null;
+        /* 全程以真实墙钟计时：切到别的软件/标签页后浏览器会暂停 rAF、节流 <video> 解码，
+           但 performance.now() 继续走，MediaRecorder 与音频总线也继续运行。
+           这样导出不中断、不黑屏、声音正常；后台帧率降低只影响流畅度，不影响成片时长与内容。 */
+        const t0=performance.now();
         const report=(p,msg)=>{ if(onProgress) onProgress(p,msg); };
         const pct=()=>clamp((state.playhead-from)/Math.max(0.1,dur),0,1);
-        /* 浏览器在标签页进后台后会暂停/降频 requestAnimationFrame，
-           canvas 画面不再更新，MediaRecorder 会录进黑帧。
-           这里在切后台时暂停录制与播放，切回后自动继续，避免黑屏且不打乱时间轴。 */
-        const onVis=()=>{
-            if(document.hidden && !paused){
-                paused=true;
-                try{ if(rec.state==="recording"&&rec.pause) rec.pause(); }catch(e){}
-                try{ vEl.pause(); }catch(e){}
-                report(pct(),"导出已暂停：页面切到后台，请切回浏览器窗口继续");
-                toast("导出已暂停：请保持本页面在前台","err");
-            }else if(!document.hidden && paused){
-                paused=false;
-                t0=performance.now();
-                try{ if(rec.state==="paused"&&rec.resume) rec.resume(); }catch(e){}
-                try{ if(!playing) play(); }catch(e){}
-                report(pct(),"正在渲染输出 "+(pct()*100).toFixed(0)+"%");
-            }
-        };
-        document.addEventListener("visibilitychange",onVis);
-        if(document.hidden) onVis();
         function frame(){
             /* 用户点「取消」：立即停止，不继续画帧、不落地半成品 */
-            if(exportCancelled){
-                document.removeEventListener("visibilitychange",onVis);
-                resolve(); return;
-            }
-            if(paused){ requestAnimationFrame(frame); return; }
+            if(exportCancelled){ resolve(); return; }
             try{ drawStageFrame(x,W,H,opts); }catch(e){ /* 单帧失败不中断整段录制 */ }
             const p=pct();
+            const wallElapsed=(performance.now()-t0)/1000;
             report(p,"正在渲染输出 "+(p*100).toFixed(0)+"%");
-            if(state.playhead>=to-0.05 || performance.now()-t0>dur*1000+4000 || (!playing&&!paused)){
-                document.removeEventListener("visibilitychange",onVis);
+            /* 结束条件以时间轴播放头抵达出点为主，墙钟超时仅作兜底（后台帧率低时确保仍能收尾）。
+               去掉了过去「切后台就暂停、要用户切回」的逻辑——那会打断导出。 */
+            if(state.playhead>=to-0.05 || wallElapsed>dur+6){
                 resolve(); return;
             }
-            requestAnimationFrame(frame);
+            schedulePlayFrame(frame);
         }
-        requestAnimationFrame(frame);
+        schedulePlayFrame(frame);
     });
+    exportRecording=false;
     pause(); rec.stop();
     releaseRecordAudio();    /* 停止动态接入新音频元素；已接入的保持连接，预览继续有声 */
     const blob=await done;
@@ -8216,12 +8336,49 @@ async function exportGifFile(recorded){
 }
 function updateExportEstimate(){
     const rg=exportRange(), d=rg.end-rg.start;   /* 成片时长＝入点/出点区间（未设则为整条素材），无素材为 0 */
+    /* 按用户实际选择的画质 / 码率 / 编码 / 分辨率逐项估算，尽量贴近真实输出体积。
+       体积(MB) ≈ 码率(Mbps) × 秒数 ÷ 8。Mbit→MB 用 ÷8。 */
+    const q=()=>$("expQuality")?$("expQuality").value:"high";
+    const bitSel=$("expBitrate")?$("expBitrate").value:"recommend";
+    const bitMbps=({low:5,"8M":8,recommend:12,"16M":16,high:20,"24M":24,"48M":48})[bitSel]||12;
+    const codec=$("expCodec")?$("expCodec").value:"h264";
+    const sz=exportSize();                      /* 实际输出宽高（跟随分辨率选择） */
+    const px=sz.w*sz.h;
+    const fps=Number($("expFps")?$("expFps").value:30)||30;
     let mb=0;
-    if($("expChkVideo").checked) mb+=d*0.9;
-    if($("expChkAudio").checked) mb+=d*0.18;
-    if($("expChkGif").checked) mb+=d*1.2;
-    if($("expChkSub").checked) mb+=0.01;
-    const el=$("exportEst"); if(el) el.textContent="时长："+d.toFixed(1)+" 秒 | 大小："+(mb<1?mb.toFixed(2):mb.toFixed(1))+" MB（估计）";
+    if($("expChkVideo").checked){
+        /* 码率基准：无损档用 CRF0，体积远大于设定码率——按分辨率/帧率给一个经验上界；
+           其余档位以所选码率为准，画质档做系数微调，编码效率做系数修正。 */
+        let vMbps;
+        if(q()==="lossless"){
+            /* 无损 H.264 CRF0：约 1~2 bit/像素/帧（内容越复杂越高），取中值估算；
+               且无损体积应明显高于同码率的有损档，至少按所选码率的 1.6 倍计。 */
+            vMbps=px*fps*1.2/1e6;
+            vMbps=Math.max(vMbps,bitMbps*1.6);
+        }else{
+            vMbps=bitMbps;
+            if(q()==="medium") vMbps*=0.8;
+            else if(q()==="low") vMbps*=0.6;
+        }
+        /* 编码效率：HEVC / AV1 约为 H.264 的 55% / 50%；ProRes 是中间母版格式，体积显著更大 */
+        if(codec==="hevc") vMbps*=0.55;
+        else if(codec==="av1") vMbps*=0.5;
+        else if(codec==="prores") vMbps=Math.max(vMbps,px*fps*1.6/1e6);
+        mb+=d*vMbps/8;
+    }
+    if($("expChkAudio").checked){
+        const af=$("expAudioFmt")?$("expAudioFmt").value:"wav";
+        /* 无损音频（44.1k/48k 立体声 16~24bit）约 1.4~2.8 Mbps；有损 320k。 */
+        const aMbps=(af==="wav"||af==="flac"||af==="alac")?1.6:0.32;
+        mb+=d*aMbps/8;
+    }
+    if($("expChkGif").checked){
+        /* GIF 调色板压缩，体积随分辨率放大、随帧率线性；240P@12fps 经验约 0.5 MB/s */
+        const gres=Number($("expGifRes")?$("expGifRes").value:240)||240;
+        mb+=d*0.5*(gres/240)*(gres/240)*(Math.min(fps,12)/12);
+    }
+    if($("expChkSub").checked) mb+=0.02;        /* SRT 文本极小 */
+    const el=$("exportEst"); if(el) el.textContent="时长："+d.toFixed(1)+" 秒 | 大小：约 "+(mb<1?mb.toFixed(2):mb.toFixed(1))+" MB（按画质/码流估算）";
 }
 function ffmpegGuidesHtml(){
     const g=svcInfo&&svcInfo.ffmpegInstall;
@@ -8368,6 +8525,9 @@ async function startExport(){
     $("exportDo").disabled=true; $("exportDone").hidden=true;
     const fill=$("exportProgFill"), steps=$("exportSteps"), prog=$("exportProg");
     prog.classList.add("show");
+    /* 进度封顶 90%：编码/合成/写盘全过程最多显示到 90%，真正把成片文件交付到用户手里、
+       「完成」按钮出现时才显示 100%。避免过去「进度条早就 100% 却还要等文件」的错觉。 */
+    const setProg=v=>{ fill.style.width=Math.round(Math.min(90,Math.max(0,v)))+"%"; };
     let renderedCount=0;
     /* 分两份缓存：
        · noSub=true  纯净画面——勾选烧录字幕时用，字幕只由后端 FFmpeg libass 烧一遍；
@@ -8378,24 +8538,24 @@ async function startExport(){
         const key=noSub?"clean":"sub";
         if(!recCache[key]) recCache[key]=await recordCanvas(Math.max(0.1,rg.end-rg.start),
             {size:exportSize(),fps:Number($("expFps").value)||30,from:rg.start,to:rg.end,noSub:!!noSub},
-            (p,msg)=>{ fill.style.width=Math.round(p*100)+"%"; steps.textContent="🎬 "+msg; });
+            (p,msg)=>{ setProg(p*90); steps.textContent="🎬 "+msg; });
         return recCache[key];
     };
     const label={sub:"生成字幕文件",audio:"混音并导出音频",gif:"生成 GIF 动图",video:"渲染并编码综合视频"};
     try{
         /* 先做真渲染（占进度 0~55%），再走原有合成录制；中途每段都会回报进度 */
         renderedCount=await prepareRenderOverrides((p,msg)=>{
-            fill.style.width=Math.round(p*55)+"%"; steps.textContent="⚙ "+msg;
+            setProg(p*55); steps.textContent="⚙ "+msg;
         });
         if(renderedCount){
-            fill.style.width="55%";
+            setProg(55);
             steps.textContent="⚙ "+renderedCount+" 个片段已完成真渲染，开始合成…";
         }
         const base=renderedCount?55:0;
         for(let i=0;i<jobs.length;i++){
             if(exportCancelled) break;          /* 用户取消：停止后续所有输出，绝不落地半成品 */
             const j=jobs[i];
-            fill.style.width=Math.round(base+(i/jobs.length)*(100-base))+"%";
+            setProg(base+(i/jobs.length)*(90-base));
             steps.textContent="["+(i+1)+"/"+jobs.length+"] "+label[j]+"…";
             if(j==="sub") await exportSubtitleFile();
             else if(j==="audio"){ const failed=await exportAudioFile(); if(failed) steps.textContent+="（"+failed+" 段在线素材因跨域跳过）"; }
