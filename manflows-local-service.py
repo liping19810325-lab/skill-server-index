@@ -1439,7 +1439,18 @@ def _post_asr(ep, key, model, language, chunk_path):
             continue
         st = float(x.get("start") or 0)
         en = float(x.get("end") or (st + 2))
-        out.append({"start": st, "end": en, "text": t})
+        # 字级时间戳（verbose_json 的 words / faster-whisper 的 words）：AI博主字幕动效依赖它。
+        words = []
+        raw_words = x.get("words")
+        if isinstance(raw_words, list):
+            for w in raw_words:
+                if not isinstance(w, dict):
+                    continue
+                wt = str(w.get("word") or "").strip()
+                if not wt:
+                    continue
+                words.append({"word": wt, "start": float(w.get("start") or 0), "end": float(w.get("end") or 0)})
+        out.append({"start": st, "end": en, "text": t, "words": words})
     return out
 
 
@@ -1545,10 +1556,16 @@ def api_transcribe(body):
                 en = c["start"] + float(g.get("end") or 0) + clip_start
                 if en <= st:
                     en = st + max(1.0, len(str(g.get("text") or "")) * 0.18)
+                # 字级时间戳：把段内相对时间映射到时间轴绝对秒，供 AI博主字幕动效绑定
+                words = []
+                for w in (g.get("words") or []):
+                    ws = c["start"] + float(w.get("start") or 0) + clip_start
+                    we = c["start"] + float(w.get("end") or 0) + clip_start
+                    words.append({"word": str(w.get("word") or ""), "start": round(ws, 3), "end": round(we, 3)})
                 segments.append({"start": round(st, 3), "end": round(en, 3),
                                  "startMs": int(round(st * 1000)),
                                  "endMs": int(round(en * 1000)),
-                                 "text": str(g.get("text") or "").strip()})
+                                 "text": str(g.get("text") or "").strip(), "words": words})
         if errors and not segments:
             asr_error = "语音转写失败：" + errors[0]
     elif not ep:

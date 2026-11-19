@@ -38,10 +38,13 @@ def get_model():
         return _model
 
 
-def transcribe(wav_path, language):
+def transcribe(wav_path, language, word_timestamps=True):
+    """字级时间戳：开启 word_timestamps 后每个 segment 带 words=[{word,start,end}]。
+    AI博主字幕的动态字幕/花字动效严格绑定这些字级锚点；失败时前端会按字数插值降级。"""
     model = get_model()
     kwargs = dict(beam_size=5, vad_filter=True,
-                  vad_parameters=dict(min_silence_duration_ms=500))
+                  vad_parameters=dict(min_silence_duration_ms=500),
+                  word_timestamps=bool(word_timestamps))
     if language and language != "auto":
         kwargs["language"] = language
     segments, info = model.transcribe(wav_path, **kwargs)
@@ -50,7 +53,13 @@ def transcribe(wav_path, language):
         text = (s.text or "").strip()
         if not text:
             continue
-        out.append({"start": round(s.start, 3), "end": round(s.end, 3), "text": text})
+        words = []
+        for w in (getattr(s, "words", None) or []):
+            wt = (getattr(w, "word", None) or "").strip()
+            if not wt:
+                continue
+            words.append({"word": wt, "start": round(float(w.start), 3), "end": round(float(w.end), 3)})
+        out.append({"start": round(s.start, 3), "end": round(s.end, 3), "text": text, "words": words})
     return out, getattr(info, "language", None)
 
 

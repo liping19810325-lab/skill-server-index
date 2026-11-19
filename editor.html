@@ -272,6 +272,34 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .tb-btn.ai-rec:hover{filter:brightness(1.14);}
 .tb-btn.ai-rec.recording{background:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.35);animation:recpulse 1.2s infinite;}
 @keyframes recpulse{50%{box-shadow:0 0 0 6px rgba(220,38,38,.12);}}
+.tb-btn.ai-blogger{background:linear-gradient(135deg,#db2777,#f59e0b);border-color:transparent;color:#fff;font-weight:600;padding:4px 13px;}
+.tb-btn.ai-blogger:hover{filter:brightness(1.14);}
+/* ===== AI博主字幕 · 字级动态字幕增强插件（Remotion 配方原生复刻） ===== */
+.ab-tabs{display:flex;gap:4px;margin:2px 0 10px;border-bottom:1px solid var(--border2);}
+.ab-tab{padding:6px 11px;font-size:12px;cursor:pointer;border:1px solid transparent;border-bottom:none;border-radius:7px 7px 0 0;color:var(--muted);background:transparent;}
+.ab-tab.active{color:#fff;background:var(--panel);border-color:var(--border2);font-weight:600;}
+.ab-pane{display:none;} .ab-pane.active{display:block;}
+.ab-recipes{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;margin-top:6px;}
+.ab-recipe{position:relative;border:1px solid var(--border2);border-radius:9px;padding:9px 10px;cursor:pointer;background:linear-gradient(160deg,rgba(219,39,119,.10),rgba(245,158,11,.06));transition:border-color .12s,transform .12s;}
+.ab-recipe:hover{border-color:#db2777;transform:translateY(-1px);}
+.ab-recipe.active{border-color:#db2777;box-shadow:0 0 0 2px rgba(219,39,119,.3);background:linear-gradient(160deg,rgba(219,39,119,.2),rgba(245,158,11,.1));}
+.ab-recipe .ic{font-size:18px;} .ab-recipe .nm{font-size:11.5px;color:#fff;font-weight:600;margin:3px 0 2px;}
+.ab-recipe .ds{font-size:10px;color:var(--muted);line-height:1.5;}
+.ab-recipe .tick{position:absolute;top:7px;right:8px;color:#f472b6;font-size:13px;display:none;}
+.ab-recipe.active .tick{display:block;}
+.ab-row{display:flex;align-items:center;gap:8px;margin:9px 0;font-size:12px;}
+.ab-row label{flex:0 0 96px;color:var(--muted);}
+.ab-row input[type=range]{flex:1;}
+.ab-val{flex:0 0 46px;text-align:right;color:#cbd5e1;font-variant-numeric:tabular-nums;}
+.ab-word-demo{border:1px solid var(--border2);border-radius:8px;background:#0d1016;padding:18px 10px;text-align:center;margin:8px 0;min-height:56px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.ab-word-demo .wd{display:inline-block;font-weight:800;color:#fff;font-size:22px;transform-origin:50% 80%;will-change:transform,opacity;}
+.ab-word-demo .wd.kw{color:#ffd23e;text-shadow:0 1px 0 #7f1d1d;}
+.ab-note{font-size:10.5px;color:var(--muted);line-height:1.6;background:var(--panel);border:1px solid var(--border2);border-radius:7px;padding:7px 9px;margin-top:8px;}
+.ab-stat{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#cbd5e1;margin:6px 0;}
+.ab-stat b{color:#fff;font-size:14px;font-variant-numeric:tabular-nums;}
+/* 播放器字幕逐字动画层：由 updateWordAnimFrame 逐帧写 style，不走 subCache */
+.sub-line .aw{display:inline-block;transform-origin:50% 80%;will-change:transform,opacity,color;}
+.sub-line .aw.kw-emo{color:inherit;}
 .tl-info{font-size:10.5px;color:var(--muted);white-space:nowrap;}
 .tl-scroll{flex:1 1 auto;min-height:0;overflow:auto;position:relative;background:#181b20;}
 .tl-inner{position:relative;min-width:100%;}
@@ -886,6 +914,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="tl-tools mid">
                 <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：快速出方案 / 对话式剪辑两种模式，自动分析轨道素材并完成剪辑">✨ AI剪辑</button>
                 <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
+                <button class="tb-btn ai-blogger" id="aiBloggerSubBtn" title="AI博主字幕：字级时间戳驱动的动态字幕 / 花字动效（逐字弹出·关键词高亮·文字进场·花字砸字），绑定说话的字；含口播智能修剪与镜头卡点规划">🌟 AI博主字幕</button>
                 <button class="tb-btn ai-rec" id="recBtn" title="录音：选择麦克风或系统声音，实时显示双声道电平，结束后自动加入音频轨">⏺ 录音</button>
                 <button class="tb-btn ai-sub" id="smartCutBtn" title="智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ 剪口播</button>
                 <button class="tb-btn" id="dumpStructBtn" title="轨道结构化数据：查看 / 下载含媒体元信息、独立音轨、毫秒字幕、静音区间的标准 JSON">📊 轨道数据</button>
@@ -1341,6 +1370,65 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <button class="mini-btn gray" data-close="asrSetupModal">取消</button>
             <button class="mini-btn purple" id="asrUiGoCompute">切换算力档位</button>
             <button class="mini-btn green" id="asrUiStart">▶ 开始 AI 字幕</button>
+        </div>
+    </div>
+</div>
+
+<!-- AI博主字幕 · 字级动态字幕增强插件 -->
+<div class="modal-overlay" id="aiBloggerModal">
+    <div class="modal-box" style="width:min(760px,100%)">
+        <div class="modal-head">🌟 AI博主字幕 · 字级动态字幕 / 花字增强 <button class="mh-close" data-close="aiBloggerModal">×</button></div>
+        <div class="modal-body">
+            <p class="ai-idea-warn">✦ 把 <b>video-talkcraft</b> 的高阶能力接进漫流：字级时间戳驱动的<b>动态字幕 / 花字动效</b>（说话到哪个字，动画触发到哪个字），加口播智能修剪、镜头分段卡点。基础剪辑与静态字幕仍用漫流原生功能，本插件只补高阶能力，全部结果写入现有轨道，可 Ctrl+Z 撤销。</p>
+            <div class="row" style="margin-top:0"><label style="flex:0 0 82px">当前算力</label><span class="kv" id="abComputeMode">第三方API</span><button class="mini-btn purple" id="abGoCompute" style="margin-left:auto">切换算力档位</button></div>
+            <div class="row"><label style="flex:0 0 82px">驱动模型</label><span class="kv" id="abModelName" style="flex:1">—</span><span class="hint" id="abModelHint" style="flex:0 0 auto"></span></div>
+            <div class="ab-tabs">
+                <div class="ab-tab active" data-abtab="dyn">🎬 动态字幕</div>
+                <div class="ab-tab" data-abtab="cut">✂ 口播修剪</div>
+                <div class="ab-tab" data-abtab="beat">🎞 镜头卡点</div>
+            </div>
+
+            <!-- Tab1 动态字幕 -->
+            <div class="ab-pane active" data-abpane="dyn">
+                <div class="hint" style="font-size:11px">选一种动效配方，应用到字幕轨。每条字幕的每个字会按<b>字级时间戳</b>触发动效；没有字级时间戳时自动按字数+标点智能插值。</div>
+                <div class="ab-recipes" id="abRecipes"></div>
+                <div class="ab-row"><label>动效强度</label><input type="range" id="abStrength" min="40" max="200" value="100"><span class="ab-val" id="abStrengthVal">100%</span></div>
+                <div class="ab-row"><label>单字动画(s)</label><input type="range" id="abDur" min="10" max="60" value="22"><span class="ab-val" id="abDurVal">0.22s</span></div>
+                <div class="ab-row"><label>关键词</label><input type="text" id="abKeywords" placeholder="用 / 分隔，如：300亿/增长/第一；留空则自动识别" style="flex:1;font-size:11.5px"></div>
+                <div class="ab-word-demo" id="abDemo"><span class="wd">这家公司一年烧掉 </span><span class="wd kw">300亿</span><span class="wd"> ，还在疯狂扩张</span></div>
+                <div class="ab-stat"><span>字幕条 <b id="abSubCount">0</b></span><span>含字级时间戳 <b id="abWordCount">0</b></span><span>配方 <b id="abRecipeName">逐字弹出</b></span></div>
+                <div class="ab-note" id="abDynNote">动效写入每条字幕的 fx.sub.anim / words 字段；播放器实时预览，导出时逐帧绘制，勾选「烧录字幕」则用 ASS 卡拉OK标签把动效烧进成片。不会改动原有剪辑与静态字幕数据。</div>
+            </div>
+
+            <!-- Tab2 口播修剪 -->
+            <div class="ab-pane" data-abpane="cut">
+                <div class="hint" style="font-size:11px">对标剪映「智能剪口播」：识别长停顿、语气词口癖、重复赘述，列成候选供勾选后一键波纹删除（复用现有剪口播引擎）。「AI 语义增强」会用所选算力的大模型额外分析无意义片段。</div>
+                <div class="ab-stat"><span>停顿 <b id="abCutPause">0</b></span><span>语气词 <b id="abCutFiller">0</b></span><span>重复 <b id="abCutRepeat">0</b></span></div>
+                <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0">
+                    <button class="mini-btn" id="abCutScan">🔍 检测候选</button>
+                    <button class="mini-btn purple" id="abCutAi">🤖 AI 语义增强</button>
+                    <button class="mini-btn green" id="abCutOpen">✂ 打开剪口播面板</button>
+                </div>
+                <div class="ab-note" id="abCutNote">检测基于本地静音数据 + 字幕文本规则，不调云端；AI 语义增强可选，用你在算力总控选定的多模态模型分析内容。</div>
+            </div>
+
+            <!-- Tab3 镜头卡点 -->
+            <div class="ab-pane" data-abpane="beat">
+                <div class="hint" style="font-size:11px">根据语音语义拍与停顿边界，自动规划镜头分段点与素材卡点，在时间轴生成「标记」，供对位 B-roll / 转场 / 音效。不改动现有片段位置。</div>
+                <div class="ab-row"><label>分段灵敏度</label><input type="range" id="abBeatSens" min="1" max="10" value="5"><span class="ab-val" id="abBeatSensVal">中</span></div>
+                <div class="ab-stat"><span>镜头分段 <b id="abBeatCount">0</b></span><span>平均时长 <b id="abBeatAvg">—</b></span></div>
+                <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0">
+                    <button class="mini-btn" id="abBeatScan">🎞 规划分段</button>
+                    <button class="mini-btn green" id="abBeatApply">📌 写入时间轴标记</button>
+                </div>
+                <div class="ab-note" id="abBeatNote">分段依据：语义转折词（但是/其实/首先/最后）+ 长停顿边界 + 字幕句群。生成后可在时间轴看到 ⚑ 标记，再手动对位素材。</div>
+            </div>
+
+            <div class="ai-state" id="abState" style="margin-top:10px">就绪。选配方后点「应用到字幕轨」；口播修剪与镜头卡点在对应标签页操作。</div>
+        </div>
+        <div class="modal-foot">
+            <button class="mini-btn gray" data-close="aiBloggerModal">关闭</button>
+            <button class="mini-btn green" id="abApply">▶ 应用到字幕轨</button>
         </div>
     </div>
 </div>
@@ -1944,7 +2032,12 @@ function defaultFx(){
 }
 /* 字幕样式独立副本：sub 里全是基本类型，浅拷贝即互不影响。
    新建/迁移字幕时用它从默认模板克隆一份，保证每条字幕拥有自己的样式对象。 */
-function cloneSubStyle(s){ return Object.assign({},defaultFx().sub,(s&&typeof s==="object")?s:{}); }
+function cloneSubStyle(s){
+    const o=Object.assign({},defaultFx().sub,(s&&typeof s==="object")?s:{});
+    /* 字级时间戳是嵌套数组，需深拷贝，避免复制字幕时共享 words 引用 */
+    if(Array.isArray(o.words)) o.words=o.words.map(w=>Object.assign({},w));
+    return o;
+}
 /* 片段深拷贝：clip 的 fx 里嵌套 sub/crop/color/audio 等对象，浅拷贝会让复制/分割出的
    新片段与原片段共享这些子对象，出现「改新的却改了旧的」。序列化克隆保证完全独立。 */
 function cloneClip(c){
@@ -2904,6 +2997,9 @@ function flattenSubText(s){
     return toSimplified(String(s==null?"":s)).replace(/[\r\n\u2028\u2029]+/g," ").replace(/\s{2,}/g," ").trim();
 }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+/* 全局数值工具：AI博主字幕的逐帧预览(subtitle overlay)与 ASS 烧录也会用到 */
+function nz(v,d){ const n=Number(v); return Number.isFinite(n)?n:(d===undefined?0:d); }
+function round3(x){ return Math.round((Number(x)||0)*1000)/1000; }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function fmt(t){ t=Math.max(0,Number(t)||0); const m=Math.floor(t/60), s=t-m*60; return String(m).padStart(2,"0")+":"+s.toFixed(1).padStart(4,"0"); }
 function fmtSize(n){ n=Number(n)||0; return n>1048576 ? (n/1048576).toFixed(1)+" MB" : (n>1024 ? Math.round(n/1024)+" KB" : n+" B"); }
@@ -3464,7 +3560,14 @@ function applySegments(segs, opts){
            同时把段内换行符压成空格，保证每条字幕默认只占一行。 */
         const txt=flattenSubText(s.text);
         const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);   /* 新字幕复制默认模板成独立副本：初始规格统一，之后各改各的 */
-        state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,(Number(s.start)||0)+shift),
+        /* 字级时间戳：保存为相对片段起点的 {ch,s,e}（AI博主字幕动效真源）。后端无 words 时不写，前端自动插值降级。 */
+        const clipStart=Math.max(0,(Number(s.start)||0)+shift);
+        if(Array.isArray(s.words)&&s.words.length){
+            const r3=x=>Math.round(x*1000)/1000;
+            fx.sub.words=s.words.map(w=>({ch:String(w.word||""),s:r3(Math.max(0,(Number(w.start)-clipStart))),
+                e:r3(Math.max(0,(Number(w.end)-clipStart))),kw:false,punct:false})).filter(w=>w.ch&&w.e>w.s);
+        }
+        state.clips.push({id:uid(), track:tr.id, assetId:"", start:clipStart,
             duration:dur, offset:0, text:txt, name:txt.slice(0,10), subKind:s.kind||"", fx:fx});
     }
     state.selected=null; state.multi=[];
@@ -3857,9 +3960,43 @@ function renderSubtitleOverlay(){
     const allText=state.clips.filter(c=>trackKind(c.track)==="text"&&c.text);
     $("subOverlay").innerHTML=active.map(c=>{
         const y=subStackY(c,allText,W,H);
+        const q=(c.fx&&c.fx.sub)||{};
+        /* AI博主字幕：有 anim 配方时按字级拆成 .aw span，逐帧由 updateWordAnimFrame 驱动。
+           data-s 写每个字相对片段起点的秒，用于精确绑定说话时刻。 */
+        let inner=esc(c.text);
+        if(q.anim && typeof AIB!=="undefined"){
+            const words=AIB.wordsFor(c);
+            if(words.length) inner=words.map(w=>'<span class="aw'+(w.kw?" kw-emo":"")+'" data-s="'+(w.s||0)+'" data-kw="'+(w.kw?1:0)+'">'+esc(w.ch)+'</span>').join("");
+        }
         return '<div class="sub-line '+(c.subKind||"dialogue")+(String(c.text).indexOf("\n")>=0?" sub-multiline":"")
-            +'" data-clip="'+esc(c.id)+'" style="'+subStyleOf(c,y)+'">'+esc(c.text)+'</div>';
+            +'" data-clip="'+esc(c.id)+'" style="'+subStyleOf(c,y)+'">'+inner+'</div>';
     }).join("");
+}
+/* 逐帧驱动字级字幕动画：直接写 .aw span 的 style，不经过 subCache（否则会被缓存早退跳过）。
+   播放/静止时都调用——暂停时也需要根据当前播放头显示"说到哪个字"的静态状态。 */
+function updateWordAnimFrame(){
+    if(typeof AIB==="undefined") return;
+    const overlay=$("subOverlay"); if(!overlay) return;
+    const lines=overlay.querySelectorAll(".sub-line");
+    if(!lines.length) return;
+    lines.forEach(el=>{
+        if(el.classList.contains("sub-editing")) return;   /* 正在双击编辑：不覆盖用户正在改的纯文本 */
+        if(!el.querySelector(".aw")) return;
+        const c=clipById(el.dataset.clip); if(!c) return;
+        const q=(c.fx&&c.fx.sub)||{}; if(!q.anim||q.anim==="none") return;
+        const words=AIB.wordsFor(c); if(!words.length) return;
+        const local=Math.max(0,state.playhead-c.start);
+        const strength=nz(q.animStrength===undefined?1:Number(q.animStrength),1);
+        const dur=nz(q.animDur===undefined?0.22:Number(q.animDur),0.22);
+        const spans=el.querySelectorAll(".aw");
+        for(let i=0;i<spans.length&&i<words.length;i++){
+            const a=AIB.animState(q.anim,words[i],local,strength,dur);
+            const sp=spans[i];
+            sp.style.opacity=a.opacity;
+            sp.style.transform="translateY("+(a.ty||0)+"px) scale("+(a.scale||1)+") rotate("+(a.rotate||0)+"deg)";
+            if(a.color) sp.style.color=a.color; else sp.style.color="";
+        }
+    });
 }
 function syncMedia(){
     if(assetPreviewId) return;              /* 素材库单击预览期间不覆盖预览画面 */
@@ -3911,6 +4048,7 @@ function syncMedia(){
     $("stageEmpty").style.display=(showVideo||showImage||nPip)?"none":"flex";
     syncAudioPool();
     renderSubtitleOverlay();
+    updateWordAnimFrame();
     applyClipTransforms();
 }
 function tick(ts){
@@ -3937,7 +4075,7 @@ function tick(ts){
         t=vc.start+(ov?vEl.currentTime:(vEl.currentTime-(vc.offset||0)));
     }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
-    syncMedia(); renderPlayhead(); drawLutFrame();
+    syncMedia(); renderPlayhead(); drawLutFrame(); updateWordAnimFrame();
     /* 播放预览走到最后素材结尾即停；导出录制则停在本次区间的终点 exportStopAt（入点/出点之间）。 */
     const end=Math.max(0,Number.isFinite(exportStopAt)?exportStopAt:contentEnd());
     if(end>0 && state.playhead>=end-0.02){
@@ -4512,7 +4650,9 @@ async function serviceTranscribe(a,cfg,clip){
         keepPad:Number(z.keepPad)||pc2.pad,canCut:z.canCut!==false,source:"本机 FFmpeg"}));
     const got={segments:(j.segments||[]).map(x=>({start:Number(x.start)||0,end:Number(x.end)||0,
                 startMs:Number(x.startMs)||0,endMs:Number(x.endMs)||0,
-                text:String(x.text||"").trim(),kind:guessSubKind(x.text)})).filter(x=>x.text),
+                text:String(x.text||"").trim(),kind:guessSubKind(x.text),
+                /* 字级时间戳：后端 words（[word,start,end] 绝对秒）原样透传，供 AI博主字幕动效绑定 */
+                words:(Array.isArray(x.words)?x.words.map(w=>({word:String(w.word||""),start:Number(w.start)||0,end:Number(w.end)||0})).filter(w=>w.word):[])})).filter(x=>x.text),
             engine:j.engine||"本机服务",chunks:j.chunks||0,silences:silences,
             asrOk:j.asrOk!==false,asrError:j.asrError||"",
             silencesRaw:j.silencesRaw||j.raw||null,log:j.log||[]};
@@ -4791,7 +4931,11 @@ async function runAsrCore(){
             for(const sg of segs){
                 const st=Math.max(c.start,c.start+(sg.start-off));
                 const en=Math.min(c.start+c.duration,c.start+(sg.end-off));
-                if(en>st+0.12) all.push({start:st,end:en,text:sg.text,kind:sg.kind});
+                /* 字级时间戳同样按 offset 平移到时间轴绝对秒，供 AI博主字幕逐字动效使用 */
+                const words=(Array.isArray(sg.words)?sg.words:[]).map(w=>({
+                    word:String(w.word||""),start:Math.max(c.start,c.start+(Number(w.start)-off)),
+                    end:Math.min(c.start+c.duration,c.start+(Number(w.end)-off))})).filter(w=>w.end>w.start);
+                if(en>st+0.12) all.push({start:st,end:en,text:sg.text,kind:sg.kind,words:words});
             }
         }
         setEdProgress(3,"真实识别共 "+all.length+" 句，正在把时间码对齐到轨道位置…");
@@ -6189,6 +6333,339 @@ function histExport(date){
     toast("已备份 "+date+" 的工程 JSON","ok");
 }
 
+/* =====================================================================================
+   AI博主字幕增强插件 · AIB (AIBlogger Subtitle)
+   -------------------------------------------------------------------------------------
+   定位：把 video-talkcraft 的高阶能力接进漫流剪辑台——字级时间戳驱动的动态字幕/花字
+   动效（逐字弹出 / 关键词高亮 / 文字进场 / 花字砸字）、口播智能修剪、镜头分段卡点。
+   原则：独立命名空间，不替换任何原有业务代码；结果写入既有字幕 clip 的 fx.sub.anim /
+   words 字段与时间轴标记，复用漫流原生 Canvas 预览、逐帧录制、ASS 烧录引擎。
+   字级时间戳：优先用后端返回的 words（serviceTranscribe 已贯通），缺失时前端按字数+
+   标点停顿智能插值降级，保证三档算力都能出字级动效。
+   ===================================================================================== */
+const AIB=(function(){
+    /* ---------- 动效配方（移植 video-talkcraft 的 motion recipe 参数） ---------- */
+    const RECIPES={
+        pop:      {name:"逐字弹出",  ic:"💥", ds:"每个字按字级时间戳从 0 弹到 1（power4.out + back 回落），说话到哪弹到哪"},
+        keyword:  {name:"关键词高亮", ic:"🎯", ds:"关键词放大 + 变色 + 色块底 + 微震，普通字逐字淡入（keyword-pop-highlight）"},
+        rise:     {name:"文字进场",  ic:"⬆️", ds:"每个字从下方滑入 + 淡入（line-by-line-slide 字级版）"},
+        flower:   {name:"花字砸字",  ic:"🌸", ds:"关键词放大砸入 + 描边发光渐变，配合整屏微震（砸字/花字）"},
+        karaoke:  {name:"卡拉OK跟读", ic:"🎤", ds:"逐字填充变色，像卡拉OK一样跟着人声走（ASS \\kf 卡拉OK标签）"},
+        none:     {name:"关闭动效",  ic:"⛔", ds:"移除本字幕动效，恢复为普通静态字幕"}
+    };
+    let curRecipe="pop";
+    /* 语义词表（移植 semantic_annotate.py 的词法规则） */
+    const SEM={
+        hook:/^(为什么|你知道吗|其实|很多人|你会发现|真相是|注意了)/,
+        data:/[0-9０-９]|百分之|[一二三四五六七八九十百千]+\s*(亿|万|元|倍)/,
+        turn:/^(但是|但|然而|其实|可是|不过|并不是|不是|反过来)/,
+        step:/^(第一|第二|第三|首先|其次|再者|接着|然后|最后)/,
+        example:/(比如|例如|举个例子|拿.{1,6}来说)/,
+        define:/(什么是|所谓|叫做|定义为|指的是|意思是)/,
+        cta:/(点赞|订阅|一键三连|关注我|收藏|转发|评论区)/,
+        question:/[?？]\s*$|(吗|呢)[?？]?\s*$/,
+        quote:/[「『“‘][^」』”’]{4,}[」』”’]/
+    };
+    const FILLERS="嗯|呃|额|唔|呣|啊|哦|噢|诶|那个|这个|就是|然后|其实|那么|所以说|对吧|是吧|的话|你知道|well|um|uh|er|erm|hmm";
+    const KW_DEFAULT=["增长","第一","关键","核心","本质","真相","免费","千万","亿","万","重要","必须","一定","最后","记住"];
+
+    /* ---------- 工具 ---------- */
+    function textClips(){
+        return state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim()).sort((a,b)=>a.start-b.start);
+    }
+    function nz(v,d){ const n=Number(v); return Number.isFinite(n)?n:(d===undefined?0:d); }
+    /* 中文按字、英文按词切分，返回 [{ch,s,e,punct}] 的字符序列（s/e 为字符在原文中的下标） */
+    function tokenize(text){
+        const t=String(text||""), out=[]; let i=0;
+        while(i<t.length){
+            const ch=t[i];
+            if(/\s/.test(ch)){ i++; continue; }
+            if(/[A-Za-z0-9]/.test(ch)){
+                let j=i; while(j<t.length&&/[A-Za-z0-9.'\-]/.test(t[j])) j++;
+                out.push({ch:t.slice(i,j),s:i,e:j,punct:false}); i=j;
+            }else{
+                out.push({ch:ch,s:i,e:i+1,punct:/[，。、！？：；,.!?;:…—~"'「」『』（）()]/.test(ch)}); i++;
+            }
+        }
+        return out;
+    }
+    /* 字级时间戳插值降级：按字数分配时长，标点占很短，句间自然停顿。返回相对片段起点的秒。 */
+    function interpolateWords(text,duration){
+        const toks=tokenize(text); if(!toks.length) return [];
+        const dur=Math.max(0.3,nz(duration,2));
+        /* 权重：普通字 1，标点 0.25，长英文词按长度 */
+        const weights=toks.map(t=>t.punct?0.25:Math.max(1,Math.min(3,t.ch.length*0.6)));
+        const total=weights.reduce((a,b)=>a+b,0)||1;
+        const speak=dur*0.94;   /* 留 6% 尾部余量 */
+        let acc=0; const out=[];
+        toks.forEach((t,i)=>{
+            const s=acc/total*speak, acc2=acc+weights[i], e=acc2/total*speak; acc=acc2;
+            out.push({ch:t.ch,s:round3(s),e:round3(e),kw:false,punct:t.punct});
+        });
+        return out;
+    }
+    function round3(x){ return Math.round(x*1000)/1000; }
+    /* 取一条字幕的字级时间戳：优先后端 words，否则插值 */
+    function wordsFor(c){
+        if(!c) return [];
+        const dur=Math.max(0.3,nz(c.duration,2));
+        const sub=(c.fx&&c.fx.sub)||{};
+        let w=Array.isArray(sub.words)?sub.words.slice():[];
+        /* 后端 words 形如 [{word,start,end}]（绝对或相对）或 [{ch,s,e}]（相对秒） */
+        if(w.length && w[0].word!==undefined){
+            w=w.map(x=>({ch:String(x.word),s:nz(x.start),e:nz(x.end),kw:false,punct:false}));
+            const first=nz(w[0].s);
+            if(first>=c.start-0.01){ w=w.map(x=>({...x,s:round3(x.s-c.start),e:round3(x.e-c.start)})); }
+        }else if(w.length && w[0].ch!==undefined){
+            w=w.map(x=>({ch:String(x.ch),s:nz(x.s),e:nz(x.e),kw:!!x.kw,punct:!!x.punct}));
+        }else w=[];
+        if(!w.length) w=interpolateWords(c.text,dur);
+        return w;
+    }
+    /* 关键词判定：用户指定优先，否则用默认词表 + 语义数据词 */
+    function markKeywords(c,words,manual){
+        let set=[];
+        if(manual&&manual.trim()) set=manual.split(/[\/,，|、\s]+/).map(s=>s.trim()).filter(Boolean);
+        else{
+            const txt=String(c.text||"");
+            KW_DEFAULT.forEach(k=>{ if(txt.indexOf(k)>=0) set.push(k); });
+            /* 数字型实体优先当关键词 */
+            (txt.match(/[0-9０-９]+(?:\.[0-9]+)?\s*(?:亿|万|元|倍|%|％|个)?/g)||[]).forEach(x=>{ if(String(x).length>0) set.push(x.trim()); });
+        }
+        set=set.filter(Boolean).slice(0,8);
+        words.forEach(w=>{ w.kw=set.some(k=>w.ch.indexOf(k)>=0||k.indexOf(w.ch)>=0&&w.ch.length>1); });
+        return {words:words,keywords:set};
+    }
+    /* 单字在某时刻的动画状态 → 供预览 / Canvas / 展示共用。t 为相对片段起点的秒。 */
+    function animState(recipe,w,t,strength,dur){
+        const st=strength||1, d=Math.max(0.05,dur||0.22);
+        const local=t-w.s;
+        const base={opacity:1,scale:1,ty:0,rotate:0,color:null,glow:false,kw:w.kw};
+        if(local<0) return {...base,opacity:0,scale:recipe==="rise"?0.7:0.01,ty:recipe==="rise"?8:0};
+        const k=Math.min(1,Math.max(0,local/d));
+        const eOut=1-Math.pow(1-k,4);                    /* power4.out */
+        const back=k<1?1+2.2*Math.pow(k-1,3)+1.2*Math.pow(k-1,2):1; /* back.out */
+        switch(recipe){
+            case "pop":
+                return {...base,opacity:k,scale:0.01+(1.35*st-0.01)*back+(1-1.35*st)*(k),ty:0};
+            case "keyword":
+                if(w.kw) return {...base,opacity:k,scale:1+(0.65*st)*back,glow:true,rotate:(1-k)*-6};
+                return {...base,opacity:k};
+            case "rise":
+                return {...base,opacity:k,scale:1,ty:(1-eOut)*10*st};
+            case "flower":
+                if(w.kw) return {...base,opacity:k,scale:1+(0.7*st)*back,rotate:(1-k)*-8,glow:true};
+                return {...base,opacity:k};
+            case "karaoke":
+                return {...base,opacity:1,color:k>=1?null:"#ffd23e",glow:k<1};
+            default:
+                return base;
+        }
+    }
+    /* ---------- 面板 UI ---------- */
+    function open(){
+        fillModels();
+        renderRecipes();
+        refreshCounts();
+        updateDemo();
+        $("abComputeMode").textContent=ED_COMPUTE_LABEL[state.compute]||state.compute;
+        $("abState").className="ai-state";
+        $("abState").textContent="就绪。选配方后点「应用到字幕轨」；口播修剪与镜头卡点在对应标签页操作。";
+        $("aiBloggerModal").classList.add("show");
+    }
+    function fillModels(){
+        const m=$("abModelName"), h=$("abModelHint");
+        if(state.compute==="manflow"){ m.textContent="漫流算力（占位）"; h.textContent="请切到本机或第三方"; return; }
+        if(state.compute==="local"){
+            const L=computeLocal(); m.textContent=L.model||"（本机未配置模型）"; h.textContent="本机算力"; return;
+        }
+        const pr=computeProfile();
+        m.textContent=(pr&&(pr.model||pr.name))||"（未配置第三方API）";
+        h.textContent="第三方API";
+    }
+    function renderRecipes(){
+        const box=$("abRecipes"); if(!box) return;
+        box.innerHTML=Object.keys(RECIPES).map(k=>{
+            const r=RECIPES[k];
+            return '<div class="ab-recipe'+(k===curRecipe?" active":"")+'" data-recipe="'+k+'" title="'+esc(r.ds)+'">'
+                +'<span class="tick">✓</span><div class="ic">'+r.ic+'</div><div class="nm">'+r.name+'</div><div class="ds">'+esc(r.ds)+'</div></div>';
+        }).join("");
+    }
+    function refreshCounts(){
+        const cs=textClips();
+        let withW=0; cs.forEach(c=>{ const s=(c.fx&&c.fx.sub)||{}; if(Array.isArray(s.words)&&s.words.length) withW++; });
+        const set=(id,v)=>{ const el=$(id); if(el) el.textContent=v; };
+        set("abSubCount",cs.length); set("abWordCount",withW);
+        set("abRecipeName",RECIPES[curRecipe].name);
+    }
+    function updateDemo(){
+        const c=textClips()[0], strength=nz($("abStrength")?$("abStrength").value:100,100)/100;
+        const demo=$("abDemo"); if(!demo) return;
+        const text=c?c.text:"这家公司一年烧掉 300亿 ，还在疯狂扩张";
+        const words=interpolateWords(text,4);
+        const manual=$("abKeywords")?$("abKeywords").value:"";
+        markKeywords(c||{text:text},words,manual);
+        demo.innerHTML=words.map(w=>'<span class="wd'+(w.kw?" kw":"")+'">'+esc(w.ch)+'</span>').join("");
+        animateDemoOnce(demo,strength);
+    }
+    function animateDemoOnce(demo,strength){
+        const dur=0.22;
+        const spans=[...demo.querySelectorAll(".wd")];
+        spans.forEach((sp,i)=>{
+            const w={s:i*dur*0.7,kw:sp.classList.contains("kw")};
+            const start=performance.now()+i*dur*0.7*1000;
+            function step(now){
+                const t=(now-start)/1000;
+                const a=animState(curRecipe,w,t,strength,dur);
+                sp.style.opacity=a.opacity;
+                sp.style.transform="translateY("+a.ty+"px) scale("+a.scale+") rotate("+(a.rotate||0)+"deg)";
+                sp.style.color=a.color||(w.kw?"#ffd23e":"");
+                if(t<dur*1.6 && demo.isConnected) requestAnimationFrame(step);
+                else{ sp.style.opacity="1"; sp.style.transform="none"; }
+            }
+            requestAnimationFrame(step);
+        });
+    }
+    /* ---------- 应用动效到字幕轨 ---------- */
+    function applyRecipe(){
+        const cs=textClips();
+        if(!cs.length){ $("abState").className="ai-state err"; $("abState").textContent="字幕轨还没有字幕。请先用「AI字幕」生成字幕，或手动新增字幕后重试。"; toast("字幕轨为空","err"); return; }
+        const strength=nz($("abStrength")?$("abStrength").value:100,100)/100;
+        const dur=nz($("abDur")?$("abDur").value:22,22)/100;
+        const manual=$("abKeywords")?$("abKeywords").value:"";
+        pushHistory();
+        let n=0;
+        cs.forEach(c=>{
+            const fx=fxOf(c); if(!fx.sub) fx.sub=cloneSubStyle(defaultFx().sub);
+            if(curRecipe==="none"){
+                delete fx.sub.anim; delete fx.sub.words; delete fx.sub.keywords; delete fx.sub.animDur; delete fx.sub.animStrength;
+                n++; return;
+            }
+            const words0=wordsFor(c);
+            const mk=markKeywords(c,words0,manual);
+            fx.sub.words=mk.words;
+            fx.sub.keywords=mk.keywords;
+            fx.sub.anim=curRecipe;
+            fx.sub.animDur=round3(dur);
+            fx.sub.animStrength=strength;
+            n++;
+        });
+        subCache=""; renderAll(); autoSave();
+        $("abState").className="ai-state ok";
+        $("abState").textContent="已把「"+RECIPES[curRecipe].name+"」应用到 "+n+" 条字幕（字级时间戳驱动）。播放器即可预览；导出勾选「烧录字幕」会把动效烧进成片。Ctrl+Z 可撤销。";
+        toast("已应用动态字幕到 "+n+" 条字幕","ok");
+    }
+    /* ---------- 口播修剪：复用现有剪口播引擎 + 语义统计 ---------- */
+    function cutScan(){
+        try{
+            if(typeof buildSmartCutCandidates==="function") smartCutCandidates=buildSmartCutCandidates();
+            renderSmartCutSummary&&renderSmartCutSummary();
+            const c=smartCutCandidates||[];
+            const cnt=t=>c.filter(x=>x.type===t).length;
+            const set=(id,v)=>{const el=$(id); if(el) el.textContent=v;};
+            set("abCutPause",c.filter(x=>/停顿/.test(x.type)).length);
+            set("abCutFiller",c.filter(x=>/语气词|重复/.test(x.type)).length);
+            set("abCutRepeat",cnt("重复"));
+            $("abCutNote").textContent="已检测到 "+c.length+" 处候选。点「打开剪口播面板」逐条勾选后一键波纹删除（可撤销）。";
+            $("abState").className="ai-state ok";
+            $("abState").textContent="口播候选已更新："+c.length+" 处。";
+        }catch(e){ $("abState").className="ai-state err"; $("abState").textContent="检测失败："+e.message; }
+    }
+    /* AI 语义增强：调用三档算力的多模态大模型分析无用片段，加入剪口播候选 */
+    async function cutAi(){
+        if(state.compute==="manflow"){ toast("漫流算力是占位档，请切到本机或第三方","err"); return; }
+        const cs=textClips();
+        if(!cs.length){ toast("字幕轨为空，先生成字幕","err"); return; }
+        let cfg;
+        if(state.compute==="local"){ const L=computeLocal(); cfg={endpoint:llmUrlFromBase(L.base),key:"",model:L.model||"",label:"本机算力"}; }
+        else cfg=aiConfig();
+        if(!cfg.endpoint||!cfg.model){ $("abState").className="ai-state err"; $("abState").textContent="模型未配置好：请到创作台/画布填好第三方API，或本机算力接通模型。"; return; }
+        const btn=$("abCutAi"); btn.disabled=true;
+        $("abState").className="ai-state"; $("abState").textContent="已调用模型「"+cfg.model+"」分析口播语义，请稍候…";
+        try{
+            const lines=cs.map((c,i)=>({i:i,start:round3(c.start),end:round3(c.start+c.duration),text:c.text}));
+            const prompt="你是口播剪辑专家。下面是视频的字幕句（含时间秒）。请找出应删除的无意义内容：口水词、结巴重说、跑题废话、过长铺垫。只输出JSON：{\"cand\":[{\"start\":秒,\"end\":秒,\"type\":\"语气词|废片|重复\",\"reason\":\"理由\"}]}。没有就 {\"cand\":[]}。不要解释、不要代码块。字幕："+JSON.stringify(lines);
+            const text=await aiChat(cfg,[{role:"user",content:prompt}]);
+            let j; try{ const t=String(text).replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,""); const a=t.indexOf("{"),b=t.lastIndexOf("}"); j=JSON.parse(t.slice(a,b+1)); }catch(e){ throw new Error("模型返回无法解析"); }
+            const cand=(j.cand||[]).map(x=>({start:nz(x.start),end:nz(x.end),type:String(x.type||"废片"),reason:String(x.reason||"AI语义分析建议删除"),text:"",on:true})).filter(x=>x.end>x.start+0.05);
+            aiExtraCandidates=cand;
+            smartCutCandidates=buildSmartCutCandidates(); renderSmartCutList&&renderSmartCutList(); renderSmartCutSummary&&renderSmartCutSummary();
+            $("abState").className="ai-state ok"; $("abState").textContent="AI 语义分析完成：新增 "+cand.length+" 处删除建议，已并入剪口播候选，打开面板勾选即可。";
+            toast("AI 语义增强完成："+cand.length+" 处","ok");
+        }catch(e){ $("abState").className="ai-state err"; $("abState").textContent="AI 语义增强失败："+((e&&e.message)||e); }
+        finally{ btn.disabled=false; }
+    }
+    /* ---------- 镜头分段 / 卡点 ---------- */
+    function planBeats(){
+        const sens=nz($("abBeatSens")?$("abBeatSens").value:5,5);
+        const cs=textClips(); if(!cs.length){ $("abState").className="ai-state err"; $("abState").textContent="字幕轨为空，无法规划镜头分段。"; return []; }
+        const beats=[];
+        cs.forEach((c,i)=>{
+            const txt=String(c.text||"");
+            let sem="叙述";
+            for(const k in SEM){ if(SEM[k].test(txt)){ sem=k; break; } }
+            const strong=(sem==="turn"||sem==="step"||sem==="hook"||sem==="cta");
+            if(i===0||strong||(sens>=7&&i%2===0)) beats.push({t:round3(c.start),type:sem,text:txt.slice(0,18)});
+        });
+        /* 停顿边界补充卡点 */
+        (lastSilences||[]).forEach(z=>{
+            const d=nz(z.duration,nz(z.end,0)-nz(z.start,0));
+            if(d>=0.6+(10-sens)*0.1) beats.push({t:round3(nz(z.start)),type:"停顿",text:"气口 "+d.toFixed(1)+"s"});
+        });
+        beats.sort((a,b)=>a.t-b.t);
+        const uniq=[]; beats.forEach(b=>{ if(!uniq.length||b.t-uniq[uniq.length-1].t>0.4) uniq.push(b); });
+        const set=(id,v)=>{const el=$(id); if(el) el.textContent=v;};
+        set("abBeatCount",uniq.length);
+        const durs=cs.length?((cs[cs.length-1].start+cs[cs.length-1].duration-cs[0].start)/Math.max(1,uniq.length)):0;
+        set("abBeatAvg",uniq.length?durs.toFixed(1)+"s":"—");
+        $("abBeatNote").textContent="已规划 "+uniq.length+" 个镜头分段点（语义转折 + 停顿边界）。点「写入时间轴标记」生成 ⚑ 标记。";
+        return uniq;
+    }
+    function applyBeats(){
+        const beats=planBeats();
+        if(!beats.length){ toast("没有可写入的分段点","err"); return; }
+        pushHistory();
+        if(!Array.isArray(state.markers)) state.markers=[];
+        beats.forEach(b=>{ if(!state.markers.some(m=>Math.abs(nz(m.t)-b.t)<0.3)) state.markers.push({t:b.t,label:"镜·"+b.type}); });
+        state.markers.sort((a,b)=>nz(a.t)-nz(b.t));
+        renderAll(); autoSave();
+        $("abState").className="ai-state ok"; $("abState").textContent="已写入 "+beats.length+" 个镜头分段标记到时间轴（⚑），可对位 B-roll / 转场 / 音效。Ctrl+Z 可撤销。";
+        toast("已写入 "+beats.length+" 个镜头卡点","ok");
+    }
+    return {open:open,RECIPES:RECIPES,applyRecipe:applyRecipe,cutScan:cutScan,cutAi:cutAi,planBeats:planBeats,applyBeats:applyBeats,
+            updateDemo:updateDemo,refreshCounts:refreshCounts,wordsFor:wordsFor,animState:animState,tokenize:tokenize,interpolateWords:interpolateWords,
+            getRecipe:()=>curRecipe,setRecipe:(k)=>{if(RECIPES[k])curRecipe=k;}};
+})();
+function wireAIB(){
+    const btn=$("aiBloggerSubBtn"); if(btn) btn.onclick=()=>AIB.open();
+    const goC=$("abGoCompute"); if(goC) goC.onclick=()=>{ $("aiBloggerModal").classList.remove("show"); $("edComputeHint").scrollIntoView({behavior:"smooth",block:"center"}); toast("请在上方「算力总控」切换档位后重新打开","ok"); };
+    /* 标签页切换 */
+    document.querySelectorAll(".ab-tab").forEach(t=>t.onclick=()=>{
+        document.querySelectorAll(".ab-tab").forEach(x=>x.classList.toggle("active",x===t));
+        const k=t.dataset.abtab;
+        document.querySelectorAll(".ab-pane").forEach(p=>p.classList.toggle("active",p.dataset.abpane===k));
+    });
+    if($("abRecipes")) $("abRecipes").onclick=e=>{
+        const r=e.target.closest(".ab-recipe"); if(!r) return;
+        AIB.setRecipe(r.dataset.recipe);
+        document.querySelectorAll(".ab-recipe").forEach(x=>x.classList.toggle("active",x===r));
+        const nm=$("abRecipeName"); if(nm) nm.textContent=AIB.RECIPES[AIB.getRecipe()].name;
+        AIB.updateDemo();
+    };
+    const st=$("abStrength"); if(st) st.oninput=()=>{ $("abStrengthVal").textContent=st.value+"%"; AIB.updateDemo(); };
+    const du=$("abDur"); if(du) du.oninput=()=>{ $("abDurVal").textContent=(du.value/100).toFixed(2)+"s"; AIB.updateDemo(); };
+    const kw=$("abKeywords"); if(kw) kw.oninput=()=>AIB.updateDemo();
+    if($("abApply")) $("abApply").onclick=()=>AIB.applyRecipe();
+    if($("abCutScan")) $("abCutScan").onclick=()=>AIB.cutScan();
+    if($("abCutAi")) $("abCutAi").onclick=()=>AIB.cutAi();
+    if($("abCutOpen")) $("abCutOpen").onclick=()=>{ $("aiBloggerModal").classList.remove("show"); openSmartCutModal(); };
+    const bs=$("abBeatSens"); if(bs) bs.oninput=()=>{
+        const v=Number(bs.value); $("abBeatSensVal").textContent=v<=3?"低":(v<=6?"中":"高");
+    };
+    if($("abBeatScan")) $("abBeatScan").onclick=()=>AIB.planBeats();
+    if($("abBeatApply")) $("abBeatApply").onclick=()=>AIB.applyBeats();
+}
+
 /* ---------- 事件绑定 ---------- */
 function wire(){
     wireClipContextMenu();
@@ -6434,6 +6911,7 @@ function wire(){
     $("aiCutBtn").onclick=openAiIdea;
     bindAgentEvents();
     $("aiSubBtn").onclick=openAsrSetup;
+    wireAIB();
     $("dumpStructBtn").onclick=showTimelineStructure;
     $("structRefresh").onclick=showTimelineStructure;
     $("structDownload").onclick=downloadTimelineStructure;
@@ -6607,6 +7085,9 @@ function wire(){
         e.preventDefault(); e.stopPropagation();
         if(playing) pause();
         subEditing={el:el,id:c.id,orig:String(c.text||"")};
+        /* AI博主字幕带字级动效时 el 内是 .aw span，未说到/opacity=0 的字看不见。
+           编辑态先还原成纯文本，保证整句可见可改；保存/取消后 renderSubtitleOverlay 会重建 span。 */
+        if(el.querySelector(".aw")) el.textContent=c.text||"";
         el.classList.add("sub-editing"); el.setAttribute("contenteditable","true"); el.setAttribute("spellcheck","false");
         el.focus();
         try{ const r=document.createRange(); r.selectNodeContents(el); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(err){}
@@ -7838,6 +8319,42 @@ function subTextAss(c){
     /* 不插 [对白]/[旁白] 等类型前缀：预览里就没有，烧录/导出必须只显示字幕正文 */
     return String(c.text||"").replace(/[\r\n]+/g,"\\N").replace(/\{/g,"\\{").replace(/\}/g,"\\}");
 }
+/* AI博主字幕：把字级动效编码成 ASS 内联标签，烧进成片。
+   · karaoke：{\kf<厘秒>}字 逐字填充变色（libass 卡拉OK）。
+   · pop/keyword/rise/flower：{\t(起,止,\fscx..\fscy..\fs..)}字 + \alpha 淡入，按字级时间戳。
+   时间单位毫秒，相对该条 Dialogue 起点。全程与预览同一个 wordsFor / animState 真源。 */
+function subTextAssAnim(c,q){
+    if(!q.anim||q.anim==="none"||typeof AIB==="undefined") return subTextAss(c);
+    const words=AIB.wordsFor(c); if(!words.length) return subTextAss(c);
+    const dur=Math.max(0.3,nz(c.duration,2)), strength=q.animStrength===undefined?1:Number(q.animStrength);
+    const ms=t=>Math.max(0,Math.round(nz(t)*1000));
+    const esc2=s=>String(s).replace(/\{/g,"\\{").replace(/\}/g,"\\}").replace(/\\N/g,"\\N");
+    if(q.anim==="karaoke"){
+        return words.map(w=>{
+            const cs=Math.max(1,Math.round((nz(w.e)-nz(w.s))*100));
+            return "{\\kf"+cs+"}"+esc2(w.ch);
+        }).join("");
+    }
+    /* pop / keyword / rise / flower：每个字带一个 \t 变换 + 出现前隐藏 */
+    const aDur=Math.max(60,Math.round((q.animDur||0.22)*1000));
+    return words.map(w=>{
+        const s=ms(w.s), e=s+aDur;
+        if(w.kw&&(q.anim==="keyword"||q.anim==="flower")){
+            const sc=Math.round(100+(q.anim==="flower"?70:65)*strength);
+            const col=q.anim==="flower"?"\\c&H3ED2FF&":"";
+            return "{\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&\\fscx"+sc+"\\fscy"+sc+col+")\\t("+e+","+(e+200)+",\\fscx115\\fscy115)}"+esc2(w.ch);
+        }
+        if(q.anim==="rise"){
+            /* ASS 逐字 Y 位移无内嵌标签，退化为缩放+淡入（预览里仍是完整滑入动效） */
+            return "{\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&\\fscx115\\fscy115)\\t("+e+","+(e+150)+",\\fscx100\\fscy100)}"+esc2(w.ch);
+        }
+        if(q.anim==="pop"){
+            const sc=Math.round(100+35*strength);
+            return "{\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&\\fscx"+sc+"\\fscy"+sc+")\\t("+e+","+(e+160)+",\\fscx100\\fscy100)}"+esc2(w.ch);
+        }
+        return "{\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&)}"+esc2(w.ch);
+    }).join("");
+}
 function buildBurnAss(arr){
     if(!arr||!arr.length) return "";
     /* 关键：ASS 脚本坐标系设成预览舞台的实际像素尺寸，字号/位置全部沿用预览的 CSS 像素值。
@@ -7862,7 +8379,7 @@ function buildBurnAss(arr){
         /* 每行的样式覆盖 + 精确落点：\an\pos 在前（含多条同位置时的堆叠让位），
            随后是逐条字号/颜色等覆盖，最后接纯字幕正文（无类型前缀，与预览一致）。 */
         lines.push("Dialogue: 0,"+assTs(c.start)+","+assTs(c.start+c.duration)+","+name+",,0,0,0,,"
-            +assPosTag(q,stackYById[c.id])+subAssOverride(q)+subTextAss(c));
+            +assPosTag(q,stackYById[c.id])+subAssOverride(q)+subTextAssAnim(c,q));
     });
     return "[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\nScaledBorderAndShadow: yes\n"
         +"PlayResX: "+W+"\nPlayResY: "+H+"\n"
@@ -8183,10 +8700,38 @@ function drawStageFrame(x,W,H,opts){
                 else x.fillRect(bx,by,bw,bh);
                 x.restore();
             }
-            if(x.lineWidth>0) x.strokeText(txt,px,py);
-            x.fillText(txt,px,py);
-            const tw=x.measureText(txt).width;
-            const ux=x.textAlign==="left"?px:(x.textAlign==="right"?px-tw:px-tw/2);
+            /* AI博主字幕：有 anim 配方时逐字按字级时间戳绘制（与预览 updateWordAnimFrame 同一状态函数） */
+            const animOn=q&&q.anim&&q.anim!=="none"&&typeof AIB!=="undefined";
+            let tw=0, ux=0;
+            if(animOn){
+                const words=AIB.wordsFor(c), local=Math.max(0,state.playhead-c.start);
+                const strength=q.animStrength===undefined?1:Number(q.animStrength), adur=q.animDur||0.22;
+                const widths=words.map(w=>x.measureText(w.ch).width+((Number(q&&q.spacing)||0)*scale));
+                tw=widths.reduce((a,b)=>a+b,0);
+                ux=x.textAlign==="left"?px:(x.textAlign==="right"?px-tw:px-tw/2);
+                let cx=ux;
+                for(let wi=0;wi<words.length;wi++){
+                    const w=words[wi], ww=widths[wi];
+                    const a=AIB.animState(q.anim,w,local,strength,adur);
+                    if(a.opacity<=0.01){ cx+=ww; continue; }
+                    x.save();
+                    x.globalAlpha=op*a.opacity;
+                    x.translate(cx+ww/2,py-size*0.36);
+                    if(a.scale&&a.scale!==1) x.scale(a.scale,a.scale);
+                    if(a.rotate) x.rotate(a.rotate*Math.PI/180);
+                    const by=a.color||fillStyle;
+                    if(a.glow){ x.shadowColor=w.kw?"#ffd23e":(q.glowColor||"#ffffff"); x.shadowBlur=(q.glow||8)*scale; }
+                    if(x.lineWidth>0){ x.strokeStyle=q.stroke||"#000"; x.strokeText(w.ch,0,0); }
+                    x.fillStyle=by; x.fillText(w.ch,0,0);
+                    x.restore();
+                    cx+=ww;
+                }
+            }else{
+                if(x.lineWidth>0) x.strokeText(txt,px,py);
+                x.fillText(txt,px,py);
+                tw=x.measureText(txt).width;
+                ux=x.textAlign==="left"?px:(x.textAlign==="right"?px-tw:px-tw/2);
+            }
             if(q&&q.underline) x.fillRect(ux,py+size*0.08,tw,Math.max(1,size*0.045));
             if(q&&q.strike) x.fillRect(ux,py-size*0.34,tw,Math.max(1,size*0.045));
         }
