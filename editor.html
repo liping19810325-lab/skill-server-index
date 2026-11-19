@@ -3617,21 +3617,29 @@ function addAssetToTrack(a, opts){
     renderAll(); autoSave();
     toast("已加入「"+tr.label+"」轨道","ok");
 }
+/* 某轨道现有片段的最末尾时间（秒）：把新字幕/粘贴字幕放到该轨现有内容之后的空白位置，
+   保证不与任意已有字幕重叠（含部分重叠）。空轨返回 0。 */
+function trackTail(trackId){
+    let tail=0;
+    for(const c of state.clips){
+        if(c.track!==trackId) continue;
+        const e=Math.max(0,Number(c.start)||0)+Math.max(0,Number(c.duration)||0);
+        if(e>tail) tail=e;
+    }
+    return tail;
+}
 function addBlankSubtitle(){
     pushHistory();
-    let tr=currentSubTrack();
-    /* 当前字幕轨已经放了字幕时：优先在其上方新建一条字幕轨来放新字幕，
-       避免新字幕播放头落在旧字幕时间内、同轨重叠把原有字幕「吃掉」一部分。
-       newTrack("text") 默认插到同类字幕轨最上面；空轨则直接复用，不浪费轨道。 */
-    if(tr && state.clips.some(c=>c.track===tr.id)){
-        tr=newTrack("text");
-        state.subTrack=tr.id;   /* 切到新轨：列表/预览/下次新增都指向它 */
-    }
+    /* 不再为每条新字幕新建轨道：一律复用现有字幕轨，把新字幕放到该轨现有字幕末尾之后的
+       空白位置（忽略红线位置），不新建字幕轨、也不覆盖任意已有字幕（含部分覆盖）。 */
+    let tr=currentSubTrack()||firstTextTrack();
     if(!tr) tr=newTrack("text");
+    if(state.subTrack!==tr.id) state.subTrack=tr.id;
+    const start=trackTail(tr.id);
     const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);   /* 新字幕继承统一默认模板的独立副本 */
     /* 「＋新增一条空白字幕」默认落在画面正中央；AI字幕/导入字幕仍沿用各自原有位置，不受影响。 */
     fx.sub.pos="center";
-    state.clips.push({id:uid(), track:tr.id, assetId:"", start:Math.max(0,state.playhead),
+    state.clips.push({id:uid(), track:tr.id, assetId:"", start:start,
         duration:3, offset:0, text:"新字幕", name:"新字幕", subKind:"", fx:fx});
     renderAll(); autoSave();
 }
@@ -4272,17 +4280,27 @@ function pasteClips(){
     if(!clipboard.length){ toast("剪贴板里没有片段"); return; }
     const base=Math.max(0,state.playhead), min=Math.min.apply(null,clipboard.map(c=>c.start||0));
     pushHistory(); const added=[];
+    /* 字幕轨粘贴：放到目标轨现有字幕末尾之后的空位（忽略红线位置），多条依次顺排、互不覆盖。
+       非字幕片段维持原逻辑：按播放头相对位置粘贴。 */
+    const subTail={};   /* 每条字幕轨的当前末尾，随粘贴递增 */
     for(const src of clipboard){
         let tr=trackById(src.track);
         const kind=src._kind||"video";
         if(!tr){ tr=orderedTracks().find(t=>t.kind===kind)||newTrack(kind); }
-        const c=cloneClip(src); c.id=uid(); c.track=tr.id; c.start=base+((src.start||0)-min); fxOf(c);
+        const c=cloneClip(src); c.id=uid(); c.track=tr.id; fxOf(c);
+        if(kind==="text"){
+            if(subTail[tr.id]===undefined) subTail[tr.id]=trackTail(tr.id);
+            c.start=subTail[tr.id];
+            subTail[tr.id]=c.start+Math.max(0,Number(c.duration)||0);
+        }else{
+            c.start=base+((src.start||0)-min);
+        }
         delete c._kind;
         state.clips.push(c); added.push(c.id);
     }
     state.selected=added[added.length-1]||null; state.multi=[];
     closeMainGaps();
-    renderAll(); autoSave(); toast("已粘贴 "+added.length+" 个片段到播放头处","ok");
+    renderAll(); autoSave(); toast("已粘贴 "+added.length+" 个片段"+(Object.keys(subTail).length?"（字幕已放到轨道末尾空位）":"到播放头处"),"ok");
 }
 function selectAllClips(){
     if(!state.clips.length){ toast("轨道上还没有片段"); return; }
