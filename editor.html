@@ -3909,6 +3909,12 @@ function renderPlayhead(){
      等于几十上百次解码+seek+toDataURL，后台持续抢占解码器，播放预览几乎冻住。
    · 现在：播放期间直接暂停生成并作废旧任务；每批 8 段、每段 5 帧；全部完成后只重建一次时间轴。 */
 let stripFillRunning=false, stripGenToken=0;
+/* 防止 renderTimeline <-> ensureClipStrips 无限递归：
+   ensureClipStrips 结尾为了刷新时间轴会调 renderTimeline，而 renderTimeline 末尾又会调度
+   ensureClipStrips。若缩略图已全部缓存（need 为空、无 await 打断），两者会相互调用形成
+   同步死循环，每次都 innerHTML 重建整棵时间轴+重绘全部波形，持续吃 CPU/内存直到浏览器
+   标签页崩溃。用这个守卫标记"这次 renderTimeline 由抽帧收尾触发"，令其末尾跳过再次调度。 */
+let stripFlushRender=false;
 /* 同一源素材、同一 2 秒源区间的剪口播小片段共用一份缩略图，避免 N 个片段各存一套图片
    把 GPU 纹理/显存吃满（用户实测 Windows 一播放就占满 4GB 显存）。 */
 const stripFramesBySig=new Map();
@@ -3971,8 +3977,13 @@ async function ensureClipStrips(){
             }
         }
     }finally{ stripFillRunning=false; }
-    /* 只在空闲且任务未被取消时刷新一次：避免旧版每批都 renderTimeline 造成反复整树重建 */
-    if(!playing && myToken===stripGenToken) renderTimeline();
+    /* 只在空闲且任务未被取消时刷新一次：避免旧版每批都 renderTimeline 造成反复整树重建。
+       关键：置 stripFlushRender 守卫，防止这次 renderTimeline 末尾又回头调度 ensureClipStrips
+       形成无限递归（need 为空时无 await 打断，会同步撑爆调用栈/内存导致标签页崩溃）。 */
+    if(!playing && myToken===stripGenToken){
+        stripFlushRender=true;
+        try{ renderTimeline(); }finally{ stripFlushRender=false; }
+    }
 }
 function renderTimeline(){
     /* 活动轨道：只要有有效选中片段就记住它所在轨道；点标尺/空白把 selected 清空时
@@ -3983,7 +3994,8 @@ function renderTimeline(){
     $("tlInner").style.width=(LABEL_W+contentWidth())+"px";
     renderRuler(); renderTracks(); drawAllWaves(); renderPlayhead(); syncZoomRange();
     sc.scrollLeft=sl; sc.scrollTop=st;
-    if(!stripFillRunning) ensureClipStrips();   /* 内部自行管理并发/取消/最终刷新 */
+    /* 收尾刷新触发的 renderTimeline 不再回头调度抽帧，切断相互递归；其余正常调用照旧调度。 */
+    if(!stripFillRunning && !stripFlushRender) ensureClipStrips();   /* 内部自行管理并发/取消/最终刷新 */
 }
 
 /* ---------- 右键拆分视频 / 音频 ---------- */
@@ -4298,7 +4310,9 @@ function tick(ts){
         t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     }
     state.playhead=clamp(t,0,totalDuration());
-    syncMedia(); renderPlayhead(); drawLutFrame(); updateWordAnimFrame();
+    /* syncMedia() 结尾已调用 updateWordAnimFrame()，这里不再重复调用：
+       逐字动画每帧对每个字写 style，重复一次等于翻倍 DOM 写入，字幕多时是明显负载。 */
+    syncMedia(); renderPlayhead(); drawLutFrame();
     /* 播放预览走到最后素材结尾即停；导出录制则停在本次区间的终点 exportStopAt（入点/出点之间）。 */
     const end=Math.max(0,Number.isFinite(exportStopAt)?exportStopAt:contentEnd());
     if(end>0 && state.playhead>=end-0.02){
