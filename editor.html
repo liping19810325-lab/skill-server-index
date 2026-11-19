@@ -2256,9 +2256,13 @@ function ensureWave(a, cb){
             try{ actx.close(); }catch(e){}
             const d=decoded.getChannelData(0), N=640, peaks=new Float32Array(N);
             const step=Math.max(1,Math.floor(d.length/N));
+            /* 性能：每个峰值桶最多抽样 512 个采样点即可，不必遍历整段音频。
+               长视频原来要对上亿个采样做 Math.abs，Windows 单核性能弱时会卡死几秒；
+               640×512 的采样量对时间轴波形的视觉效果几乎无差别。 */
+            const stride=Math.max(1,Math.floor(step/512));
             for(let i=0;i<N;i++){
                 let mx=0; const st=i*step, en=Math.min(d.length,st+step);
-                for(let j=st;j<en;j++){ const v=Math.abs(d[j]); if(v>mx) mx=v; }
+                for(let j=st;j<en;j+=stride){ const v=Math.abs(d[j]); if(v>mx) mx=v; }
                 peaks[i]=mx;
             }
             w.peaks=peaks;
@@ -2442,8 +2446,11 @@ function cleanupRenderOverrides(){
     renderOverrides.clear();
 }
 function fxTransform(c){
-    const f=fxOf(c), sc=Number(f.scale)||1;
-    return "translate("+Number(f.x||0)+"px,"+Number(f.y||0)+"px) rotate("+Number(f.rotate||0)+"deg) scale("+((f.mirror?-1:1)*sc)+","+sc+")"+animExtra(c);
+    const f=fxOf(c), sc=Number(f.scale)||1, extra=animExtra(c);
+    /* 性能：默认变换不写任何 transform，避免给 <video>/图片白白创建合成层。
+       Windows 浏览器（尤其核显/关硬件加速）每帧多一层全画面合成会明显卡顿。 */
+    if(!Number(f.x) && !Number(f.y) && !Number(f.rotate) && sc===1 && !f.mirror && !extra) return "";
+    return "translate("+Number(f.x||0)+"px,"+Number(f.y||0)+"px) rotate("+Number(f.rotate||0)+"deg) scale("+((f.mirror?-1:1)*sc)+","+sc+")"+extra;
 }
 function fxFilter(c){
     const q=fxOf(c).color||{};
@@ -2456,6 +2463,9 @@ function fxFilter(c){
     const sepia=clamp(d("sepia",0)+Math.max(0,n("temperature"))*0.65,0,100);
     const hue=d("hue",0)+n("tint")*0.55+n("temperature")*0.22;
     const blur=Math.max(0,d("blur",0));
+    /* 性能：原片（全部默认）直接返回 none。旧的 brightness(100%) contrast(100%) saturate(100%)
+       并非空操作，Windows Chromium 会对 <video> 每帧跑一遍全屏滤镜，是卡顿主要来源之一。 */
+    if(bright===100 && contrast===100 && sat===100 && sepia<=0.01 && Math.abs(hue)<=0.01 && blur<=0.01) return "none";
     const out=["brightness("+bright.toFixed(1)+"%)","contrast("+contrast.toFixed(1)+"%)","saturate("+sat.toFixed(1)+"%)"];
     if(sepia>0.01) out.push("sepia("+sepia.toFixed(1)+"%)");
     if(Math.abs(hue)>0.01) out.push("hue-rotate("+hue.toFixed(1)+"deg)");
@@ -2809,7 +2819,9 @@ function renderBasicBox(){
             if(nc.left+nc.right>90) nc.right=90-nc.left;
             f.crop=nc;
         }
-        applyClipTransforms(); renderTimeline(); autoSave();
+        /* 性能：这里只改画面变换/裁剪，不影响时间轴几何，不必每次 input 都重建整条时间轴。
+           Windows 上拖动滑块时 input 事件密集，整树 innerHTML 重建是明显卡顿源。 */
+        applyClipTransforms(); autoSave();
     };
     ["fxX","fxY","fxScale","fxRotate"].forEach(id=>{
         $(id).addEventListener("focus",()=>pushHistory());
@@ -3888,30 +3900,46 @@ function renderPlayhead(){
     if(document.activeElement!==$("seekRange")) $("seekRange").value=state.playhead;
     $("btnPlay").textContent=playing?"⏸":"▶";
 }
-/* 视频片段上部连续缩略图：按片段在源素材上的区间均匀抽 6~10 帧，异步生成后缓存 */
-let stripFillRunning=false;
+/* 视频片段上部连续缩略图：按片段在源素材上的区间均匀抽帧，异步生成后缓存。
+   性能要点（Windows 卡顿修复）：
+   · 智能剪口播会把一条长视频物理切成很多小片段，旧版按片段逐个新建 <video> 抽 8 帧，
+     等于几十上百次解码+seek+toDataURL，后台持续抢占解码器，播放预览几乎冻住。
+   · 现在：播放期间直接暂停生成并作废旧任务；每批 8 段、每段 5 帧；全部完成后只重建一次时间轴。 */
+let stripFillRunning=false, stripGenToken=0;
 async function ensureClipStrips(){
-    const jobs=state.clips.filter(c=>{
-        const t=trackById(c.track);
-        const a=c.assetId?assetById(c.assetId):null;
-        const ce=clipStripCache.get(c.id);
-        return t&&t.kind==="video"&&a&&a.type==="video"&&mediaUrl(a)
-            &&(!ce||ce.sig!==clipStripSig(c));   /* 源区间变了重抽 */
-    }).slice(0,20);
-    if(!jobs.length) return;
-    jobs.forEach(c=>clipStripCache.set(c.id,{sig:clipStripSig(c),frames:[]}));   /* 占位，避免重复排队 */
-    const N=8;
-    await Promise.all(jobs.map(async c=>{
-        const a=assetById(c.assetId), url=mediaUrl(a), off=Number(c.offset)||0, dur=Number(c.duration)||0;
-        const frames=[];
-        for(let i=0;i<N;i++){
-            const t=off+dur*(i+0.5)/N;
-            const d=await grabFrame(url,t);
-            if(d) frames.push(d);
+    if(stripFillRunning) return;
+    stripFillRunning=true;
+    const myToken=stripGenToken;
+    try{
+        for(let batch=0;batch<20;batch++){
+            if(playing || myToken!==stripGenToken) break;
+            const jobs=state.clips.filter(c=>{
+                const t=trackById(c.track);
+                const a=c.assetId?assetById(c.assetId):null;
+                const ce=clipStripCache.get(c.id);
+                return t&&t.kind==="video"&&a&&a.type==="video"&&mediaUrl(a)
+                    &&(Number(c.duration)||0)>=0.6          /* 剪口播产生的极短片段不抽帧 */
+                    &&(!ce||ce.sig!==clipStripSig(c));      /* 源区间变了重抽 */
+            }).slice(0,8);
+            if(!jobs.length) break;
+            jobs.forEach(c=>clipStripCache.set(c.id,{sig:clipStripSig(c),frames:[]})); /* 占位防重复排队 */
+            const N=5;
+            await Promise.all(jobs.map(async c=>{
+                const a=assetById(c.assetId), url=mediaUrl(a), off=Number(c.offset)||0, dur=Number(c.duration)||0;
+                const frames=[];
+                for(let i=0;i<N;i++){
+                    if(playing || myToken!==stripGenToken){ clipStripCache.delete(c.id); return; }
+                    const t=off+dur*(i+0.5)/N;
+                    const d=await grabFrame(url,t);
+                    if(d) frames.push(d);
+                }
+                if(myToken===stripGenToken && frames.length) clipStripCache.set(c.id,{sig:clipStripSig(c),frames:frames});
+                else clipStripCache.delete(c.id);
+            }));
         }
-        clipStripCache.set(c.id,{sig:clipStripSig(c),frames:frames});
-    }));
-    renderTimeline();
+    }finally{ stripFillRunning=false; }
+    /* 只在空闲且任务未被取消时刷新一次：避免旧版每批都 renderTimeline 造成反复整树重建 */
+    if(!playing && myToken===stripGenToken) renderTimeline();
 }
 function renderTimeline(){
     /* 活动轨道：只要有有效选中片段就记住它所在轨道；点标尺/空白把 selected 清空时
@@ -3922,7 +3950,7 @@ function renderTimeline(){
     $("tlInner").style.width=(LABEL_W+contentWidth())+"px";
     renderRuler(); renderTracks(); drawAllWaves(); renderPlayhead(); syncZoomRange();
     sc.scrollLeft=sl; sc.scrollTop=st;
-    if(!stripFillRunning){ stripFillRunning=true; ensureClipStrips().finally(()=>{ stripFillRunning=false; }); }
+    if(!stripFillRunning) ensureClipStrips();   /* 内部自行管理并发/取消/最终刷新 */
 }
 
 /* ---------- 右键拆分视频 / 音频 ---------- */
@@ -4242,12 +4270,19 @@ function tick(ts){
     else if(end<=0 && state.playhead>=totalDuration()-0.02){ pause(); state.playhead=totalDuration(); renderPlayhead(); }
     else rafId=schedulePlayFrame(tick);
 }
-function play(){ if(playing)return; if(assetPreviewId) exitAssetPreview(true); playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=schedulePlayFrame(tick); }
+function play(){
+    if(playing)return;
+    if(assetPreviewId) exitAssetPreview(true);
+    stripGenToken++;            /* 播放时取消后台缩略图抽帧，避免抢占视频解码导致预览冻住 */
+    playing=true; lastTs=0; syncMedia(); renderPlayhead(); rafId=schedulePlayFrame(tick);
+}
 function pause(){
     playing=false; cancelAnimationFrame(rafId);
     if(!vEl.paused) vEl.pause();
     audioPool.forEach(o=>{ try{ if(!o.el.paused) o.el.pause(); }catch(e){} });
     renderPlayhead();
+    /* 停下来后再低优先级续抽缩略图，不影响播放流畅度 */
+    setTimeout(()=>{ if(!playing) ensureClipStrips(); },1200);
 }
 function seek(t){ if(assetPreviewId) exitAssetPreview(true); state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
 /* 播放头磁吸：拖动红线 / 标尺时，5 帧以内优先贴附到任一素材的开头或结尾。
@@ -7865,10 +7900,15 @@ function uploadLutTex(gl, tex, lut){
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,W,H,0,gl.RGBA,gl.UNSIGNED_BYTE,px);
 }
 function drawLutFrame(){
+    /* 性能：没有 LUT 轨时绝不创建 WebGL 上下文。
+       旧版每次启动/每次操作都先 initLutGL()，在无 LUT 的工程里也会建一个
+       preserveDrawingBuffer 的 WebGL 上下文；Windows 核显/驱动异常时这一步本身就会
+       拖慢整页渲染，甚至让浏览器退回软件合成。现在改为真正用到 LUT 才懒初始化。 */
+    const cur=currentLut();
+    if(!cur){ if(lutGL&&lutGL.cv) lutGL.cv.hidden=true; return; }
     const g=initLutGL();
     if(!g){ return; }
-    const cur=currentLut();
-    if(!cur||!vEl.classList.contains("show")||vEl.readyState<2||vEl.videoWidth===0){ g.cv.hidden=true; return; }
+    if(!vEl.classList.contains("show")||vEl.readyState<2||vEl.videoWidth===0){ g.cv.hidden=true; return; }
     const gl=g.gl, lut=cur.lut, ad=lut.adjust||{};
     const key=lut.name+"|"+lut.size+"|"+JSON.stringify(ad);
     g.cv.hidden=false;
