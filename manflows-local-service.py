@@ -1385,7 +1385,7 @@ def _split_wav(wav_path, td, chunk_sec=ASR_CHUNK_SEC):
     return out, total / float(rate or 16000)
 
 
-def _post_asr(ep, key, model, language, chunk_path):
+def _post_asr(ep, key, model, language, chunk_path, log=None):
     """multipart/form-data 上传到 OpenAI 兼容 /v1/audio/transcriptions。"""
     boundary = "----ManflowsASR" + os.urandom(8).hex()
     parts = []
@@ -1424,6 +1424,11 @@ def _post_asr(ep, key, model, language, chunk_path):
         j = json.loads(raw.decode("utf-8", "replace"))
     except Exception:
         raise RuntimeError("转写接口返回的不是 JSON：%s" % raw[:120].decode("utf-8", "replace"))
+    # 本机 faster-whisper 会把逐级降级（字级时间戳→关字级→关 VAD）写进 diagnostics，
+    # 透传到前端「处理日志」：0 句时能分辨是 word alignment 丢句还是 VAD 全过滤，而非笼统归咎素材。
+    diag = j.get("diagnostics")
+    if log is not None and isinstance(diag, list) and diag:
+        log.append("转写诊断：" + " → ".join(str(x) for x in diag))
     segs = j.get("segments")
     if not isinstance(segs, list) or not segs:
         segs = ((j.get("result") or {}).get("segments")
@@ -1543,7 +1548,7 @@ def api_transcribe(body):
         for i, c in enumerate(chunks):
             try:
                 got = _post_asr(ep, key, model,
-                                str(data.get("language") or "zh"), c["path"])
+                                str(data.get("language") or "zh"), c["path"], log)
                 log.append("第 %d/%d 段转写成功，返回 %d 句" % (i + 1, len(chunks), len(got)))
             except Exception as e:
                 msg = "第 %d 段：%s" % (i + 1, _short(e))

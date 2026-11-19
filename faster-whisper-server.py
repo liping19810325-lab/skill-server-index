@@ -38,16 +38,7 @@ def get_model():
         return _model
 
 
-def transcribe(wav_path, language, word_timestamps=True):
-    """字级时间戳：开启 word_timestamps 后每个 segment 带 words=[{word,start,end}]。
-    AI博主字幕的动态字幕/花字动效严格绑定这些字级锚点；失败时前端会按字数插值降级。"""
-    model = get_model()
-    kwargs = dict(beam_size=5, vad_filter=True,
-                  vad_parameters=dict(min_silence_duration_ms=500),
-                  word_timestamps=bool(word_timestamps))
-    if language and language != "auto":
-        kwargs["language"] = language
-    segments, info = model.transcribe(wav_path, **kwargs)
+def _collect_segments(segments):
     out = []
     for s in segments:
         text = (s.text or "").strip()
@@ -60,7 +51,54 @@ def transcribe(wav_path, language, word_timestamps=True):
                 continue
             words.append({"word": wt, "start": round(float(w.start), 3), "end": round(float(w.end), 3)})
         out.append({"start": round(s.start, 3), "end": round(s.end, 3), "text": text, "words": words})
-    return out, getattr(info, "language", None)
+    return out
+
+
+def transcribe(wav_path, language, word_timestamps=True):
+    """字级时间戳：开启 word_timestamps 后每个 segment 带 words=[{word,start,end}]。
+    AI博主字幕的动态字幕/花字动效严格绑定这些字级锚点；失败时前端会按字数插值降级。
+
+    重要（回归修复）：某些 faster-whisper 版本/模型在 word_timestamps=True 时，
+    word alignment 会把低置信 token 连同整段一起丢掉，结果返回 0 句且不抛异常。
+    后端探测正常 + 0 句 + 无错误，会被上层误判成「素材没有人声」。
+    因此这里做逐级降级重试，任何一级拿到句子立即返回：
+      ① word_timestamps=True  + VAD（首选，动效能绑定字级锚点）
+      ② word_timestamps=False + VAD（关掉 word alignment，拿到句子；动效走前端插值）
+      ③ vad_filter=False            （关掉 VAD，救回音量小/被背景音盖住的口播）
+    """
+    model = get_model()
+    lang_kwargs = {}
+    if language and language != "auto":
+        lang_kwargs["language"] = language
+
+    def run(want_words, vad):
+        kw = dict(beam_size=5, vad_filter=vad, word_timestamps=bool(want_words))
+        if vad:
+            kw["vad_parameters"] = dict(min_silence_duration_ms=500)
+        kw.update(lang_kwargs)
+        return model.transcribe(wav_path, **kw)
+
+    diag = []
+    # ① 首选：带字级时间戳
+    segments, info = run(bool(word_timestamps), True)
+    out = _collect_segments(segments)
+    diag.append("① 字级时间戳%s：%d 句" % ("开" if word_timestamps else "关", len(out)))
+
+    # ② 0 句时关掉 word alignment 重试（本次回归的直接修复点）
+    if not out and word_timestamps:
+        segments, info = run(False, True)
+        out = _collect_segments(segments)
+        word_timestamps = False
+        diag.append("② 关字级时间戳重试：%d 句" % len(out))
+
+    # ③ 仍 0 句时关掉 VAD，救回弱人声口播
+    if not out:
+        segments, info = run(False, False)
+        out = _collect_segments(segments)
+        diag.append("③ 关 VAD 重试：%d 句" % len(out))
+
+    return out, getattr(info, "language", None), {
+        "wordTimestamps": bool(word_timestamps), "diagnostics": diag}
 
 
 def to_wav(data, filename):
@@ -165,13 +203,15 @@ class Handler(BaseHTTPRequestHandler):
                 raise RuntimeError("multipart 里没有找到 file 字段")
             wav_path = to_wav(filedata, filename)
             try:
-                segments, lang = transcribe(wav_path, language)
+                segments, lang, meta = transcribe(wav_path, language)
             finally:
                 try: os.unlink(wav_path)
                 except Exception: pass
             full_text = " ".join(s["text"] for s in segments)
             self._send(200, {"text": full_text, "language": lang or language,
-                             "segments": segments})
+                             "segments": segments,
+                             "wordTimestamps": meta.get("wordTimestamps", False),
+                             "diagnostics": meta.get("diagnostics", [])})
         except Exception as e:
             self._send(500, {"error": {"message": str(e)[:400]}})
 
