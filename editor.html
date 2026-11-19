@@ -3660,14 +3660,15 @@ function pickTrackFor(kind, at, dur){
 }
 /* AI字幕生成前的保护性迁移：若字幕1轨道(tk_text1)上已有「用户手动添加/导入」的字幕（非AI生成），
    新建一条空字幕轨，把这些字幕整条搬过去——只改 track 归属，start/duration/offset/fx 全部原样保留，
-   时间位置零改动。新轨用 below:true 插到字幕轨最下方，确保 tk_text1 仍是 firstTextTrack，
-   AI 字幕仍写回字幕1轨道。返回新轨 id（无用户字幕时返回 ""）。 */
+   时间位置零改动。新轨用默认方式插到所有已有字幕轨的最上方（字幕序号越大越靠上，新建轨总在旧轨之上），
+   与「新增字幕轨」的排序规则一致；AI 字幕仍固定写回 tk_text1，不受新轨排到最上方的影响。
+   返回新轨 id（无用户字幕时返回 ""）。 */
 function evictTrack1SubsForAI(){
     const t1=trackById("tk_text1");
     if(!t1 || t1.kind!=="text") return "";
     const userSubs=state.clips.filter(c=>c.track==="tk_text1" && c.subSrc!=="ai");
     if(!userSubs.length) return "";
-    const nt=newTrack("text",{below:true});
+    const nt=newTrack("text");   /* 默认 insertAbove：插到已有字幕轨最上方，符合新建轨总在旧轨之上 */
     userSubs.forEach(c=>{ c.track=nt.id; });   /* 只换轨道，时间位置与样式完全不动 */
     return nt.id;
 }
