@@ -56,6 +56,8 @@
     .card.collapsible.collapsed .card-body{display:none;}
     .hint{font-size:11px;color:var(--muted);line-height:1.6;margin:6px 0;}
     .hint.warn{color:#fcd34d;}
+    /* 左侧各面板的说明小字统一隐藏，版面清爽；需要恢复时删掉这一行即可 */
+    .side .hint{display:none !important;}
     .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:7px 0;}
     .row label{font-size:11.5px;color:#d1d5db;flex:1 1 100%;}
     .side input[type=text],.side input[type=url],.side textarea,.side select{width:100%;padding:7px 8px;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;outline:none;}
