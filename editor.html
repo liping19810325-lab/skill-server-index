@@ -4286,11 +4286,17 @@ function tick(ts){
         /* 后台：完全按墙钟推进时间轴播放头（不依赖 video.currentTime），
            并在下方 syncMedia 里按较大容差 seek，让画面跟随播放头而非视频自身时钟。 */
         t=state.playhead+dt;
+    }else{
+        /* 关键修复（智能剪口播后卡顿/显存冲高的真正根因）：
+           旧版只要 <video> 在播，就用 vEl.currentTime 反推时间轴播放头。
+           剪口播把同一素材物理切成很多 offset 不同的小片段后，vc 是按上一帧播放头找的，
+           而 currentTime 属于上一片段，两者错配会在切口处来回跳：
+           playhead→vc→currentTime→playhead 形成正反馈，每帧反复 seek 同一个切口，
+           Windows 解码器不断重建缓冲，显存瞬间冲到 7GB、播放几乎冻住。
+           现在统一用墙钟推进播放头，视频/音频只作为“被同步的对象”由 syncMedia 按容差 seek，
+           与是否倒放无关；这样切口处只 seek 一次，不再振荡。 */
+        t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     }
-    else if(rev) t=state.playhead+Math.min(dt,0.25);
-    else if(va && va.type==="video" && !vEl.paused && vEl.readyState>1){
-        t=vc.start+(ov?vEl.currentTime:(vEl.currentTime-(vc.offset||0)));
-    }else t=state.playhead+Math.min(dt,0.25)*(ov?1:(vc?localSpeed(vc):1));
     state.playhead=clamp(t,0,totalDuration());
     syncMedia(); renderPlayhead(); drawLutFrame(); updateWordAnimFrame();
     /* 播放预览走到最后素材结尾即停；导出录制则停在本次区间的终点 exportStopAt（入点/出点之间）。 */
