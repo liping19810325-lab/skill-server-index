@@ -925,7 +925,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="tl-tools mid">
                 <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：快速出方案 / 对话式剪辑两种模式，自动分析轨道素材并完成剪辑">✨ AI剪辑</button>
                 <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
-                <button class="tb-btn ai-blogger" id="aiBloggerSubBtn" title="AI博主字幕：字级时间戳驱动的动态字幕 / 花字动效（逐字弹出·关键词高亮·文字进场·花字砸字），绑定说话的字；含口播智能修剪与镜头卡点规划">🌟 AI博主字幕</button>
+                <button class="tb-btn ai-blogger" id="aiBloggerSubBtn" title="AI博主字幕：字级时间戳驱动的动态字幕 / 花字动效（14 套：逐字弹出·关键词高亮·文字进场·花字砸字·卡拉OK·逐字升起·错峰滑入·柔焦淡入·打字机·轮廓闪烁·弹跳·字距收拢·划线高亮等），绑定说话的字；含口播智能修剪与镜头卡点规划">🌟 AI博主字幕</button>
                 <button class="tb-btn ai-rec" id="recBtn" title="录音：选择麦克风或系统声音，实时显示双声道电平，结束后自动加入音频轨">⏺ 录音</button>
                 <button class="tb-btn ai-sub" id="smartCutBtn" title="智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ 剪口播</button>
                 <button class="tb-btn" id="dumpStructBtn" title="轨道结构化数据：查看 / 下载含媒体元信息、独立音轨、毫秒字幕、静音区间的标准 JSON">📊 轨道数据</button>
@@ -4222,8 +4222,13 @@ function updateWordAnimFrame(){
             const a=AIB.animState(q.anim,words[i],local,strength,dur);
             const sp=spans[i];
             sp.style.opacity=a.opacity;
-            sp.style.transform="translateY("+(a.ty||0)+"px) scale("+(a.scale||1)+") rotate("+(a.rotate||0)+"deg)";
+            sp.style.transform="translateY("+(a.ty||0)+"px) translateX("+(a.tx||0)+"px) scale("+(a.scale||1)+") rotate("+(a.rotate||0)+"deg)";
             if(a.color) sp.style.color=a.color; else sp.style.color="";
+            /* 新增视觉字段：柔焦 blur / 下划线跟随 ul / 描边闪烁 blink（均为 0 时清掉，向后兼容） */
+            sp.style.filter=a.blur>0?"blur("+a.blur.toFixed(2)+"px)":"";
+            sp.style.textDecoration=(a.ul>0)?"underline":"";
+            sp.style.textDecorationColor=(a.ul>0)?"#ffd23e":"";
+            sp.style.textShadow=(a.blink>0)?("0 0 "+(2+6*a.blink).toFixed(1)+"px rgba(255,210,62,"+(0.25+0.7*a.blink).toFixed(2)+")"):"";
         }
     });
 }
@@ -6641,7 +6646,7 @@ function histExport(date){
    AI博主字幕增强插件 · AIB (AIBlogger Subtitle)
    -------------------------------------------------------------------------------------
    定位：把 video-talkcraft 的高阶能力接进漫流剪辑台——字级时间戳驱动的动态字幕/花字
-   动效（逐字弹出 / 关键词高亮 / 文字进场 / 花字砸字）、口播智能修剪、镜头分段卡点。
+   动效共 14 套（原有：逐字弹出/关键词高亮/文字进场/花字砸字/卡拉OK跟读；新增：逐字升起/错峰逐字滑入/柔焦淡入/打字机/轮廓描边闪烁/文字小幅弹跳/字间距收拢入场/划线高亮），口播智能修剪、镜头分段卡点。
    原则：独立命名空间，不替换任何原有业务代码；结果写入既有字幕 clip 的 fx.sub.anim /
    words 字段与时间轴标记，复用漫流原生 Canvas 预览、逐帧录制、ASS 烧录引擎。
    字级时间戳：优先用后端返回的 words（serviceTranscribe 已贯通），缺失时前端按字数+
@@ -6655,6 +6660,15 @@ const AIB=(function(){
         rise:     {name:"文字进场",  ic:"⬆️", ds:"每个字从下方滑入 + 淡入（line-by-line-slide 字级版）"},
         flower:   {name:"花字砸字",  ic:"🌸", ds:"关键词放大砸入 + 描边发光渐变，配合整屏微震（砸字/花字）"},
         karaoke:  {name:"卡拉OK跟读", ic:"🎤", ds:"逐字填充变色，像卡拉OK一样跟着人声走（ASS \\kf 卡拉OK标签）"},
+        /* ---- 新增 8 套（适配漫剧 / 口播短剧），预览与导出共用 animState 同一真源 ---- */
+        riseSoft:    {name:"逐字升起",      ic:"🌅", ds:"每个文字从底部平缓上浮就位，柔和干净，适合旁白大段剧情解说"},
+        slideStagger:{name:"错峰逐字滑入",  ic:"🎢", ds:"文字按顺序错开时间依次滑入，节奏感强，适合人物对话台词"},
+        blurFade:    {name:"柔焦淡入",      ic:"🌫", ds:"文字由模糊慢慢变清晰，氛围感强，适配回忆、抒情剧情片段"},
+        typewriter:  {name:"打字机效果",    ic:"⌨️", ds:"模拟键盘逐字打出，适合金句、悬念台词，悬疑类漫剧优先"},
+        outlineBlink:{name:"轮廓描边闪烁",  ic:"💡", ds:"文字轮廓微光闪烁，内部文字静态，用于重点台词强调，视觉柔和不刺眼"},
+        bounce:      {name:"文字小幅弹跳",  ic:"🏀", ds:"词语朗读完成后轻微弹跳，适配轻松风格现代短剧口播"},
+        gather:      {name:"字间距收拢入场", ic:"🧲", ds:"文字初始散开，逐步收拢为正常排版，适合片头标题、剧情转折点台词"},
+        underline:   {name:"划线高亮",      ic:"✍️", ds:"下划线跟随朗读进度逐字移动，和卡拉OK效果区分，适合干货解说类口播"},
         none:     {name:"关闭动效",  ic:"⛔", ds:"移除本字幕动效，恢复为普通静态字幕"}
     };
     let curRecipe="pop";
@@ -6726,7 +6740,9 @@ const AIB=(function(){
         if(!w.length) w=interpolateWords(c.text,dur);
         /* 兜底简体化：字级锚点是所有渲染(DOM/ASS/Canvas)的真源，统一在这里转简体。
            覆盖后端繁体 words / 旧缓存繁体数据 / 第三方接口 / 用户导入，保证最终字幕一律简体中文。 */
-        w=w.map(x=>({...x,ch:toSimplified(String(x.ch==null?"":x.ch))}));
+        const WN=w.length;
+        /* 附加字序 i / 总数 n：供「字间距收拢入场」按字序从两侧散开收拢；其他动效忽略。 */
+        w=w.map((x,i)=>({...x,ch:toSimplified(String(x.ch==null?"":x.ch)),i:i,n:WN}));
         return w;
     }
     /* 关键词判定：用户指定优先，否则用默认词表 + 语义数据词 */
@@ -6747,7 +6763,10 @@ const AIB=(function(){
     function animState(recipe,w,t,strength,dur){
         const st=strength||1, d=Math.max(0.05,dur||0.22);
         const local=t-w.s;
-        const base={opacity:1,scale:1,ty:0,rotate:0,color:null,glow:false,kw:w.kw};
+        /* 统一状态字段：opacity/scale/ty/rotate/color/glow 为原有；
+           tx 水平位移、blur 柔焦、ul 下划线进度(0~1)、blink 描边闪烁亮度(0~1) 为新增，
+           全部给默认值，未用到的动效与旧数据不受影响。 */
+        const base={opacity:1,scale:1,ty:0,tx:0,rotate:0,color:null,glow:false,blur:0,ul:0,blink:0,kw:w.kw};
         if(local<0) return {...base,opacity:0,scale:recipe==="rise"?0.7:0.01,ty:recipe==="rise"?8:0};
         const k=Math.min(1,Math.max(0,local/d));
         const eOut=1-Math.pow(1-k,4);                    /* power4.out */
@@ -6765,6 +6784,23 @@ const AIB=(function(){
                 return {...base,opacity:k};
             case "karaoke":
                 return {...base,opacity:1,color:k>=1?null:"#ffd23e",glow:k<1};
+            /* ---- 新增 8 套：全部基于 k / eOut（绑定字级时间戳，无时间戳时 wordsFor 已插值） ---- */
+            case "riseSoft":    /* 逐字升起：从底部平缓上浮就位，柔和 */
+                return {...base,opacity:eOut,ty:(1-eOut)*8*st};
+            case "slideStagger":/* 错峰逐字滑入：错峰来自每个字各自的 w.s，横向滑入 */
+                return {...base,opacity:k,tx:(1-eOut)*-14*st};
+            case "blurFade":    /* 柔焦淡入：由模糊到清晰 */
+                return {...base,opacity:eOut,blur:(1-eOut)*6*st};
+            case "typewriter":  /* 打字机：字到点瞬间出现（阶梯式，无渐变） */
+                return {...base,opacity:1,scale:1,ty:0};
+            case "outlineBlink":/* 轮廓描边闪烁：内部静态，轮廓亮度随朗读周期呼吸 */
+                return {...base,opacity:1,blink:k>=1?(0.45+0.55*Math.abs(Math.sin(local*6)))*st:0.3*k*st};
+            case "bounce":      /* 文字小幅弹跳：读完(dur)后短暂上抛再回落一次 */
+                return {...base,opacity:k,ty:k<1?(1-eOut)*6*st:-Math.abs(Math.sin((local-d)*Math.PI/Math.max(0.12,d*2)))*4*st*Math.max(0,1-(local-d)/(d*2))};
+            case "gather":      /* 字间距收拢入场：按字序从两侧散开逐步收拢 */
+                return {...base,opacity:eOut,tx:(1-eOut)*((w.i||0)-(w.n||1)/2)*7*st};
+            case "underline":   /* 划线高亮：下划线进度跟随朗读，与卡拉OK变色区分 */
+                return {...base,opacity:1,ul:k};
             default:
                 return base;
         }
@@ -6825,10 +6861,14 @@ const AIB=(function(){
                 const t=(now-start)/1000;
                 const a=animState(curRecipe,w,t,strength,dur);
                 sp.style.opacity=a.opacity;
-                sp.style.transform="translateY("+a.ty+"px) scale("+a.scale+") rotate("+(a.rotate||0)+"deg)";
+                sp.style.transform="translateY("+(a.ty||0)+"px) translateX("+(a.tx||0)+"px) scale("+(a.scale||1)+") rotate("+(a.rotate||0)+"deg)";
                 sp.style.color=a.color||(w.kw?"#ffd23e":"");
+                sp.style.filter=a.blur>0?"blur("+a.blur.toFixed(2)+"px)":"";
+                sp.style.textDecoration=(a.ul>0)?"underline":"";
+                sp.style.textDecorationColor=(a.ul>0)?"#ffd23e":"";
+                sp.style.textShadow=(a.blink>0)?("0 0 "+(2+6*a.blink).toFixed(1)+"px rgba(255,210,62,"+(0.25+0.7*a.blink).toFixed(2)+")"):"";
                 if(t<dur*1.6 && demo.isConnected) requestAnimationFrame(step);
-                else{ sp.style.opacity="1"; sp.style.transform="none"; }
+                else{ sp.style.opacity="1"; sp.style.transform="none"; sp.style.filter=""; sp.style.textDecoration=""; sp.style.textShadow=""; }
             }
             requestAnimationFrame(step);
         });
@@ -8678,6 +8718,30 @@ function subTextAssAnim(c,q){
             const sc=Math.round(100+35*strength);
             return "{\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&\\fscx"+sc+"\\fscy"+sc+")\\t("+e+","+(e+160)+",\\fscx100\\fscy100)}"+esc2(w.ch);
         }
+        /* ---- 新增 8 套：ASS 用现有标签近似（预览里是完全态，烧录用 libass 能表达的最接近效果）---- */
+        if(q.anim==="blurFade"){
+            /* 柔焦淡入：\blur 由大到 0 */
+            const b=(6*strength).toFixed(1);
+            return "{\\blur"+b+"\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&\\blur0)}"+esc2(w.ch);
+        }
+        if(q.anim==="typewriter"){
+            /* 打字机：字到点瞬间显示，无渐变 */
+            return "{\\alpha&HFF&\\t("+s+","+s+",\\alpha&H00&)}"+esc2(w.ch);
+        }
+        if(q.anim==="underline"){
+            /* 划线高亮：ASS 无逐字下划线进度标签，退化为卡拉OK逐字变色跟随朗读 */
+            const cs=Math.max(1,Math.round((nz(w.e)-nz(w.s))*100));
+            return "{\\kf"+cs+"}"+esc2(w.ch);
+        }
+        if(q.anim==="slideStagger"||q.anim==="gather"||q.anim==="riseSoft"||q.anim==="bounce"){
+            /* 位移类：ASS 无逐字位移标签，退化为柔和缩放+淡入（预览里是完整位移动效） */
+            const sc=Math.round(100+(q.anim==="bounce"?18:10)*strength);
+            return "{\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&\\fscx"+sc+"\\fscy"+sc+")\\t("+e+","+(e+150)+",\\fscx100\\fscy100)}"+esc2(w.ch);
+        }
+        if(q.anim==="outlineBlink"){
+            /* 轮廓描边闪烁：加粗描边色 + 淡入，libass 不支持逐帧闪烁，取静态描边强调 */
+            return "{\\bord1.5\\3c&H3ED2FF&\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&)}"+esc2(w.ch);
+        }
         return "{\\alpha&HFF&\\t("+s+","+e+",\\alpha&H00&)}"+esc2(w.ch);
     }).join("");
 }
@@ -9042,13 +9106,19 @@ function drawStageFrame(x,W,H,opts){
                     if(a.opacity<=0.01){ cx+=ww; continue; }
                     x.save();
                     x.globalAlpha=op*a.opacity;
-                    x.translate(cx+ww/2,py-size*0.36);
+                    /* tx 水平位移 / ty 垂直位移：与预览一致（ty 原先 Canvas 未消费，升起类导出看不到位移，这里补齐） */
+                    x.translate(cx+ww/2+(a.tx||0)*scale,py-size*0.36-(a.ty||0)*scale);
                     if(a.scale&&a.scale!==1) x.scale(a.scale,a.scale);
                     if(a.rotate) x.rotate(a.rotate*Math.PI/180);
+                    if(a.blur>0) x.filter="blur("+(a.blur*scale).toFixed(2)+"px)";
                     const by=a.color||fillStyle;
                     if(a.glow){ x.shadowColor=w.kw?"#ffd23e":(q.glowColor||"#ffffff"); x.shadowBlur=(q.glow||8)*scale; }
+                    /* 描边闪烁：轮廓微光呼吸，内部文字保持静态 */
+                    if(a.blink>0){ x.shadowColor="#ffd23e"; x.shadowBlur=(2+6*a.blink)*scale; }
                     if(x.lineWidth>0){ x.strokeStyle=q.stroke||"#000"; x.strokeText(w.ch,0,0); }
                     x.fillStyle=by; x.fillText(w.ch,0,0);
+                    /* 划线高亮：下划线按朗读进度逐字推进，与卡拉OK整字变色区分 */
+                    if(a.ul>0){ x.fillStyle=q.underlineColor||"#ffd23e"; x.fillRect(-ww/2,size*0.34,ww*a.ul,Math.max(1.5,size*0.055)); }
                     x.restore();
                     cx+=ww;
                 }
