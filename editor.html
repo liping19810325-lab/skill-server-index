@@ -3941,17 +3941,22 @@ async function ensureClipStrips(){
             }
             const todo=Array.from(groups.entries()).slice(0,8);
             if(!todo.length) break;
-            await Promise.all(todo.map(async ([k,clips])=>{
+            /* 严格串行：绝不同时开多个 video 解码器。
+               用户实测并发抽帧会让 Windows 显存瞬间冲到 7GB（超出 4G 后用内存共享显存），
+               十几秒后任务结束才回落；串行后峰值只留一个解码器，时间轴缩略图是 cosmetic 功能，
+               慢一点完全可接受。 */
+            for(const [k,clips] of todo){
                 const c0=clips[0], a=assetById(c0.assetId), url=mediaUrl(a);
                 let frames=stripFramesBySig.get(k);
                 if(!frames){
                     frames=[];
                     const N=4, off=Math.floor((Number(c0.offset)||0)/2)*2, dur=2;
                     for(let i=0;i<N;i++){
-                        if(playing || myToken!==stripGenToken) return;
+                        if(playing || myToken!==stripGenToken) break;
                         const d=await grabFrame(url,off+dur*(i+0.5)/N,256);  /* 256px 足够时间轴缩略图 */
                         if(d) frames.push(d);
                     }
+                    if(playing || myToken!==stripGenToken) break;
                     if(frames.length){
                         if(stripFramesBySig.size>120){
                             const k0=stripFramesBySig.keys().next().value; stripFramesBySig.delete(k0);
@@ -3960,11 +3965,10 @@ async function ensureClipStrips(){
                     }
                 }
                 for(const c of clips){
-                    if(playing || myToken!==stripGenToken){ clipStripCache.delete(c.id); continue; }
                     if(frames.length) clipStripCache.set(c.id,{sig:clipStripSig(c),frames:frames});
                     else clipStripCache.delete(c.id);
                 }
-            }));
+            }
         }
     }finally{ stripFillRunning=false; }
     /* 只在空闲且任务未被取消时刷新一次：避免旧版每批都 renderTimeline 造成反复整树重建 */
@@ -4311,7 +4315,8 @@ function pause(){
     audioPool.forEach(o=>{ try{ if(!o.el.paused) o.el.pause(); }catch(e){} });
     renderPlayhead();
     /* 停下来后再低优先级续抽缩略图，不影响播放流畅度 */
-    setTimeout(()=>{ if(!playing) ensureClipStrips(); },1200);
+    /* 延后到 5 秒后再续抽，且严格串行，避免暂停瞬间又冲高显存 */
+    setTimeout(()=>{ if(!playing) ensureClipStrips(); },5000);
 }
 function seek(t){ if(assetPreviewId) exitAssetPreview(true); state.playhead=clamp(t,0,totalDuration()); syncMedia(); renderPlayhead(); }
 /* 播放头磁吸：拖动红线 / 标尺时，5 帧以内优先贴附到任一素材的开头或结尾。
@@ -5486,9 +5491,17 @@ function shrinkImage(url){
 function grabFrame(url,t,maxSize){
     const MAX=Number(maxSize)||512;
     return new Promise(res=>{
-        let done=false; const fin=v=>{ if(done)return; done=true; res(v||""); };
+        let done=false, vd=null;
+        const fin=val=>{
+            if(done)return; done=true;
+            /* 关键：立刻释放这次抽帧创建的解码器和视频纹理。
+               旧版只 resolve，video 元素靠 GC 慢慢回收，Windows 上几十次并发抽帧
+               会把解码缓冲/纹理堆到数 GB，播放头几秒直接冲爆 4G 显存。 */
+            if(vd){ try{ vd.pause(); vd.removeAttribute("src"); vd.load(); }catch(e){} vd=null; }
+            res(val||"");
+        };
         try{
-            const v=document.createElement("video"); v.crossOrigin="anonymous"; v.preload="auto"; v.muted=true;
+            const v=document.createElement("video"); vd=v; v.crossOrigin="anonymous"; v.preload="auto"; v.muted=true;
             v.onloadeddata=()=>{ try{ v.currentTime=Math.min(Number(t)||0,Math.max(0,(v.duration||1)-0.1)); }catch(e){ fin(""); } };
             v.onseeked=()=>{
                 try{
