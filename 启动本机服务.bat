@@ -24,6 +24,22 @@ if not exist "%CORE%" (
     echo 下载完成：%CORE%（以后无需再下载）
 )
 
+rem ---- 预检：若本机服务已在运行，友好提示并退出，避免误报『端口占用/启动失败』----
+set "SRV="
+for /f "delims=" %%i in ('powershell -NoProfile -Command "try{$r=Invoke-RestMethod -Uri 'http://127.0.0.1:8788/api/ping' -TimeoutSec 2; if($r.ok){'RUNNING'}}catch{}" 2^>nul') do set "SRV=%%i"
+if "%SRV%"=="RUNNING" (
+    echo.
+    echo ==========================================================
+    echo   本机服务已经在运行中，无需重复启动！
+    echo   地址：http://127.0.0.1:8788
+    echo   请直接回到剪辑台使用即可，功能一切正常。
+    echo   若确实想重启：请先关闭正在运行的服务窗口，再双击本文件。
+    echo ==========================================================
+    echo.
+    pause
+    exit /b 0
+)
+
 where py >nul 2>nul
 if %errorlevel%==0 (
     py -3 %CORE%

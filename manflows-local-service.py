@@ -2759,8 +2759,22 @@ def main():
         server = ThreadingHTTPServer((HOST, PORT), Handler)
     except OSError as e:
         print("")
-        print("【启动失败】无法监听 127.0.0.1:%d，端口可能已被其它程序占用（或没有权限）。" % PORT)
-        print("  若已经有另一个『漫流本机服务』在运行，请先关闭它的窗口再重新启动。")
+        # 双保险：端口占用时先探测是否『本服务已在运行』，避免给用户误报启动失败
+        already = False
+        try:
+            import urllib.request as _ur
+            with _ur.urlopen("http://127.0.0.1:%d/api/ping" % PORT, timeout=2) as _r:
+                _body = _r.read()
+            already = (b'"ok": true' in _body) or (b'"ok":true' in _body)
+        except Exception:
+            pass
+        if already:
+            print("【本机服务已在运行】检测到 127.0.0.1:%d 上已有本服务在正常工作。" % PORT)
+            print("  这通常是因为你之前启动的服务窗口仍在运行——无需重复启动。")
+            print("  请直接回到剪辑台使用（功能一切正常）；若确实要重启，先关闭那个窗口再启动。")
+            sys.exit(0)
+        print("【启动失败】无法监听 127.0.0.1:%d，端口被其它程序占用（或没有权限）。" % PORT)
+        print("  若某个『漫流本机服务』正在运行但探测异常，请先关闭它的窗口再重新启动。")
         print("  详细错误：%s" % _short(e))
         sys.exit(1)
     try:

@@ -707,7 +707,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <label data-mode="third_party"><input type="radio" name="edComputeMode" value="third_party"> 第三方API</label>
                 </div>
                 <div class="hint" id="edComputeHint" style="display:none"></div>
-                <div class="svc-dl-row" id="edComputeDlRow"><span>⬇ 下载「启动本机服务」（打开后浏览器菜单→另存为，文件名保持不变即可双击启动）：</span>
+                <div class="svc-dl-row" id="edComputeDlRow"><span>⬇ 下载本机服务（<b>点链接即直接下载</b>，勿用浏览器「另存为网页」；下载后文件名以 .command / .bat 结尾即正确，双击启动）：</span>
                     <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.command" download target="_blank" rel="noopener">Mac 版 (.command)</a>
                     <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.bat" download target="_blank" rel="noopener">Windows 版 (.bat)</a>
                 </div>
@@ -1035,7 +1035,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <ul>
                 <li><b>用户工作区（互不串工程）</b>：顶栏「👤 工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「打开工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。不同电脑、不同浏览器配置文件本来就天然互不相通。注意：静态站点没有账号体系，这是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
                 <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。左侧封面按<b>工程实际画幅比例</b>自适应（与导出分辨率取自同一个预览画幅，横版 / 竖版都不再被压成 3:4 竖图）。视频区块只保留真实生效的参数：分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；原先的「一键超清」「补分辨率」两个开关没有任何前后端实现，属于无效装饰，已移除。底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。<br><b>字幕烧录</b>：视频区块的「烧录字幕」默认开启，导出时把字幕轨交给本机 FFmpeg 的 libass 滤镜真正写进画面像素（硬字幕，支持中文），不依赖播放器外挂；关闭则只输出画面，可另在「字幕导出」里单独拿 SRT / VTT。<b>防爆音</b>：导出真渲染时每个片段首尾各加 30ms 淡入淡出，消除智能剪口播切段拼接处的爆音，预览逻辑不受影响。</li>
-                <li><b>本机小服务（Mac / Windows 通用，可选）</b>：点此直接下载 —— <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.command" download target="_blank" rel="noopener">⬇ Mac 版 (.command)</a> · <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.bat" download target="_blank" rel="noopener">⬇ Windows 版 (.bat)</a>（打开后浏览器菜单→另存为，文件名保持不变）。下载后双击即可在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。<br><b>每位用户用自己电脑上的 FFmpeg</b>：Windows 可 <code>winget install --id Gyan.FFmpeg</code> 或下载 <code>https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip</code>，Mac 用 <code>brew install ffmpeg</code>，Linux 用 <code>sudo apt install ffmpeg</code>；服务也会按需自动下载静态版到 <code>~/.manflows/bin/</code>。仓库里的 <code>render_verify.py</code> 是 10 秒短视频验证用例，可直接跑出倒放与各档变速的实测结果。</li>
+                <li><b>本机小服务（Mac / Windows 通用，可选）</b>：点此直接下载（<b>点链接即直接下载，勿用另存为网页</b>）—— <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('all_mac',event)" title="一键启动8788+9000，Mac">⬇ 一键启动全部·Mac（推荐）</a> · <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.bat" onclick="svcDownload('all_win',event)" title="一键启动8788+9000，Windows">⬇ 一键启动全部·Win（推荐）</a>；仅需单个服务：<a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('mac',event)">Mac</a> / <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.bat" onclick="svcDownload('win',event)">Win</a>。下载后双击即可在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。<br><b>每位用户用自己电脑上的 FFmpeg</b>：Windows 可 <code>winget install --id Gyan.FFmpeg</code> 或下载 <code>https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip</code>，Mac 用 <code>brew install ffmpeg</code>，Linux 用 <code>sudo apt install ffmpeg</code>；服务也会按需自动下载静态版到 <code>~/.manflows/bin/</code>。仓库里的 <code>render_verify.py</code> 是 10 秒短视频验证用例，可直接跑出倒放与各档变速的实测结果。</li>
                 <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
                 <li><b>单击素材即预览</b>：点素材库里任一素材，预览窗口立即预览——视频 / 声音自动播放，图片 / 文字只显示画面，<b>都不自动加入轨道</b>；要剪辑请自己用鼠标把素材拖到时间轴对应轨道（双击加入仍保留给习惯用它的用户）。</li>
                 <li><b>时间轴缩放</b>：工具条右侧有缩放滑块、＋/−、以及「适应」按钮；<b>默认按导入素材的总时长自动适配</b>宽度，手动拖过滑块后不再自动改，点「适应」可随时回到自适应。</li>
@@ -1350,9 +1350,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <details class="fw-install-guide" style="margin:8px 0;border:1px solid var(--border2);border-radius:8px;padding:8px 10px">
                 <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">🛠 没有转写模型？点这里：在自己电脑安装本机 faster-whisper（免费、离线，Mac / Windows 都可）</summary>
                 <div style="font-size:12px;line-height:1.7;margin-top:8px">
-                    ① 先下载并双击<b>「启动本机服务」</b>（保持窗口开着）：<a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.command" download target="_blank" rel="noopener">⬇ Mac 版</a> · <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.bat" download target="_blank" rel="noopener">⬇ Windows 版</a>。<br>
-                    ② 再下载并双击<b>「启动本机转写服务」</b>：<a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E8%BD%AC%E5%86%99%E6%9C%8D%E5%8A%A1.command" download target="_blank" rel="noopener">⬇ Mac 版</a> · <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E8%BD%AC%E5%86%99%E6%9C%8D%E5%8A%A1.bat" download target="_blank" rel="noopener">⬇ Windows 版</a>：会自动建虚拟环境、装 faster-whisper，首次下载约 460MB 的 small 模型，装完停在 9000 端口。<br>
-                    ③ 两个窗口都保持开着，回到本页把「转写引擎」选成<b>「仅本机 faster-whisper（9000）」</b>，点开始即可。<br>
+                    <b>推荐：一键启动全部（8788 主服务 + 9000 转写服务，一个文件全搞定）</b> —— <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('all_mac',event)">⬇ Mac 版</a> · <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.bat" onclick="svcDownload('all_win',event)">⬇ Windows 版</a>（<b>点链接即直接下载</b>，勿用浏览器另存为网页；.command/.bat 结尾即正确）。首次会自动建虚拟环境、装 faster-whisper、下 460MB small 模型。<br>
+                    <b>说明</b>：8788 主服务是必开核心（导出/链接/AI剪辑/转发转写）；9000 转写服务只在 AI字幕选「本机转写」时才需要，若你用第三方转写接口则不必开。两者可分开下载：<a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('mac',event)">仅本机服务·Mac</a> / <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E8%BD%AC%E5%86%99%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('mac_asr',event)">仅转写服务·Mac</a>。<br>
+                    启动后回到本页把「转写引擎」选成<b>「仅本机 faster-whisper（9000）」</b>，点开始即可。<br>
                     <span style="color:var(--muted)">手动安装（可选）：<code>pip install faster-whisper==1.2.0</code>，然后运行 <code>python faster-whisper-server.py</code>。模型可用环境变量 FW_MODEL 改（tiny/base/medium/large-v3）。</span>
                 </div>
             </details>
@@ -1523,17 +1523,47 @@ const ED_COMPUTE_LABEL  = {manflow:"漫流算力", local:"本机算力", third_p
 /* ===== 本机服务下载：指向仓库最新启动脚本（中文文件名做 URL 编码）=====
    用户只下载了启动器也能用：脚本会自动从同一仓库补齐 .py 核心文件。 */
 const SVC_DL_BASE    = "https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/";
-const SVC_DL_MAC     = SVC_DL_BASE + encodeURIComponent("启动本机服务.command");
-const SVC_DL_WIN     = SVC_DL_BASE + encodeURIComponent("启动本机服务.bat");
-const SVC_DL_MAC_ASR = SVC_DL_BASE + encodeURIComponent("启动本机转写服务.command");
-const SVC_DL_WIN_ASR = SVC_DL_BASE + encodeURIComponent("启动本机转写服务.bat");
+const SVC_DL_CDN     = "https://cdn.jsdelivr.net/gh/liping19810325-lab/skill-server-index@main/";
+const SVC_DL_FILES   = {
+    all_mac: {name:"一键启动全部服务.command", label:"⬇ 一键启动全部·Mac（推荐）"},
+    all_win: {name:"一键启动全部服务.bat",     label:"⬇ 一键启动全部·Win（推荐）"},
+    mac:     {name:"启动本机服务.command",     label:"⬇ 仅本机服务·Mac"},
+    win:     {name:"启动本机服务.bat",         label:"⬇ 仅本机服务·Win"},
+    mac_asr: {name:"启动本机转写服务.command", label:"⬇ 仅转写服务·Mac"},
+    win_asr: {name:"启动本机转写服务.bat",     label:"⬇ 仅转写服务·Win"}
+};
+const SVC_DL_MAC     = SVC_DL_BASE + encodeURIComponent(SVC_DL_FILES.mac.name);
+const SVC_DL_WIN     = SVC_DL_BASE + encodeURIComponent(SVC_DL_FILES.win.name);
+const SVC_DL_MAC_ASR = SVC_DL_BASE + encodeURIComponent(SVC_DL_FILES.mac_asr.name);
+const SVC_DL_WIN_ASR = SVC_DL_BASE + encodeURIComponent(SVC_DL_FILES.win_asr.name);
 const SVC_DL_MARK    = "@@MF_SVC_DL@@";
 const SVC_DL_MARK_ASR= "@@MF_SVC_DL_ASR@@";
+/* 可靠下载：fetch 文本 → Blob → 指定文件名直接保存。跨域 download 属性对 raw.github 无效，
+   用户走"另存为网页"会存成 HTML；用 Blob 可彻底避免。两个源都带 CORS *，raw 失败回退 jsDelivr。 */
+async function svcDownload(kind, ev){
+    if(ev && ev.preventDefault) ev.preventDefault();
+    const f=SVC_DL_FILES[kind]; if(!f) return;
+    const urls=[SVC_DL_BASE+encodeURIComponent(f.name), SVC_DL_CDN+encodeURIComponent(f.name)];
+    let txt="";
+    for(const u of urls){
+        try{ const r=await fetch(u,{cache:"no-store"}); if(r.ok){ txt=await r.text(); if(txt) break; } }catch(e){}
+    }
+    if(!txt){ alert("自动下载失败，请检查网络后重试。也可到仓库手动下载："+f.name); return; }
+    try{
+        const blob=new Blob(["\ufeff".charCodeAt(0)===0xFEFF?txt:txt],{type:"text/plain;charset=utf-8"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a"); a.href=url; a.download=f.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),4000);
+    }catch(e){ alert("下载失败："+e.message); }
+}
 function svcDlAnchors(asr){
-    let s='<a class="svc-dl" href="'+SVC_DL_MAC+'" download target="_blank" rel="noopener">⬇ 本机服务·Mac</a>'
-         +'<a class="svc-dl" href="'+SVC_DL_WIN+'" download target="_blank" rel="noopener">⬇ 本机服务·Win</a>';
-    if(asr) s+='<a class="svc-dl" href="'+SVC_DL_MAC_ASR+'" download target="_blank" rel="noopener">⬇ 转写服务·Mac</a>'
-              +'<a class="svc-dl" href="'+SVC_DL_WIN_ASR+'" download target="_blank" rel="noopener">⬇ 转写服务·Win</a>';
+    const one=(k)=>'<a class="svc-dl" href="'+SVC_DL_BASE+encodeURIComponent(SVC_DL_FILES[k].name)
+        +'" onclick="svcDownload(\''+k+'\',event)" title="点击直接下载'+SVC_DL_FILES[k].name+'">'
+        +SVC_DL_FILES[k].label+'</a>';
+    /* 一键启动全部 = 8788 + 9000 一个文件全搞定，默认首选；后面附单独版供精简使用 */
+    let s=one("all_mac")+one("all_win")+'<span style="color:var(--muted)">(单独版：)</span>'+one("mac")+one("win");
+    if(asr) s+='<span style="color:var(--muted)">(转写：)</span>'+one("mac_asr")+one("win_asr");
     return s;
 }
 /* 状态/报错文案里出现“启动本机服务/本机服务/8788/faster-whisper”时，自动追加可点击下载链接标记 */
@@ -1549,7 +1579,7 @@ function renderSvcDl(escapedText){
         .split(esc(SVC_DL_MARK)).join(svcDlAnchors(false));
 }
 function svcDlRow(asr,label){
-    return '<div class="svc-dl-row"><span>'+(label||"下载本机服务（打开后浏览器菜单→另存为，文件名保持不变）")+'</span>'+svcDlAnchors(asr)+'</div>';
+    return '<div class="svc-dl-row"><span>'+(label||"下载本机服务（<b>点链接即直接下载</b>，勿用浏览器另存为网页）")+'</span>'+svcDlAnchors(asr)+'</div>';
 }
 const LABEL_W           = 118;
 const DEF_LAYOUT        = {left:308, right:300, tl:294};
@@ -5902,7 +5932,7 @@ function showAiSetup(cfg){
       +'<li>左上<b>「算力总控」</b>三档点选切换：<b>本机算力</b>＝本机 llama / Ollama 与 faster-whisper；<b>第三方API</b>＝创作台 / 画布已填好的接口配置（共用键 <code>manflows_api_profiles</code>）；<b>漫流算力</b>为占位档暂未开放。</li>'
       +'<li>点「✨ AI剪辑」后，在弹窗的<b>「选择模型」</b>里挑一个你已经部署好的大语言模型，<b>建议只选 Claude 或 GPT 系列之一</b>；下拉没有就手填模型名。</li>'
       +'<li>AI 字幕由本机服务转发转写（本机 faster-whisper 9000 端口，或第三方 whisper-1 / gpt-4o-transcribe 通道）；Claude 与普通 GPT 对话模型不是转写模型，能跑 AI剪辑但不能做 AI字幕。</li></ul>'
-      +svcDlRow(false,'<b>没有启动本机服务？</b>点此下载（打开后另存为，文件名保持不变，双击即可启动）：')
+      +svcDlRow(false,'<b>没有启动本机服务？</b>点此下载（<b>点链接即直接下载</b>，勿用另存为网页；.command/.bat 结尾即正确，双击启动）：')
       +'<p class="hint">本站不内置任何 API 密钥；请在你自己的浏览器里填写，密钥仅保存在本机，其他用户需各自填写。配置好后再点一次「✨ AI剪辑」即可；带图请求失败时会自动降级为纯轨道数据分析。</p>';
     $("aiSetupModal").classList.add("show");
 }
