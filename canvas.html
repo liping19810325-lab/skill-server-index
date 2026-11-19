@@ -318,7 +318,7 @@
         <button class="tb-btn add-btn" data-add="audio">＋ 声音</button>
         <button class="tb-btn add-btn" data-add="video">＋ 视频</button>
         <button class="tb-btn add-btn" data-add="generate">＋ 生成</button>
-        <button class="tb-btn add-btn" data-add="result">＋ 结果</button>
+        <!-- 「＋ 结果」已移除：结果节点由「运行生成」自动创建，用户不能手动新建 -->
         <div class="tb-sep"></div>
         <button class="tb-btn" id="undoBtn" title="撤销（Ctrl+Z）" style="padding:4px 7px;">↶</button>
         <button class="tb-btn" id="redoBtn" title="重做（Ctrl+Y / Ctrl+Shift+Z）" style="padding:4px 7px;">↷</button>
@@ -392,7 +392,7 @@
                 <svg class="edges" id="edgeSvg" width="8000" height="6000" xmlns="http://www.w3.org/2000/svg"></svg>
                 <div id="nodeLayer"></div>
             </div>
-            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词 / ＋ 参考图 / ＋ 声音 / ＋ 视频 / ＋ 生成 / ＋ 结果」按需加节点，或在创作台点「⇢ 送到画布」；想删节点请框选后按 Delete / Backspace<br><button class="mini-btn purple" id="seedBtn" style="margin-top:10px">↺ 放入默认两节点（提示词 → 生成）</button></div>
+            <div class="empty-hint" id="emptyHint"><b>画布还是空的</b><br>点上方「＋ 提示词 / ＋ 参考图 / ＋ 声音 / ＋ 视频 / ＋ 生成」按需加节点，或在创作台点「⇢ 送到画布」；结果节点会在「运行生成」后自动出现；想删节点请框选后按 Delete / Backspace<br><button class="mini-btn purple" id="seedBtn" style="margin-top:10px">↺ 放入默认两节点（提示词 → 生成）</button></div>
             <div class="canvas-tip">空白处拖框多选 · 空格/中键拖动平移 · 拖标题栏移动 · 右侧圆点单击加节点 / 拖出连线 · 点连线删除 · 滚轮缩放 · Ctrl+Z 撤销 · Delete 删除选中</div>
             <div class="zoom-bar">
                 <button id="zoomOut" title="缩小">−</button><span id="zoomLabel">100%</span><button id="zoomIn" title="放大">＋</button><button id="zoomFit" title="回到原点 100%">⌖</button>
@@ -469,7 +469,7 @@
         <p>左侧最上方【算力总控】是全局三档开关：<b>漫流算力</b>（占位，暂不可运行）/ <b>本机算力</b>（本机 ComfyUI 工作流）/ <b>第三方API</b>。切换后<b>当前画布上所有「生成」节点的生成引擎一起变</b>，之后新建的生成节点也默认跟随；单个生成节点里仍可单独改引擎（不会回写总控）。现在<b>三个网页的算力档位各自独立</b>：创作台、导演画布、AI 剪辑台可以同时选用不同算力并行工作，在本页切档不会改动另外两个网页（同一网页的多个标签页仍同步）；本页内部<b>两处联动</b>：本栏与生成节点里的「生成引擎」任意一处切换，另一处立即跟随。从本栏切换时，当前画布已有生成节点会一起切（正在生成中的节点不打断，跑完后再由用户切换）；在生成节点里单独改引擎只改那一个节点、其它节点仍可各自保留，新建生成节点默认跟随本栏。<b>创作台的「上下文窗口 token」只对「本机算力」生效</b>，漫流算力 / 第三方API 会自动改为「上下文长度：跟随所选模型（自适应）」且不再发送 max_tokens。画布加载旧画布时不会擅自改动已存好的节点。下方折叠的「⚙ 接入工具」保留原来的实用功能：<b>⚡ 自动接通本机大模型</b>（提示词节点智能拆分 / SD / H3 用）、<b>补充模型清单</b>的手填 / 从服务商拉取 / 删除，以及创作台 API 配置的只读展示。原「② API 配置 / 模型清单」与「③ 三类接入方式」两栏已精简：长篇纯文字说明移除，功能全部并入这里，<b>功能一个不少</b>。</p>
         <h2>画布怎么用</h2>
         <ul>
-            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 等生视频提示词、Midjourney / GPT Image 生图提示词，底部两个拆分按钮（顶部还有「AI提示词」负责把非标提示词改写成<b>单条</b>模型专用提示词，两者不冲突）：<br>· <b>「多条图片提示词分拆」</b>＝把导入的<b>两条以上文生图提示词</b>自动按「单条」拆开，一条提示词一个节点；<b>「多组视频提示词分拆」</b>＝把导入的<b>两组以上多参生视频提示词</b>自动按「组」拆开，一组一个节点。生视频要按组拆，是因为<b>一组里常含不同秒数的多个子分镜（如 0-3 秒 / 3-6 秒 / 6-10 秒），这些子分镜必须整组保留，不能拆散</b>。<br>· 两个按钮都<b>只做自动解析文字拆分</b>：优先在本机直接识别 ▌ 标记、第N组 / 视频N / 镜头组N 标题、编号与空行分块，<b>原文逐字保留、不改写、不调技能</b>；只有确实识别困难时才询问你是否调用大语言模型（本机 llama / Ollama 优先，其次创作台 API）来<b>识别并补分组标记</b>，模型也不改正文。<b>识别出原文只有单条 / 单组时不进行拆分</b>，原文保持不变。<br>· 拆出来的两个以上新提示词节点会<b>替换原节点</b>，一律<b>不与画布上现有工作流自动连线，也不彼此串线</b>，请自己从右侧圆点拉线；拆前会显示条数 / 组数供确认。</li>
+            <li><b>提示词节点</b>：放剧本、Seedance / MiniMax H3 等生视频提示词、Midjourney / GPT Image 生图提示词，底部两个拆分按钮（顶部还有「AI提示词」负责把非标提示词改写成<b>单条</b>模型专用提示词，两者不冲突）。<b>「AI提示词」同时支持两种算力</b>：第三方算力按生成节点选定的模型（Seedance / MiniMax H3 / Midjourney / GPT Image 等）套用对应规范；<b>本机算力会精准识别生成节点上选的 ComfyUI 生图 / 生视频工作流</b>（按工作流名与里面的模型文件名识别 FLUX / SDXL / Qwen Image / Wan / 可灵 / 混元 / MiniMax H3 等），把你的简单提示词优化成该模型族的专用提示词格式；先在生成节点选好模型 / 工作流即可。<br>· <b>「多条图片提示词分拆」</b>＝把导入的<b>两条以上文生图提示词</b>自动按「单条」拆开，一条提示词一个节点；<b>「多组视频提示词分拆」</b>＝把导入的<b>两组以上多参生视频提示词</b>自动按「组」拆开，一组一个节点。生视频要按组拆，是因为<b>一组里常含不同秒数的多个子分镜（如 0-3 秒 / 3-6 秒 / 6-10 秒），这些子分镜必须整组保留，不能拆散</b>。<br>· 两个按钮都<b>只做自动解析文字拆分</b>：优先在本机直接识别 ▌ 标记、第N组 / 视频N / 镜头组N 标题、编号与空行分块，<b>原文逐字保留、不改写、不调技能</b>；只有确实识别困难时才询问你是否调用大语言模型（本机 llama / Ollama 优先，其次创作台 API）来<b>识别并补分组标记</b>，模型也不改正文。<b>识别出原文只有单条 / 单组时不进行拆分</b>，原文保持不变。<br>· 拆出来的两个以上新提示词节点会<b>替换原节点</b>，一律<b>不与画布上现有工作流自动连线，也不彼此串线</b>，请自己从右侧圆点拉线；拆前会显示条数 / 组数供确认。</li>
             <li><b>参考图节点</b>：上传或拖入多张图，前端压缩到 1024 边长 JPEG；只存本机 IndexedDB。</li>
             <li><b>声音参考节点</b>：上传或拖入多段音频（MP3 / WAV / FLAC，建议单段 ≤ 15MB），可试听、删除，也能直接粘贴公网音频直链；同样只存本机。连到生成节点后，<b>多参考生视频</b>会把它作为声音参考一起提交。本地 ComfyUI：<b>MiniMax H3 工作流不用预先接声音节点</b>——画布会自动注入 LoadAudio 并接到 H3 的 <code>ref_audios</code>（上限 3 段）；含 LoadAudio 的其它工作流则直接写入载入节点。</li>
             <li><b>视频参考节点</b>：上传或拖入参考视频（MP4 / MOV / WebM，<b>最多 3 个、单个 ≤ 50MB</b>，官方要求 MP4），可预览、删除，也能粘贴公网视频直链；只存本机。很多多参生视频模型支持「给一段参考视频，照着它的风格/运镜生成新视频」，连到生成节点后会作为 <code>video_url</code> 一起提交。</li>
@@ -490,7 +490,7 @@
             <li>输入框 / 下拉框里打字时，除 <code>Ctrl+S</code>、<code>Esc</code> 外不触发画布快捷键，不会误删节点。</li>
         </ul>
         <h2>连线规则</h2>
-        <p><b>单击节点右侧圆点</b>会弹出「选择节点」菜单，列出六类节点（提示词 / 参考图 / 声音参考 / 视频参考 / 生成 / 结果，与左侧工具栏一致），点选后新节点出现在该节点右侧并<b>自动连好线</b>；Esc 或点空白处可关闭菜单。<b>手动连线</b>：从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线（两种方式都保留）。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。<b>快捷加节点</b>：在画布空白处<b>双击鼠标</b>，弹出「添加节点」菜单，点一下就在双击位置创建对应节点（六类节点与左侧工具栏完全一致）；Esc 或点空白关闭菜单。</p>
+        <p><b>单击节点右侧圆点</b>会弹出「选择节点」菜单，列出五类可手动节点（提示词 / 参考图 / 声音参考 / 视频参考 / 生成，与左侧工具栏一致）；结果节点不手动新建，点「运行生成」时会自动在生成节点右侧创建并连好线，点选后新节点出现在该节点右侧并<b>自动连好线</b>；Esc 或点空白处可关闭菜单。<b>手动连线</b>：从节点右侧圆点按住拖到另一个节点的左侧圆点即可连线（两种方式都保留）。<b>拔线</b>：按住目标节点左侧圆点（已连线的）往外拖，线会跟着鼠标回到源头，松手在空白处＝删除，松手在别的节点＝改接；直接点连线本身也能删。生成节点只读取「连进它」的上游节点，方向别接反。<b>快捷加节点</b>：在画布空白处<b>双击鼠标</b>，弹出「添加节点」菜单，点一下就在双击位置创建对应节点（五类可手动节点与左侧工具栏完全一致）；Esc 或点空白关闭菜单。</p>
         <h2>与创作台的关系</h2>
         <p>创作台 <code>index.html</code> 负责产出文字，本页 <code>canvas.html</code> 负责把文字变成图 / 视频。两个页面同源，共用一份 API 配置、一份本机大模型接通结果与【算力总控】的档位选择。创作台点「⇢ 送到画布」会先弹出「现有画布 / 新建画布」两个选项，选好后再送达：<b>现有画布</b>＝送到画布页当前打开（或上次使用）的那份画布；<b>新建画布</b>＝新开画布页并自动新建一份画布（与顶部「＋ 新建画布」同款，默认只有提示词 → 生成两个相连节点），把产物直接写进默认那个空提示词节点，不会再多建一个节点。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送来半段内容</b>；点「取消 / 关闭」则不送达。<b>左侧不再单独放「来自创作台的产物」卡片</b>：产物仍由「⇢ 送到画布」自动送达并变成提示词节点（打开画布页时会自动检查收件箱，画布页已打开也能实时收到）；「检查新产物」与「手动粘贴文本 → 提示词节点」两个手动入口已移除，想手动加文字用顶栏「＋ 提示词」新建节点后自行编辑即可。</p>
         <h2>多画布切换</h2>
@@ -603,6 +603,9 @@ const NODE_META = {
     generate:{label:"生成",   color:"#34d399"},
     result:  {label:"结果",   color:"#fbbf24"}
 };
+/* 用户可手动新建的节点类型：结果节点由「运行生成」自动创建，不出现在任何手动添加入口，
+   但 NODE_META 仍保留 result（自动生成路径 newNode 取 label/color 用）。 */
+const USER_ADDABLE_TYPES = ["prompt","image","audio","video","generate"];
 const DEFAULT_BODY_TEMPLATE = '{\n  "model": "{{model}}",\n  "prompt": "{{prompt}}",\n  "size": "{{size}}"\n}';
 /* 百炼 Qwen Image 2.1（DashScope 异步）可直接套用的请求体模板：{{content_array}} 会展开成参考图对象 + 文本 */
 const QWEN_IMAGE_TEMPLATE = '{\n  "model": "{{model}}",\n  "input": { "messages": [ { "role": "user", "content": {{content_array}} } ] },\n  "parameters": { "size": "{{size}}", "n": 1 }\n}';
@@ -1190,7 +1193,7 @@ function buildNode(n){
         '<span class="node-title"></span>'+(n.type==="prompt"?'<button type="button" class="node-ai-btn" data-act="ai" title="按生成节点已选定的模型，把非标提示词转为该模型专用的单条提示词">AI提示词</button>':'')+'<div class="node-actions">'+actions.join("")+'</div></div>'+
         '<div class="node-body"></div>'+
         '<div class="port port-in" title="输入：把别的节点连到这里；按住已连的线拖走可拔断"></div>'+
-        '<div class="port port-out" title="输出：单击弹出六类节点菜单（自动建联）；拖到别的节点左侧圆点可手动连线"></div>';
+        '<div class="port port-out" title="输出：单击弹出节点菜单（自动建联，结果节点由生成后自动创建）；拖到别的节点左侧圆点可手动连线"></div>';
     box.querySelector(".node-title").textContent = n.title || meta.label;
     const body = box.querySelector(".node-body");
     if(n.type==="prompt") buildPromptBody(body,n);
@@ -1247,7 +1250,7 @@ function buildPromptBody(body,n){
     const foot=document.createElement("div"); foot.className="ai-foot";
     foot.appendChild(pv);
     const aiTip=document.createElement("div"); aiTip.className="ai-foot-tip";
-    aiTip.innerHTML='<div>&quot;AI提示词&quot;先在生成节点选定模型</div><div>将把写的非标提示词转为该模型专用（比如gpt image、minjourney、seedance、minimax h3等）</div>';
+    aiTip.innerHTML='<div>&quot;AI提示词&quot;先在生成节点选定模型 / 工作流</div><div>把非标提示词转为该模型专用格式：第三方算力如 gpt image、midjourney、seedance、minimax h3；本机算力会识别所选 ComfyUI 工作流（FLUX / SDXL / Qwen Image / Wan / 可灵 / 混元 / Minimax H3 等）并套用其专用格式</div>';
     foot.appendChild(aiTip);
     body.appendChild(foot);
     function updateCharCount(){ cnt.textContent = (n.data.text||"").length + " 字"; }
@@ -2813,7 +2816,11 @@ const CV_FALLBACK_SKILL = {
     b:"Seedance 2.0 生视频分镜标准：每镜头 ≤15 秒；写清画面主体、动作、运镜、光线氛围与构图；台词逐字保留，不新增剧情；以情绪转折或说话人切换分段。",
     c:"GPT Image 单条生图提示词规范：固定四段英文段名各独占一行——scene:（用途与构图）/ subject:（主体静态外观定式）/ details:（材质、光照、色彩、取景，末句写全剧统一画风）/ constraints:（硬约束与一致性）；四段各 2–5 句中文，不堆形容词；正文里禁写模型名、像素尺寸、--ar 等平台参数；不虚构外观，不改原意。只输出一条完整提示词。",
     d:"MiniMax H3 Ref2VA 生视频分镜标准：每镜头 ≤15 秒；写清主体描述、动作时序、运镜、光影与构图；台词逐字保留，不新增剧情；以情绪转折或说话人切换分段。",
-    e:"Midjourney 单条生图提示词规范：一段连贯英文描述（约 40–80 词），按 Subject / Medium / Environment / Lighting / Color / Mood / Composition 按需取，不列字段清单；描述句禁中文、禁 :: 权重、禁量化字段；参数一律放末尾且固定顺序 --ar <画幅> --raw --sref <STYLE_REF> --no <排除项>，参数之后不得再有英文正文；禁 --q / --style raw / --v 等旧版参数。只输出一条完整提示词。"
+    e:"Midjourney 单条生图提示词规范：一段连贯英文描述（约 40–80 词），按 Subject / Medium / Environment / Lighting / Color / Mood / Composition 按需取，不列字段清单；描述句禁中文、禁 :: 权重、禁量化字段；参数一律放末尾且固定顺序 --ar <画幅> --raw --sref <STYLE_REF> --no <排除项>，参数之后不得再有英文正文；禁 --q / --style raw / --v 等旧版参数。只输出一条完整提示词。",
+    /* 本地 ComfyUI 工作流专用规范：技能库只有 b/c/d/e 四种第三方规范，本地工作流的模型不在其中，
+       这两条内置规范让「AI提示词」在本地算力下也能把简单提示词优化成所选模型族专用格式（不请求技能服务器）。 */
+    f:"ComfyUI 生图工作流专用提示词规范（适用于 FLUX / SDXL / SD1.5 / Qwen-Image / Seedream / Nano Banana 等，按本次目标模型的习惯书写）：\n1. 只输出【一条】正向提示词，纯文本正文；禁止负面提示词区块、禁止任何参数行（--ar / --sref / Steps / Sampler / CFG 等）、禁止拆成多条、禁止中文对照与元数据行。\n2. 用逗号分隔的短语或连贯短句把用户原文改写为模型可直接识别的画面描述，要素顺序：主体（数量 / 外观 / 服饰 / 表情 / 姿态）→ 动作与情节 → 场景环境 → 光照色调 → 画面风格与镜头质感。\n3. 严格保留用户原文的剧情、人物、场景、台词本意，不新增人物 / 剧情 / 台词；只做画面化、结构化与模型语法适配，不虚构原文没有的外观细节。\n4. FLUX / Qwen-Image / Nano Banana 偏自然语言完整短句、少堆砌标签；SDXL / SD1.5 可用英文关键词短语并按重要度从前往后排列；具体用词随本次目标模型调整。\n5. 不写模型名、分辨率、宽高比等平台参数。只输出一条完整提示词。",
+    g:"ComfyUI 生视频工作流专用提示词格式（适用于 Wan 通义万相 / 可灵 / 混元 / 即梦 / Seedance / LTX-Video / SVD 等，按本次目标模型的习惯书写）：\n1. 只输出【一条】视频提示词；内部可按时间顺序分镜（如 0-3 秒 / 3-6 秒），但整体是一条完整文本，不拆成多条、不生成多个节点。\n2. 每个分镜写清：画面主体与外观定式、动作时序、镜头运动（推拉摇移跟）、场景环境与光影氛围；有台词时逐字保留并标明说话人。\n3. 严格保留用户原文的剧情、人物、台词、场景本意，不新增剧情与台词；只做分镜化与模型语法适配。\n4. 按本次目标模型的习惯书写：Wan / 可灵 / 混元 / 即梦偏中文分镜描述、动作写具体；LTX-Video / SVD 偏英文短句、强调运动与镜头稳定；MiniMax H3 采用 Ref2VA 分镜标准。\n5. 不写模型名、分辨率、帧率、时长参数等平台字段，不写负面提示词区块与元数据行。只输出一条完整提示词。"
 };
 async function fetchSkillText(type){
     if(skillTextCache[type]) return {ok:true,text:skillTextCache[type]};
@@ -2840,16 +2847,72 @@ async function fetchSkillText(type){
    把用户写的非标提示词改写成【一条】该模型专用的完整提示词。
    与 SD / H3 按钮的区别：绝不拆成多条、绝不生成多个节点，结果写回当前提示词节点（Ctrl+Z 可撤销）。
    生图 = 一条图提示词；生视频 = 一条视频提示词（内部按技能规范含多个子分镜仍算一条）。 ===== */
+/* 本地 ComfyUI 工作流 → 模型族 / 专用提示词规范识别。
+   线索来源（优先级）：① 工作流名（导入文件名常含模型关键字，如「参考生视频minimax_h3_r2v」）；
+   ② 工作流 JSON 里的模型文件名 / class_type（unet_name / ckpt_name / filename_prefix 等）；
+   ③ 输出节点类型（SaveVideo 等）兜底定生图 / 生视频。
+   返回 {label, kind, type}：type 对应 CV_FALLBACK_SKILL / 技能库的规范 key（b/c/d/e/f/g）。 */
+function cvComfyModelInfo(w){
+    const name=String((w&&w.name)||"");
+    const wf=(w&&w.workflow)||{};
+    let hint=name;
+    Object.keys(wf).forEach(k=>{
+        const nd=wf[k]||{}, ins=nd.inputs||{};
+        ["unet_name","ckpt_name","model_name","vae_name","filename_prefix","clip_name"].forEach(f=>{
+            if(typeof ins[f]==="string") hint+=" "+ins[f];
+        });
+        if(typeof nd.class_type==="string") hint+=" "+nd.class_type;
+    });
+    const s=hint.toLowerCase().replace(/[\s_\-.]+/g,"");
+    const kind=((w&&w.kind==="video")||/savevideo|createvideo|vhs_savevideo|saveanimated|wan.*video|i2v|t2v|r2v/.test(s))?"video":"image";
+    /* 顺序：具体模型在前、大类名在后，避免「生图 / 生视频」这类泛词抢先命中 */
+    if(/minimax|h3|海螺|r2v/.test(s))              return {label:"MiniMax H3",             kind:"video", type:"d"};
+    if(/midjourney|minjourney|niji/.test(s))       return {label:"Midjourney",             kind:"image", type:"e"};
+    if(/seedance|即梦|doubao|豆包/.test(s))         return {label:"Seedance 即梦",          kind:"video", type:"b"};
+    if(/flux/.test(s))                            return {label:"FLUX.1",                 kind:"image", type:"f"};
+    if(/sdxl|sd_xl|stable.?diffusion|sd15|sd1\.?5/.test(s)) return {label:"SDXL / Stable Diffusion",kind:"image",type:"f"};
+    if(/qwen.?image|千问/.test(s))                 return {label:"Qwen Image",             kind:"image", type:"f"};
+    if(/seedream|nanobanana|banana|gpt.?image|dall/.test(s)) return {label:"生图模型",     kind:"image", type:"f"};
+    if(/wan|万相|wanx/.test(s))                    return {label:"Wan 通义万相",           kind:"video", type:"g"};
+    if(/kling|可灵/.test(s))                       return {label:"可灵 Kling",             kind:"video", type:"g"};
+    if(/hunyuan|混元/.test(s))                     return {label:"混元 Hunyuan",           kind:"video", type:"g"};
+    if(/runway|sora|veo|luma|pika|hailuo/.test(s)) return {label:"生视频模型",            kind:"video", type:"g"};
+    return {label:(kind==="video"?"ComfyUI 生视频工作流":"ComfyUI 生图工作流"),kind:kind,type:(kind==="video"?"g":"f")};
+}
 function cvAiTarget(n){
-    /* 优先取与本提示词节点直接相连的生成节点；没有连线时取画布上第一个已选模型的生成节点 */
+    /* 优先取与本提示词节点直接相连的生成节点；没有连线时取画布上第一个「已选定」的生成节点。
+       本地算力(comfyui)：以 workflowId 指向的工作流为准（不是 data.model——本地模式下它为空）；
+       第三方算力：沿用 data.model。这样本地算力换任何生图 / 生视频工作流都能被精准识别。 */
     const linked=canvas.edges.filter(e=>e.from===n.id).map(e=>e.to);
     let gens=canvas.nodes.filter(g=>g.type==="generate"&&linked.includes(g.id));
     if(!gens.length) gens=canvas.nodes.filter(g=>g.type==="generate");
-    const g=gens.find(x=>String((x.data&&x.data.model)||"").trim());
+    const ready=gens.filter(g=>{
+        const d=g.data||{};
+        if(d.engine==="comfyui") return !!d.workflowId;   /* 含本机大语言模型与已导入工作流 */
+        return !!String(d.model||"").trim();
+    });
+    const g=ready[0]||gens[0];
     if(!g) return null;
-    return {model:String(g.data.model).trim(),kind:String(g.data.kind||"image"),node:g};
+    const d=g.data||{};
+    /* 本地算力：本机大语言模型 → 通用文字规范；ComfyUI 工作流 → 按工作流精准识别模型族 */
+    if(d.engine==="comfyui"){
+        if(d.workflowId===CV_LOCAL_LLM_WFID)
+            return {model:"本机大语言模型",kind:"text",node:g,engine:"comfyui",type:"",skillLabel:"通用提示词整理规范"};
+        const w=workflowById(d.workflowId);
+        if(!w) return null;
+        const info=cvComfyModelInfo(w);
+        return {model:info.label+"（"+(w.name||"工作流")+"）",kind:info.kind,node:g,engine:"comfyui",
+                type:info.type,skillLabel:info.label+" 专用提示词格式"};
+    }
+    /* 第三方算力：原有逻辑不变 */
+    const model=String(d.model||"").trim();
+    if(!model) return null;
+    return {model:model,kind:String(d.kind||"image"),node:g,engine:"third_party",type:"",skillLabel:""};
 }
 function cvAiSkillOf(t){
+    /* 本地 ComfyUI 工作流：cvAiTarget 已从工作流精准识别出规范 key，直接采用 */
+    if(t.engine==="comfyui" && t.type) return {type:t.type,label:t.skillLabel||"ComfyUI 专用提示词格式",local:true};
+    if(t.engine==="comfyui" && t.kind==="text") return {type:"",label:"通用提示词整理规范",local:true};
     const s=String(t.model||"").toLowerCase().replace(/[\s_\-]+/g,"");
     if(/midjourney|minjourney|mjv|niji/.test(s)) return {type:"e",label:"Midjourney 生图提示词规范"};
     if(/minimax|h3|海螺|ref2va/.test(s)) return {type:"d",label:"MiniMax H3 生视频提示词规范"};
@@ -2875,7 +2938,7 @@ async function aiPromptRefine(n){
     if(!text){ setStatus("提示词是空的，先写入你的非标提示词","err"); setLlmNote(n,"❌ 提示词是空的，先写入你的非标提示词","err"); return; }
     if(cvBusy(n)){ setLlmNote(n,"⏳ 上一个任务还在处理中，请稍候（若已卡住，点本行重置）","busy"); return; }
     const t=cvAiTarget(n);
-    if(!t){ setStatus("请先在生成节点选定模型，再点「AI提示词」","err"); setLlmNote(n,"❌ 没找到已选模型的生成节点。请先在生成节点的「模型/工作流」里选定模型（比如 gpt image、midjourney、seedance、minimax h3），再点「AI提示词」。","err"); return; }
+    if(!t){ setStatus("请先在生成节点选定模型 / 工作流，再点「AI提示词」","err"); setLlmNote(n,"❌ 没找到已选定的生成节点。请在生成节点选定模型（第三方算力：gpt image / midjourney / seedance / minimax h3 等）或工作流（本机算力：选一份生图 / 生视频 ComfyUI 工作流），再点「AI提示词」。","err"); return; }
     const sk=cvAiSkillOf(t);
     n.data.splitting=true;
     cvBusyAt.set(n.id,Date.now());
@@ -2886,7 +2949,11 @@ async function aiPromptRefine(n){
     setLlmNote(n,"⏳ 目标模型「"+t.model+"」→ "+sk.label+"，正在调用大语言模型…","busy");
     try{
         let rule="把用户原文整理成结构清晰、指令明确的一条标准提示词，保留全部原意，不新增内容。";
-        if(sk.type){
+        /* 本地算力：规范来自内置 CV_FALLBACK_SKILL（b/c/d/e/f/g），不请求技能服务器——
+           技能库只有第三方模型的 b/c/d/e，本地 ComfyUI 工作流模型族（FLUX/Wan/可灵/混元等）以内置规范为准。 */
+        if(sk.local && sk.type && CV_FALLBACK_SKILL[sk.type]){
+            rule="下面是「"+sk.label+"」的单条提示词规范，请把它作为唯一书写标准：\n---- 单条提示词规范 ----\n"+CV_FALLBACK_SKILL[sk.type]+"\n---- 规范结束 ----";
+        }else if(sk.type){
             const got=await fetchSkillText(sk.type);
             if(got.ok){
                 rule="下面是「"+sk.label+"」技能里【单条提示词规范】章节原文，请把它作为唯一书写标准：\n---- 单条提示词规范 ----\n"+cvAiSingleRule(got.text)+"\n---- 规范结束 ----";
@@ -3031,7 +3098,7 @@ function nudgeSelection(dx,dy){
     });
     moveEdgePaths(); scheduleSave(true);
 }
-/* ===== 双击空白处：快捷添加节点菜单（六类节点，与画布节点一一对应） ===== */
+/* ===== 双击空白处：快捷添加节点菜单（五类可手动节点；结果节点由生成后自动创建） ===== */
 let quickAddAt=null;
 el("stage").addEventListener("dblclick",e=>{
     if(e.target.closest(".node")||e.target.closest(".zoom-bar")||e.target.closest(".empty-hint button")||e.target.tagName==="path"||e.target.closest(".quick-add")) return;
@@ -3044,7 +3111,7 @@ function showQuickAdd(cx,cy,wx,wy){
     quickAddAt={x:Math.max(0,wx),y:Math.max(0,wy)};
     m.innerHTML="";
     const h=document.createElement("div"); h.className="qa-head"; h.textContent="添加节点"; m.appendChild(h);
-    Object.keys(NODE_META).forEach(type=>{
+    USER_ADDABLE_TYPES.forEach(type=>{       /* 结果节点自动生成，不在手动菜单里列出 */
         const meta=NODE_META[type];
         const b=document.createElement("button");
         const ico=document.createElement("span"); ico.className="qa-ico"; ico.style.background=meta.color;
@@ -3069,8 +3136,8 @@ document.addEventListener("click",e=>{
     const m=el("quickAdd");
     if(m&&m.classList.contains("show")&&!e.target.closest("#quickAdd")) m.classList.remove("show");
 });
-/* ===== 单击节点右侧圆点：弹出六类节点菜单，选中即新建节点并自动连好线 =====
-   与空白处双击的「添加节点」菜单同源（NODE_META 六类）；按住右侧圆点拖到别的节点仍可手动连线。 */
+/* ===== 单击节点右侧圆点：弹出节点菜单，选中即新建节点并自动连好线 =====
+   与空白处双击的「添加节点」菜单同源（USER_ADDABLE_TYPES 五类，结果节点由生成后自动创建）；按住右侧圆点拖到别的节点仍可手动连线。 */
 function portFreeSpot(src){
     let x=src.x+340, y=src.y;
     const others=canvas.nodes.filter(n=>n.id!==src.id);
@@ -3083,7 +3150,7 @@ function showPortAddMenu(cx,cy,src){
     const h=document.createElement("div"); h.className="qa-head";
     h.textContent="从「"+(src.title||(NODE_META[src.type]||{}).label||"节点")+"」连出 · 选择节点";
     m.appendChild(h);
-    Object.keys(NODE_META).forEach(type=>{
+    USER_ADDABLE_TYPES.forEach(type=>{       /* 结果节点自动生成，不在手动菜单里列出 */
         const meta=NODE_META[type];
         const b=document.createElement("button");
         const ico=document.createElement("span"); ico.className="qa-ico"; ico.style.background=meta.color;
@@ -3306,7 +3373,7 @@ document.addEventListener("mouseup",e=>{
     else if(d.type==="select"){ finishSelect(d,e.clientX,e.clientY); }
     else if(d.type==="link"){
         if(tempPath){ tempPath.remove(); tempPath=null; }
-        /* 轻点右侧圆点（按下后原地松开、没有拖动）＝弹出六类节点菜单，选择后自动建联；
+        /* 轻点右侧圆点（按下后原地松开、没有拖动）＝弹出节点菜单（五类可手动节点），选择后自动建联；
            按住拖到别的节点＝原来的手动连线，两种操作互不干扰 */
         if(d.portOut && !d.moved){
             const src=canvas.nodes.find(x=>x.id===d.from);
