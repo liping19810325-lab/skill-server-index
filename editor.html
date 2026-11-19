@@ -4972,6 +4972,7 @@ async function runAsrCore(){
         setEdProgress(0,"已选定转写模型「"+cfg.model+"」（"+cfg.label+"）");
         setEdProgress(1,"轨道上找到 "+list.length+" 段真实音视频素材，开始逐段分析");
         const all=[];
+        const asrDiag=[];   /* 每段识别诊断：{name,engine,asrOk,segs,needFallback}，用于 0 句时精准提示 */
         for(let i=0;i<list.length;i++){
             const c=list[i], a=assetById(c.assetId);
             setEdProgress(2,"正在把第 "+(i+1)+"/"+list.length+" 段「"+a.name+"」的音轨发给模型识别…");
@@ -4979,6 +4980,7 @@ async function runAsrCore(){
             try{
                 const r=await serviceTranscribe(a,cfg,c);
                 segs=r.segments;
+                asrDiag.push({name:a.name,engine:r.engine,asrOk:r.asrOk,segs:segs.length,needFallback:r.needFallback||""});
                 addSilences(r.silences);
                 scLogPush("第 "+(i+1)+" 段「"+a.name+"」："+r.engine+" · 转写"
                     +(r.asrOk?"成功":"失败")+(r.asrError?"｜"+String(r.asrError).slice(0,140):"")
@@ -5030,7 +5032,21 @@ async function runAsrCore(){
         }
         setEdProgress(3,"真实识别共 "+all.length+" 句，正在把时间码对齐到轨道位置…");
         if(!all.length){
-            setEdProgress(3,"返回的识别结果里没有可写入的字幕句：可能是这段音频确实无对白，也可能是转写模型没返回分段时间码。请展开左侧「处理日志」看每段实际用的后端与返回的句数；若日志显示 0 句且后端为「未配置/none」，请到创作台/画布「算力总控→第三方API」填 whisper-1/gpt-4o-transcribe 通道，或本机 9000 端口启动 faster-whisper。本次不生成任何演示字幕。",true);
+            /* 按实际诊断分情况提示，避免"后端正常但素材无人声"时误导用户去配接口/启服务 */
+            const anyBackend=(asrDiag||[]).some(d=>/faster-whisper|第三方|本机服务/.test(d.engine||""));
+            const allZeroWithBackend=(asrDiag||[]).length>0 && asrDiag.every(d=>(d.segs||0)===0 && anyBackend)
+                && !(asrDiag||[]).some(d=>d.needFallback);
+            let msg;
+            if(allZeroWithBackend){
+                msg="这 "+asrDiag.length+" 段素材转写后端正常工作，但模型判定其中没有可识别的人声（返回 0 句）——"
+                   +"通常是素材本身没有人说话、人声太小/被背景音盖住，或是纯音乐/音效片段。"
+                   +"请确认选中的是有清晰对白的视频/音频（可先在播放器里听一下），换一段有人声的素材再试。"
+                   +"若你确信有人声却识别不出，请把处理日志发我：可能是方言/远场录音需要更大音量或换 large 模型。本次不生成任何演示字幕。";
+            }else{
+                msg="没有拿到可写入的字幕句：请展开左侧「处理日志」看每段实际用的后端与返回句数。"
+                   +"若日志显示后端为「未配置/none」或转写失败，请到创作台/画布「算力总控→第三方API」填 whisper-1/gpt-4o-transcribe 通道，或确认本机 9000 端口的 faster-whisper 已启动。本次不生成任何演示字幕。";
+            }
+            setEdProgress(3,msg,true);
             toast("没有识别到可写入的字幕，请看左侧处理日志","err"); return;
         }
         const keep=($("asrUiKeep")?$("asrUiKeep").checked:!!$("asrKeep").checked);
