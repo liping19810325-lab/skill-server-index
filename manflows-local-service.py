@@ -2705,7 +2705,21 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/export":
                 self._send_json(api_export(body))
             elif path == "/api/transcribe":
-                self._send_json(api_transcribe(body))
+                result = api_transcribe(body)
+                # 诊断日志：把本次转写的入参摘要与返回句数落到文件，便于定位「0 句」的真实原因
+                try:
+                    _d = json.loads(body.decode("utf-8")) if body else {}
+                    sys.stderr.write("[ASR-LOG] name=%s alreadyWav=%s clipStart=%s clipDur=%s url=%s "
+                                     "-> ok=%s asrOk=%s engine=%s segs=%s chunks=%s err=%s\n" % (
+                        _d.get("filename"), _d.get("alreadyWav"), _d.get("clipStart"),
+                        _d.get("clipDuration"), str(_d.get("url") or "")[:60],
+                        result.get("ok"), result.get("asrOk"), result.get("engine"),
+                        len(result.get("segments") or []), result.get("chunks"),
+                        str(result.get("asrError") or "")[:120]))
+                    sys.stderr.flush()
+                except Exception:
+                    pass
+                self._send_json(result)
             elif path == "/api/silences":
                 self._send_json(api_silences(body))
             elif path == "/api/probe":
