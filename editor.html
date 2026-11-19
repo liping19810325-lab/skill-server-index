@@ -1376,7 +1376,6 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         </div>
         <div class="modal-foot">
             <button class="mini-btn gray" data-close="asrSetupModal">取消</button>
-            <button class="mini-btn purple" id="asrUiGoCompute">切换算力档位</button>
             <button class="mini-btn green" id="asrUiStart">▶ 开始 AI 字幕</button>
         </div>
     </div>
@@ -2153,9 +2152,9 @@ function fxOf(c){
             else for(const kk in d[k]) if(c.fx[k][kk]===undefined) c.fx[k][kk]=d[k][kk];
         }
     }
-    /* 字幕样式逐条独立：每条字幕片段持有自己的 fx.sub，套预设/改参数只影响当前这一条，
-       其它字幕（同轨或跨轨）都不会跟着变。state.subStyle 仅作为“新建字幕的默认模板”，
-       不再被这里强制绑定到片段上；旧工程缺 sub 时才从模板补一份独立副本。 */
+    /* 每条字幕片段持有自己的 fx.sub 独立副本。UI 层的联动规则见 subEditTargets / syncSubTargets：
+       字幕1轨道整轨联动、框选多条按框选联动、其它字幕轨逐条独立。state.subStyle 仅作为
+       “新建字幕的默认模板”，旧工程缺 sub 时才从模板补一份独立副本。 */
     if(c && state && trackKind(c.track)==="text"){
         if(!state.subStyle||typeof state.subStyle!=="object") state.subStyle=cloneSubStyle(d.sub);
         if(!c.fx.sub||typeof c.fx.sub!=="object") c.fx.sub=cloneSubStyle(state.subStyle);
@@ -3133,6 +3132,22 @@ function snapPos(v, excludeIds, zoom){
 }
 function selectedClip(){ return state.selected?clipById(state.selected):null; }
 function selectedIds(){ return state.multi.length?state.multi.slice():(state.selected?[state.selected]:[]); }
+/* 字幕参数联动目标（右上角「字幕」栏改动时应用到哪些字幕）：
+   ① 鼠标框选多个(state.multi>1)：只改框选中的字幕，可跨轨（框选优先）；
+   ② 单选且当前字幕在字幕1轨道(tk_text1)：改字幕1轨道上全部字幕；
+   ③ 单选且在其他字幕轨道(字幕2/3…)：只改当前这一条，保持逐条独立。
+   返回值一定包含当前选中片段 c。 */
+function subEditTargets(c){
+    if(state.multi && state.multi.length>1){
+        const arr=state.multi.map(clipById).filter(x=>x && trackKind(x.track)==="text");
+        if(arr.length) return arr;
+    }
+    if(c && c.track==="tk_text1"){
+        const arr=state.clips.filter(x=>x.track==="tk_text1" && trackKind(x.track)==="text");
+        if(arr.length) return arr;
+    }
+    return c?[c]:[];
+}
 function totalDuration(){ let m=30; state.clips.forEach(c=>{ m=Math.max(m, c.start+c.duration); }); return Math.ceil(m+4); }
 /* 真实素材末尾：最后一个片段的结束时间（无片段为 0）。
    播放预览与导出成片统一在此结束：成片时长＝轨道上最后素材的结尾，
@@ -3657,6 +3672,17 @@ function applySegments(segs, opts){
            同时把段内换行符压成空格，保证每条字幕默认只占一行。 */
         const txt=flattenSubText(s.text);
         const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);   /* 新字幕复制默认模板成独立副本：初始规格统一，之后各改各的 */
+        /* AI字幕可指定默认预设样式（如「简约白」）：先复位再合并预设字段，记下 textPreset 让右上角预设按钮高亮对齐。
+           仅当调用方显式传 presetStyle 时生效，文本导入 / AI剪辑 / 拖拽等其他路径不受影响。 */
+        if(opts.presetStyle){
+            const pi=SUB_TEXT_PRESETS.findIndex(p=>p.name===opts.presetStyle);
+            if(pi>=0){
+                const p=SUB_TEXT_PRESETS[pi], d=defaultFx().sub;
+                for(const k in d) fx.sub[k]=d[k];
+                fx.sub.textPreset=String(pi); fx.sub.flower="";
+                if(!p.reset) for(const k in p) if(k!=="name"&&k!=="reset") fx.sub[k]=p[k];
+            }
+        }
         /* 字级时间戳：保存为相对片段起点的 {ch,s,e}（AI博主字幕动效真源）。后端无 words 时不写，前端自动插值降级。 */
         const clipStart=Math.max(0,(Number(s.start)||0)+shift);
         if(Array.isArray(s.words)&&s.words.length){
@@ -5098,7 +5124,7 @@ async function runAsrCore(){
             toast("没有识别到可写入的字幕，请看左侧处理日志","err"); return;
         }
         const keep=($("asrUiKeep")?$("asrUiKeep").checked:!!$("asrKeep").checked);
-        const n=applySegments(all,{keep:keep});
+        const n=applySegments(all,{keep:keep,presetStyle:"简约白"});   /* AI字幕生成的字幕默认采用预设样式「简约白」 */
         setEdProgress(4,"已把 "+n+" 条真实字幕写入字幕轨（分析 "+list.length+" 段音视频素材）");
         toast("AI 字幕完成：真实识别 "+list.length+" 段素材，生成 "+n+" 条字幕","ok");
     }catch(e){
@@ -7075,7 +7101,6 @@ function wire(){
     $("structDownload").onclick=downloadTimelineStructure;
     /* 浮窗关闭交给用户：开始后保持浮窗打开，进度/报错直接显示在浮窗内的 AI 字幕状态区 */
     $("asrUiStart").onclick=()=>{ runAsrCore(); };
-    $("asrUiGoCompute").onclick=()=>{ $("asrSetupModal").classList.remove("show"); $("edComputeHint").scrollIntoView({behavior:"smooth",block:"center"}); toast("请在上方「算力总控」切换档位后重新点 AI字幕","ok"); };
     $("recStart").onclick=startRecord;
     $("smartCutBtn").onclick=openSmartCutModal;
     $("scDetect").onclick=async()=>{
@@ -8135,6 +8160,21 @@ function renderAdjustPanels(){
             uBox.innerHTML=adjNote("当前选中的不是字幕片段。点选时间轴上一条字幕后，这里可改字号 / 颜色 / 描边 / 阴影 / 背景 / 不透明度 / 位置 / 对齐 / 字间距；下方列表仍管理整条字幕轨。");
         }else{
             const V=(k,d)=>q[k]!==undefined?Number(q[k]):d;
+            /* 字幕联动：当前字幕改完样式后，把 sub 广播给所有联动目标（规则见 subEditTargets）。
+               只覆盖样式字段，保留每条字幕各自的字级时间戳 words（绑定各自的字与时间，不能串）。
+               withTransform=true 时连片段位置 x/y 一起同步（用于「字幕居中 / 恢复初始位置」）。 */
+            const sTargets=subEditTargets(c);
+            const syncSubTargets=(withTransform)=>{
+                if(!sTargets.length) return;
+                const src=fxOf(c), srcSub=src.sub||{};
+                sTargets.forEach(t=>{
+                    if(t.id===c.id) return;
+                    const tf=fxOf(t), keepWords=tf.sub&&tf.sub.words;
+                    tf.sub=cloneSubStyle(srcSub);
+                    if(keepWords) tf.sub.words=keepWords;
+                    if(withTransform){ tf.x=src.x; tf.y=src.y; }
+                });
+            };
             uBox.innerHTML='<div class="fx-sec">选中字幕：'+esc(String(c.text||"").slice(0,14))+'</div>'
               +'<div class="range-row"><span style="flex:0 0 52px">字号</span><input type="range" id="adjSubSize" min="12" max="72" step="1" value="'+V("size",28)+'"><b id="adjSubSizeV">'+V("size",28)+'</b></div>'
               +'<div class="range-row"><span style="flex:0 0 52px">不透明度</span><input type="range" id="adjSubOpacity" min="0" max="100" step="1" value="'+V("opacity",100)+'"><b id="adjSubOpacityV">'+V("opacity",100)+'%</b></div>'
@@ -8169,8 +8209,8 @@ function renderAdjustPanels(){
               +'<div class="sub-preset-grid" id="adjSubTextPresets">'+SUB_TEXT_PRESETS.map((p,i)=>'<button type="button" class="sub-preset-thumb'+((q.textPreset||"")===String(i)?" active":"")+'" data-tp="'+i+'" title="套用「'+esc(p.name)+'」"><span class="tglyph" style="'+subThumbCss(p)+'">T</span></button>').join("")+'</div>'
               +'<div class="fx-sec">花字 / 文字模板（一键套用）</div>'
               +'<div class="preset-grid" id="adjSubFlower">'+Object.keys(SUB_FLOWER_PRESETS).map(k=>'<button class="preset-btn'+((q.flower||"")===k?" active":"")+'" data-fl="'+k+'" title="套用「'+SUB_FLOWER_PRESETS[k].name+'」">'+SUB_FLOWER_PRESETS[k].name+'</button>').join("")+'</div>'
-              +adjNote("样式逐条独立：这里改任意一项（字号 / 颜色 / 描边 / 发光等）或点下方预设，只作用于当前选中的这一条字幕，其它字幕（同轨或跨轨）不受影响。预览与导出都按本条设置绘制（含发光、渐变、竖排、下划线、背景框圆角与内边距）。渐变色填两个或多个颜色值用英文逗号隔开；花字/预设会覆盖部分颜色参数，之后仍可手动微调。");
-            const fire=()=>{ subCache=""; renderSubtitleOverlay(); applyClipTransforms(); autoSave(); };
+              +adjNote("参数联动：当前改的这一项（字号 / 颜色 / 描边 / 发光 / 预设 / 花字等）会同步到【字幕1轨道】上的全部字幕；字幕2及以后的轨道仍逐条独立。若用鼠标框选了多条字幕，则只同步到框选中的那几条。预览与导出都按各条设置绘制。渐变色填两个或多个颜色值用英文逗号隔开；花字/预设会覆盖部分颜色参数，之后仍可手动微调。");
+            const fire=()=>{ syncSubTargets(false); subCache=""; renderSubtitleOverlay(); applyClipTransforms(); autoSave(); };
             const rng=(id,key,val,suffix)=>{ $(id).oninput=e=>{ f.sub[key]=Number(e.target.value); $(val).textContent=e.target.value+(suffix||""); fire(); }; };
             rng("adjSubSize","size","adjSubSizeV"); rng("adjSubOpacity","opacity","adjSubOpacityV","%");
             rng("adjSubStrokeW","strokeW","adjSubStrokeWV"); rng("adjSubShadow","shadow","adjSubShadowV");
@@ -8189,7 +8229,7 @@ function renderAdjustPanels(){
                 f.sub.pos="center"; f.sub.align="center";
                 f.x=0; f.y=0;
                 if(document.activeElement&&document.activeElement.blur) document.activeElement.blur();
-                subCache=""; renderAll(); autoSave();
+                syncSubTargets(true); subCache=""; renderAll(); autoSave();
                 toast("字幕已移到播放器正中央","ok");
             };
             /* 恢复初始位置：只复位落点与手动位移，字号/颜色等样式保持不变。
@@ -8199,7 +8239,7 @@ function renderAdjustPanels(){
                 f.sub.pos="bottom"; f.sub.align="center";
                 f.x=0; f.y=0;                 /* 清掉用变换框拖出的位移，回到统一基准 */
                 if(document.activeElement&&document.activeElement.blur) document.activeElement.blur();
-                subCache=""; renderAll(); autoSave();
+                syncSubTargets(true); subCache=""; renderAll(); autoSave();
                 toast("已恢复初始位置（底部水平居中）","ok");
             };
             $("adjSubBold").onchange=e=>{ f.sub.bold=e.target.checked; fire(); };
@@ -8214,7 +8254,7 @@ function renderAdjustPanels(){
                 const d=defaultFx().sub;
                 for(const key in d) f.sub[key]=d[key];   /* 先复位，避免上一个花字的残留 */
                 for(const key in p) if(key!=="name") f.sub[key]=p[key];
-                f.sub.flower=k; f.sub.textPreset=""; renderAll(); autoSave(); toast("已套用花字「"+p.name+"」","ok");
+                f.sub.flower=k; f.sub.textPreset=""; syncSubTargets(false); renderAll(); autoSave(); toast("已套用花字「"+p.name+"」","ok");
             };
             /* 剪映预设样式：只改当前选中片段自己的 sub（先复位再合并该预设字段）；其它字幕不受影响、可撤销、导出随各自样式生效 */
             const tpBox=$("adjSubTextPresets");
@@ -8226,7 +8266,7 @@ function renderAdjustPanels(){
                 for(const key in d) f.sub[key]=d[key];          /* 复位，清掉上一预设/花字的残留 */
                 f.sub.textPreset=String(i); f.sub.flower="";
                 if(!p.reset) for(const key in p) if(key!=="name"&&key!=="reset") f.sub[key]=p[key];
-                renderAll(); autoSave();
+                syncSubTargets(false); renderAll(); autoSave();
                 toast(p.reset?"已恢复默认字幕样式":"已套用预设样式「"+p.name+"」","ok");
             };
         }
