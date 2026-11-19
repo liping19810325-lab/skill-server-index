@@ -1002,8 +1002,9 @@ def _run_video(ff, td, in_path, data, stem, avail):
     # 硬件编码器靠码率，因此仍给出 -b:v；prores 用 profile 控制质量。
     quality = str(data.get("quality") or "high").lower()
     hw_enc = "videotoolbox" in venc or "nvenc" in venc
-    crf_map = {"lossless": "14", "high": "17", "medium": "21", "low": "25"}
-    crf = crf_map.get(quality, "17")
+    # lossless=CRF0 真无损编码；high=CRF14（码流较原先 17 提高约一倍）
+    crf_map = {"lossless": "0", "high": "14", "medium": "21", "low": "25"}
+    crf = crf_map.get(quality, "14")
     if vcodec == "prores":
         notes.append("画质：Apple ProRes HQ（profile 3）")
     elif hw_enc:
@@ -1012,10 +1013,11 @@ def _run_video(ff, td, in_path, data, stem, avail):
     else:
         cmd += ["-preset", "medium", "-crf", crf]
         br = str(data.get("bitrate") or "").strip()
-        if br and br not in ("recommend", "high", "low"):
+        # 真无损（CRF 0）不能被 maxrate 限死，否则不再是无损；其余档位仍尊重用户所选码率上限
+        if quality != "lossless" and br and br not in ("recommend", "high", "low"):
             cmd += ["-maxrate", _bitrate(br), "-bufsize", _bitrate(br)]
         notes.append("画质：%s（CRF %s）" % (
-            {"lossless":"近无损", "high":"高画质", "medium":"标准", "low":"较小体积"}.get(quality, "高画质"), crf))
+            {"lossless":"无损", "high":"高画质", "medium":"标准", "low":"较小体积"}.get(quality, "高画质"), crf))
 
     acodec = str(data.get("acodec") or "").lower()
     ac_map = {"aac": "aac", "mp3": "libmp3lame", "wav": "pcm_s16le"}
@@ -1029,6 +1031,14 @@ def _run_video(ff, td, in_path, data, stem, avail):
             aenc = "aac"
             notes.append("所选音频编码器不可用，已回退到 aac")
         cmd += ["-c:a", aenc]
+        # 所有视频输出统一高保真音质：lossy 编码给足码率，PCM 保持原样
+        if aenc == "aac":
+            cmd += ["-b:a", "320k"]
+        elif aenc == "libmp3lame":
+            cmd += ["-b:a", "320k"]
+        elif aenc == "libopus":
+            cmd += ["-b:a", "256k"]
+        notes.append("音质：高保真（%s）" % aenc)
     if container == "mov":
         cmd += ["-f", "mov"]
     elif container == "mp4":
@@ -2202,7 +2212,7 @@ def api_burn_subtitles(body):
         if vn:
             burn_notes.append(vn)
 
-        # 画质：优先用 crf（视觉质量稳定），crf 越小画质越高；quality=lossless 走近无损。
+        # 画质：优先用 crf（视觉质量稳定），crf 越小画质越高；quality=lossless 走真无损（CRF0）。
         quality = str(data.get("quality") or "high").lower()
         hw_enc = "videotoolbox" in venc or "nvenc" in venc
         cmd = [info["path"], "-y", "-hide_banner", "-loglevel", "error",
@@ -2215,22 +2225,22 @@ def api_burn_subtitles(body):
         else:
             cmd += ["-c:v", venc]
             if quality == "lossless":
-                crf = "14"
+                crf = "0"   # 真正无损编码（CRF0）；高画质原 CRF17 → 14，码流约翻倍
             elif quality == "medium":
                 crf = "21"
             elif quality == "low":
                 crf = "25"
             else:  # high（默认）
-                crf = "17"
+                crf = "14"
             cmd += ["-preset", "medium", "-crf", crf]
-            # 用户显式选了具体码率时，用 -maxrate 约束上限，兼顾画质与体积
+            # 用户显式选了具体码率时，用 -maxrate 约束上限；真无损不能被限死，否则不再是无损
             br = str(data.get("bitrate") or "").strip()
-            if br and br not in ("recommend", "high", "low"):
+            if quality != "lossless" and br and br not in ("recommend", "high", "low"):
                 cmd += ["-maxrate", _bitrate(br), "-bufsize", _bitrate(br)]
         if container == "webm" and vcodec != "prores":
-            cmd += ["-pix_fmt", "yuv420p", "-c:a", "libopus", "-b:a", "192k"]
+            cmd += ["-pix_fmt", "yuv420p", "-c:a", "libopus", "-b:a", "256k"]
         else:
-            cmd += ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k"]
+            cmd += ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k"]  # 高保真音质
         if container == "mov":
             cmd += ["-f", "mov"]
         elif container == "mp4" and vcodec != "prores":
@@ -2241,8 +2251,10 @@ def api_burn_subtitles(body):
         out_path = os.path.join(td, "burned." + ext)
         cmd += [out_path]
         burn_notes.append("画质：%s（%s）" % (
-            {"lossless":"近无损", "high":"高画质", "medium":"标准", "low":"较小体积"}.get(quality, "高画质"),
-            "CRF " + (crf if not hw_enc and vcodec != "prores" else (vn or venc))))
+            {"lossless":"无损", "high":"高画质", "medium":"标准", "low":"较小体积"}.get(quality, "高画质"),
+            ("真无损 CRF0" if (quality == "lossless" and not hw_enc and vcodec != "prores")
+             else ("CRF " + (crf if not hw_enc and vcodec != "prores" else (vn or venc))))))
+        burn_notes.append("音质：高保真（AAC 320k / Opus 256k）")
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                            timeout=TIMEOUT_TRANSCODE)
         if p.returncode != 0 or not os.path.isfile(out_path) or os.path.getsize(out_path) < 128:

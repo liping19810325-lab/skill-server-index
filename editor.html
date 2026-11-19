@@ -564,7 +564,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .export-cover{position:relative;width:100%;aspect-ratio:var(--cover-ar,1.7778);max-height:360px;border-radius:10px;overflow:hidden;
   background:linear-gradient(145deg,#1e293b,#0f172a);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;}
 .export-cover img{width:100%;height:100%;object-fit:contain;}
+.export-cover #coverLiveCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;}
 .export-cover .cover-empty{color:var(--muted);font-size:11px;text-align:center;line-height:1.8;padding:14px;}
+[hidden]{display:none!important;}
 .export-side-note{font-size:10px;color:var(--muted);line-height:1.65;}
 .export-side-note a{color:#67e8f9;}
 .export-row{display:flex;align-items:center;gap:9px;margin:9px 0;}
@@ -1034,10 +1036,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="export-grid">
                 <div class="export-cover-box">
                     <div class="export-cover" id="exportCover">
-                        <div class="cover-empty" id="coverEmpty">封面取自当前预览画面<br>打开导出窗口时自动更新</div>
+                        <div class="cover-empty" id="coverEmpty">当前预览画面<br>实时预览中</div>
                         <img id="coverImg" alt="封面" hidden>
+                        <canvas id="coverLiveCanvas" hidden></canvas>
                     </div>
-                    <div class="export-side-note" id="coverNote">用 AI 设计爆款封面：<a href="https://www.manflows.cn/" target="_blank" rel="noopener noreferrer">去主站设计</a>（本站不内嵌 AI 封面设计，封面只用于此处预览，不影响导出文件）。</div>
                 </div>
                 <div>
                     <div class="export-row"><label>标题</label><input type="text" id="exportTitle" value=""></div>
@@ -1051,10 +1053,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                             <div class="export-field"><span>烧录字幕</span><input type="checkbox" class="sw" id="expBurnSub" checked><span style="flex:1;font-size:10px;color:var(--muted)">把字幕轨真正烧进画面（本机 FFmpeg libass 硬字幕，中文字体可用）；关闭则只输出画面，可另在下方单独导出 SRT / VTT</span></div>
                             <div class="export-field"><span>格式</span><select id="expFormat"><option value="mp4">MP4</option><option value="mov">MOV</option><option value="webm">WebM</option></select></div>
                             <div class="export-field"><span>帧率</span><select id="expFps"><option value="24">24</option><option value="25">25</option><option value="30" selected>30</option><option value="60">60</option></select></div>
-                            <div class="export-field"><span>画质</span><select id="expQuality"><option value="lossless">近无损（文件较大）</option><option value="high" selected>高画质（推荐）</option><option value="medium">标准</option><option value="low">较小体积</option></select></div>
-                            <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="low">较低 (5M)</option><option value="8M">8 Mbps</option><option value="recommend">推荐 (12M)</option><option value="16M">16 Mbps</option><option value="high">较高 (20M)</option><option value="24M">极高 (24M)</option></select></div>
+                            <div class="export-field"><span>画质</span><select id="expQuality"><option value="lossless">无损（文件较大）</option><option value="high" selected>高画质（推荐）</option><option value="medium">标准</option><option value="low">较小体积</option></select></div>
+                            <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="low">较低 (5M)</option><option value="8M">8 Mbps</option><option value="recommend">推荐 (12M)</option><option value="16M">16 Mbps</option><option value="high">较高 (20M)</option><option value="24M">极高 (24M)</option><option value="48M">48 Mbps（无损）</option></select></div>
                             <div class="export-field"><span>视频编码</span><select id="expCodec"><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="prores">Apple ProRes</option><option value="av1">AV1</option></select></div>
-                            <div class="export-note" id="expCodecNote">画质档位控制最终编码质量（近无损 CRF14 / 高画质 CRF17）；H.264 可由浏览器 / 显卡直接编码，HEVC / ProRes / AV1 与 MOV 需要本机 ffmpeg。开启烧录字幕时，画质档位同样作用于烧录后的成片。</div>
+                            <div class="export-note" id="expCodecNote">画质档位控制最终编码质量（无损＝真正无损编码 / 高画质 CRF14，码率加倍）；H.264 可由浏览器 / 显卡直接编码，HEVC / ProRes / AV1 与 MOV 需要本机 ffmpeg。开启烧录字幕时，画质档位同样作用于烧录后的成片。所有视频输出的音频统一采用高保真编码。</div>
                             <div class="export-field"><span>网络播放优化 ⓘ</span><input type="checkbox" class="sw" id="expFaststart" checked><span style="flex:1;font-size:10px;color:var(--muted)">MP4 前置索引，边下边播</span></div>
                             <div class="export-static">色彩空间：Rec.709 SDR</div>
                             <div class="export-note">↓ 向下滚动还可勾选「音频导出 / GIF 导出 / 字幕导出」，底部「导出」按钮始终可见。</div>
@@ -1091,7 +1093,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="export-steps" id="exportSteps"></div>
         <div class="export-foot">
             <span class="est" id="exportEst">时长 0 秒 | 大小 0 MB（估计）</span>
-            <button class="mini-btn gray" data-close="exportModal">取消</button>
+            <button class="mini-btn gray" id="exportCancel" data-close="exportModal">取消</button>
+            <button class="mini-btn" id="exportDone" data-close="exportModal" hidden style="background:var(--green);border-color:transparent;color:#fff;font-weight:600">完成</button>
             <button class="do-btn" id="exportDo">导出</button>
         </div>
     </div>
@@ -1650,6 +1653,8 @@ function clipStripSig(c){
 let ctxClipId="", ctxTrackId="";
 let assetPreviewId=null, assetAudioEl=null, svcOnline=false, svcInfo=null;
 let exportBusy=false, exportDirHandle=null, exportCoverData="", exportDirWarned=false;
+let exportCancelled=false;          /* 用户点「取消」：录制循环立即停、丢弃半成品，不落地任何文件 */
+let coverLiveRaf=0;                 /* 导出弹窗左侧实时预览的逐帧循环句柄 */
 /* 导出目录句柄是结构化对象，无法存 localStorage，只能存 IndexedDB。
    用独立全局库（不随工作区/日期切换），保证「一次选择、长期首选」。 */
 const EXPORT_PREF_DB="manflows_export_prefs", EXPORT_PREF_STORE="kv";
@@ -6080,9 +6085,14 @@ function wire(){
     $("navIndex").onclick=()=>go("index.html");
     $("navCanvas").onclick=()=>go("canvas.html");
 
-    /* 弹窗通用关闭 */
-    document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove("show"));
-    document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) m.classList.remove("show"); }));
+    /* 弹窗通用关闭（导出弹窗走专门逻辑：停实时预览 + 导出中取消） */
+    document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{
+        if(b.dataset.close==="exportModal") hideExportModal();
+        else $(b.dataset.close).classList.remove("show");
+    });
+    document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",e=>{
+        if(e.target===m){ if(m.id==="exportModal") hideExportModal(); else m.classList.remove("show"); }
+    }));
 
     /* URL 弹窗 */
     $("urlAdd").onclick=async()=>{
@@ -7477,8 +7487,9 @@ function exportBitrate(){
     if(v==="low") return 5000000;
     if(v==="8M") return 8000000;
     if(v==="16M") return 16000000;
-    if(v==="high") return 20000000;
+    if(v==="high") return 40000000;    /* 高画质码率翻倍 20M→40M */
     if(v==="24M") return 24000000;
+    if(v==="48M") return 48000000;     /* 无损档：对应 48M 码率 */
     return 12000000;   /* recommend：录制中间片给足码率，避免烧录前就先损失画质 */
 }
 function blobToBase64(b){
@@ -7556,6 +7567,8 @@ async function prepareRenderOverrides(onProgress){
     return done;
 }
 async function saveBlob(blob,name){
+    /* 统一拦截：导出中一旦取消，绝不把任何半成品/部分时长的文件写到磁盘 */
+    if(exportCancelled && exportBusy) return "已取消";
     if(exportDirHandle){
         try{
             /* 权限可能在页面驻留期间被浏览器回收，写前先确认 readwrite 授权 */
@@ -7841,22 +7854,30 @@ async function exportAudioFile(){
    旧实现只接了 vEl，audioPool 里的音频轨（BGM/配音）从未进录制流，导致成片丢音轨。
    注意 createMediaElementSource 对每个元素只能调用一次 -> 用 WeakMap 缓存；
    劫持元素声音后必须同时连回 ctx.destination，否则预览会失声。 */
-let mfAudioCtx=null, mfAudioSrc=null, mfAudioDest=null;
+let mfAudioCtx=null, mfAudioSrc=null, mfAudioDest=null, mfMonitorGain=null;
 const mfAudioSources=new WeakMap();
 let mfRecordAudio=false;   /* 仅导出录制期间，动态接入播放头移动后新出现的音频片段 */
+let mfMonitorMuted=false;  /* 烧录/导出期间静音预览扬声器，但音频仍录进成片音轨 */
+/* 只静音「扬声器监听」，不影响进成片的音频总线 mfAudioDest */
+function setMonitorMute(on){
+    mfMonitorMuted=!!on;
+    try{ if(mfMonitorGain&&mfAudioCtx) mfMonitorGain.gain.setTargetAtTime(mfMonitorMuted?0:1,mfAudioCtx.currentTime,0.01); }catch(e){}
+}
 function mfAttachAudioEl(el){
     if(!el) return;
     try{
         const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
         if(!mfAudioCtx) mfAudioCtx=new AC();
         if(!mfAudioDest) mfAudioDest=mfAudioCtx.createMediaStreamDestination();
+        /* 扬声器监听走独立增益节点：导出/烧录时可静音监听而不影响进成片的音频 */
+        if(!mfMonitorGain){ mfMonitorGain=mfAudioCtx.createGain(); mfMonitorGain.gain.value=mfMonitorMuted?0:1; mfMonitorGain.connect(mfAudioCtx.destination); }
         let src=mfAudioSources.get(el);
         if(!src){
             src=(el===vEl&&mfAudioSrc)?mfAudioSrc:mfAudioCtx.createMediaElementSource(el);
             if(el===vEl) mfAudioSrc=src;
             mfAudioSources.set(el,src);
-            src.connect(mfAudioDest);             /* 进成片 */
-            src.connect(mfAudioCtx.destination);  /* 保留预览扬声器输出 */
+            src.connect(mfAudioDest);             /* 进成片音轨（烧录期间也保留） */
+            src.connect(mfMonitorGain);           /* 扬声器监听（烧录期间静音） */
         }
         if(mfAudioCtx.state==="suspended") mfAudioCtx.resume();
     }catch(e){}
@@ -8061,6 +8082,8 @@ async function recordCanvas(dur,opts,onProgress){
     const done=new Promise(res=>{ rec.onstop=()=>res(new Blob(chunks,{type:mime})); });
     const before=state.playhead, prevStop=exportStopAt;
     exportStopAt=to;   /* 让 tick 在出点处停，不空播到 contentEnd */
+    exportCancelled=false;              /* 每段录制开始都视为全新一次，清掉上一次残留的取消态 */
+    setMonitorMute(true);               /* 烧录期间静音扬声器监听；音频仍进成片总线，不中断音轨合成 */
     rec.start(250);
     state.playhead=from; seek(from); play();
     /* 中间片是 Blob URL，等首帧解码完再开始画，避免录进黑帧 */
@@ -8094,6 +8117,11 @@ async function recordCanvas(dur,opts,onProgress){
         document.addEventListener("visibilitychange",onVis);
         if(document.hidden) onVis();
         function frame(){
+            /* 用户点「取消」：立即停止，不继续画帧、不落地半成品 */
+            if(exportCancelled){
+                document.removeEventListener("visibilitychange",onVis);
+                resolve(); return;
+            }
             if(paused){ requestAnimationFrame(frame); return; }
             try{ drawStageFrame(x,W,H,opts); }catch(e){ /* 单帧失败不中断整段录制 */ }
             const p=pct();
@@ -8111,6 +8139,10 @@ async function recordCanvas(dur,opts,onProgress){
     const blob=await done;
     state.playhead=before; seek(before);
     exportStopAt=prevStop;   /* 恢复录制前的停止点，避免影响后续播放 */
+    if(exportCancelled){     /* 丢弃这一段半成品：清空 chunks，返回空，绝不让部分时长进入成片 */
+        chunks.length=0;
+        return null;
+    }
     return blob;
 }
 async function serviceBurnSubtitles(blob,srt,filename){
@@ -8132,7 +8164,7 @@ async function serviceBurnSubtitles(blob,srt,filename){
     const fmt=$("expFormat").value, codec=$("expCodec").value;
     const burnContainer=(codec==="prores")?"mov":fmt;   /* ProRes 强制 mov 容器 */
     const bitrateSel=$("expBitrate")?$("expBitrate").value:"recommend";
-    const bitrateMap={low:"5M",recommend:"12M",high:"20M","8M":"8M","16M":"16M","24M":"24M"};
+    const bitrateMap={low:"5M",recommend:"12M",high:"40M","8M":"8M","16M":"16M","24M":"24M","48M":"48M"};
     const r=await fetch(LOCAL_SERVICE+"/api/burn-subtitles",{method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({filename:String(filename||exportTitle()),srt:burnSrt,ass:ass,subStyle:subStyle,
@@ -8146,12 +8178,14 @@ async function serviceBurnSubtitles(blob,srt,filename){
 }
 async function exportVideoFile(recorded,onProgress){
     const fmt=$("expFormat").value, codec=$("expCodec").value;
-    const needFF=(fmt==="mov"||codec!=="h264");
-    if(needFF&&!ffmpegReady()) throw new Error("MOV / "+codec.toUpperCase()+" 需要本机 ffmpeg；可改选 MP4 + H.264，或启动本机服务并安装 ffmpeg");
+    const lossless=$("expQuality")&&$("expQuality").value==="lossless";
+    /* 无损档必须走服务端 ffmpeg CRF0 真无损编码；浏览器 MediaRecorder 中间片本身有损，不能当最终无损成片 */
+    const needFF=(fmt==="mov"||codec!=="h264"||lossless);
+    if(needFF&&!ffmpegReady()) throw new Error("无损 / MOV / "+codec.toUpperCase()+" 需要本机 ffmpeg；可改选高画质 + MP4 + H.264，或启动本机服务并安装 ffmpeg");
     const blob=await recorded();
     if(!blob||!blob.size) throw new Error("没有录到画面，请确认轨道上有视频 / 图片素材并且预览窗口能显示");
     const bitrateSel=$("expBitrate")?$("expBitrate").value:"recommend";
-    const bitrateStr={low:"5M",recommend:"12M","8M":"8M","16M":"16M",high:"20M","24M":"24M"}[bitrateSel]||"12M";
+    const bitrateStr={low:"5M",recommend:"12M","8M":"8M","16M":"16M",high:"40M","24M":"24M","48M":"48M"}[bitrateSel]||"12M";
     const burn=$("expBurnSub")&&$("expBurnSub").checked&&ffmpegReady();
     const sr=(buildSubtitleText("srt"));
     const hasSub=burn&&sr.count>0;
@@ -8246,6 +8280,39 @@ function applyExportCoverRatio(){
     const box=$("exportCover"); if(!box) return;
     box.style.setProperty("--cover-ar",String(+coverRatio().toFixed(4)));
 }
+/* 导出弹窗左侧：当前预览画面实时预览（不再定格首帧）。
+   逐帧复用 drawStageFrame —— 与成片/播放器同一套真源，播放/拖动时间轴都会实时跟随。 */
+function startCoverLive(){
+    stopCoverLive();
+    const cv=$("coverLiveCanvas"); if(!cv) return;
+    const r=coverRatio(), W=480, H=Math.max(120,Math.min(1080,Math.round(W/r)));
+    if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; }
+    const x=cv.getContext("2d",{alpha:false});
+    cv.hidden=false;
+    const empty=$("coverEmpty"); if(empty) empty.hidden=true;
+    const loop=()=>{
+        const modal=$("exportModal");
+        if(!modal||!modal.classList.contains("show")){ stopCoverLive(); return; } /* 弹窗关闭即停，省电 */
+        try{ drawStageFrame(x,W,H,{noSub:false}); }catch(e){ /* 单帧失败不中断预览 */ }
+        coverLiveRaf=requestAnimationFrame(loop);
+    };
+    coverLiveRaf=requestAnimationFrame(loop);
+}
+function stopCoverLive(){
+    if(coverLiveRaf){ cancelAnimationFrame(coverLiveRaf); coverLiveRaf=0; }
+    const cv=$("coverLiveCanvas"); if(cv) cv.hidden=true;
+}
+/* 关闭导出弹窗：停止实时预览；若仍在导出中则视为用户取消，丢弃半成品。 */
+function hideExportModal(){
+    if(exportBusy && !exportCancelled){
+        exportCancelled=true;
+        const steps=$("exportSteps"); if(steps) steps.textContent="⛔ 已取消：正在停止并丢弃本次导出…";
+        toast("已取消导出，未生成文件","err");
+    }
+    stopCoverLive();
+    setMonitorMute(false);   /* 恢复扬声器监听，避免关闭后预览无声 */
+    $("exportModal").classList.remove("show");
+}
 function captureCover(silent){
     const r=coverRatio(), W=480, H=Math.max(120,Math.min(1080,Math.round(W/r)));
     const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
@@ -8275,10 +8342,13 @@ async function openExport(){
     $("exportTitleHead").textContent=$("exportTitle").value+(_rg.active?("  ·  入出点 "+fmt(_rg.start)+" → "+fmt(_rg.end)):"");
     $("exportSteps").textContent="";
     $("exportProg").classList.remove("show"); $("exportProgFill").style.width="0%";
+    $("exportDone").hidden=true; $("exportDo").hidden=false; $("exportDo").disabled=false;
+    exportCancelled=false;
     await pingService(1900);
     updateExportStatus();
     captureCover(true);
     $("exportModal").classList.add("show");
+    startCoverLive();                       /* 左侧改为实时预览当前画面 */
     /* 不阻塞弹窗：后台尝试自动准备 ffmpeg，成功后刷新可用格式 */
     if(svcOnline && !ffmpegReady()) tryPrepareFfmpeg().then(()=>updateExportStatus());
 }
@@ -8294,7 +8364,8 @@ async function startExport(){
     if($("expChkGif").checked) jobs.push("gif");
     if($("expChkVideo").checked) jobs.push("video");
     if(!jobs.length){ toast("请至少勾选一个导出项","err"); return; }
-    exportBusy=true; exportDirWarned=false; $("exportDo").disabled=true;
+    exportBusy=true; exportDirWarned=false; exportCancelled=false;
+    $("exportDo").disabled=true; $("exportDone").hidden=true;
     const fill=$("exportProgFill"), steps=$("exportSteps"), prog=$("exportProg");
     prog.classList.add("show");
     let renderedCount=0;
@@ -8322,6 +8393,7 @@ async function startExport(){
         }
         const base=renderedCount?55:0;
         for(let i=0;i<jobs.length;i++){
+            if(exportCancelled) break;          /* 用户取消：停止后续所有输出，绝不落地半成品 */
             const j=jobs[i];
             fill.style.width=Math.round(base+(i/jobs.length)*(100-base))+"%";
             steps.textContent="["+(i+1)+"/"+jobs.length+"] "+label[j]+"…";
@@ -8331,14 +8403,32 @@ async function startExport(){
             else if(j==="gif") await exportGifFile(()=>getRecorded(false));
             else if(j==="video") await exportVideoFile(()=>getRecorded(!!($("expBurnSub")&&$("expBurnSub").checked)&&ffmpegReady()),()=>{});
         }
-        fill.style.width="100%";
-        const dest=(exportDirHandle&&!exportDirWarned)?"所选文件夹":"浏览器下载目录";
-        steps.textContent="✅ 全部导出完成，文件已保存到"+dest;
-        toast("导出完成（"+dest+"）","ok");
+        if(exportCancelled){
+            /* 取消：不写任何文件，清空进度，明示未生成成片 */
+            fill.style.width="0%"; prog.classList.remove("show");
+            steps.textContent="⛔ 已取消，未生成成片文件";
+            toast("已取消导出，未生成文件","err");
+        }else{
+            fill.style.width="100%";
+            const dest=(exportDirHandle&&!exportDirWarned)?"所选文件夹":"浏览器下载目录";
+            steps.textContent="✅ 全部导出完成，文件已保存到"+dest;
+            toast("导出完成（"+dest+"）","ok");
+            $("exportDo").hidden=true; $("exportDone").hidden=false;  /* 导出按钮变为「完成」 */
+        }
     }catch(e){
-        steps.textContent="❌ 导出中断："+esc(e.message||String(e));
-        toast("导出失败："+(e.message||e),"err");
-    }finally{ cleanupRenderOverrides(); syncMedia(); exportBusy=false; $("exportDo").disabled=false; }
+        if(exportCancelled){
+            fill.style.width="0%"; prog.classList.remove("show");
+            steps.textContent="⛔ 已取消，未生成成片文件";
+        }else{
+            steps.textContent="❌ 导出中断："+esc(e.message||String(e));
+            toast("导出失败："+(e.message||e),"err");
+        }
+    }finally{
+        cleanupRenderOverrides(); syncMedia(); exportBusy=false;
+        $("exportDo").disabled=false;
+        setMonitorMute(false);   /* 恢复扬声器监听 */
+        if(exportCancelled){ $("exportDo").hidden=false; $("exportDone").hidden=true; }
+    }
 }
 /* ---------- 导出参数记忆：用户选定后自动成为下次首选，存每个浏览器的 localStorage ----------
    目录句柄是结构化对象，存在上面的 IndexedDB；这里只存标量控件值。 */
