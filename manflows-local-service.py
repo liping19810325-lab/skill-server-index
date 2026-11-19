@@ -1404,7 +1404,8 @@ def _post_asr(ep, key, model, language, chunk_path):
     parts.append(("--%s--\r\n" % boundary).encode("utf-8"))
     body = b"".join(parts)
     headers = {"Content-Type": "multipart/form-data; boundary=" + boundary,
-               "User-Agent": "manflows-local/1.0"}
+               "User-Agent": UA_DESKTOP, "Accept": "*/*",
+               "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"}
     if key:
         headers["Authorization"] = "Bearer " + str(key)
     req = urllib.request.Request(ep, data=body, headers=headers, method="POST")
@@ -2440,13 +2441,17 @@ def api_ai_chat(body):
         if at:
             payload["tools"] = at
         headers = {"Content-Type": "application/json", "x-api-key": key,
-                   "anthropic-version": "2023-06-01"}
+                   "anthropic-version": "2023-06-01",
+                   "User-Agent": UA_DESKTOP, "Accept": "*/*",
+                   "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"}
     else:
         payload = {"model": model, "messages": messages, "temperature": temp}
         if tools:
             payload["tools"] = tools
         payload[str(data.get("maxTokensField") or "max_tokens")] = max_tokens
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json",
+                   "User-Agent": UA_DESKTOP, "Accept": "*/*",
+                   "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"}
         if key:
             headers["Authorization"] = "Bearer " + key
 
