@@ -97,8 +97,15 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .audio-kind-tag.k-sfx{color:#fcd34d;border-color:rgba(245,158,11,.5);}
 .import-row{display:flex;gap:6px;flex-wrap:wrap;}
 .import-row .mini-btn{flex:1 1 auto;}
-.drop-zone{border:1px dashed var(--border2);border-radius:8px;padding:10px 8px;text-align:center;font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:8px;transition:border-color .15s,background .15s;}
-.drop-zone.over{border-color:var(--green);background:rgba(5,150,105,.09);color:#a7f3d0;}
+/* 素材拖入框：实心圆角深灰底 + 居中的大「＋」图标，高度加倍以扩大拖入识别区 */
+.drop-zone{background:var(--panel);border:1px solid var(--border2);border-radius:14px;min-height:96px;margin-top:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:var(--text);transition:border-color .15s,background .15s,box-shadow .15s;}
+.drop-zone:hover{border-color:#3b82f6;}
+.drop-zone.over{border-color:var(--green);background:rgba(5,150,105,.14);box-shadow:inset 0 0 0 2px var(--green);}
+.drop-zone .dz-plus{width:46px;height:46px;border-radius:50%;background:var(--cyan);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:500;line-height:1;}
+.drop-zone.over .dz-plus{background:var(--green);}
+.drop-zone .dz-title{font-size:14px;font-weight:500;color:var(--text);}
+.drop-zone .dz-sub{font-size:10.5px;color:var(--muted);line-height:1.5;}
+.drop-zone .dz-url{color:#38bdf8;}
 .asset-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;align-content:start;flex:1 1 auto;min-height:120px;max-height:520px;overflow:auto;margin-top:8px;padding-right:2px;}
 .asset-item{display:flex;flex-direction:column;gap:5px;align-items:stretch;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:6px;cursor:grab;transition:border-color .12s,background .12s,opacity .12s;min-width:0;}
 .asset-item:hover{border-color:#3b82f6;}
@@ -640,13 +647,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="workspace" id="workspace">
         <aside class="side left" id="sideLeft">
             <div class="card" id="computeCard">
-                <h2>算力总控 <span class="h2-extra">本页独立 · 三档快捷切换</span></h2>
+                <h2>算力总控</h2>
                 <div class="ed-mode-row" id="edModeRow">
                     <label data-mode="manflow"><input type="radio" name="edComputeMode" value="manflow"> 漫流算力</label>
                     <label data-mode="local"><input type="radio" name="edComputeMode" value="local"> 本机算力</label>
                     <label data-mode="third_party"><input type="radio" name="edComputeMode" value="third_party"> 第三方API</label>
                 </div>
-                <div class="hint" id="edComputeHint">AI剪辑、对话剪辑、AI字幕现在都优先经本机服务（127.0.0.1:8788）转发：启动服务后自动探测 127.0.0.1 / localhost，绕开浏览器跨域 CORS；服务离线才尝试浏览器直连并给出明确诊断。两栏状态彻底分开、互不覆盖。本页档位独立。各自的运行状态与进度已移入点击 AI剪辑 / AI字幕 后弹出的浮窗里。</div>
+                <div class="hint" id="edComputeHint" style="display:none"></div>
             </div>
 
             <div class="card">
@@ -667,7 +674,11 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <button class="mini-btn cyan" id="musicLibBtn" title="配置 NAS 音乐音效素材包地址">🎵 音乐音效库</button>
                     <button class="mini-btn purple" id="importUrl">🔗 粘贴在线 URL</button>
                 </div>
-                <div class="drop-zone" id="dropZone">把本地 <b>文本 / 图片 / 视频 / 声音</b> 拖到这里<br>也可以直接拖入一个在线文件 URL · 双击空白处导入</div>
+                <div class="drop-zone" id="dropZone" title="点击或双击导入本地素材，也可把文件或在线 URL 拖到这里">
+                <span class="dz-plus">+</span>
+                <span class="dz-title">导入</span>
+                <span class="dz-sub">视频 / 音频 / 图片 · 支持<span class="dz-url">在线 URL</span>，拖入或双击</span>
+            </div>
                 <div class="asset-preview-tip" id="assetPreviewTip" hidden></div>
                 <div class="asset-list" id="assetList"></div>
             </div>
@@ -1768,7 +1779,7 @@ function applyCompute(mode,silent,skipSave){
     $("aiCustom").style.display="none";
     $("edComputeHint").textContent=m==="manflow"
         ? "占位档，暂不可运行；请点「本机算力」或「第三方API」。本页档位与另两页独立。"
-        : "AI剪辑 / AI字幕 共用此档位：本机算力＝本机模型 + faster-whisper；第三方API＝创作台 / 画布已存配置。本页档位独立。";
+        : "";
     setEdState("当前："+ED_COMPUTE_LABEL[m]+(m==="manflow"?" · 占位暂未开放":" · "+ac.label),m==="manflow"?"err":"");
     const im=$("aiIdeaMode"); if(im) im.textContent=ED_COMPUTE_LABEL[m];
     if(!skipSave) saveCompute(m);
@@ -6101,7 +6112,7 @@ function wire(){
     /* 双击素材库空位（空白区 / 拖放提示区）＝点「导入素材」，跟按钮完全一致 */
     const openImportIfBlank=e=>{ if(!e.target.closest(".asset-item")){ e.preventDefault(); $("fileInput").click(); } };
     $("assetList").addEventListener("dblclick",openImportIfBlank);
-    $("dropZone").addEventListener("dblclick",e=>{ e.preventDefault(); $("fileInput").click(); });
+    $("dropZone").addEventListener("click",e=>{ e.preventDefault(); $("fileInput").click(); });
     $("importUrl").onclick=()=>{$("urlModal").classList.add("show"); $("urlText").focus();};
 
     /* NAS 资源库地址配置：音乐音效库 / LUT库 共用同一套逻辑（为将来 NAS 打通预留，当前仅保存地址） */

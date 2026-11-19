@@ -163,6 +163,8 @@
            直接沿用 .hist-btn 的 var(--panel) / var(--text) / 细边框，不再叠琥珀色覆盖 */
         .load-history-btn { background-color: var(--blue); color: #fff; }
         .start-btn { background: var(--green); color: #fff; font-weight: 500; }
+        /* 停止 / 开始按钮高度增加一倍，扩大鼠标可点击面积（与输入框底对齐） */
+        .input-row .stop-btn, .input-row .start-btn { min-height: 64px; font-size: 13px; }
         .plus-upload-btn { width: 32px; height: 32px; font-size: 17px; line-height: 1; padding: 0; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; flex-shrink: 0; }
         .plus-upload-btn:hover { background: #1d4ed8; }
         .ref-upload-btn { padding: 6px 9px; font-size: 11.5px; min-height: 32px; background: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; white-space: nowrap; }
@@ -348,7 +350,6 @@
                 <button class="skill-btn" data-skill-key="c">美术画风助手 V5（资产图提示词）</button>
                 <button class="skill-btn" data-skill-key="e">美术画风助手V5 Midjourney</button>
                 <button class="skill-btn import-skill-btn" id="importSkillMdBtn">📥 导入本地 .md 技能</button>
-                <button class="help-open-btn" id="openHelpBtn">📖 使用帮助</button>
                 <input type="file" id="skillMdInput" accept=".md">
             </div>
         </div>
@@ -482,12 +483,13 @@
             <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
             <button class="ctrl-btn send-canvas-btn" id="sendToCanvasBtn" title="把最近一次 AI 输出送到画布（先选现有画布 / 新建画布；生成中不可用）">⇢ 送到画布</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
+            <button class="ctrl-btn" id="openHelpBtn" title="查看漫流编导创作台使用帮助">📖 使用帮助</button>
             <a class="ctrl-btn editor-nav-btn" id="openEditorBtnIndex" href="./editor.html" target="_blank" rel="noopener noreferrer" title="打开漫流 AI 剪辑台（新标签页）">✂ AI剪辑台</a>
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         </div>
         <div id="chatBox"></div>
         <div class="input-row">
-            <button class="ctrl-btn stop-btn" id="stopBtn">停止生成</button>
+            <button class="ctrl-btn stop-btn" id="stopBtn">停止</button>
             <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
             <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
         </div>

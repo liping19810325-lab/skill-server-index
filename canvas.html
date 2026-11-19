@@ -347,7 +347,6 @@
                     <label><input type="radio" name="cvComputeMode" value="third_party"> 第三方API</label>
                 </div>
                 <div class="hint" id="cvComputeHint">三页算力档位各自独立：本页切档不会改动创作台 / AI 剪辑台，可同时用不同算力并行工作（同一网页的多个标签页仍同步）。本页内部两处联动：本栏 ↔ 生成节点「生成引擎」任意一处切换，另一处立即跟随。切本栏会把当前画布所有生成节点一起改（生成中的不打断）；在生成节点里单独改引擎只改那一个节点，其它节点仍可各自保留，新建生成节点默认跟随本栏。</div>
-                <div class="kv" id="cvComputeState">当前全局：第三方API</div>
                 <details class="cv-tools" id="cvTools">
                     <summary>⚙ 接入工具：本机大模型 / 补充模型清单 / API 配置</summary>
                     <div class="cv-tools-body">
@@ -378,7 +377,7 @@
                 <div class="row"><button class="mini-btn" id="workflowBtn">＋ 导入工作流 API JSON</button></div>
                 <div class="row"><label>已导入模板（选中后可改映射）</label><select id="workflowList"></select></div>
                 <div class="row"><button class="mini-btn gray" id="workflowRenameBtn">改名</button><button class="mini-btn red" id="workflowDelBtn">删除</button></div>
-                <div class="kv" id="workflowInfo">尚未导入工作流</div>
+                <div class="kv" id="workflowInfo"></div>
                 <div class="row"><label>当前模板节点映射（可手工修正）</label><textarea class="code" id="mappingBox" spellcheck="false"></textarea></div>
                 <div class="row"><button class="mini-btn gray" id="inferBtn">重新推断</button><button class="mini-btn green" id="saveMappingBtn">保存映射</button></div>
                 <div class="hint warn">连不上时，多半是 ComfyUI 没允许跨域：启动参数要带 <code>--enable-cors-header *</code>（值必须是 <code>*</code> 或纯域名，<b>不能带 /canvas 这类路径</b>）。内测期用 <code>http://</code> 本机打开画布；正式 HTTPS 主站直连本机 HTTP 会被浏览器拦截，按部署阶段做同源反代。工作流必须是「文件 → 导出工作流 (API)」格式。</div>
@@ -5137,7 +5136,7 @@ function renderWorkflowInfo(){
     sel.innerHTML="";
     if(!list.length){
         const o=document.createElement("option"); o.value=""; o.textContent="尚未导入工作流"; sel.appendChild(o);
-        el("workflowInfo").textContent="尚未导入。先选「生图 / 生视频」，再点「＋ 导入工作流 API JSON」，可导入多个。";
+        el("workflowInfo").textContent="";
         el("mappingBox").value="{}";
         return;
     }
