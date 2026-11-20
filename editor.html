@@ -1049,7 +1049,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </ul>
             <h2>④ 时间轴 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
-                <li><b>🎨 AI包装</b>：点按钮直接打开 AI 弹窗并切到「AI包装」面板。它用<b>代码渲染完整画面成片</b>：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字 / 标签 / 数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4；同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。可选 1~6 套画面模板（多选），一套都不选＝全自动智能识别。<br>生成后按模板固定序号分成 <b>花字1~花字6</b> 六条独立轨（花字1=关键词高亮、2=英文字母弹出、3=数据卡片、4=知识图文、5=步骤清单、6=引用金句；用到哪套建哪条），每条可单独选中、拖动位置、改文字/字号/渐变色/持续动效。<b>花字独立排版</b>：自动按模板分区锚点摆放、不扎堆居中、超长文字自动缩字号不越屏，并避开画面中上部的<b>人脸保护区</b>（有花字时显示橙色虚线框，可拖动/四角缩放，关闭避让可隐藏）。持续动效含呼吸浮动 / 心跳缩放 / 轻微旋转 / 渐变流动 / 呼吸发光，预览与成片完全一致。</li>
+                <li><b>🎨 AI包装</b>：点按钮直接打开 AI 弹窗并切到「AI包装」面板。它用<b>代码渲染完整画面成片</b>：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字 / 标签 / 数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4；同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。可选 1~6 套画面模板（多选），一套都不选＝全自动智能识别。<br>生成后按模板固定序号分成 <b>花字1~花字6</b> 六条独立轨（花字1=关键词高亮、2=英文字母弹出、3=数据卡片、4=知识图文、5=步骤清单、6=引用金句；用到哪套建哪条），每条可单独选中、拖动位置、改文字/字号/渐变色/持续动效。<b>花字独立排版</b>：自动按模板分区锚点摆放、不扎堆居中、超长文字自动缩字号不越屏，并避开画面中上部的<b>人脸保护区</b>（避让在布局层自动生效，不显示辅助框、不会出现在成片里）。持续动效含呼吸浮动 / 心跳缩放 / 轻微旋转 / 渐变流动 / 呼吸发光，预览与成片完全一致。</li>
                 <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材元信息、独立音轨、毫秒字幕、静音区间、视频抽帧与你的思路，先做语义分析区分有效停顿 / 无效废片并给出内容优化建议；确认后删除建议会转成剪口播候选（可勾选、全选、撤销），其它裁切 / 字幕优化可直接写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b><b>跨域说明</b>：模型请求与「对话剪辑」一样优先经本机服务（127.0.0.1:8788）转发，服务会自动探测 127.0.0.1 / localhost 两个地址；双击启动本机服务即可绕开浏览器 CORS，服务离线时才尝试直连并给出明确诊断。</li>
                 <li><b>🤖 对话剪辑（真正由大模型驱动的 AI 剪辑）</b>：点这个按钮打开对话面板，用<b>日常自然语言</b>说需求即可，例如「删掉所有嗯啊语气词和长停顿」「把节奏加快」「挑出高光片段」「读取文稿并总结」。AI 会真正调用工具：先 <code>read_timeline</code> 读时间轴拿到准确的片段 id 和秒数，必要时 <code>read_script</code> 读出带 <code>[sN]</code> 段号的文稿，用 <code>preview_frame</code> <b>抽真实画面做视觉自检</b>（图片会回注给模型看图），改完再自检、不对就用工具继续修正。所有编辑<b>只生成提案</b>，面板底部会出现「待确认的剪辑提案」卡片，列清楚每一项改动（裁片头、删片段、移动、变速、按文稿写回等），你点「✅ 应用提案」才真正写入轨道（<code>Ctrl+Z</code> 一步撤销），点「放弃」则时间轴分毫不动。模型需要 Claude / GPT 这类能稳定输出工具调用的强模型；模型与 Key 复用左上「算力总控」，经本机服务代理转发，Key 不会暴露给第三方页面。对话支持多轮连续编辑，复杂需求可多步完成。</li>
                 <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给AI剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
@@ -2518,7 +2518,11 @@ Object.assign(FV,{
             for(const el of arr){
                 const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);
                 fx.sub.size=el.size; fx.sub.color=el.color;
-                const fv={type:el.type,template:tpl,x:el.x,y:el.y,anim:el.anim,animDur:el.animDur,
+                /* 位置一律用模板分区锚点（模型给的 el.x/y 忽略），只有用户后续手动拖动才覆盖 */
+                const anchor=FV_ANCHORS[tpl]||FV_ANCHORS.keyword;
+                const custom=el.userMoved===true;
+                const fv={type:el.type,template:tpl,x:custom?el.x:anchor.x,y:custom?el.y:anchor.y,
+                    userMoved:custom,anim:el.anim,animDur:el.animDur,
                     motion:el.motion||"none",motionAmp:el.motionAmp==null?1:el.motionAmp,
                     motionDur:el.motionDur||2.4};
                 if(Array.isArray(el.steps)){ fv.steps=el.steps.slice(); fv.stepActive=el.stepActive||1; }
@@ -2549,8 +2553,10 @@ Object.assign(FV,{
             if(existing.length){
                 elements=existing.map(c=>{
                     const s=(c.fx&&c.fx.sub)||{}, m=s.fv||{};
+                    const anchor=FV_ANCHORS[m.template]||FV_ANCHORS.keyword;
                     const e={type:m.type||"text",text:String(c.text||""),start:+c.start||0,
-                        end:+((c.start||0)+(c.duration||0)).toFixed(3),x:m.x==null?0.5:m.x,y:m.y==null?0.65:m.y,
+                        end:+((c.start||0)+(c.duration||0)).toFixed(3),x:m.x==null?anchor.x:m.x,y:m.y==null?anchor.y:m.y,
+                        userMoved:m.userMoved===true,
                         size:Number(s.size)||56,color:/^#[0-9a-f]{6}$/i.test(String(s.color))?s.color:"#ffffff",
                         anim:m.anim||"pop",animDur:Number(m.animDur)||0.4,template:m.template||this.tpls[0]||"keyword",
                         motion:m.motion||"none",motionAmp:m.motionAmp==null?1:m.motionAmp,motionDur:m.motionDur||2.4};
@@ -2625,13 +2631,13 @@ const FV_FX={
    数据真源：片段 c.fx.sub.fv = {type,template,x,y,size,color,anim,animDur,motion,steps,stepActive}
    motion ∈ none|float|pulse|rotate|flow|glow（持续动效）；anim 仍是入场动效。 */
 const FV_TPL_SLOTS=["keyword","english","data","knowledge","steps","quote"];  /* 花字1..6 固定顺序 */
-const FV_ANCHORS={   /* 每套模板的默认锚点（归一化 0~1，避开画面中上部人脸区） */
-    keyword:  {x:0.50,y:0.80},
-    english:  {x:0.80,y:0.22},
-    data:     {x:0.80,y:0.55},
-    knowledge:{x:0.16,y:0.26},
-    steps:    {x:0.16,y:0.58},
-    quote:    {x:0.50,y:0.82}
+const FV_ANCHORS={   /* 每套模板的固定分区锚点（归一化 0~1）：真正分散到画面四周，避开中上部人脸区 x∈0.34~0.66/y∈0.10~0.52 */
+    knowledge:{x:0.14,y:0.20},  /* 知识图文 → 左上 */
+    english:  {x:0.84,y:0.18},  /* 英文字母 → 右上 */
+    steps:    {x:0.14,y:0.58},  /* 步骤清单 → 左中（竖向排列） */
+    data:     {x:0.85,y:0.56},  /* 数据卡片 → 右中 */
+    keyword:  {x:0.28,y:0.85},  /* 关键词高亮 → 下中偏左 */
+    quote:    {x:0.72,y:0.85}   /* 引用金句 → 下中偏右 */
 };
 const FV_MOTIONS={none:"静态",float:"呼吸浮动",pulse:"心跳缩放",rotate:"轻微旋转",flow:"渐变流动",glow:"呼吸发光"};
 const FV_GUARD_DEFAULT={on:true,x:0.34,y:0.10,w:0.32,h:0.42};
@@ -2643,10 +2649,15 @@ function fvDesc(src){
     const num=(v,d)=>{ const n=Number(v); return Number.isFinite(n)?n:d; };
     const tpl=m.template||src.template||"keyword";
     const anchor=FV_ANCHORS[tpl]||FV_ANCHORS.keyword;
+    /* 关键修复：花字位置以模板分区锚点为准，绝不用模型分镜给的 x/y（那些都堆在中下部）。
+       只有用户手动拖动/面板改过位置（userMoved=true）才采用自定义坐标。 */
+    const useCustom=m.userMoved===true || src.userMoved===true;
     return {
         template:tpl, type:m.type||src.type||"text",
         text:String(src.text||""),
-        x:num(m.x,anchor.x), y:num(m.y,anchor.y),
+        x:useCustom?num(m.x,anchor.x):anchor.x,
+        y:useCustom?num(m.y,anchor.y):anchor.y,
+        userMoved:useCustom,
         size:Math.max(16,num(sub.size!=null?sub.size:src.size,56)),
         color:/^#[0-9a-f]{6}$/i.test(String(sub.color||src.color))?(sub.color||src.color):"#ffffff",
         gradient:String(sub.gradient||src.gradient||""),
@@ -5015,8 +5026,12 @@ let fancyCache="";
 function fancyCacheKey(){
     const fz=state.clips.filter(c=>c.fv&&trackKind(c.track)==="text");
     const g=state.fvFaceGuard||{};
+    /* 关键：把「当前播放头激活的花字片段集合」纳入缓存键。
+       否则播放头走到后段时 active 变了、键却不变，DOM 不重建，后段花字永远不出现
+       （updateFancyFrame 只改已有元素 transform，不会新建元素）。 */
+    const activeIds=activeFancyClips().map(c=>c.id).sort().join(",");
     return fz.map(c=>c.id+c.text+(c.fx&&c.fx.sub&&JSON.stringify(c.fx.sub.fv)||"")+(c.fx&&c.fx.sub&&c.fx.sub.size||"")).join("|")
-        +"@"+[g.on,g.x,g.y,g.w,g.h].join(",");
+        +"@"+[g.on,g.x,g.y,g.w,g.h].join(",")+"#"+activeIds;
 }
 function activeFancyClips(){
     const out=[];
@@ -5070,19 +5085,13 @@ function updateFancyFrame(){
         if(s.gradShift) el.style.backgroundPosition=(s.gradShift*100).toFixed(0)+"% 0";
     });
 }
-/* 人脸保护区：仅在存在花字片段且 guard.on 时显示，位置随 state.fvFaceGuard 归一化坐标 */
+/* 人脸保护区：虚线框已按需求永久隐藏（预览不显示、不会出现在任何导出画面）。
+   避让逻辑仍读取 state.fvFaceGuard 数据——花字布局 fvLayout 会继续避开中上部人脸区，
+   “不挡脸”的效果保留，只是不再画出那个橙色辅助框。 */
 function hasFancy(){ return state.clips.some(c=>c.fv&&trackKind(c.track)==="text"); }
 function syncFaceGuard(){
     const el=$("faceGuard"); if(!el) return;
-    const g=state.fvFaceGuard||FV_GUARD_DEFAULT;
-    const show=hasFancy() && g.on!==false;
-    if(el.hidden===show) el.hidden=!show;
-    if(!show) return;
-    const st=$("stage"), W=st?st.clientWidth:640, H=st?st.clientHeight:360;
-    el.style.left=Math.round((g.x||0)*W)+"px";
-    el.style.top=Math.round((g.y||0)*H)+"px";
-    el.style.width=Math.round((g.w||0.32)*W)+"px";
-    el.style.height=Math.round((g.h||0.42)*H)+"px";
+    if(!el.hidden) el.hidden=true;   /* 永久隐藏辅助框 */
 }
 /* 逐帧驱动字级字幕动画：直接写 .aw span 的 style，不经过 subCache（否则会被缓存早退跳过）。
    播放/静止时都调用——暂停时也需要根据当前播放头显示"说到哪个字"的静态状态。 */
@@ -5278,7 +5287,7 @@ function fancyPropsHtml(c){
       +'<div class="prop-row"><label>渐变色</label><input type="text" id="fpgrad" placeholder="留空用纯色，如 #ffd23e,#7dd3fc" value="'+esc(q.gradient||"")+'"></div>'
       +'<div class="prop-row"><label>持续动效</label><select id="fpmotion">'+motionOpts+'</select></div>'
       +'<div class="prop-row"><label>幅度 / 周期</label><input type="number" id="fpamp" step="0.1" min="0" max="3" value="'+(fv.motionAmp==null?1:fv.motionAmp)+'"><input type="number" id="fpdur" step="0.1" min="0.5" max="12" value="'+(fv.motionDur||2.4)+'"></div>'
-      +'<div style="font-size:10.5px;color:var(--muted);line-height:1.5">位置为画幅比例（0~1），也可在画面上直接拖动花字调整。人脸保护区会在轨道有花字时显示。</div>'
+      +'<div style="font-size:10.5px;color:var(--muted);line-height:1.5">位置为画幅比例（0~1），也可在画面上直接拖动花字调整。花字会自动避开画面中上部的人脸区（辅助框已隐藏，不进成片）。</div>'
       +'</div>';
 }
 function applyFancyProps(c){
@@ -5287,6 +5296,7 @@ function applyFancyProps(c){
     const num=(id,d)=>{ const el=$(id); if(!el) return d; const n=Number(el.value); return Number.isFinite(n)?n:d; };
     fv.x=FV_FX.clamp(num("fpx",fv.x==null?0.5:fv.x),0.02,0.98);
     fv.y=FV_FX.clamp(num("fpy",fv.y==null?0.7:fv.y),0.02,0.98);
+    fv.userMoved=true;   /* 面板显式改位置＝用户自定义，之后按此坐标而非模板锚点 */
     q.size=Math.max(16,Math.round(num("fpsize",q.size||56)));
     const grad=$("fpgrad")?$("fpgrad").value.trim():""; q.gradient=grad;
     fv.motion=$("fpmotion")?$("fpmotion").value:(fv.motion||"none");
@@ -8519,6 +8529,7 @@ function wire(){
                 const dx=(ev.clientX-sx)/W, dy=(ev.clientY-sy)/H;
                 if(Math.abs(dx)+Math.abs(dy)<0.003) return;
                 moved=true;
+                c.fx.sub.fv.userMoved=true;
                 c.fx.sub.fv.x=FV_FX.clamp(ox+dx,0.02,0.98);
                 c.fx.sub.fv.y=FV_FX.clamp(oy+dy,0.02,0.98);
                 if(!el._baseLeft){ el._baseLeft=parseFloat(el.style.left)||0; el._baseTop=parseFloat(el.style.top)||0; }
