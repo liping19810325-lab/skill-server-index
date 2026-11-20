@@ -1394,7 +1394,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="fv-tpl-grid" id="fvTemplates"></div>
                 <div class="fv-tip">ℹ️ 本方案通过代码渲染输出完整视频成片；仅导入口播音频也可生成完整动态字幕画面，生成后素材仍支持时间轴局部编辑。修改片段后可再次点「渲染」重新出片。</div>
                 <label class="fv-all-box" style="margin-top:6px" title="默认关闭：AI包装时隐藏原「字幕1」白色字幕，避免与花字4完整字幕重复叠字。勾选后恢复显示原白色字幕，花字会自动避开字幕1所在区域，双方不冲突。"><input type="checkbox" id="fvShowBaseSub"><span>AI包装时同时显示原「字幕1」白色字幕（勾选开启 · 花字自动避让）</span></label>
-                <label class="fv-all-box" style="margin-top:6px" title="默认关闭，不改动原始视频构图。勾选后：多屏拼贴/现代图文/科技控制台/牌桌洗牌/空间画廊这五套画面模板才会把轨道视频/图片缩到画幅一侧，腾出区域放图形与花字；取消勾选或点基础调整里的复位按钮，主画面立即恢复全屏铺底。经典套不受影响。"><input type="checkbox" id="fvMediaFitOn"><span>画面模板可调整主画面构图（默认关闭，勾选才缩到一侧）</span></label>
+                <label class="fv-all-box" style="margin-top:6px" title="默认关闭，不改动原始视频构图。勾选后按当前画面模板各自的构图摆放主画面：多屏拼贴=居中偏上主屏、现代图文=右侧竖幅、科技控制台=左侧仪表窗、牌桌洗牌=右侧牌面、空间画廊=下方居中画框；切换模板构图立即跟随，腾出的区域放图形与花字。取消勾选或点基础调整里的复位按钮，主画面立即恢复全屏铺底。经典套不受影响。"><input type="checkbox" id="fvMediaFitOn"><span>画面模板可调整主画面构图（默认关闭，勾选才缩到一侧）</span></label>
                 <div class="ai-progress" id="fvProgress" hidden><div class="ai-progress-fill" id="fvProgressFill"></div></div>
                 <div class="ai-steps" id="fvSteps"></div>
                 <div class="ai-state" id="fvState" style="margin-top:8px">就绪。轨道放一条口播音频或口播视频，选模板与模型后点「渲染AI包装成片」。</div>
@@ -2205,7 +2205,7 @@ const FV_STYLES={
             dataBar:"rgba(56,189,248,.55)",quoteFill:"rgba(59,130,246,.12)",quoteMark:"rgba(147,197,253,.55)",
             stepsFill:"rgba(6,26,48,.72)",stepsStroke:"rgba(56,189,248,.55)",stepDone:"rgba(56,189,248,.85)",
             stepNumText:"#04121f",textMain:"#f0f9ff",textDim:"rgba(186,230,253,.55)",textShadow:"rgba(2,8,23,.78)"},
-        fit:{scale:0.62,x:0.19,y:0.0,align:"left"}},   /* 多屏拼贴：主画面缩到右半，左侧留给品牌拼贴图形 */
+        fit:{scale:0.54,x:0,y:-0.14,hint:"主画面缩成居中偏上的主屏，四周留多屏拼贴格"}},   /* 多屏拼贴：主屏居中偏上 */
     editorial:{name:"现代图文 · 口播讲解",ic:"📰",ds:"浅色编辑风：米白底、细线卡片、克莱因蓝强调、动态开场，图文讲解干净克制",
         vis:{bg:"#f7f7f5",mediaTint:"rgba(248,248,245,.30)",font:'"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif',
             kw:"#2563eb",english:"#1d4ed8",data:"#0891b2",knowledge:"#7c3aed",steps:"#047857",quote:"#b45309",
@@ -2213,7 +2213,7 @@ const FV_STYLES={
             dataBar:"rgba(37,99,235,.45)",quoteFill:"rgba(180,83,9,.08)",quoteMark:"rgba(180,83,9,.45)",
             stepsFill:"rgba(255,255,255,.82)",stepsStroke:"rgba(37,99,235,.40)",stepDone:"rgba(37,99,235,.85)",
             stepNumText:"#ffffff",textMain:"#1e293b",textDim:"rgba(71,85,105,.62)",textShadow:"rgba(255,255,255,.92)"},
-        fit:{scale:0.66,x:0.17,y:0.0,align:"left"}},   /* 现代图文：主画面缩到右侧,左侧大块留白放图文卡片 */
+        fit:{scale:0.50,x:0.23,y:0,align:"right",hint:"主画面竖长居右，左侧大块米白留白放图文卡片"}},   /* 现代图文：右侧竖幅+左大留白 */
     console:{name:"科技控制台 · 口播讲解",ic:"🖥️",ds:"深色控制台风：黑底冷蓝紫玻璃面板、等宽字体、霓虹描边，适合科技/教程口播",
         vis:{bg:"#070b16",mediaTint:"rgba(3,6,20,.36)",font:'ui-monospace,SFMono-Regular,Consolas,"Microsoft YaHei",monospace',
             kw:"#22d3ee",english:"#67e8f9",data:"#a78bfa",knowledge:"#818cf8",steps:"#2dd4bf",quote:"#c4b5fd",
@@ -2221,7 +2221,7 @@ const FV_STYLES={
             dataBar:"rgba(167,139,250,.5)",quoteFill:"rgba(196,181,253,.10)",quoteMark:"rgba(196,181,253,.5)",
             stepsFill:"rgba(10,15,33,.72)",stepsStroke:"rgba(34,211,238,.45)",stepDone:"rgba(45,212,191,.85)",
             stepNumText:"#04121f",textMain:"#e0f2fe",textDim:"rgba(148,163,184,.6)",textShadow:"rgba(2,6,23,.85)"},
-        fit:{scale:0.70,x:0.15,y:0.0,align:"left"}},  /* 科技控制台：主画面缩到右侧面板区，左侧留仪表盘/文字 */
+        fit:{scale:0.52,x:-0.22,y:0.02,align:"left",hint:"主画面嵌在左侧仪表窗，右侧留给冷蓝紫控制台面板"}},  /* 科技控制台：左侧嵌窗+右面板 */
     cardTable:{name:"牌桌洗牌 · 数据博弈",ic:"🃏",ds:"赌桌绿呢绒＋卡牌翻转发牌、筹码计数风，要点像手牌逐张亮出，适合盘点/对比/测评口播",
         vis:{bg:"#0b2418",mediaTint:"rgba(6,28,18,.34)",font:'"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif',
             kw:"#facc15",english:"#fde68a",data:"#4ade80",knowledge:"#a3e635",steps:"#34d399",quote:"#fbbf24",
@@ -2229,7 +2229,7 @@ const FV_STYLES={
             dataBar:"rgba(74,222,128,.55)",quoteFill:"rgba(251,191,36,.10)",quoteMark:"rgba(253,230,138,.5)",
             stepsFill:"rgba(8,36,22,.78)",stepsStroke:"rgba(74,222,128,.5)",stepDone:"rgba(74,222,128,.88)",
             stepNumText:"#062015",textMain:"#f7fee7",textDim:"rgba(190,242,100,.55)",textShadow:"rgba(3,18,10,.8)"},
-        fit:{scale:0.66,x:0.17,y:0.02,align:"left"}},  /* 牌桌：主画面缩到右侧，左侧留卡牌/筹码数据区 */
+        fit:{scale:0.48,x:0.21,y:0.0,align:"right",hint:"主画面缩成右侧一张牌，左侧绿呢桌面留给发牌/筹码计数"}},  /* 牌桌：右侧牌面+左桌面 */
     gallery:{name:"空间画廊 · 回忆相册",ic:"🖼️",ds:"3D 空间画廊、照片陈列、暖金回忆风，要点做成相框依次浮入，适合故事/人物/回顾口播",
         vis:{bg:"#1a1410",mediaTint:"rgba(26,18,12,.30)",font:'"Georgia","PingFang SC","Microsoft YaHei",serif',
             kw:"#e7c9a3",english:"#f3dfc1",data:"#d9a441",knowledge:"#c9a227",steps:"#c98a5e",quote:"#edd6a0",
@@ -2237,7 +2237,7 @@ const FV_STYLES={
             dataBar:"rgba(217,164,65,.5)",quoteFill:"rgba(237,214,160,.10)",quoteMark:"rgba(243,223,193,.5)",
             stepsFill:"rgba(38,28,20,.76)",stepsStroke:"rgba(217,164,65,.42)",stepDone:"rgba(217,164,65,.85)",
             stepNumText:"#1a1009",textMain:"#fbf5e9",textDim:"rgba(231,201,163,.6)",textShadow:"rgba(24,15,8,.82)"},
-        fit:{scale:0.64,x:0.18,y:0.0,align:"left"}}   /* 画廊：主画面缩到右侧，左侧留相框陈列区 */
+        fit:{scale:0.60,x:0,y:0.12,align:"center",hint:"主画面缩成下方居中画框，上方留空间画廊的照片陈列位"}}   /* 画廊：下方居中画框+上陈列 */
 };
 /* 取当前主画面风格的视觉参数：未勾选＝全自动＝用经典风格；多选时以第一套为画面基调（风格只影响视觉，不改花字逻辑）。
    motif 就是模板 key：花字底板绘制(FV.plate)按它走各自的图形母题，让6套模板不只是换颜色。 */
@@ -2251,9 +2251,11 @@ function fvStyleVis(){
    返回 null 表示不改变主画面。 */
 function fvStyleFit(){
     if(state.fvMediaFitOn!==true) return null;   /* 默认关闭：不强制缩小任何素材 */
-    if(state.fvMediaFit) return state.fvMediaFit;   /* 工程里显式保存的构图优先 */
     const k=FV.styles&&FV.styles.length?FV.styles[0]:"classic";
     const st=FV_STYLES[k]||FV_STYLES.classic;
+    /* 构图直接由当前画面模板决定：切换模板立即跟随、五套各具特色。
+       旧工程里固化的 state.fvMediaFit 不再作为覆盖来源——它正是"五套构图都一样"的根因
+       （旧版默认勾选把某一套的 scale/x/y 存进工程，此后切哪套都用那份值）。 */
     return st.fit||null;
 }
 /* 按逻辑花字类型取当前画面风格的主色：让兜底分镜/模型缺省色也贴合风格（浅色编辑风不再用亮黄字）。
@@ -2340,6 +2342,7 @@ const FV={
             if(i>=0) this.styles.splice(i,1); else this.styles.push(k);
             c.classList.toggle("active",i<0);
             this.syncTplAll();
+            state.fvMediaFit=null;   /* 清掉旧工程残留的固定构图，让构图跟随当前模板 */
             applyClipTransforms(); renderFancyOverlay();   /* 切换画面模板：预览外观/构图立即更新 */
             autoSave();   /* 画面模板随工程保存 */
         };
@@ -8810,8 +8813,12 @@ function wire(){
             toast(e.target.checked?"已显示原「字幕1」白色字幕，花字自动避让":"已隐藏原「字幕1」白色字幕","ok"); };
     }
     if($("fvMediaFitOn")){
-        $("fvMediaFitOn").onchange=e=>{ pushHistory(); state.fvMediaFitOn=e.target.checked; state.fvMediaFitUserSet=true; applyClipTransforms(); autoSave();
-            toast(e.target.checked?"已启用：主画面将按模板缩到一侧腾出图文区":"已关闭主画面构图，画面恢复全屏铺底","ok"); };
+        $("fvMediaFitOn").onchange=e=>{ pushHistory(); state.fvMediaFitOn=e.target.checked; state.fvMediaFitUserSet=true; state.fvMediaFit=null; applyClipTransforms(); autoSave();
+            if(e.target.checked){
+                const k=FV.styles&&FV.styles.length?FV.styles[0]:"classic", st=FV_STYLES[k]||FV_STYLES.classic;
+                const hint=(st.fit&&st.fit.hint)?("："+st.fit.hint):"";
+                toast("已启用「"+st.name+"」的主画面构图"+hint,"ok");
+            }else toast("已关闭主画面构图，画面恢复全屏铺底","ok"); };
     }
     initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
     /* 右栏两个并列标签 */
