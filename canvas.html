@@ -427,6 +427,7 @@
         <div class="history-head">
             <b>🖼 历史结果（图片 / 视频）</b>
             <span class="history-count" id="historyCount"></span>
+            <span class="history-count" style="color:var(--muted);font-size:10.5px">点开预览后，← → 方向键或鼠标滚轮可连续切换全部结果</span>
             <span class="history-spacer"></span>
             <button class="mini-btn" id="historyClearBtn">清空历史</button>
             <button class="mini-btn" id="historyCloseBtn">关闭</button>
@@ -492,7 +493,7 @@
             <li><b>生成节点</b>：选「1. 漫流算力」「2. 本机算力」或「3. 第三方API」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 0.4（864×480）/0.9（1280×736）/2.0（1920×1088）三档百万像素），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 对 MiniMax H3 官方模板直接写 ResolutionSelector（宽高比 + 百万像素 + 32 步进）与 duration 秒数（自动换算合法帧位），其它工作流写 Latent 宽高与帧数，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。点「运行生成」时，若本节点右侧没有连着「结果」节点，会<b>立即在右侧自动新建一个连好线的结果节点</b>（生成中就能看到）；已有结果节点则直接沿用、不重复创建，生成失败时错误信息也会写进这个结果节点。<b>引擎不用一个个改：左侧【算力总控】可一键把本画布所有生成节点切到同一档；在节点里改「生成引擎」也会同步写回本页总控（不影响创作台与 AI 剪辑台），但只改当前这一个节点</b>，其它节点仍可各自保留。<b>「本机算力」的「模型 / 工作流」里也直接列了本机大语言模型</b>：页面已自动接通的 llama / Ollama / LM Studio 等会按探测到的真实模型名显示一条（端口能对应到明确软件时补软件名，识别不到就统一显示「大语言模型」），和你自己导入的 ComfyUI 生图 / 生视频工作流分在同一栏、两组里任选；选中它后点「运行生成」会直接用本机大模型走 /v1/chat/completions 把上游提示词生成文字、写进右侧结果节点，画幅 / 分辨率 / 时长自动隐藏，<b>不经过 ComfyUI</b>；改选任意 ComfyUI 工作流则一切照旧。本机大模型没接通时这一条仍在，选中并运行会给出排查提示，不会弹窗打断画布。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。视频若因跨域 / 直链格式受限无法直接播放，点一下视频窗口会<b>自动缓存到本地播放</b>，连缓存也被挡时自动转下载。</li>
-            <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
+            <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，<b>预览时按 <code>←</code> <code>→</code> 方向键或滚动鼠标滚轮，可连续切换全部历史图片 / 视频（首尾循环，Esc 关闭）</b>，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
         </ul>
         <h2>多参考素材怎么生效（异步任务型网关）</h2>
         <p>连入声音或视频参考节点、且生成类型选「生视频」时，按 <code>-multi</code> 多模态格式提交（部分服务商需自行选 <code>-multi</code> 版本模型）；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
@@ -798,6 +799,7 @@ let canvas = {
 let selectedId = null;
 let selectedIds = new Set();          /* 框选 / Shift 多选：选中的节点 id 集合 */
 let resultHistory = [];               /* 历史结果（跨画布全局存档）：{id,kind,url,name,ts,engine,prompt} */
+let lbSeq=null, lbSeqIndex=-1, lbWheelTs=0;   /* 浮窗「可连续切换序列」：仅从历史结果预览时设置，供方向键/滚轮切换；普通预览为 null */
 let seenSourceIds = new Set();
 let saveTimer = null;
 let drag = null;
@@ -2270,10 +2272,17 @@ function buildResultBody(body,n){
 function openLightbox(d){
     const lb=el("mediaLightbox"), h=el("lbHolder");
     if(!lb||!h) return;
+    /* 仅历史结果预览传 seq：浮窗进入「序列模式」，方向键/滚轮可连续切换；普通预览清空序列 */
+    lbSeq=(Array.isArray(d.seq)&&d.seq.length)?d.seq:null;
+    lbSeqIndex=lbSeq?Math.max(0,Math.min(lbSeq.length-1,d.index|0)):-1;
     h.innerHTML="";
     const oldCap=lb.querySelector(".lb-title"); if(oldCap) oldCap.remove();
     const oldTools=lb.querySelector(".lb-tools"); if(oldTools) oldTools.remove();
-    if(d.title){ const cap=document.createElement("div"); cap.className="lb-title"; cap.textContent=d.title; lb.appendChild(cap); }
+    if(d.title){
+        const cap=document.createElement("div"); cap.className="lb-title";
+        cap.textContent=lbSeq?(d.title+"　·　"+(lbSeqIndex+1)+" / "+lbSeq.length+"　|　← → 或滚轮切换"):d.title;
+        lb.appendChild(cap);
+    }
     if(d.kind==="video"){
         const v=document.createElement("video"); v.controls=true; v.autoplay=true; v.loop=true; h.appendChild(v);
         ensurePlayableVideo(v,d.url,d.name||d.title);
@@ -2324,8 +2333,29 @@ function closeLightbox(){
         const t=lb.querySelector(".lb-tools"); if(t) t.remove();   /* 清掉提示词浮窗的编辑/保存按钮 */
     }
     if(h) h.innerHTML="";   /* 停掉视频 / 音频播放 */
+    lbSeq=null; lbSeqIndex=-1;   /* 关浮窗即退出序列模式，方向键恢复为移动节点 */
 }
 /* ===== 历史结果面板（跨画布全局存档，存 IndexedDB） ===== */
+/* 历史里所有可预览的图片/视频，作为浮窗连续切换序列（项带 id 便于定位当前条） */
+function historyMediaSeq(){
+    return resultHistory.filter(h=>(h.kind==="video"||h.kind==="image")&&h.url)
+        .map(h=>({id:h.id,kind:h.kind,url:h.url,name:h.name,
+                  title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}));
+}
+/* 显示序列第 i 条（首尾循环），复用 openLightbox 共享同一套浮窗渲染 */
+function showLbSeqAt(i){
+    if(!lbSeq||!lbSeq.length) return;
+    lbSeqIndex=((i%lbSeq.length)+lbSeq.length)%lbSeq.length;
+    const d=lbSeq[lbSeqIndex];
+    openLightbox({kind:d.kind,url:d.url,name:d.name,title:d.title,seq:lbSeq,index:lbSeqIndex});
+}
+/* 方向键/滚轮切换一步：dir=-1 上一条，dir=1 下一条；仅浮窗序列模式下生效 */
+function stepLbSeq(dir){
+    const lb=el("mediaLightbox");
+    if(!lb||!lb.classList.contains("show")||!lbSeq||!lbSeq.length) return false;
+    showLbSeqAt(lbSeqIndex+dir);
+    return true;
+}
 function fmtTime(ts){
     const d=new Date(ts||0), p=n=>String(n).padStart(2,"0");
     return (d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
@@ -2350,7 +2380,12 @@ function renderHistory(){
             const img=document.createElement("img"); img.loading="lazy"; img.src=h.url; img.alt="历史结果"; thumb.appendChild(img);
             thumb.title="点击预览（图片）";
         }
-        thumb.addEventListener("click",e=>{ e.stopPropagation(); openLightbox({kind:h.kind,url:h.url,name:h.name,title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}); });
+        thumb.addEventListener("click",e=>{
+            e.stopPropagation();
+            const seq=historyMediaSeq(), i=seq.findIndex(s=>s.id===h.id);
+            if(i<0){ openLightbox({kind:h.kind,url:h.url,name:h.name,title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}); return; }
+            openLightbox(Object.assign({},seq[i],{seq:seq,index:i}));   /* 带序列打开：浮窗内可用方向键/滚轮切换所有历史结果 */
+        });
         item.appendChild(thumb);
         const meta=document.createElement("div"); meta.className="h-meta";
         const nm=document.createElement("div"); nm.className="h-name"; nm.textContent=h.name||(h.kind==="video"?"视频":"图片"); nm.title=nm.textContent;
@@ -5366,6 +5401,15 @@ function bindToolbar(){
     /* 媒体浮窗：点遮罩 / × / Esc 关闭 */
     el("lbClose").addEventListener("click",closeLightbox);
     el("mediaLightbox").addEventListener("click",e=>{ if(e.target===el("mediaLightbox")||e.target===el("lbHolder")) closeLightbox(); });
+    /* 历史结果浮窗：鼠标滚轮切换上/下一条（节流，避免一次滚动跳多条） */
+    el("mediaLightbox").addEventListener("wheel",e=>{
+        if(!el("mediaLightbox").classList.contains("show")||!lbSeq||!lbSeq.length) return;
+        e.preventDefault();
+        const now=Date.now();
+        if(now-lbWheelTs<280) return;
+        lbWheelTs=now;
+        stepLbSeq(e.deltaY>0?1:-1);
+    },{passive:false});
     /* ===== 历史结果面板 ===== */
     el("historyBtn").addEventListener("click",openHistory);
     el("historyCloseBtn").addEventListener("click",closeHistory);
@@ -5441,6 +5485,13 @@ function bindToolbar(){
         }
         if(mod&&key==="s"){ e.preventDefault(); flushPendingSave(); setStatus("已手动保存","ok"); return; }
         if(typing) return;   /* 输入框里 Ctrl+Z 等交给浏览器做文本撤销 */
+        /* 历史结果浮窗「序列模式」：方向键切换上/下一条（首尾循环），优先于移动选中节点 */
+        if(lbSeq&&lbSeq.length&&el("mediaLightbox").classList.contains("show")
+           &&(e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="ArrowUp"||e.key==="ArrowDown")){
+            e.preventDefault();
+            stepLbSeq(e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:1);
+            return;
+        }
         if(mod&&key==="z"){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); return; }
         if(mod&&key==="y"){ e.preventDefault(); redo(); return; }
         if(mod&&key==="a"){ e.preventDefault(); selectAll(); return; }
