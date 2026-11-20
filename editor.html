@@ -166,7 +166,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 /* 暗角/颗粒在导出里绘制于 LUT 之后，预览也保持在 LUT canvas(z-index:4) 之上 */
 .fx-color-overlay{position:absolute;inset:0;pointer-events:none;z-index:4;}
 /* 历史工作区：本工作区跨日期工程列表 */
-/* 智能剪口播候选列表 */
+/* AI剪口播候选列表 */
 .sc-list{max-height:340px;overflow:auto;}
 .sc-item{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:7px 9px;margin-bottom:6px;font-size:11.5px;}
 .sc-item input[type=checkbox]{flex:0 0 auto;accent-color:var(--cyan);}
@@ -280,6 +280,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 @keyframes recpulse{50%{box-shadow:0 0 0 6px rgba(220,38,38,.12);}}
 .tb-btn.ai-blogger{background:linear-gradient(135deg,#db2777,#f59e0b);border-color:transparent;color:#fff;font-weight:600;padding:4px 13px;}
 .tb-btn.ai-blogger:hover{filter:brightness(1.14);}
+.tb-btn.ai-pack{background:linear-gradient(135deg,#0ea5e9,#4f46e5);border-color:transparent;color:#fff;font-weight:600;padding:4px 13px;}
+.tb-btn.ai-pack:hover{filter:brightness(1.14);}
 /* ===== AI博主字幕 · 字级动态字幕增强插件（Remotion 配方原生复刻） ===== */
 .ab-tabs{display:flex;gap:4px;margin:2px 0 10px;border-bottom:1px solid var(--border2);}
 .ab-tab{padding:6px 11px;font-size:12px;cursor:pointer;border:1px solid transparent;border-bottom:none;border-radius:7px 7px 0 0;color:var(--muted);background:transparent;}
@@ -523,7 +525,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ai-mode-tabs{display:flex;gap:6px;flex:0 0 auto;padding:10px 15px 0;}
 .ai-mode-tab{padding:7px 16px;border:1px solid var(--border2);border-bottom:none;border-radius:8px 8px 0 0;background:var(--panel);color:var(--muted);font-size:12.5px;cursor:pointer;}
 .ai-mode-tab.active{background:var(--card);color:#fff;border-color:var(--purple);font-weight:600;box-shadow:inset 0 2px 0 var(--purple);}
-/* 花式代码视频 Tab：模板卡片（视觉与预设卡片统一，青蓝渐变突出"代码渲染"），与另两 Tab 完全隔离 */
+/* AI包装 Tab：模板卡片（视觉与预设卡片统一，青蓝渐变突出"代码渲染"），与另两 Tab 完全隔离 */
 .fv-tpl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:2px 0 10px;}
 .fv-tpl-card{position:relative;border:1px solid var(--border2);border-radius:9px;padding:9px 11px;cursor:pointer;background:linear-gradient(160deg,rgba(6,182,212,.09),rgba(124,58,237,.06));transition:border-color .12s,transform .12s;min-height:74px;}
 .fv-tpl-card:hover{border-color:#06b6d4;transform:translateY(-1px);}
@@ -944,21 +946,22 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <button class="tl-tool" id="quickImport" title="导入素材 (Ctrl/⌘+I)">＋<span>导入</span></button>
                 <button class="tl-tool" id="addTrackBtn" title="新建一条轨道">▤<span>轨道</span></button>
                 <button class="tl-tool active" id="snapBtn" title="磁吸开关：拖动片段时自动吸附到其他片段边缘 / 播放头">🧲<span>磁吸</span></button>
+                <span class="tl-sep"></span>
+                <button class="tl-tool" id="dumpStructBtn" title="轨道结构化数据：查看 / 下载含媒体元信息、独立音轨、毫秒字幕、静音区间的标准 JSON">📊<span>数据</span></button>
             </div>
             <div class="tl-tools mid">
+                <button class="tb-btn ai-pack" id="aiPackBtn" title="AI包装：用代码渲染完整画面成片——ASR 台词与字级时间戳 → 大模型分镜方案 → 逐帧渲染绑定原音轨合成 MP4，并把每个图形元素回写为时间轴上可单独编辑的片段">🎨 AI包装</button>
                 <button class="tb-btn ai-cut" id="aiCutBtn" title="AI 剪辑：快速出方案 / 对话式剪辑两种模式，自动分析轨道素材并完成剪辑">✨ AI剪辑</button>
+                <button class="tb-btn ai-sub" id="smartCutBtn" title="AI剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ AI剪口播</button>
                 <button class="tb-btn ai-sub" id="aiSubBtn" title="AI 字幕：识别视频 / 音频中的对白、旁白、内心独白，按时间码写入字幕轨">🅰 AI字幕</button>
                 <button class="tb-btn ai-blogger" id="aiBloggerSubBtn" title="AI博主字幕：字级时间戳驱动的动态字幕 / 花字动效（14 套：逐字弹出·关键词高亮·文字进场·花字砸字·卡拉OK·逐字升起·错峰滑入·柔焦淡入·打字机·轮廓闪烁·弹跳·字距收拢·划线高亮等），绑定说话的字；含口播智能修剪与镜头卡点规划">🌟 AI博主字幕</button>
                 <button class="tb-btn ai-rec" id="recBtn" title="录音：选择麦克风或系统声音，实时显示双声道电平，结束后自动加入音频轨">⏺ 录音</button>
-                <button class="tb-btn ai-sub" id="smartCutBtn" title="智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）">✂ 剪口播</button>
-                <button class="tb-btn" id="dumpStructBtn" title="轨道结构化数据：查看 / 下载含媒体元信息、独立音轨、毫秒字幕、静音区间的标准 JSON">📊 轨道数据</button>
             </div>
             <div class="tl-tools right">
                 <button class="tl-tool" id="zoomOut" title="缩小时间轴 (-)">−</button>
                 <input type="range" class="zoom-range" id="zoomRange" min="0.01" max="160" step="any" value="36" title="拖动缩放时间轴（最左端＝完整显示整条时间轴）">
                 <button class="tl-tool" id="zoomIn" title="放大时间轴 (+)">＋</button>
                 <button class="tl-tool" id="zoomFit" title="按当前素材总时长自动适配时间轴宽度">适应</button>
-                <button class="tl-tool" id="keyHelpBtn" title="查看全部快捷键">⌨</button>
             </div>
         </div>
         <div class="tl-scroll" id="tlScroll">
@@ -1015,12 +1018,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li><b>比例</b>菜单可选自适应 / 16:9 / 9:16 / 4:3 / 1:1，还有「◇ 变换框」开关；<b>高清</b>是画质标识（跟随素材原始分辨率，不做假超分）；<b>全屏</b>或 <code>F</code> 进入 / 退出播放器全屏；底部细条可拖动定位播放头。</li>
                 <li>原有的字幕 / 图片 / 视频 / 音频多层同步预览、LUT 调色、变换框、录音音量表等全部保留，只是入口收进了比例菜单或画面本身。</li>
             </ul>
-            <h2>④ 四个 AI 按钮（剪辑轨道上方横向一排）</h2>
+            <h2>④ 时间轴 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
+                <li><b>🎨 AI包装</b>：点按钮直接打开 AI 弹窗并切到「AI包装」面板。它用<b>代码渲染完整画面成片</b>：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字 / 标签 / 数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4；同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。可选 1~6 套画面模板（多选），一套都不选＝全自动智能识别。</li>
                 <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材元信息、独立音轨、毫秒字幕、静音区间、视频抽帧与你的思路，先做语义分析区分有效停顿 / 无效废片并给出内容优化建议；确认后删除建议会转成剪口播候选（可勾选、全选、撤销），其它裁切 / 字幕优化可直接写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b><b>跨域说明</b>：模型请求与「对话剪辑」一样优先经本机服务（127.0.0.1:8788）转发，服务会自动探测 127.0.0.1 / localhost 两个地址；双击启动本机服务即可绕开浏览器 CORS，服务离线时才尝试直连并给出明确诊断。</li>
                 <li><b>🤖 对话剪辑（真正由大模型驱动的 AI 剪辑）</b>：点这个按钮打开对话面板，用<b>日常自然语言</b>说需求即可，例如「删掉所有嗯啊语气词和长停顿」「把节奏加快」「挑出高光片段」「读取文稿并总结」。AI 会真正调用工具：先 <code>read_timeline</code> 读时间轴拿到准确的片段 id 和秒数，必要时 <code>read_script</code> 读出带 <code>[sN]</code> 段号的文稿，用 <code>preview_frame</code> <b>抽真实画面做视觉自检</b>（图片会回注给模型看图），改完再自检、不对就用工具继续修正。所有编辑<b>只生成提案</b>，面板底部会出现「待确认的剪辑提案」卡片，列清楚每一项改动（裁片头、删片段、移动、变速、按文稿写回等），你点「✅ 应用提案」才真正写入轨道（<code>Ctrl+Z</code> 一步撤销），点「放弃」则时间轴分毫不动。模型需要 Claude / GPT 这类能稳定输出工具调用的强模型；模型与 Key 复用左上「算力总控」，经本机服务代理转发，Key 不会暴露给第三方页面。对话支持多轮连续编辑，复杂需求可多步完成。</li>
-                <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
-                <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因。<b>删除后视频 / 音频 / 字幕 / LUT 会按同一批区间物理切成多个独立片段</b>，没剪好的段落可继续手动裁剪、变速、倒放；<b>导出成片仍是完整一条</b>，由本机 FFmpeg 按各片段真实源范围拼接重编码，不是只做预览隐藏。</li>
+                <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给AI剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
+                <li><b>✂ AI剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因。<b>删除后视频 / 音频 / 字幕 / LUT 会按同一批区间物理切成多个独立片段</b>，没剪好的段落可继续手动裁剪、变速、倒放；<b>导出成片仍是完整一条</b>，由本机 FFmpeg 按各片段真实源范围拼接重编码，不是只做预览隐藏。</li>
                 <li><b>🎨 时间轴 LUT 轨</b>：新增独立的 LUT 轨（默认在图片 / 视频上方）。在右侧「调整 · 调色 LUT」面板加载 <code>.cube / .3dl / .lut</code> 文件，可保存多个预制反复调用；LUT 自带强度 / 亮度 / 对比度 / 饱和度 / 色温参数，拖动滑块实时改变画面。<b>LUT 只影响排在它下方的图片 / 视频层</b>：用轨道标签的 ▲▼ 可上下移动 LUT（或图片、视频）的位置；不想被调色的层移到 LUT 上方即可。LUT 片段可裁剪、可移动，预览与导出成片遵循同一套层级调色，保持一致。</li>
                 <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏「🧲 磁吸」按钮<b>高亮=开启</b>，点一下开/关（选择会记住）。开启后拖动片段或裁剪手柄时，靠近<b>其它片段首尾、播放头、0 秒</b>会自动吸附对齐，浮层显示「🧲 已吸附」；关闭则完全自由拖动。每个片段头尾各有一个可拖动手柄（鼠标移上去高亮变蓝）：<b>向右拖开头=裁掉片头；向左拖开头=在源素材范围内找回片头</b>（到源起点为止，拉不出界）；<b>向左拖结尾=裁掉片尾；向右拖结尾=找回片尾</b>（到源素材末尾为止）。裁剪时画面上方实时显示起点/终点时间码。剪刀 ✂ 按钮在手柄内侧，悬停片段才出现，点一下从播放头处剪断（等价快捷键 S）。预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点播放器右下「比例」菜单里的「◇ 变换框」常显。磁吸开启时主轨编辑后会自动波纹前移填满空档（详见第 ③ 节）。</li>
                 <li><b>🎬🔊 复合音视频轨 / 波形</b>：带声音的视频片段在时间轴上高度加倍，上半是画面、下半是音频波形；所有音频轨片段也自带波形（由浏览器 WebAudio 解码生成，不上传任何数据）。右键这类视频片段可选「拆分视频和音频轨道」，音频会下移到新音轨并与画面严格对齐，之后可单独剪辑或删除。</li>
@@ -1028,7 +1032,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li><b>两栏状态彻底分开</b>：独立的「✨ AI 剪辑」与「🅰 AI 字幕」两块运行状态栏已分别整合进点击对应按钮后弹出的浮窗里（浮窗关闭由你自己操作，点 × 或「取消」才会关）。各自显示自己的进度条与报错，点其中一个按钮只清空自己那一栏，<b>不会再看到另一个任务残留的旧报错</b>。AI 剪辑 / AI 字幕开始运行后浮窗保持打开，进度就在浮窗内看。</li>
             </ul>
             <h2>⑤ 剪映 6.0 时间轴工具与快捷键</h2>
-            <p>时间轴已按剪映 6.0 重排：左侧为工具按钮（选择 / 分割 / 撤销重做 / 分割删除复制粘贴 / 定格倒放镜像旋转 / 留右留左标记 / 导入轨道磁吸），中间 6 个 AI 按钮（AI剪辑 / 对话剪辑 / AI字幕 / 录音 / 剪口播 / 轨道数据）原样保留，右侧为缩放。轨道头新增「锁 / 眼 / 音」三个按钮，分别锁定、隐藏、静音该轨；主视频轨高亮，支持无间隙吸附与删除后波纹前移，其它轨道仍可自由分布。</p>
+            <p>时间轴已按剪映 6.0 重排：左侧为工具按钮（选择 / 分割 / 撤销重做 / 分割删除复制粘贴 / 定格倒放镜像旋转 / 留右留左标记 / 导入轨道磁吸 / 轨道数据），中间 6 个 AI 按钮按新顺序排列（<b>AI包装 / AI剪辑 / AI剪口播 / AI字幕 / AI博主字幕 / 录音</b>），右侧为缩放。原「查看全部快捷键」按钮已移除——快捷键表就在上方「使用帮助」里，两处不再重复。轨道头新增「锁 / 眼 / 音」三个按钮，分别锁定、隐藏、静音该轨；主视频轨高亮，支持无间隙吸附与删除后波纹前移，其它轨道仍可自由分布。</p>
             <table>
                 <tr><th>功能</th><th>快捷键</th><th>功能</th><th>快捷键</th></tr>
                 <tr><td>播放 / 暂停</td><td><code>Space</code></td><td>分割（剪断）</td><td><code>Ctrl/⌘ + B</code>（兼容 <code>S</code>）</td></tr>
@@ -1060,7 +1064,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <h2>⑧ 本轮新增：工作区 / 导出成片 / 调整栏 / 素材预览 / 缩放 / URL 解析</h2>
             <ul>
                 <li><b>新建工程 / 工作区（合并）</b>：顶栏「➕ 新建工程」点开即是一个弹窗，上半部分「新建空白工程」在新标签页开一个全新空白剪辑台，下半部分「工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「历史工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。静态站点没有账号体系，工作区是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
-                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。左侧封面按<b>工程实际画幅比例</b>自适应（与导出分辨率取自同一个预览画幅，横版 / 竖版都不再被压成 3:4 竖图）。视频区块只保留真实生效的参数：分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；原先的「一键超清」「补分辨率」两个开关没有任何前后端实现，属于无效装饰，已移除。底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。<br><b>字幕烧录</b>：视频区块的「烧录字幕」默认开启，导出时把字幕轨交给本机 FFmpeg 的 libass 滤镜真正写进画面像素（硬字幕，支持中文），不依赖播放器外挂；关闭则只输出画面，可另在「字幕导出」里单独拿 SRT / VTT。<b>防爆音</b>：导出真渲染时每个片段首尾各加 30ms 淡入淡出，消除智能剪口播切段拼接处的爆音，预览逻辑不受影响。</li>
+                <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。左侧封面按<b>工程实际画幅比例</b>自适应（与导出分辨率取自同一个预览画幅，横版 / 竖版都不再被压成 3:4 竖图）。视频区块只保留真实生效的参数：分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；原先的「一键超清」「补分辨率」两个开关没有任何前后端实现，属于无效装饰，已移除。底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。<br><b>字幕烧录</b>：视频区块的「烧录字幕」默认开启，导出时把字幕轨交给本机 FFmpeg 的 libass 滤镜真正写进画面像素（硬字幕，支持中文），不依赖播放器外挂；关闭则只输出画面，可另在「字幕导出」里单独拿 SRT / VTT。<b>防爆音</b>：导出真渲染时每个片段首尾各加 30ms 淡入淡出，消除AI剪口播切段拼接处的爆音，预览逻辑不受影响。</li>
                 <li><b>本机小服务（Mac / Windows 通用，可选）</b>：点此直接下载（<b>点链接即直接下载，勿用另存为网页</b>）—— <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('all_mac',event)" title="一键启动8788+9000，Mac">⬇ 一键启动全部·Mac（推荐）</a> · <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.bat" onclick="svcDownload('all_win',event)" title="一键启动8788+9000，Windows">⬇ 一键启动全部·Win（推荐）</a>；仅需单个服务：<a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('mac',event)">Mac</a> / <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.bat" onclick="svcDownload('win',event)">Win</a>。下载后双击即可在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。<br><b>每位用户用自己电脑上的 FFmpeg</b>：Windows 可 <code>winget install --id Gyan.FFmpeg</code> 或下载 <code>https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip</code>，Mac 用 <code>brew install ffmpeg</code>，Linux 用 <code>sudo apt install ffmpeg</code>；服务也会按需自动下载静态版到 <code>~/.manflows/bin/</code>。仓库里的 <code>render_verify.py</code> 是 10 秒短视频验证用例，可直接跑出倒放与各档变速的实测结果。</li>
                 <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
                 <li><b>单击素材即预览</b>：点素材库里任一素材，预览窗口立即预览——视频 / 声音自动播放，图片 / 文字只显示画面，<b>都不自动加入轨道</b>；要剪辑请自己用鼠标把素材拖到时间轴对应轨道（双击加入仍保留给习惯用它的用户）。</li>
@@ -1096,7 +1100,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 </div>
 <!-- 片段右键菜单 -->
 <div class="ctx-menu" id="clipCtxMenu" hidden>
-    <button data-ctx="smartcut">✂ 智能剪口播</button>
+    <button data-ctx="smartcut">✂ AI剪口播</button>
     <button data-ctx="asr">🅰 AI字幕</button>
     <button data-ctx="splitav">🎬🔊 拆分视频和音频轨道</button>
     <button data-ctx="copy">⧉ 复制片段</button>
@@ -1271,10 +1275,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     </div>
 </div>
 
-<!-- 智能剪口播：本地气口 + 字幕文本规则，非 VIP -->
+<!-- AI剪口播：本地气口 + 字幕文本规则，非 VIP -->
 <div class="modal-overlay" id="smartCutModal">
     <div class="modal-box" style="width:min(780px,100%)">
-        <div class="modal-head">✂ 智能剪口播 · 无效片段检测<button class="mh-close" data-close="smartCutModal">×</button></div>
+        <div class="modal-head">✂ AI剪口播 · 无效片段检测<button class="mh-close" data-close="smartCutModal">×</button></div>
         <div class="modal-body">
             <div class="ws-hint">对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」的<b>本地实现</b>：静音检测<b>独立于 Whisper</b>（Whisper 失败也能列出气口），再加上字幕文本里的句内语气词 / 相似重复句。<b>纯本机、不调用任何云端 VIP</b>。删除是轨道级波纹裁剪、可 <code>Ctrl+Z</code> 撤销；导出成片时会对删除区间做真实媒体重处理，不是只做预览隐藏。</div>
             <div id="scReadyHint" class="sc-hint"></div>
@@ -1300,7 +1304,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="ai-mode-tabs">
             <button type="button" class="ai-mode-tab active" data-pane="quick">⚡ 快速剪辑</button>
             <button type="button" class="ai-mode-tab" data-pane="chat">💬 对话剪辑</button>
-            <button type="button" class="ai-mode-tab" data-pane="fancy">🎨 花式代码视频</button>
+            <button type="button" class="ai-mode-tab" data-pane="fancy">🎨 AI包装</button>
         </div>
         <div class="ai-mode-pane" id="aiPaneQuick">
             <div class="modal-body" style="padding-top:4px">
@@ -1314,7 +1318,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <textarea id="aiIdeaText" placeholder="例如：整体节奏快一点，删掉前面的空镜；前 3 秒要抓人；把两段对白之间的停顿压掉；旁白字幕放画面下方……"></textarea>
             <div class="ai-progress" id="aiProgress" hidden><div class="ai-progress-fill" id="aiProgressFill"></div></div>
             <div class="ai-steps" id="aiSteps"></div>
-            <div class="ai-state" id="aiIdeaState" style="margin-top:9px">点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ AI博主字幕（默认逐字弹出，字级动态字幕）→ ④ 把整条轨道（音视频/图片/字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。</div>
+            <div class="ai-state" id="aiIdeaState" style="margin-top:9px">点「开始 AI 剪辑」会自动跑完整流程：① AI剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ AI博主字幕（默认逐字弹出，字级动态字幕）→ ④ 把整条轨道（音视频/图片/字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。</div>
             <!-- 原「算力总控」下的 AI 剪辑状态栏，已整合进本浮窗；浮窗由用户自行关闭 -->
             <div class="ai-panel" id="edEditPanel">
                 <div class="ai-panel-title">✨ AI 剪辑 · 运行状态 <span class="ai-panel-tag">/v1/chat/completions</span></div>
@@ -1327,10 +1331,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="ai-mode-pane" id="aiPaneChat" hidden>
             <!-- 对话剪辑的 body 由 JS 在启动时从 agentModal 搬运进来，保留原有事件绑定 -->
         </div>
-        <!-- 花式代码视频：独立流水线，代码渲染完整成片；与快速/对话两 Tab 完全隔离 -->
+        <!-- AI包装：独立流水线，代码渲染完整成片；与快速/对话两 Tab 完全隔离 -->
         <div class="ai-mode-pane" id="aiPaneFancy" hidden>
             <div class="modal-body" style="padding-top:4px">
-                <p class="ai-idea-warn">✦ <b>花式代码视频</b> 用代码渲染完整画面成片：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字/标签/数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4。同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。</p>
+                <p class="ai-idea-warn">✦ <b>AI包装</b> 用代码渲染完整画面成片：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字/标签/数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4。同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。</p>
                 <div class="row" style="margin-top:0"><label class="ai-idea-label">当前算力</label><span class="kv" id="fvMode">—</span></div>
                 <div class="row"><label class="ai-idea-label">选择模型</label><select id="fvModel" style="flex:1"></select></div>
                 <div class="row"><input type="text" id="fvModelCustom" placeholder="下拉里没有？可直接手填模型名，如 gpt-4o / claude-sonnet-4"></div>
@@ -1339,11 +1343,11 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="fv-tip">ℹ️ 本方案通过代码渲染输出完整视频成片；仅导入口播音频也可生成完整动态字幕画面，生成后素材仍支持时间轴局部编辑。修改片段后可再次点「渲染」重新出片。</div>
                 <div class="ai-progress" id="fvProgress" hidden><div class="ai-progress-fill" id="fvProgressFill"></div></div>
                 <div class="ai-steps" id="fvSteps"></div>
-                <div class="ai-state" id="fvState" style="margin-top:8px">就绪。轨道放一条口播音频或口播视频，选模板与模型后点「渲染花式代码视频成片」。</div>
+                <div class="ai-state" id="fvState" style="margin-top:8px">就绪。轨道放一条口播音频或口播视频，选模板与模型后点「渲染AI包装成片」。</div>
             </div>
             <div class="modal-foot" style="border-top:1px solid var(--border);">
                 <button class="mini-btn gray" data-close="aiIdeaModal">关闭</button>
-                <button class="mini-btn cyan" id="fvRender">🎨 渲染花式代码视频成片</button>
+                <button class="mini-btn cyan" id="fvRender">🎨 渲染AI包装成片</button>
             </div>
         </div>
         <div class="modal-foot" id="aiIdeaFootMain">
@@ -1475,7 +1479,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 
             <!-- Tab2 口播修剪 -->
             <div class="ab-pane" data-abpane="cut">
-                <div class="hint" style="font-size:11px">对标剪映「智能剪口播」：识别长停顿、语气词口癖、重复赘述，列成候选供勾选后一键波纹删除（复用现有剪口播引擎）。「AI 语义增强」会用所选算力的大模型额外分析无意义片段。</div>
+                <div class="hint" style="font-size:11px">对标剪映「AI剪口播」：识别长停顿、语气词口癖、重复赘述，列成候选供勾选后一键波纹删除（复用现有剪口播引擎）。「AI 语义增强」会用所选算力的大模型额外分析无意义片段。</div>
                 <div class="ab-stat"><span>停顿 <b id="abCutPause">0</b></span><span>语气词 <b id="abCutFiller">0</b></span><span>重复 <b id="abCutRepeat">0</b></span></div>
                 <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0">
                     <button class="mini-btn" id="abCutScan">🔍 检测候选</button>
@@ -1952,7 +1956,7 @@ function schedulePlayFrame(fn){
     return requestAnimationFrame(fn);
 }
 let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
-const AI_STEPS=["智能剪口播","AI字幕","AI博主字幕","模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
+const AI_STEPS=["AI剪口播","AI字幕","AI博主字幕","模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
 const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
 const $ = id => document.getElementById(id);
 
@@ -2091,7 +2095,7 @@ function collectAiModels(){
     return out;
 }
 /* ============================================================================
-   花式代码视频 FV —— 独立流水线，与快速剪辑/对话剪辑完全隔离
+   AI包装 FV —— 独立流水线，与快速剪辑/对话剪辑完全隔离
    代码直接渲染完整成片：①复用 ASR 拿台词+字级时间戳 → ②大模型输出分镜 JSON
    → ③剥离自 MotionGit 的独立动画组件逐帧画背景/文字卡/数据卡/线条/转场
    → ④绑定原音轨编码 MP4 → ⑤输出结构化 JSON 工程 + 回写时间轴为独立可编辑片段。
@@ -2201,7 +2205,7 @@ const FV={
         const brief=lines.map((l,i)=>({i,t:l.text,s:l.start,e:l.end,
             /** 关键词/数字/英文提示：让模型挑重点 */
             w:l.words.map(x=>x.ch).join("")}));
-        const sys="你是短视频分镜设计师，为「口播花式代码视频」输出严格的 JSON 分镜方案。\
+        const sys="你是短视频分镜设计师，为「口播AI包装」输出严格的 JSON 分镜方案。\
 只输出一个 JSON 对象，不要任何解释文字。方案把口播台词拆成一个个画面元素，绑定到精确时间。\
 字段规范：{\"elements\":[{\"type\":\"text|keyword|english|data|knowledge|steps|quote|title\",\"text\":\"元素文字\",\
 \"start\":秒(浮点),\"end\":秒(浮点),\"x\":0~1横向位置,\"y\":0~1纵向位置,\"size\":字号像素(24~120),\
@@ -2437,7 +2441,7 @@ Object.assign(FV,{
 
     /* ⑤a 结构化 JSON 工程：记录每个图形元素的全部可编辑字段 */
     projectJson(elements,lines,opts){
-        return {app:"漫流AI剪辑台 · 花式代码视频",version:2,templates:this.tpls.slice(),
+        return {app:"漫流AI剪辑台 · AI包装",version:2,templates:this.tpls.slice(),
             autoMode:!this.tpls.length,
             canvas:{w:exportSize().w,h:exportSize().h,fps:opts.fps||30},
             audio:{source:opts.audioName||"",duration:+opts.duration.toFixed(3)},
@@ -2533,14 +2537,14 @@ Object.assign(FV,{
             this.progress(5,"写出 JSON 工程并回写时间轴…");
             const proj=this.projectJson(elements,lines,{fps:30,duration:dur,audioName:audioName});
             const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
-            download("花式代码视频工程_"+stamp+".json",JSON.stringify(proj,null,2),"application/json;charset=utf-8");
+            download("AI包装工程_"+stamp+".json",JSON.stringify(proj,null,2),"application/json;charset=utf-8");
             const n=this.writeBack(elements);
-            await saveBlob(enc.blob,"花式代码视频成片_"+stamp+"."+enc.ext);
+            await saveBlob(enc.blob,"AI包装成片_"+stamp+"."+enc.ext);
             this.progress(6,"完成："+elements.length+" 个元素 / "+n+" 条可编辑片段"+(fromFallback?"（规则分镜）":""));
             toast("成片与 JSON 工程已生成，图形元素已回写到时间轴（可 Ctrl+Z 撤销）","ok");
         }catch(e){
             this.progress(this.busy?5:0,"失败："+((e&&e.message)||e)+"。请确认已配好转写后端与大模型接口。",true);
-            toast("花式代码视频渲染失败，请看状态说明","err");
+            toast("AI包装渲染失败，请看状态说明","err");
         }finally{
             this.busy=false; if(btn) btn.disabled=false;
         }
@@ -2670,7 +2674,7 @@ function openAiIdea(){
     fillAiIdeaModels();
     $("aiProgress").hidden=true; $("aiProgressFill").style.width="0%"; $("aiSteps").innerHTML="";
     const st=$("aiIdeaState"); st.className="ai-state";
-    st.textContent="点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ AI博主字幕（默认逐字弹出，字级动态字幕）→ ④ 把整条轨道（音视频/图片/字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。";
+    st.textContent="点「开始 AI 剪辑」会自动跑完整流程：① AI剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ AI博主字幕（默认逐字弹出，字级动态字幕）→ ④ 把整条轨道（音视频/图片/字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。";
     $("aiIdeaStart").disabled=false;
     switchAiMode("quick");
     $("aiIdeaModal").classList.add("show");
@@ -2871,7 +2875,7 @@ function drawWave(cv, c, a){
     /* 关键修复：波形必须按片段在源素材上的真实区间截取绘制，而不是把整段 peaks
        铺满片段宽度。否则分割后左右两段各自都画整段波形，看起来像「没断开 / 只拿到
        剪点左侧一段」。这里用 timelineToSource 做时间轴→源时间映射，自动覆盖
-       offset / 剪断 / 变速 / cutRanges 智能剪口播 / 倒放。音频轨与视频复合轨共用。 */
+       offset / 剪断 / 变速 / cutRanges AI剪口播 / 倒放。音频轨与视频复合轨共用。 */
     const srcDur=Math.max(0.001,Number(a&&a.duration)||Number((probeMetaCache.get(a&&a.url)||{}).duration)||0);
     if(!c || srcDur<=0){
         /* 源时长未知时退回整段铺满，至少不崩 */
@@ -2905,7 +2909,7 @@ function drawAllWaves(){
 }
 /* 时间轴 ↔ 源时间映射。
    旧工程可能带 cutRanges（源区间，导出时按「原始源跨度 - cutRanges」真裁剪）；
-   新版智能剪口播会把片段物理切成多段，新片段不带 cutRanges，offset + 时长 × 倍率即其真实源范围。 */
+   新版AI剪口播会把片段物理切成多段，新片段不带 cutRanges，offset + 时长 × 倍率即其真实源范围。 */
 function clipSpeed(c){
     const f=fxOf(c);
     return Math.max(0.25,Math.min(5,Number(f.speed)||1));
@@ -4183,8 +4187,8 @@ function updateSmartCutAvailability(){
     const ready=mediaReadyClips().length>0;
     btn.disabled=!ready;
     btn.title=ready
-      ? "智能剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）"
-      : "智能剪口播：轨道上还没有读完时长的音视频素材（显示 0.00）。请先把素材拖到轨道，等素材卡片出现真实时长后再点；本机 FFmpeg 也会自动兜底探测。";
+      ? "AI剪口播：识别长停顿、语气词、重复赘述，勾选后一键波纹删除（纯本地，不调云端 VIP）"
+      : "AI剪口播：轨道上还没有读完时长的音视频素材（显示 0.00）。请先把素材拖到轨道，等素材卡片出现真实时长后再点；本机 FFmpeg 也会自动兜底探测。";
     const hint=$("scReadyHint");
     if(hint) hint.innerHTML=ready?"":'<span style="color:#fcd34d">⚠ 轨道上还没有读完时长的音视频素材（0.00）。请等素材卡片显示真实时长，或双击「启动本机服务.command」(Mac) / 「启动本机服务.bat」(Windows) 后用 FFmpeg 兜底探测。</span>';
 }
@@ -4528,7 +4532,7 @@ function renderPlayhead(){
 }
 /* 视频片段上部连续缩略图：按片段在源素材上的区间均匀抽帧，异步生成后缓存。
    性能要点（Windows 卡顿修复）：
-   · 智能剪口播会把一条长视频物理切成很多小片段，旧版按片段逐个新建 <video> 抽 8 帧，
+   · AI剪口播会把一条长视频物理切成很多小片段，旧版按片段逐个新建 <video> 抽 8 帧，
      等于几十上百次解码+seek+toDataURL，后台持续抢占解码器，播放预览几乎冻住。
    · 现在：播放期间直接暂停生成并作废旧任务；每批 8 段、每段 5 帧；全部完成后只重建一次时间轴。 */
 let stripFillRunning=false, stripGenToken=0;
@@ -4927,7 +4931,7 @@ function tick(ts){
            并在下方 syncMedia 里按较大容差 seek，让画面跟随播放头而非视频自身时钟。 */
         t=state.playhead+dt;
     }else{
-        /* 关键修复（智能剪口播后卡顿/显存冲高的真正根因）：
+        /* 关键修复（AI剪口播后卡顿/显存冲高的真正根因）：
            旧版只要 <video> 在播，就用 vEl.currentTime 反推时间轴播放头。
            剪口播把同一素材物理切成很多 offset 不同的小片段后，vc 是按上一帧播放头找的，
            而 currentTime 属于上一片段，两者错配会在切口处来回跳：
@@ -5333,8 +5337,8 @@ async function assetBlob(a){
     throw new Error("这个素材没有可上传的音视频文件");
 }
 /* 本机服务转写：抽音轨 → 16k 单声道 → 60s 分段 → 本机/第三方接口转发（无 CORS） */
-let lastSilences=[];                 /* 服务返回的静音区间，供「智能剪口播」使用 */
-/* 智能剪口播：参数 / 日志 / 静音缓存 / 纯浏览器兜底 */
+let lastSilences=[];                 /* 服务返回的静音区间，供「AI剪口播」使用 */
+/* AI剪口播：参数 / 日志 / 静音缓存 / 纯浏览器兜底 */
 let scLogLines=[], silenceCache=new Map();
 function scConfig(){
     const g=id=>{ const e=$(id); return e?Number(e.value):NaN; };
@@ -5880,7 +5884,7 @@ async function runAsrCore(){
 
 
 /* ==================================================================
-   智能剪口播：本地 VAD 气口 + 字幕文本规则（剪映同思路，非云端 VIP）
+   AI剪口播：本地 VAD 气口 + 字幕文本规则（剪映同思路，非云端 VIP）
    候选区间只会列出、由用户勾选，确认后做轨道级波纹删除，可撤销
    ================================================================== */
 let smartCutCandidates=[];
@@ -5991,7 +5995,7 @@ function renderSmartCutList(){
 }
 async function openSmartCutModal(){
     updateSmartCutAvailability();
-    scLogPush("打开智能剪口播面板 · 参数 "+JSON.stringify(scConfig())+" · 已有静音区间 "
+    scLogPush("打开AI剪口播面板 · 参数 "+JSON.stringify(scConfig())+" · 已有静音区间 "
         +lastSilences.length+" 段 · 字幕片段 "+state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim()).length+" 条");
     smartCutCandidates=buildSmartCutCandidates();
     renderSmartCutList();
@@ -6075,7 +6079,7 @@ function applySmartCut(){
     renderAll(); syncMedia(); autoSave();
     const splitMsg=r.pieces?("；受影响片段已切成 "+r.pieces+" 个可独立调整的小片段（每段可继续裁剪、变速、倒放，导出仍拼成完整一条）"):"";
     scLogPush("波纹删除 "+r.cuts+" 处 / 移除 "+r.removed+" 个片段"+splitMsg);
-    toast("智能剪口播完成：删除 "+r.cuts+" 处区间"+(r.pieces?("，切成 "+r.pieces+" 个可独立调整的片段"):"")
+    toast("AI剪口播完成：删除 "+r.cuts+" 处区间"+(r.pieces?("，切成 "+r.pieces+" 个可独立调整的片段"):"")
         +"（导出仍是完整一条，可 Ctrl+Z 撤销）","ok");
 }
 
@@ -6835,7 +6839,7 @@ function applyAiCandidates(){
     const advice=pendingPlan.advice||"";
     pendingPlan=null;
     $("aiPlanModal").classList.remove("show");
-    scLogPush("AI 语义分析给出 "+picked.length+" 处删除建议，已加入智能剪口播候选（可勾选 / 全选 / 撤销）");
+    scLogPush("AI 语义分析给出 "+picked.length+" 处删除建议，已加入AI剪口播候选（可勾选 / 全选 / 撤销）");
     if(advice) scLogPush("AI 内容优化建议："+advice.slice(0,600));
     toast("已加入 "+picked.length+" 处 AI 候选，请在剪口播面板确认后删除","ok");
     openSmartCutModal();
@@ -6856,8 +6860,8 @@ async function runAiEdit(idea,overrideModel){
     const btn=$("aiIdeaStart"); btn.disabled=true;
     let silBackup=[];   /* 阶段①静音备份：runAsrCore 会清空静音，阶段②后合并回来 */
     try{
-        /* ===== 阶段①：智能剪口播 —— 真实检测静音/气口，生成剪辑候选，喂给后面的模型 ===== */
-        setAiProgress(0,"正在对音视频做智能剪口播分析（静音 / 气口 / 停顿检测）…");
+        /* ===== 阶段①：AI剪口播 —— 真实检测静音/气口，生成剪辑候选，喂给后面的模型 ===== */
+        setAiProgress(0,"正在对音视频做AI剪口播分析（静音 / 气口 / 停顿检测）…");
         await new Promise(r=>setTimeout(r,120));
         try{
             if(!svcOnline) await pingService(2800);
@@ -6868,8 +6872,8 @@ async function runAiEdit(idea,overrideModel){
             }
             smartCutCandidates=buildSmartCutCandidates();
             silBackup=lastSilences.slice();   /* runAsrCore 内部会清空静音：先备份，阶段②后合并回来 */
-            scLogPush("AI剪辑流水线 ①智能剪口播完成："+ready.length+" 段素材 → "+smartCutCandidates.length+" 处候选 / "+lastSilences.length+" 段静音");
-        }catch(e){ scLogPush("AI剪辑流水线 ①智能剪口播异常（继续）："+((e&&e.message)||e)); }
+            scLogPush("AI剪辑流水线 ①AI剪口播完成："+ready.length+" 段素材 → "+smartCutCandidates.length+" 处候选 / "+lastSilences.length+" 段静音");
+        }catch(e){ scLogPush("AI剪辑流水线 ①AI剪口播异常（继续）："+((e&&e.message)||e)); }
 
         /* ===== 阶段②：AI字幕 —— 真实转写并写入字幕轨，让模型拿到毫秒字幕与字级时间戳 =====
            失败不中断：静音候选已在阶段①备好，字幕不可用也照常进入模型剪辑。 */
@@ -8001,6 +8005,7 @@ function wire(){
     $("aiSrc").onchange=()=>{ $("aiCustom").style.display=$("aiSrc").value==="custom"?"block":"none"; saveAiCfg(); };
     ["aiEndpoint","aiKey","aiModel","aiFrames"].forEach(id=>$(id).addEventListener("change",saveAiCfg));
     $("aiCutBtn").onclick=openAiIdea;
+    $("aiPackBtn").onclick=()=>{ openAiIdea(); switchAiMode("fancy"); };
     bindAgentEvents();
     $("aiSubBtn").onclick=openAsrSetup;
     wireAIB();
@@ -8052,7 +8057,7 @@ function wire(){
     /* AI 剪辑弹窗：模型下拉 / 手填 / 开始（点开始自动跑剪口播→字幕→智能剪辑） */
     $("aiIdeaStart").onclick=startAiIdea;
     $("aiIdeaModel").onchange=()=>{ $("aiIdeaModelCustom").value=""; };
-    /* 花式代码视频：独立渲染按钮 + 模型手填联动（与快速剪辑互不干扰） */
+    /* AI包装：独立渲染按钮 + 模型手填联动（与快速剪辑互不干扰） */
     if($("fvRender")) $("fvRender").onclick=()=>FV.run();
     if($("fvModel")) $("fvModel").onchange=()=>{ const c=$("fvModelCustom"); if(c) c.value=""; };
     if($("fvTplAll")) $("fvTplAll").onchange=e=>FV.toggleTplAll(e.target.checked);
@@ -8235,7 +8240,6 @@ function wire(){
     $("zoomOut").onclick=()=>setZoom(state.zoom/1.3,true);
     $("zoomRange").oninput=e=>setZoom(Number(e.target.value),true);
     $("zoomFit").onclick=()=>{ fitZoom(); toast("已按当前素材总时长自适应时间轴","ok"); };
-    $("keyHelpBtn").onclick=()=>$("helpModal").classList.add("show");
     $("addTrackBtn").onclick=e=>{
         const m=$("trackMenu"), r=e.currentTarget.getBoundingClientRect();
         m.style.left=Math.min(window.innerWidth-210,r.left)+"px"; m.style.top=(r.bottom+6)+"px"; m.classList.add("show");
@@ -9353,7 +9357,7 @@ async function prepareRenderOverrides(onProgress){
         "本工程含倒放 / 变速片段，导出必须由本机 FFmpeg 重新解码并重编码；"
         +"请双击「启动本机服务.command」(Mac) 或「启动本机服务.bat」(Windows)，"
         +"并按导出弹窗里的指引安装 FFmpeg。预览可以临时模拟，导出绝不会用 playbackRate 冒充成品；"
-        +"智能剪口播删除的区间、时间轴 LUT 调色也必须由 FFmpeg 真实烘焙。");
+        +"AI剪口播删除的区间、时间轴 LUT 调色也必须由 FFmpeg 真实烘焙。");
     let done=0;
     for(const c of list){
         const a=assetById(c.assetId);
