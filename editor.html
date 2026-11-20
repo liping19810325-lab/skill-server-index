@@ -1294,7 +1294,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <textarea id="aiIdeaText" placeholder="例如：整体节奏快一点，删掉前面的空镜；前 3 秒要抓人；把两段对白之间的停顿压掉；旁白字幕放画面下方……"></textarea>
             <div class="ai-progress" id="aiProgress" hidden><div class="ai-progress-fill" id="aiProgressFill"></div></div>
             <div class="ai-steps" id="aiSteps"></div>
-            <div class="ai-state" id="aiIdeaState" style="margin-top:9px">点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ 把整条轨道（含字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。</div>
+            <div class="ai-state" id="aiIdeaState" style="margin-top:9px">点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ AI博主字幕（默认逐字弹出，字级动态字幕）→ ④ 把整条轨道（音视频/图片/字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。</div>
             <!-- 原「算力总控」下的 AI 剪辑状态栏，已整合进本浮窗；浮窗由用户自行关闭 -->
             <div class="ai-panel" id="edEditPanel">
                 <div class="ai-panel-title">✨ AI 剪辑 · 运行状态 <span class="ai-panel-tag">/v1/chat/completions</span></div>
@@ -1927,7 +1927,7 @@ function schedulePlayFrame(fn){
     return requestAnimationFrame(fn);
 }
 let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
-const AI_STEPS=["智能剪口播","AI字幕","模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
+const AI_STEPS=["智能剪口播","AI字幕","AI博主字幕","模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
 const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
 const $ = id => document.getElementById(id);
 
@@ -2540,7 +2540,7 @@ function openAiIdea(){
     fillAiIdeaModels();
     $("aiProgress").hidden=true; $("aiProgressFill").style.width="0%"; $("aiSteps").innerHTML="";
     const st=$("aiIdeaState"); st.className="ai-state";
-    st.textContent="点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ 把整条轨道（含字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。";
+    st.textContent="点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ AI博主字幕（默认逐字弹出，字级动态字幕）→ ④ 把整条轨道（音视频/图片/字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。";
     $("aiIdeaStart").disabled=false;
     switchAiMode("quick");
     $("aiIdeaModal").classList.add("show");
@@ -6715,21 +6715,34 @@ async function runAiEdit(idea,overrideModel){
         try{ smartCutCandidates=buildSmartCutCandidates(); }catch(e){}
         scLogPush("AI剪辑流水线 ②AI字幕完成：字幕 "+subBefore+" → "+subAfter+" 条，候选 "+smartCutCandidates.length+" 处 / 静音 "+lastSilences.length+" 段");
 
-        /* ===== 阶段③：真·AI剪辑 —— 把整条轨道结构 + 静音候选 + 字幕 + 音视频/图片抽帧交给模型 ===== */
-        setAiProgress(2,"前置分析完成，已调用模型「"+cfg.model+"」（"+cfg.label+"）"+(idea?"，已带上你的剪辑思路":"，未写思路，由模型自主判断"));
+        /* ===== 阶段③：AI博主字幕 —— 默认给刚转写的字幕套「逐字弹出」(pop) 字级动效，
+           复用 AIB 原生应用逻辑（字级时间戳驱动、写回 fx.sub.anim/words），不额外动轨道交互。
+           无字幕或应用失败都不中断，照常把整条轨道交给模型。 */
+        setAiProgress(2,"正在给字幕套用「AI博主字幕 · 逐字弹出」动态字幕…");
+        await new Promise(r=>setTimeout(r,120));
+        let abN=0;
+        try{
+            if(typeof AIB!=="undefined"&&typeof AIB.applyProgrammatic==="function"){
+                abN=AIB.applyProgrammatic("pop",{strength:1,dur:0.22});
+            }
+            scLogPush("AI剪辑流水线 ③AI博主字幕完成：默认「逐字弹出」应用到 "+abN+" 条字幕");
+        }catch(e){ scLogPush("AI剪辑流水线 ③AI博主字幕异常（继续）："+((e&&e.message)||e)); }
+
+        /* ===== 阶段④：真·AI剪辑 —— 把整条轨道结构 + 静音候选 + 字幕(含字级动效) + 音视频/图片抽帧交给模型 ===== */
+        setAiProgress(3,"前置分析完成，已调用模型「"+cfg.model+"」（"+cfg.label+"）"+(idea?"，已带上你的剪辑思路":"，未写思路，由模型自主判断"));
         await new Promise(r=>setTimeout(r,160));
-        setAiProgress(3,"正在整理 "+state.tracks.length+" 条轨道 / "+state.clips.length+" 个片段 / "+subAfter+" 条字幕 / "+smartCutCandidates.length+" 处候选的结构与素材信息…");
+        setAiProgress(4,"正在整理 "+state.tracks.length+" 条轨道 / "+state.clips.length+" 个片段 / "+subAfter+" 条字幕 / "+smartCutCandidates.length+" 处候选的结构与素材信息…");
         const frames=$("aiFrames").checked?await collectFrames():[];
-        setAiProgress(4,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
-        setAiProgress(5,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
+        setAiProgress(5,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
+        setAiProgress(6,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
         let elapsed=0;
-        const hb=setInterval(()=>{ elapsed+=5; setAiProgress(5,"AI 剪辑进程中：已等待 "+elapsed+" 秒（强多模态模型通常需要 10~60 秒）…"); },5000);
+        const hb=setInterval(()=>{ elapsed+=5; setAiProgress(6,"AI 剪辑进程中：已等待 "+elapsed+" 秒（强多模态模型通常需要 10~60 秒）…"); },5000);
         let text="";
         try{
             try{ text=await aiChat(cfg,buildAiMessages(frames,idea)); }
             catch(e){
                 if(frames.length){
-                    setAiProgress(5,"带图请求失败，正在改用纯轨道数据重试…");
+                    setAiProgress(6,"带图请求失败，正在改用纯轨道数据重试…");
                     try{
                         text=await aiChat(cfg,buildAiMessages([],idea));
                         toast("当前模型可能不支持视觉输入，已改用纯轨道数据分析；建议换 Claude / GPT-4o / Gemini 等多模态模型","err");
@@ -6737,18 +6750,18 @@ async function runAiEdit(idea,overrideModel){
                 }else throw e;
             }
         }finally{ clearInterval(hb); }
-        setAiProgress(6,"模型已返回，正在解析可执行的剪辑方案…");
+        setAiProgress(7,"模型已返回，正在解析可执行的剪辑方案…");
         const plan=parseAiPlan(text);
         if(!plan){
-            setAiProgress(6,"模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o 等综合能力强的多模态模型重试。",true);
+            setAiProgress(7,"模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o 等综合能力强的多模态模型重试。",true);
             toast("方案解析失败，建议换 Claude / GPT 重试","err"); return;
         }
-        setAiProgress(7,"方案已生成（"+plan.actions.length+" 项操作 / "+plan.newSubtitles.length+" 条新字幕），请在弹窗里确认后应用");
+        setAiProgress(8,"方案已生成（"+plan.actions.length+" 项操作 / "+plan.newSubtitles.length+" 条新字幕），请在弹窗里确认后应用");
         pendingPlan=plan; renderAiPlan(plan,cfg,frames.length);
         /* 浮窗关闭交给用户：方案弹窗叠在上面，用户关掉方案后仍可在原浮窗查看运行状态 */
         $("aiPlanModal").classList.add("show");
     }catch(e){
-        setAiProgress(5,"AI 剪辑失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域 CORS）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
+        setAiProgress(6,"AI 剪辑失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域 CORS）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
         toast("AI 剪辑失败，请看弹窗里的状态说明","err");
     }finally{ btn.disabled=false; }
 }
@@ -7357,18 +7370,17 @@ const AIB=(function(){
             requestAnimationFrame(step);
         });
     }
-    /* ---------- 应用动效到字幕轨 ---------- */
-    function applyRecipe(){
+    /* ---------- 应用动效到字幕轨 ----------
+       核心函数供面板 UI 与 AI剪辑流水线共用：recipe 为配方 key，返回实际应用的字幕条数，
+       不碰任何 DOM 状态文案，方便在自动化流水线里静默调用。 */
+    function applyRecipeCore(recipe,strength,dur,manual){
         const cs=textClips();
-        if(!cs.length){ $("abState").className="ai-state err"; $("abState").textContent="字幕轨还没有字幕。请先用「AI字幕」生成字幕，或手动新增字幕后重试。"; toast("字幕轨为空","err"); return; }
-        const strength=nz($("abStrength")?$("abStrength").value:100,100)/100;
-        const dur=nz($("abDur")?$("abDur").value:22,22)/100;
-        const manual=$("abKeywords")?$("abKeywords").value:"";
+        if(!cs.length) return 0;
         pushHistory();
         let n=0;
         cs.forEach(c=>{
             const fx=fxOf(c); if(!fx.sub) fx.sub=cloneSubStyle(defaultFx().sub);
-            if(curRecipe==="none"){
+            if(recipe==="none"){
                 delete fx.sub.anim; delete fx.sub.words; delete fx.sub.keywords; delete fx.sub.animDur; delete fx.sub.animStrength;
                 n++; return;
             }
@@ -7376,15 +7388,31 @@ const AIB=(function(){
             const mk=markKeywords(c,words0,manual);
             fx.sub.words=mk.words;
             fx.sub.keywords=mk.keywords;
-            fx.sub.anim=curRecipe;
+            fx.sub.anim=recipe;
             fx.sub.animDur=round3(dur);
             fx.sub.animStrength=strength;
             n++;
         });
         subCache=""; renderAll(); autoSave();
+        return n;
+    }
+    function applyRecipe(){
+        const cs=textClips();
+        if(!cs.length){ $("abState").className="ai-state err"; $("abState").textContent="字幕轨还没有字幕。请先用「AI字幕」生成字幕，或手动新增字幕后重试。"; toast("字幕轨为空","err"); return; }
+        const strength=nz($("abStrength")?$("abStrength").value:100,100)/100;
+        const dur=nz($("abDur")?$("abDur").value:22,22)/100;
+        const manual=$("abKeywords")?$("abKeywords").value:"";
+        const n=applyRecipeCore(curRecipe,strength,dur,manual);
         $("abState").className="ai-state ok";
         $("abState").textContent="已把「"+RECIPES[curRecipe].name+"」应用到 "+n+" 条字幕（字级时间戳驱动）。播放器即可预览；导出勾选「烧录字幕」会把动效烧进成片。Ctrl+Z 可撤销。";
         toast("已应用动态字幕到 "+n+" 条字幕","ok");
+    }
+    /* 程序化入口（AI剪辑流水线用）：默认「逐字弹出」(pop)，不读取弹窗里的强度/时长/关键词输入。
+       返回应用的字幕条数；异常交调用方记日志后继续。 */
+    function applyProgrammatic(recipeKey,opts){
+        const key=RECIPES[recipeKey]?recipeKey:"pop";
+        const o=opts||{};
+        return applyRecipeCore(key,nz(o.strength,1),nz(o.dur,0.22),o.keywords||"");
     }
     /* ---------- 口播修剪：复用现有剪口播引擎 + 语义统计 ---------- */
     function cutScan(){
@@ -7463,7 +7491,7 @@ const AIB=(function(){
         $("abState").className="ai-state ok"; $("abState").textContent="已写入 "+beats.length+" 个镜头分段标记到时间轴（⚑），可对位 B-roll / 转场 / 音效。Ctrl+Z 可撤销。";
         toast("已写入 "+beats.length+" 个镜头卡点","ok");
     }
-    return {open:open,RECIPES:RECIPES,applyRecipe:applyRecipe,cutScan:cutScan,cutAi:cutAi,planBeats:planBeats,applyBeats:applyBeats,
+    return {open:open,RECIPES:RECIPES,applyRecipe:applyRecipe,applyProgrammatic:applyProgrammatic,cutScan:cutScan,cutAi:cutAi,planBeats:planBeats,applyBeats:applyBeats,
             updateDemo:updateDemo,refreshCounts:refreshCounts,wordsFor:wordsFor,animState:animState,tokenize:tokenize,interpolateWords:interpolateWords,
             getRecipe:()=>curRecipe,setRecipe:(k)=>{if(RECIPES[k])curRecipe=k;}};
 })();
