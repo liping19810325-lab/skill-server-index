@@ -526,6 +526,16 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 /* 剪辑思路输入框：横向铺满弹窗可用宽度，输入长提示词时能一次看到更多行 */
 .modal-body #aiIdeaText{display:block;width:100%;box-sizing:border-box;min-height:92px;resize:vertical;padding:9px 11px;line-height:1.7;font-size:12.5px;background:var(--panel);border:1px solid var(--border2);border-radius:7px;color:var(--text);outline:none;}
 .modal-body #aiIdeaText:focus{border-color:var(--blue);}
+/* 剪辑预设方案小方格：视觉与 AI博主字幕动效方格(.ab-recipe)统一，配色改紫色系贴合 AI 剪辑弹窗 */
+.ai-preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px;margin:2px 0 9px;}
+.ai-preset-card{position:relative;border:1px solid var(--border2);border-radius:9px;padding:8px 10px;cursor:pointer;background:linear-gradient(160deg,rgba(124,58,237,.10),rgba(37,99,235,.06));transition:border-color .12s,transform .12s;min-height:66px;}
+.ai-preset-card:hover{border-color:var(--purple);transform:translateY(-1px);}
+.ai-preset-card.active{border-color:var(--purple);box-shadow:0 0 0 2px rgba(124,58,237,.3);background:linear-gradient(160deg,rgba(124,58,237,.22),rgba(37,99,235,.1));}
+.ai-preset-card .ic{font-size:17px;}
+.ai-preset-card .nm{font-size:11.5px;color:#fff;font-weight:600;margin:2px 0 1px;}
+.ai-preset-card .ds{font-size:10px;color:var(--muted);line-height:1.5;}
+.ai-preset-card .tick{position:absolute;top:6px;right:8px;color:#a78bfa;font-size:13px;display:none;}
+.ai-preset-card.active .tick{display:block;}
 
 /* ===== AI 对话式剪辑（Agent）面板 ===== */
 .agent-note{background:rgba(124,58,237,.10);border:1px solid rgba(124,58,237,.42);border-radius:8px;
@@ -1265,6 +1275,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="row" style="margin-top:0"><label class="ai-idea-label">当前算力</label><span class="kv" id="aiIdeaMode">第三方API</span></div>
             <div class="row"><label class="ai-idea-label">选择模型</label><select id="aiIdeaModel" style="flex:1"></select></div>
             <div class="row"><input type="text" id="aiIdeaModelCustom" placeholder="下拉里没有？可直接手填模型名，如 gpt-4o / claude-sonnet-4"></div>
+            <div class="row" style="margin-bottom:2px"><label class="ai-idea-label">剪辑预设方案</label><span class="hint" style="margin:0">点选一套自动填入下方思路（仍可手动修改）；不选则自己手写，原有逻辑不变</span></div>
+            <div class="ai-preset-grid" id="aiIdeaPresets"></div>
             <div class="row" style="margin-bottom:2px"><label class="ai-idea-label">剪辑思路</label><span class="hint" style="margin:0">写下你的想法，会连同轨道结构一起发给模型（可留空，交给模型自主判断）</span></div>
             <textarea id="aiIdeaText" placeholder="例如：整体节奏快一点，删掉前面的空镜；前 3 秒要抓人；把两段对白之间的停顿压掉；旁白字幕放画面下方……"></textarea>
             <div class="ai-progress" id="aiProgress" hidden><div class="ai-progress-fill" id="aiProgressFill"></div></div>
@@ -2035,6 +2047,42 @@ function fillAiIdeaModels(){
     if(saved && list.some(m=>m.name===saved)){ sel.value=saved; $("aiIdeaModelCustom").value=""; }
     else { sel.value=""; $("aiIdeaModelCustom").value=saved; }
 }
+/* ===== 快速剪辑 · 剪辑思路预设方案（仅文本预填充，不改模型/运行/提交逻辑） =====
+   4 套精选预设参考 MotionGit 短视频剪辑思路。选中后把 text 填进「剪辑思路」输入框，
+   用户仍可手动改写；再次点同一张卡或选「自定义」即取消选中，恢复完全手写，向下兼容。 */
+const AI_IDEA_PRESETS={
+    talk:     {name:"口播精简版", ic:"🎙️", ds:"节奏明快，删长停顿与空白镜头，前3s抓人、去重复话术，字幕跟随人声对齐",
+               text:"整体节奏明快紧凑。删除长停顿、空白镜头与无效静音；开头前 3 秒要抓人，剪掉重复啰嗦的话术和嗯啊语气词；字幕必须跟随人声逐字对齐，说话到哪字幕到哪。"},
+    image:    {name:"图文快剪版", ic:"🖼️", ds:"画面每2~3s切换，转场柔和，重点画面停留稍长，旁白字幕放在画面下方",
+               text:"采用图文快剪风格。画面每 2~3 秒切换一次，转场柔和自然；重点画面停留时间稍长，其余快速带过；旁白字幕统一放在画面下方，排版清爽、跟随朗读。"},
+    product:  {name:"产品介绍版", ic:"📦", ds:"重点素材拉长展示，裁剪多余空镜，突出产品特写，节奏稳重",
+               text:"产品介绍风格，节奏稳重。重点素材与产品特写片段适当拉长展示；裁掉多余空镜与无关画面；突出产品特写和关键卖点镜头，整体节奏平稳不急促。"},
+    story:    {name:"叙事短片版", ic:"🎬", ds:"保留情绪停顿，不过度压缩，镜头过渡顺滑，字幕排版宽松",
+               text:"叙事短片风格。保留必要的情绪停顿和留白，不要过度压缩时长；镜头过渡顺滑连贯；字幕排版宽松舒适，给画面和情绪留出呼吸感。"}
+};
+let aiIdeaPresetCur="";
+function renderAiIdeaPresets(){
+    const box=$("aiIdeaPresets"); if(!box) return;
+    box.innerHTML=Object.keys(AI_IDEA_PRESETS).map(k=>{
+        const p=AI_IDEA_PRESETS[k];
+        return '<div class="ai-preset-card'+(k===aiIdeaPresetCur?" active":"")+'" data-preset="'+k+'" title="'+esc(p.text)+'">'
+            +'<span class="tick">✓</span><div class="ic">'+p.ic+'</div><div class="nm">'+p.name+'</div><div class="ds">'+esc(p.ds)+'</div></div>';
+    }).join("");
+}
+function onAiIdeaPresetPick(k){
+    const p=AI_IDEA_PRESETS[k], ta=$("aiIdeaText"); if(!p||!ta) return;
+    /* 再次点击同一套 → 取消选中，保留已填文字供用户自由手写（向下兼容原逻辑） */
+    if(aiIdeaPresetCur===k){
+        aiIdeaPresetCur="";
+        document.querySelectorAll("#aiIdeaPresets .ai-preset-card").forEach(x=>x.classList.remove("active"));
+        return;
+    }
+    aiIdeaPresetCur=k;
+    ta.value=p.text;                    /* 仅文本预填充；手动改写不受限制 */
+    document.querySelectorAll("#aiIdeaPresets .ai-preset-card").forEach(x=>x.classList.toggle("active",x.getAttribute("data-preset")===k));
+    try{ ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length); }catch(e){}
+}
+
 /* ===== 统一「AI剪辑」弹窗：快速剪辑 / 对话剪辑 两个模式，双引擎原样保留 ===== */
 let aiMergedReady=false;
 function initAiMergedModal(){
@@ -2053,6 +2101,13 @@ function initAiMergedModal(){
     document.querySelectorAll(".ai-mode-tab").forEach(t=>{
         t.onclick=()=>switchAiMode(t.getAttribute("data-pane"));
     });
+    /* 剪辑预设卡片：事件委托，只绑定一次 */
+    const pbox=$("aiIdeaPresets");
+    if(pbox) pbox.onclick=e=>{
+        const card=e.target.closest(".ai-preset-card"); if(!card) return;
+        onAiIdeaPresetPick(card.getAttribute("data-preset"));
+    };
+    renderAiIdeaPresets();
     aiMergedReady=true;
 }
 function switchAiMode(pane){
@@ -2086,6 +2141,7 @@ function switchAiMode(pane){
 }
 function openAiIdea(){
     if(state.compute==="manflow") toast("当前在「漫流算力」（占位档），请先在左上「算力总控」切到本机算力或第三方API","err");
+    initAiMergedModal();            /* 确保预设卡片已渲染、事件已绑定 */
     fillAiIdeaModels();
     $("aiProgress").hidden=true; $("aiProgressFill").style.width="0%"; $("aiSteps").innerHTML="";
     const st=$("aiIdeaState"); st.className="ai-state";
