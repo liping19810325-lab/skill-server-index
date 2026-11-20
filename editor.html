@@ -521,6 +521,18 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ai-mode-tabs{display:flex;gap:6px;flex:0 0 auto;padding:10px 15px 0;}
 .ai-mode-tab{padding:7px 16px;border:1px solid var(--border2);border-bottom:none;border-radius:8px 8px 0 0;background:var(--panel);color:var(--muted);font-size:12.5px;cursor:pointer;}
 .ai-mode-tab.active{background:var(--card);color:#fff;border-color:var(--purple);font-weight:600;box-shadow:inset 0 2px 0 var(--purple);}
+/* 花式代码视频 Tab：模板卡片（视觉与预设卡片统一，青蓝渐变突出"代码渲染"），与另两 Tab 完全隔离 */
+.fv-tpl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:2px 0 10px;}
+.fv-tpl-card{position:relative;border:1px solid var(--border2);border-radius:9px;padding:9px 11px;cursor:pointer;background:linear-gradient(160deg,rgba(6,182,212,.09),rgba(124,58,237,.06));transition:border-color .12s,transform .12s;min-height:74px;}
+.fv-tpl-card:hover{border-color:#06b6d4;transform:translateY(-1px);}
+.fv-tpl-card.active{border-color:#06b6d4;box-shadow:0 0 0 2px rgba(6,182,212,.28);background:linear-gradient(160deg,rgba(6,182,212,.18),rgba(124,58,237,.1));}
+.fv-tpl-card .ic{font-size:18px;}
+.fv-tpl-card .nm{font-size:12px;color:#fff;font-weight:600;margin:3px 0 2px;}
+.fv-tpl-card .ds{font-size:10px;color:var(--muted);line-height:1.5;}
+.fv-tpl-card .tick{position:absolute;top:7px;right:9px;color:#22d3ee;font-size:13px;display:none;}
+.fv-tpl-card.active .tick{display:block;}
+.fv-tip{background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.25);border-radius:7px;padding:8px 10px;font-size:11px;color:#a5f3fc;line-height:1.7;margin:2px 0 10px;}
+.fv-stage{color:#67e8f9;font-weight:600;}
 .ai-mode-pane{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 15px;}
 .ai-mode-pane[hidden]{display:none!important;}
 /* 剪辑思路输入框：横向铺满弹窗可用宽度，输入长提示词时能一次看到更多行 */
@@ -1268,6 +1280,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="ai-mode-tabs">
             <button type="button" class="ai-mode-tab active" data-pane="quick">⚡ 快速剪辑</button>
             <button type="button" class="ai-mode-tab" data-pane="chat">💬 对话剪辑</button>
+            <button type="button" class="ai-mode-tab" data-pane="fancy">🎨 花式代码视频</button>
         </div>
         <div class="ai-mode-pane" id="aiPaneQuick">
             <div class="modal-body" style="padding-top:4px">
@@ -1294,7 +1307,26 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         <div class="ai-mode-pane" id="aiPaneChat" hidden>
             <!-- 对话剪辑的 body 由 JS 在启动时从 agentModal 搬运进来，保留原有事件绑定 -->
         </div>
-        <div class="modal-foot">
+        <!-- 花式代码视频：独立流水线，代码渲染完整成片；与快速/对话两 Tab 完全隔离 -->
+        <div class="ai-mode-pane" id="aiPaneFancy" hidden>
+            <div class="modal-body" style="padding-top:4px">
+                <p class="ai-idea-warn">✦ <b>花式代码视频</b> 用代码渲染完整画面成片：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字/标签/数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4。同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。</p>
+                <div class="row" style="margin-top:0"><label class="ai-idea-label">当前算力</label><span class="kv" id="fvMode">—</span></div>
+                <div class="row"><label class="ai-idea-label">选择模型</label><select id="fvModel" style="flex:1"></select></div>
+                <div class="row"><input type="text" id="fvModelCustom" placeholder="下拉里没有？可直接手填模型名，如 gpt-4o / claude-sonnet-4"></div>
+                <div class="row" style="margin-bottom:2px"><label class="ai-idea-label">画面模板</label><span class="hint" style="margin:0">选一套模板决定分镜风格；不选中则按台词智能匹配</span></div>
+                <div class="fv-tpl-grid" id="fvTemplates"></div>
+                <div class="fv-tip">ℹ️ 本方案通过代码渲染输出完整视频成片；仅导入口播音频也可生成完整动态字幕画面，生成后素材仍支持时间轴局部编辑。修改片段后可再次点「渲染」重新出片。</div>
+                <div class="ai-progress" id="fvProgress" hidden><div class="ai-progress-fill" id="fvProgressFill"></div></div>
+                <div class="ai-steps" id="fvSteps"></div>
+                <div class="ai-state" id="fvState" style="margin-top:8px">就绪。轨道放一条口播音频或口播视频，选模板与模型后点「渲染花式代码视频成片」。</div>
+            </div>
+            <div class="modal-foot" style="border-top:1px solid var(--border);">
+                <button class="mini-btn gray" data-close="aiIdeaModal">关闭</button>
+                <button class="mini-btn cyan" id="fvRender">🎨 渲染花式代码视频成片</button>
+            </div>
+        </div>
+        <div class="modal-foot" id="aiIdeaFootMain">
             <button class="mini-btn gray" data-close="aiIdeaModal">取消</button>
             <button class="mini-btn green" id="aiIdeaStart">▶ 开始 AI 剪辑（自动剪口播 → 字幕 → 智能剪辑）</button>
         </div>
@@ -2033,6 +2065,373 @@ function collectAiModels(){
     if(Array.isArray(lib)) lib.forEach(x=>{ if(x&&(x.kind==="llm"||x.kind==="both")) add(x.name,"模型清单"); });
     return out;
 }
+/* ============================================================================
+   花式代码视频 FV —— 独立流水线，与快速剪辑/对话剪辑完全隔离
+   代码直接渲染完整成片：①复用 ASR 拿台词+字级时间戳 → ②大模型输出分镜 JSON
+   → ③剥离自 MotionGit 的独立动画组件逐帧画背景/文字卡/数据卡/线条/转场
+   → ④绑定原音轨编码 MP4 → ⑤输出结构化 JSON 工程 + 回写时间轴为独立可编辑片段。
+   不引入完整 MotionGit 引擎、不解析 .motion 工程，只借用其入场动画曲线思路。
+   ============================================================================ */
+const FV_TPLS={
+    keyword:   {name:"关键词高亮", ic:"🟨", ds:"中文重点词放大、色块描边高亮，重点词短暂停留展示"},
+    english:   {name:"英文字母弹出", ic:"🔤", ds:"中英混读场景，英文词汇做成弹跳发光标签，与中文台词区分"},
+    data:      {name:"数据卡片", ic:"📊", ds:"识别口述数字，生成带简易图表的大号数据卡片，淡入动画"},
+    knowledge: {name:"知识讲解图文", ic:"📚", ds:"生成编号知识卡片 + 简短解释小字，适合干货解说类口播"}
+};
+const FV_STEPS=["读取台词","ASR 字级时间戳","大模型输出分镜","逐帧渲染画面","绑定音轨编码 MP4","写入可编辑工程","完成"];
+const FV={
+    tpl:"keyword", busy:false,
+    onShow(){
+        const sel=$("fvModel");
+        if(sel && !sel.options.length){
+            const list=collectAiModels();
+            sel.innerHTML='<option value="">沿用当前算力配置的模型</option>'+list.map(m=>{
+                const rec=/claude|gpt-4|gpt4|gpt-3\.5|o1|o3|gemini/i.test(m.name)?" ★ 推荐":"";
+                return '<option value="'+esc(m.name)+'">'+esc(m.name)+" · "+esc(m.from)+rec+'</option>';
+            }).join("");
+        }
+        const md=$("fvMode"); if(md) md.textContent=ED_COMPUTE_LABEL[state.compute]||"第三方API";
+        this.renderTpl();
+    },
+    renderTpl(){
+        const box=$("fvTemplates"); if(!box) return;
+        box.innerHTML=Object.keys(FV_TPLS).map(k=>{
+            const t=FV_TPLS[k];
+            return '<div class="fv-tpl-card'+(this.tpl===k?" active":"")+'" data-tpl="'+k+'">'
+                +'<span class="tick">✓</span><div class="ic">'+t.ic+'</div><div class="nm">'+t.name+'</div><div class="ds">'+t.ds+'</div></div>';
+        }).join("");
+        box.onclick=e=>{ const c=e.target.closest(".fv-tpl-card"); if(!c) return;
+            this.tpl=c.getAttribute("data-tpl");
+            box.querySelectorAll(".fv-tpl-card").forEach(x=>x.classList.toggle("active",x===c));
+        };
+    },
+    progress(i,text,err){
+        const box=$("fvProgress"), fill=$("fvProgressFill"), steps=$("fvSteps");
+        if(box) box.hidden=false;
+        if(fill) fill.style.width=Math.min(100,Math.round(i/(FV_STEPS.length-1)*100))+"%";
+        if(steps) steps.innerHTML=FV_STEPS.map((t,k)=>'<div class="ai-step '+(k<i?"done":(k===i?(err?"err":"active"):""))+'"><span class="dot"></span>'+stateHtml(k===i&&text?(t+" · "+text):t,false)+'</div>').join("");
+        const st=$("fvState"); if(st){ st.className="ai-state"+(err?" err":""); st.innerHTML=stateHtml(text||FV_STEPS[i]||"",false); }
+    },
+    /* 选择要处理的音视频片段：与 runAsrCore 一致（选中优先，否则全部） */
+    pickAv(){
+        const picked=selectedIds();
+        const isAv=c=>{ const k=trackKind(c.track), a=c.assetId?assetById(c.assetId):null;
+            return (k==="video"||k==="audio") && a && (a.type==="video"||a.type==="audio"); };
+        let list=state.clips.filter(c=>isAv(c) && (!picked.length||picked.indexOf(c.id)>=0)).sort((a,b)=>a.start-b.start);
+        return list;
+    },
+
+    /* ① 复用项目 ASR：拿台词 + 字级时间戳（绝对秒）。若已是三阶段流水线生成，字幕轨里就有 fx.sub.words；
+       否则现场跑一次 runAsrCore，再从字幕片段读回。返回 [{text,start,end,words:[{ch,s,e}]}] */
+    async getLines(onMsg){
+        onMsg&&onMsg("检查字幕轨里的字级台词…");
+        const textClips=state.clips.filter(c=>trackKind(c.track)==="text" && !c.fv && String(c.text||"").trim()
+            && Array.isArray(c.fx&&c.fx.sub&&c.fx.sub.words) && c.fx.sub.words.length)
+            .sort((a,b)=>a.start-b.start);
+        if(!textClips.length){
+            onMsg&&onMsg("字幕轨没有字级台词，正在调用 ASR 真实转写…");
+            if(typeof runAsrCore!=="function") throw new Error("ASR 模块不可用");
+            await runAsrCore();
+        }
+        const lines=state.clips.filter(c=>trackKind(c.track)==="text" && !c.fv && String(c.text||"").trim())
+            .sort((a,b)=>a.start-b.start).map(c=>{
+                const w=(c.fx&&c.fx.sub&&c.fx.sub.words)||[];
+                return {text:String(c.text||""),start:+c.start||0,end:+((c.start||0)+(c.duration||0)).toFixed(3),
+                    words:w.map(x=>({ch:String(x.ch==null?x.word||"":x.ch),
+                        s:+((c.start||0)+(Number(x.s)||0)).toFixed(3),
+                        e:+((c.start||0)+(Number(x.e)||0)).toFixed(3)})).filter(x=>x.ch)};
+            }).filter(x=>x.end>x.start);
+        if(!lines.length) throw new Error("没有识别到台词：请确认轨道上有带人声的口播音频/视频，并已配好转写后端（本机 9000 或第三方 API）");
+        return lines;
+    },
+
+    /* ② 大模型输出分镜 JSON：每个元素 {type,text,start,end,x,y,size,color,anim,animDur,template}
+       坐标为 0~1 归一化（相对画幅），由 render 阶段映射到像素。失败时抛出，交给兜底规则分镜。 */
+    async storyboard(lines,cfg,onMsg){
+        onMsg&&onMsg("大模型正在设计画面分镜…");
+        const tplInfo=FV_TPLS[this.tpl];
+        const brief=lines.map((l,i)=>({i,t:l.text,s:l.start,e:l.end,
+            /** 关键词/数字/英文提示：让模型挑重点 */
+            w:l.words.map(x=>x.ch).join("")}));
+        const sys="你是短视频分镜设计师，为「口播花式代码视频」输出严格的 JSON 分镜方案。\
+只输出一个 JSON 对象，不要任何解释文字。方案把口播台词拆成一个个画面元素，绑定到精确时间。\
+字段规范：{\"elements\":[{\"type\":\"text|keyword|english|data|knowledge|title\",\"text\":\"元素文字\",\
+\"start\":秒(浮点),\"end\":秒(浮点),\"x\":0~1横向位置,\"y\":0~1纵向位置,\"size\":字号像素(24~120),\
+\"color\":\"#RRGGBB\",\"anim\":\"pop|fade|rise|bounce|blink\",\"animDur\":秒(0.2~0.8)}]}。\
+要求：1) start/end 必须落在台词时间范围内，逐句覆盖，不得重叠超出；2) x/y 用 0~1，y=0.7 附近为画面中下部；\
+3) 模板「"+tplInfo.name+"」的风格要求："+tplInfo.ds+"；\
+4) 数字用 type=data，英文单词用 type=english，中文重点词用 type=keyword，知识卡片用 type=knowledge 并带 ①② 编号；\
+5) 每个元素文字简短（≤16 字），贴合原台词用词，不要编造不存在的信息；6) 最多 60 个元素。";
+        const user="台词时间轴（秒）：\n"+JSON.stringify(brief);
+        const txt=await aiChat(cfg,[{role:"system",content:sys},{role:"user",content:user}]);
+        let raw=String(txt||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"").trim();
+        const i=raw.indexOf("{"), j=raw.lastIndexOf("}");
+        if(i<0||j<i) throw new Error("模型未返回 JSON 分镜");
+        let o; try{ o=JSON.parse(raw.slice(i,j+1)); }catch(e){ throw new Error("分镜 JSON 解析失败"); }
+        if(!o||!Array.isArray(o.elements)||!o.elements.length) throw new Error("分镜方案为空");
+        return this.normalizePlan(o.elements,lines);
+    },
+
+    /* 兜底规则分镜：模型不可用时，按模板把台词/词/数字规则化成分镜，保证流水线可用 */
+    fallbackPlan(lines){
+        const els=[]; const tpl=this.tpl;
+        const isNum=s=>/[0-9０-９]/.test(s);
+        const isEn=s=>/[A-Za-z]{2,}/.test(s);
+        lines.forEach((l,li)=>{
+            const dur=Math.max(0.6,l.end-l.start);
+            if(tpl==="english"||tpl==="keyword"){
+                const words=l.words.length?l.words:[{ch:l.text,s:l.start,e:l.end}];
+                const pick=words.filter(w=>tpl==="english"?isEn(w.ch):(w.ch.length>=2&&!/[，。、！？,.!?\,\s]/.test(w.ch)));
+                (pick.length?pick:[{ch:l.text,s:l.start,e:l.end}]).forEach((w,wi)=>{
+                    els.push({type:tpl==="english"?(isEn(w.ch)?"english":"text"):"keyword",text:w.ch.slice(0,16),
+                        start:+w.s.toFixed(3),end:+Math.min(l.end,w.e+0.35).toFixed(3),
+                        x:0.5,y:0.62+(wi%2)*0.08,size:tpl==="english"?64:72,
+                        color:tpl==="english"?"#7dd3fc":"#ffd23e",anim:tpl==="english"?"bounce":"pop",
+                        animDur:0.4,template:tpl});
+                });
+            }else if(tpl==="data"){
+                const nums=(l.text.match(/[0-9０-９][0-9０-９.%万亿千百十]*/g)||[]);
+                if(nums.length) nums.forEach((n,ni)=>els.push({type:"data",text:n,
+                    start:+(l.start+dur*ni/Math.max(1,nums.length)).toFixed(3),
+                    end:+(l.start+dur*(ni+1)/Math.max(1,nums.length)).toFixed(3),
+                    x:0.5,y:0.55,size:110,color:"#22d3ee",anim:"rise",animDur:0.5,template:tpl}));
+                else els.push({type:"text",text:l.text.slice(0,16),start:+l.start.toFixed(3),end:+l.end.toFixed(3),
+                    x:0.5,y:0.66,size:44,color:"#ffffff",anim:"fade",animDur:0.4,template:tpl});
+            }else if(tpl==="knowledge"){
+                els.push({type:"knowledge",text:"①"+" "+l.text.slice(0,14),start:+l.start.toFixed(3),end:+l.end.toFixed(3),
+                    x:0.5,y:0.6,size:52,color:"#a78bfa",anim:"rise",animDur:0.45,template:tpl});
+            }
+        });
+        return els;
+    },
+
+    normalizePlan(arr,lines){
+        const t0=lines.length?lines[0].start:0, t1=lines.length?lines[lines.length-1].end:t0+5;
+        const num=(v,d)=>{ const n=Number(v); return Number.isFinite(n)?n:d; };
+        return arr.slice(0,60).map(e=>{
+            let s=num(e.start,t0), en=num(e.end,s+1);
+            if(en<=s) en=s+0.8;
+            return {type:String(e.type||"text"),text:String(e.text||"").slice(0,20),
+                start:+s.toFixed(3),end:+en.toFixed(3),
+                x:FV_FX.clamp(num(e.x,0.5),0,1),y:FV_FX.clamp(num(e.y,0.65),0,1),
+                size:FV_FX.clamp(num(e.size,56),20,140),color:/^#[0-9a-f]{6}$/i.test(String(e.color))?e.color:"#ffffff",
+                anim:String(e.anim||"pop"),animDur:+FV_FX.clamp(num(e.animDur,0.4),0.12,1).toFixed(2),template:this.tpl};
+        }).filter(e=>e.text);
+    }
+};
+
+/* FV 执行流水线主体：渲染 / 绘制 / 编码 / 工程回写。独立于 FV 基础对象，避免改动上方逻辑。 */
+Object.assign(FV,{
+    /* 逐帧绘制一帧：背景 + 每个可见分镜元素（背景可选叠原视频/图片画面） */
+    drawFrame(x,W,H,elements,t,opts){
+        opts=opts||{};
+        x.save(); x.fillStyle=opts.bg||"#0a0e1a"; x.fillRect(0,0,W,H);
+        /* 已有博主视频/图片：作为背景铺底（contain 居中），再叠加图形元素 */
+        const src=opts.media;
+        if(src){
+            try{
+                const sw=src.videoWidth||src.naturalWidth||W, sh=src.videoHeight||src.naturalHeight||H;
+                const s=Math.min(W/sw,H/sh), dw=sw*s, dh=sh*s;
+                x.globalAlpha=opts.mediaAlpha==null?0.55:opts.mediaAlpha;
+                x.drawImage(src,(W-dw)/2,(H-dh)/2,dw,dh); x.globalAlpha=1;
+                x.fillStyle="rgba(4,8,20,.34)"; x.fillRect(0,0,W,H);   /* 压暗背景让文字更清楚 */
+            }catch(e){}
+        }
+        x.textAlign="center"; x.textBaseline="middle";
+        for(const el of elements){
+            const st=FV_FX.state(el,t); if(!st.visible) continue;
+            const cx=el.x*W, cy=el.y*H, size=el.size*(H/720);
+            let scale=1, ty=0, alpha=1, blur=0;
+            if(el.anim==="pop") scale=0.4+0.6*st.b;
+            else if(el.anim==="bounce"){ scale=0.7+0.3*st.b; ty=-(1-st.e)*size*0.8-Math.abs(Math.sin(st.k*Math.PI*2))*size*0.12*(1-st.k); }
+            else if(el.anim==="rise") ty=(1-st.e)*size*1.2;
+            else if(el.anim==="fade"){ alpha=st.e; blur=(1-st.e)*8; }
+            else if(el.anim==="blink"){ alpha=st.e; }
+            else scale=0.85+0.15*st.e;
+            x.save(); x.globalAlpha=alpha; x.translate(cx,cy+ty); x.scale(scale,scale);
+            if(blur) x.filter="blur("+blur.toFixed(1)+"px)";
+            x.font='700 '+size+'px "Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif';
+            if(el.type==="keyword"||el.type==="data"||el.type==="knowledge"){
+                const tw=x.measureText(el.text).width;
+                const pad=size*0.28, bw=tw+pad*2, bh=size*1.5;
+                x.fillStyle=el.type==="data"?"rgba(6,182,212,.18)":(el.type==="knowledge"?"rgba(124,58,237,.18)":"rgba(255,210,62,.16)");
+                FV.roundRect(x,-bw/2,-bh/2,bw,bh,Math.min(bh/2,14)); x.fill();
+                x.strokeStyle=el.color; x.lineWidth=Math.max(1.5,size*0.035);
+                if(el.anim==="blink"){ x.shadowColor=el.color; x.shadowBlur=(2+6*Math.abs(Math.sin(t*8))); }
+                FV.roundRect(x,-bw/2,-bh/2,bw,bh,Math.min(bh/2,14)); x.stroke(); x.shadowBlur=0;
+                if(el.type==="data"){   /* 简易柱状图：数字下方三条递增柱 */
+                    const by=bh/2-size*0.18;
+                    for(let b=0;b<3;b++){ const bh2=size*(0.18+b*0.12)*st.e;
+                        x.fillStyle=b===2?el.color:"rgba(34,211,238,.5)";
+                        x.fillRect(-bw/2+pad+b*(size*0.5),by-bh2,size*0.34,bh2); }
+                }
+            }
+            x.lineWidth=Math.max(2,size*0.06); x.strokeStyle="rgba(0,0,0,.72)"; x.strokeText(el.text,0,0);
+            x.fillStyle=el.color; x.fillText(el.text,0,0);
+            x.restore();
+        }
+        x.restore();
+    },
+    roundRect(x,px,py,w,h,r){
+        r=Math.min(r,w/2,h/2); x.beginPath();
+        x.moveTo(px+r,py); x.arcTo(px+w,py,px+w,py+h,r); x.arcTo(px+w,py+h,px,py+h,r);
+        x.arcTo(px,py+h,px,py,r); x.arcTo(px,py,px+w,py,r); x.closePath();
+    },
+
+    /* ③ 渲染 + 绑定音轨 + 编码。复用项目 MediaRecorder 路径：离屏 canvas 逐帧画 FV 画面，
+       音频用 previewAudioTrack()（把原视频/音频片段接到 mfAudioDest），墙钟推进保证不卡。 */
+    async encode(elements,dur,opts,onMsg){
+        const sz=exportSize(), W=sz.w, H=sz.h, fps=Math.min(30,Number(opts.fps)||30);
+        const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+        const x=cv.getContext("2d",{alpha:false});
+        const stream=cv.captureStream(fps);
+        const at=previewAudioTrack(); if(at) stream.addTrack(at);
+        const mp4=MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.42E01E");
+        const mime=mp4?"video/mp4":(MediaRecorder.isTypeSupported("video/webm;codecs=vp9")?"video/webm;codecs=vp9":"video/webm");
+        const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:exportBitrate()});
+        const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+        const done=new Promise(res=>{ rec.onstop=()=>res(new Blob(chunks,{type:mime})); });
+        const before=state.playhead, prevStop=exportStopAt;
+        exportStopAt=dur; setMonitorMute(true);
+        rec.start(250);
+        state.playhead=0; seek(0); play();
+        await new Promise(resolve=>{
+            const t0=performance.now();
+            const frame=()=>{
+                const t=Math.min(dur,(performance.now()-t0)/1000);
+                /* 背景媒体：优先当前主视频/图片元素（若时间轴有画面） */
+                let media=null;
+                if(opts.withVideo&&vEl.classList.contains("show")&&vEl.readyState>1) media=vEl;
+                else if(opts.withVideo&&imgEl.classList.contains("show")&&imgEl.complete) media=imgEl;
+                try{ this.drawFrame(x,W,H,elements,t,{media:media,bg:opts.bg}); }catch(e){}
+                onMsg&&onMsg(t/dur,t);
+                if(t>=dur-0.02 || (performance.now()-t0)/1000>dur+6){ resolve(); return; }
+                schedulePlayFrame(frame);
+            };
+            schedulePlayFrame(frame);
+        });
+        pause(); rec.stop(); setMonitorMute(false);
+        const blob=await done;
+        state.playhead=before; seek(before); exportStopAt=prevStop;
+        return {blob,ext:mp4?"mp4":"webm"};
+    },
+
+    /* ⑤a 结构化 JSON 工程：记录每个图形元素的全部可编辑字段 */
+    projectJson(elements,lines,opts){
+        return {app:"漫流AI剪辑台 · 花式代码视频",version:1,template:this.tpl,
+            canvas:{w:exportSize().w,h:exportSize().h,fps:opts.fps||30},
+            audio:{source:opts.audioName||"",duration:+opts.duration.toFixed(3)},
+            transcript:lines.map(l=>({text:l.text,start:l.start,end:l.end,
+                words:l.words.map(w=>({ch:w.ch,s:w.s,e:w.e}))})),
+            elements:elements.map((e,i)=>({id:"fv_e"+(i+1),type:e.type,text:e.text,
+                start:e.start,end:e.end,x:e.x,y:e.y,size:e.size,color:e.color,
+                anim:e.anim,animParams:{animDur:e.animDur},template:e.template}))};
+    },
+
+    /* ⑤b 回写时间轴：每个图形元素拆成一条独立 text 片段，挂 fx.sub.fv 元信息，可选中/删除/拖拽/改文字样式。
+       新建一条专用"花式"字幕轨，不污染现有字幕1轨。 */
+    writeBack(elements){
+        pushHistory();
+        let tr=state.tracks.find(t=>t.kind==="text"&&t.label.indexOf("花式")>=0&&!t.locked);
+        if(!tr) tr=newTrack("text");
+        if(tr.label.indexOf("花式")<0) tr.label="花式 · "+FV_TPLS[this.tpl].name;
+        /* 清掉本轨旧元素工程，写入新的一批（保留其它轨道/素材，不裁切原音视频） */
+        state.clips=state.clips.filter(c=>c.track!==tr.id);
+        for(const el of elements){
+            const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);
+            fx.sub.size=el.size; fx.sub.color=el.color; fx.sub.pos="center";
+            fx.sub.fv={type:el.type,x:el.x,y:el.y,anim:el.anim,animDur:el.animDur,template:el.template};
+            state.clips.push({id:uid(),track:tr.id,assetId:"",start:el.start,
+                duration:Math.max(0.4,el.end-el.start),offset:0,text:el.text,name:el.text.slice(0,10),
+                subKind:"fancy",fv:true,fx:fx});
+        }
+        renderAll(); autoSave();
+        return elements.length;
+    },
+
+    /* 主流程 */
+    async run(){
+        if(this.busy) return;
+        const list=this.pickAv();
+        if(!list.length){ toast("轨道上还没有可分析的口播音频/视频素材","err"); this.progress(0,"请先放入口播音频或视频",true); return; }
+        if(state.compute==="manflow"){ toast("请先在算力总控切到本机算力或第三方API","err"); this.progress(0,"当前是漫流算力占位档",true); return; }
+        this.busy=true; const btn=$("fvRender"); if(btn) btn.disabled=true;
+        try{
+            /* 再次渲染：时间轴上已有花式片段 → 直接复用用户改过的文字/时间/样式，跳过 ASR 与分镜 */
+            const existing=state.clips.filter(c=>c.fv && trackKind(c.track)==="text")
+                .sort((a,b)=>a.start-b.start);
+            let elements=null, lines=[], reused=false, fromFallback=false;
+            if(existing.length){
+                elements=existing.map(c=>{
+                    const s=(c.fx&&c.fx.sub)||{}, m=s.fv||{};
+                    return {type:m.type||"text",text:String(c.text||""),start:+c.start||0,
+                        end:+((c.start||0)+(c.duration||0)).toFixed(3),x:m.x==null?0.5:m.x,y:m.y==null?0.65:m.y,
+                        size:Number(s.size)||56,color:/^#[0-9a-f]{6}$/i.test(String(s.color))?s.color:"#ffffff",
+                        anim:m.anim||"pop",animDur:Number(m.animDur)||0.4,template:m.template||this.tpl};
+                }).filter(e=>e.text);
+                lines=existing.map(c=>({text:String(c.text||""),start:+c.start||0,
+                    end:+((c.start||0)+(c.duration||0)).toFixed(3),words:[]}));
+                reused=true;
+            }
+            if(!reused){
+                this.progress(0,"准备分析 "+list.length+" 段口播素材");
+                await new Promise(r=>setTimeout(r,120));
+                lines=await this.getLines(m=>this.progress(1,m));
+                this.progress(1,"拿到 "+lines.length+" 句台词（含字级时间戳）");
+                await new Promise(r=>setTimeout(r,100));
+                this.progress(2,"大模型输出分镜方案…");
+                const typed=$("fvModelCustom")?$("fvModelCustom").value.trim():"";
+                const chosen=typed||($("fvModel")?$("fvModel").value.trim():"");
+                const cfg=aiConfig(chosen||state.aiModel);
+                try{ elements=await this.storyboard(lines,cfg,m=>this.progress(2,m)); }
+                catch(e){
+                    fromFallback=true;
+                    this.progress(2,"模型分镜不可用（"+((e&&e.message)||e)+"），改用内置规则分镜");
+                    elements=this.fallbackPlan(lines);
+                }
+            }
+            if(!elements||!elements.length) throw new Error("没有可用的分镜元素");
+            if(reused) this.progress(1,"复用时间轴上 "+elements.length+" 个已编辑元素重新出片");
+            const dur=Math.max.apply(null,elements.map(e=>e.end));
+            this.progress(3,"逐帧渲染 "+elements.length+" 个元素 / "+dur.toFixed(1)+" 秒…");
+            /* 场景判断：轨道上是否有主画面素材 */
+            const mainC=mainVisualClip();
+            const withVideo=!!(mainC&&mainC.assetId&&assetById(mainC.assetId)&&assetById(mainC.assetId).type==="video");
+            const audioName=list.map(c=>{const a=assetById(c.assetId);return a?a.name:"";}).filter(Boolean).join("、");
+            const enc=await this.encode(elements,dur,{withVideo:withVideo,fps:30,
+                bg:"#0a0e1a",audioName:audioName},(p)=>this.progress(4,"编码成片 "+(p*100).toFixed(0)+"%"));
+            this.progress(5,"写出 JSON 工程并回写时间轴…");
+            const proj=this.projectJson(elements,lines,{fps:30,duration:dur,audioName:audioName});
+            const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+            download("花式代码视频工程_"+stamp+".json",JSON.stringify(proj,null,2),"application/json;charset=utf-8");
+            const n=this.writeBack(elements);
+            await saveBlob(enc.blob,"花式代码视频成片_"+stamp+"."+enc.ext);
+            this.progress(6,"完成："+elements.length+" 个元素 / "+n+" 条可编辑片段"+(fromFallback?"（规则分镜）":""));
+            toast("成片与 JSON 工程已生成，图形元素已回写到时间轴（可 Ctrl+Z 撤销）","ok");
+        }catch(e){
+            this.progress(this.busy?5:0,"失败："+((e&&e.message)||e)+"。请确认已配好转写后端与大模型接口。",true);
+            toast("花式代码视频渲染失败，请看状态说明","err");
+        }finally{
+            this.busy=false; if(btn) btn.disabled=false;
+        }
+    }
+});
+
+/* ---- 逐帧动画组件：剥离自 MotionGit 常用入场曲线（easeOutCubic / back.out / elastic），
+       仅保留独立绘制函数，不依赖任何外部引擎或 .motion 工程 ---- */
+const FV_FX={
+    clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
+    easeOut:k=>1-Math.pow(1-k,3),
+    backOut:k=>k>=1?1:(1+2.2*Math.pow(k-1,3)+1.4*Math.pow(k-1,2)),
+    /* 单元素在当前时间的可见度与动画进度：[start,start+animDur] 入场，end 之后消失 */
+    state(el,t){
+        const dur=Math.max(0.12,Number(el.animDur)||0.4);
+        const k=FV_FX.clamp((t-Number(el.start))/dur,0,1);
+        const visible=t>=Number(el.start)-0.001 && t<=Number(el.end)+0.001;
+        return {k,visible,e:FV_FX.easeOut(k),b:FV_FX.backOut(k)};
+    }
+};
+
 function fillAiIdeaModels(){
     const sel=$("aiIdeaModel"); if(!sel) return;
     const list=collectAiModels();
@@ -2112,16 +2511,15 @@ function initAiMergedModal(){
 function switchAiMode(pane){
     initAiMergedModal();
     document.querySelectorAll(".ai-mode-tab").forEach(t=>t.classList.toggle("active",t.getAttribute("data-pane")===pane));
-    const q=$("aiPaneQuick"), c=$("aiPaneChat");
+    const q=$("aiPaneQuick"), c=$("aiPaneChat"), f=$("aiPaneFancy");
     if(q) q.hidden=(pane!=="quick");
     if(c) c.hidden=(pane!=="chat");
-    /* 底部按钮：快速=开始AI剪辑（内含自动剪口播+字幕）；对话=无额外按钮 */
-    const foot=document.querySelector("#aiIdeaModal .modal-foot");
-    if(foot){
-        const start=$("aiIdeaStart"), clr=$("agentClear");
-        if(start) start.style.display=(pane==="quick")?"":"none";
-        if(clr) clr.style.display="none";   /* 清空对话已在 pane 内 */
-    }
+    if(f) f.hidden=(pane!=="fancy");
+    /* 底部按钮：快速=主 foot(开始AI剪辑)；花式=其自带 foot(渲染成片)；对话=两者都隐藏，用 pane 内按钮 */
+    const mainFoot=$("aiIdeaFootMain");
+    if(mainFoot) mainFoot.style.display=(pane==="quick")?"":"none";
+    const clr=$("agentClear"); if(clr) clr.style.display="none";   /* 清空对话已在 pane 内 */
+    if(pane==="fancy" && typeof FV!=="undefined" && FV.onShow) FV.onShow();
     if(pane==="chat"){
         const md=$("agentMode"); if(md) md.textContent=ED_COMPUTE_LABEL[state.compute]||"第三方API";
         const sel=$("agentModel");
@@ -7393,6 +7791,9 @@ function wire(){
     /* AI 剪辑弹窗：模型下拉 / 手填 / 开始（点开始自动跑剪口播→字幕→智能剪辑） */
     $("aiIdeaStart").onclick=startAiIdea;
     $("aiIdeaModel").onchange=()=>{ $("aiIdeaModelCustom").value=""; };
+    /* 花式代码视频：独立渲染按钮 + 模型手填联动（与快速剪辑互不干扰） */
+    if($("fvRender")) $("fvRender").onclick=()=>FV.run();
+    if($("fvModel")) $("fvModel").onchange=()=>{ const c=$("fvModelCustom"); if(c) c.value=""; };
     initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
     /* 右栏两个并列标签 */
     $("propTabs").addEventListener("click",e=>{
