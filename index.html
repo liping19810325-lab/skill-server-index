@@ -179,6 +179,17 @@
         .ref-del-btn { background: var(--red); color: #fff; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 13px; line-height: 1; cursor: pointer; flex-shrink: 0; }
         .ref-del-btn:hover { background: #b91c1c; }
         .ref-empty { font-size: 10.5px; color: var(--muted); }
+        /* 画风预选：2D / 3D / 真人 三类，各 9 项，选「不预选」关闭 */
+        .style-preset-box { margin: 2px 0 8px; padding: 8px 9px; background: var(--panel); border: 1px solid var(--border2); border-radius: 9px; }
+        .style-preset-head { font-size: 11px; color: var(--text); font-weight: 600; margin-bottom: 7px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+        .style-preset-tip { font-size: 10px; color: var(--muted); font-weight: 400; }
+        .style-preset-rows { display: flex; flex-direction: column; gap: 5px; }
+        .style-preset-row { display: flex; align-items: center; gap: 7px; }
+        .style-preset-row > span { flex: 0 0 34px; font-size: 10.5px; color: var(--muted); }
+        .style-preset-row select { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border2); border-radius: 7px; color: var(--text); font-size: 11px; padding: 5px 6px; outline: none; cursor: pointer; }
+        .style-preset-row select:focus { border-color: var(--purple); }
+        .style-preset-row select.has-value { border-color: var(--purple); color: #c4b5fd; }
+        .style-preset-state { font-size: 10px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
         .preview-btn { background: var(--panel); color: var(--text); padding: 4px 7px; border: 1px solid var(--border2); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
         .del-file-btn { background: var(--red); color: #fff; padding: 4px 7px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
 
@@ -457,6 +468,15 @@
             <div class="file-note fold-hint">仅支持TXT剧本上传（可先把docx另存为txt）</div>
             <div class="ref-note fold-hint">需大模型支持图片输入（多模态），纯文本模型无法识别</div>
             <div class="ref-preview-list" id="refPreviewList"></div>
+            <div class="style-preset-box" id="stylePresetBox">
+                <div class="style-preset-head">🎨 画风预选 <span class="style-preset-tip">可选，与画风参考图叠加（有参考图时以图为准）</span></div>
+                <div class="style-preset-rows">
+                    <label class="style-preset-row" for="stylePreset2D"><span>2D</span><select id="stylePreset2D"></select></label>
+                    <label class="style-preset-row" for="stylePreset3D"><span>3D</span><select id="stylePreset3D"></select></label>
+                    <label class="style-preset-row" for="stylePresetReal"><span>真人</span><select id="stylePresetReal"></select></label>
+                </div>
+                <div class="style-preset-state" id="stylePresetState">未预选画风</div>
+            </div>
             <div id="fileList"></div>
         </div>
     </aside>
@@ -599,6 +619,22 @@ const IMAGE_SKILL_KEYS = ["c", "e"];
 let refImages = [];            // [{id, name, dataUrl, bytes, width, height}] 会话结束即丢弃
 let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
 
+/* 画风预选：2D / 3D / 真人 三类各 9 项，每类至多选一项、可叠加；选中项作为文字风格指令随请求发送。
+   选择本地记住（仅三个字符串，不落地任何剧本/图片）；与画风参考图并用时以参考图为准。 */
+const STYLE_PRESETS = {
+    twoD:  { label:"2D",   items:["日系赛璐璐","写实厚涂","Q版大头漫","水墨/工笔","吉卜力治愈","高饱和风","低饱和风","复古油画风","日系水彩风"] },
+    threeD:{ label:"3D",   items:["写实次世代","三渲二","3D国漫","低模卡通","半写实美型","赛博朋克","卡通渲染","写实韩系风","超写实国风"] },
+    real:  { label:"真人", items:["高清写真写实","电影质感写实","半写实建模脸","浓颜高饱和","韩式甜宠风","古风柔光精致写实","黑白极简风","硬科幻宇航超写实","国风真人写真"] }
+};
+const STORAGE_KEY_STYLE_PRESETS = "manflows_style_presets";
+let stylePresetSel = { twoD:"", threeD:"", real:"" };
+try{
+    const saved = JSON.parse(safeStorage.get(STORAGE_KEY_STYLE_PRESETS) || "{}");
+    Object.keys(stylePresetSel).forEach(k=>{
+        if(typeof saved[k]==="string" && STYLE_PRESETS[k].items.includes(saved[k])) stylePresetSel[k]=saved[k];
+    });
+}catch(e){}
+
 /* 三种算力：manflow=漫流算力（默认占位）、local=本机算力、api=第三方API。
    已保存过 local / api 的老用户保持原选择，只有从未保存过（或值无效）才默认漫流算力。 */
 /* 三个网页的算力档位各自独立：创作台 computeMode_index / 画布 computeMode_canvas /
@@ -719,7 +755,7 @@ const HELP_HTML = `
 <h2>四、导入本地md自定义技能</h2>
 <p>点【导入本地.md技能】，选择本地md文件；导入后生成独立技能按钮，和内置5个技能互斥切换，可随时删除自定义技能。自定义技能全程不发送网络请求，仅保存在浏览器内存，刷新页面丢失。<b>吐字窗口已有文字时，已导入的本地技能会按文件名一起出现在技能选择弹窗里；选定后技能的 md 内容会一并带到新网页，无需重新导入。</b></p>
 
-<h2>五、上传画风参考图（仅美术技能可用）</h2>
+<h2>五、画风参考图（仅美术技能可用）与画风预选</h2>
 <ul>
 <li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持 jpg / jpeg / png / webp，最多 2 张。</li>
 <li>浏览器内自动压缩：长边超过 1024px 才等比缩放（小图不放大），统一转为 JPEG、质量 0.8；单张压缩后需 ≤1.5MB，仍超限会提示换图。</li>
@@ -727,6 +763,7 @@ const HELP_HTML = `
 <li>带图技能：c 美术画风助手 V5（资产图提示词）、e 美术画风助手 V5 Midjourney；a 剧本创作、b 导演分镜、d MiniMaxH3 发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
 <li>需要大模型本身支持图片输入（多模态）：云端请用视觉模型；本地 llama-server / Ollama 需加载支持视觉的模型及对应 mmproj。纯文本模型无法识别，建议此时先删除参考图。</li>
 <li>缩略图右侧的 × 可逐张移除；带图时请求会按 OpenAI 多模态格式附上图片，接口若不兼容请改用支持图片输入的模型。</li>
+<li><b>画风预选</b>：上传按钮下方有「2D / 3D / 真人」三组下拉，各含 9 个预设画风，每组单选一个、三组可叠加，选「不预选」即关闭该项。选中的画风会作为【画风预选】文字指令随请求发送，作为全剧统一风格基准（线条、色彩、光影、质感与造型倾向），只作风格引导，不改变剧本内容和技能规定的输出格式；与画风参考图并用时以参考图为准。选择画风时会主动带着画风参数请求两个美术画风助手技能（c/e），把技能里对应画风的提示词段提取出来随请求一并发送（技能模板更新后自动生效；未找到对应分段则只发上面的画风预选文字，不会整份注入技能模板）。三项选择只存本机、刷新后仍保留，图片本身依旧只在内存里。</li>
 </ul>
 
 <h2>六、界面布局</h2>
@@ -1116,17 +1153,23 @@ function saveChatPreview(){
 /* ================= 画风参考图：上传 / 压缩 / 预览 / 删除 ================= */
 function updateRefBadge(){
     if(!refBadge) return;
-    if(refImages.length === 0){
+    const picked = selectedStylePresets();
+    if(refImages.length === 0 && picked.length === 0){
         refBadge.style.display = "none";
         refBadge.textContent = "";
         return;
     }
     const withImg = IMAGE_SKILL_KEYS.includes(currentSkillKey);
+    const parts = [];
+    if(refImages.length){
+        parts.push(withImg
+            ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前美术技能会随请求发送`
+            : `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前技能自动忽略（不带图）`);
+    }
+    if(picked.length) parts.push("🎨 "+picked.map(x=>x.label+"·"+x.name).join(" / ")+" 预选");
     refBadge.style.display = "inline-flex";
-    refBadge.className = "ref-badge " + (withImg ? "ref-badge-on" : "ref-badge-off");
-    refBadge.textContent = withImg
-        ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前美术技能会随请求发送`
-        : `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前技能自动忽略（不带图）`;
+    refBadge.className = "ref-badge " + ((refImages.length && !withImg) ? "ref-badge-off" : "ref-badge-on");
+    refBadge.textContent = parts.join(" · ");
 }
 
 function renderRefPreview(){
@@ -1172,6 +1215,117 @@ function removeRefImage(id){
     refImages = refImages.filter(x => x.id !== id);
     renderRefPreview();
     updateRefBadge();
+}
+
+/* ===== 画风预选：三类下拉的渲染、选择、本地记忆与注入文案 ===== */
+function presetSelectId(k){ return "stylePreset"+({twoD:"2D",threeD:"3D",real:"Real"}[k]); }
+function selectedStylePresets(){
+    return Object.keys(STYLE_PRESETS).filter(k=>stylePresetSel[k])
+        .map(k=>({key:k,label:STYLE_PRESETS[k].label,name:stylePresetSel[k]}));
+}
+function renderStylePresets(){
+    Object.keys(STYLE_PRESETS).forEach(k=>{
+        const sel=document.getElementById(presetSelectId(k));
+        if(!sel) return;
+        if(!sel.options.length){
+            const none=document.createElement("option"); none.value=""; none.textContent="不预选"; sel.appendChild(none);
+            STYLE_PRESETS[k].items.forEach((name,i)=>{
+                const o=document.createElement("option"); o.value=name; o.textContent=(i+1)+". "+name; sel.appendChild(o);
+            });
+        }
+        sel.value=stylePresetSel[k]||"";
+        sel.classList.toggle("has-value",!!stylePresetSel[k]);
+    });
+    updateStylePresetState();
+    updateRefBadge();
+}
+function saveStylePresets(){
+    try{ safeStorage.set(STORAGE_KEY_STYLE_PRESETS, JSON.stringify(stylePresetSel)); }catch(e){}
+}
+/* 选中项作为一段文字指令注入请求；与画风参考图并用时参考图优先，且不改技能输出格式 */
+function stylePresetPrompt(){
+    const picked=selectedStylePresets();
+    if(!picked.length) return "";
+    const lines=picked.map(x=>x.label+"画风："+x.name);
+    return "\n\n【画风预选】\n"+lines.join("；")
+        +"。请在视觉设定中以上述预选画风作为全剧统一风格基准（线条、色彩、光影、质感，以及人物与场景的造型倾向）"
+        +"；若同时上传了画风参考图，则以参考图的实际画风为最高优先级，预选画风仅作为文字补充。"
+        +"本项只作风格引导，不改变剧本内容，也不改变技能规定的输出格式与结构。";
+}
+
+/* ===== 画风预选 → 主动触发两个美术画风助手技能中「对应画风的提示词」 =====
+   两份技能内容尚未更新：这里先把「带画风参数请求 c / e 两技能 → 按画风名提取对应提示词段 →
+   发送时按当前技能注入」的完整链路写好。技能更新后，只要其模板按画风名分段
+   （如 ### 日系赛璐璐 / 【日系赛璐璐】 / 日系赛璐璐：）即可自动提取并注入；
+   提取不到时静默留空，绝不注入整份技能模板，也不干扰现有生成流程。 */
+let artStylePromptCache = { c:{}, e:{} };   // { 技能key: { 画风名: 对应提示词 } }
+let artStyleFetchSeq = 0;                    // 防止并发切换画风时旧请求覆盖新结果
+
+function allStyleNames(){
+    return Object.keys(STYLE_PRESETS).reduce((a,k)=>a.concat(STYLE_PRESETS[k].items),[]);
+}
+function selectedStyleNames(){
+    return Object.keys(STYLE_PRESETS).map(k=>stylePresetSel[k]).filter(Boolean);
+}
+function stylePresetParamValue(){ return selectedStyleNames().join("|"); }
+
+/* 从技能模板里截取某个画风名对应的提示词段；找不到返回 ""。
+   段尾＝下一个已知画风名 / 同级 Markdown 标题 / 【…】段落标题。 */
+function extractStyleBlock(text, styleName){
+    if(!text || !styleName) return "";
+    const src=String(text), names=allStyleNames();
+    const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const re=new RegExp("(?:^|\\n)[ \\t]*(?:#{1,6}[ \\t]*|[-*][ \\t]*)?【?[ \\t]*"+esc(styleName)+"[ \\t]*】?[ \\t]*(?:[:：])?[ \\t]*\\n?","m");
+    const m=re.exec(src);
+    if(!m) return "";
+    const rest=src.slice(m.index+m[0].length);
+    const others=names.filter(n=>n!==styleName).map(esc);
+    const bRe=new RegExp("(?:^|\\n)[ \\t]*(?:#{1,6}[ \\t]*|[-*][ \\t]*)?【?(?:"+others.join("|")+")】?|(?:^|\\n)#{1,3}[ \\t]|(?:^|\\n)【[^】]{2,20}】","m");
+    const bm=bRe.exec(rest);
+    const end=(bm && bm.index>0)?bm.index:rest.length;
+    return rest.slice(0,end).trim();
+}
+
+/* 主动请求两个美术技能，带上当前画风参数，提取各技能中对应画风的提示词段并缓存 */
+async function fetchArtSkillStylePrompts(){
+    const names=selectedStyleNames(), seq=++artStyleFetchSeq;
+    if(!names.length){ artStylePromptCache={c:{},e:{}}; return; }
+    const param=encodeURIComponent(names.join("|"));
+    await Promise.all(IMAGE_SKILL_KEYS.map(async key=>{
+        try{
+            const ctrl=new AbortController();
+            const timer=setTimeout(()=>ctrl.abort(),10000);
+            const res=await fetch(`${SKILL_API_BASE}?token=${SKILL_TOKEN}&type=${key}&stylePreset=${param}`,{signal:ctrl.signal});
+            clearTimeout(timer);
+            const text=res.ok?await res.text():"";
+            const picked={};
+            names.forEach(n=>{ const b=extractStyleBlock(text,n); if(b) picked[n]=b; });
+            if(seq===artStyleFetchSeq) artStylePromptCache[key]=picked;
+        }catch(e){ if(seq===artStyleFetchSeq) artStylePromptCache[key]={}; }
+    }));
+    updateStylePresetState();
+}
+function updateStylePresetState(){
+    const st=document.getElementById("stylePresetState"); if(!st) return;
+    const names=selectedStyleNames();
+    if(!names.length){ st.textContent="未预选画风"; return; }
+    let n=0;
+    IMAGE_SKILL_KEYS.forEach(k=>names.forEach(name=>{ if((artStylePromptCache[k]||{})[name]) n++; }));
+    const base="当前预选："+selectedStylePresets().map(x=>x.label+" · "+x.name).join("；");
+    st.textContent=base+(n?("（已载入 "+n+" 条技能画风提示词）"):"");
+}
+
+/* 当前生效的画风提示词：已加载美术技能时取其那一份，否则合并 c / e 两份去重 */
+function activeStylePromptBlocks(){
+    const names=selectedStyleNames();
+    if(!names.length) return "";
+    const keys=IMAGE_SKILL_KEYS.includes(currentSkillKey)?[currentSkillKey]:IMAGE_SKILL_KEYS;
+    const out=[];
+    keys.forEach(k=>names.forEach(n=>{
+        const p=(artStylePromptCache[k]||{})[n];
+        if(p && out.indexOf(p)<0) out.push(p);
+    }));
+    return out.join("\n\n");
 }
 
 function loadImageFromBlob(file){
@@ -1733,7 +1887,8 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
     const ctrl = new AbortController();
     const timer = setTimeout(()=> ctrl.abort(), timeoutMs);
     try {
-        const res = await fetch(`${SKILL_API_BASE}?token=${SKILL_TOKEN}&type=${type}`,{signal:ctrl.signal});
+        const sp = stylePresetParamValue();   /* 画风预选参数：技能更新后可据此返回对应画风提示词，未更新则忽略此参数 */
+        const res = await fetch(`${SKILL_API_BASE}?token=${SKILL_TOKEN}&type=${type}`+(sp?`&stylePreset=${encodeURIComponent(sp)}`:""),{signal:ctrl.signal});
         clearTimeout(timer);
         if (!res.ok) {
             markSkillLoadFailed(`❌ 技能接口返回错误（HTTP ${res.status}），可尝试导入本地md技能应急`);
@@ -2198,9 +2353,19 @@ async function sendMessage(autoSourceText) {
     if (useImages) {
         combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，请以其画风、色调、线条与质感作为视觉基准；图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
     }
+    /* 画风预选：文字风格指令随请求发送（所有技能生效），与参考图并用时参考图优先 */
+    const styleTxt = stylePresetPrompt();
+    if (styleTxt) combinedContent += styleTxt;
+    /* 主动从两个美术技能提取的「对应画风提示词」：有则随请求发送（与 styleTxt 同源，不重复注入整份技能模板） */
+    const artStyleTxt = activeStylePromptBlocks();
+    if (artStyleTxt) combinedContent += "\n\n【技能画风提示词】\n" + artStyleTxt;
     if (!combinedContent.trim() && !useImages) { alert("请输入指令，或者勾选剧本文件"); return; }
     if (!combinedContent.trim() && useImages) {
         combinedContent = "【用户指令】\n请依据当前技能与所附画风参考图开始生成。";
+    }
+    /* 只选了画风、没写指令也没带文件时，补一句明确任务，避免请求里只有一段风格说明 */
+    if (styleTxt && !userCmd && !attachedFiles.length && !autoSourceText && !useImages) {
+        combinedContent = "【用户指令】\n请依据当前技能与上述画风预选开始生成。\n" + combinedContent;
     }
 
     if(computeMode === "api"){
@@ -2535,6 +2700,18 @@ function initUI(){
         if(files && files.length) await handleRefFiles(files);
         refImageInput.value = "";   // 允许重复选择同一文件
     };
+    /* 画风预选：三类下拉初始化（含本地记忆恢复），切换即保存并刷新顶部状态 */
+    Object.keys(STYLE_PRESETS).forEach(k=>{
+        const sel=document.getElementById(presetSelectId(k));
+        if(!sel) return;
+        sel.addEventListener("change",e=>{
+            stylePresetSel[k]=e.target.value||"";
+            saveStylePresets(); renderStylePresets();
+            fetchArtSkillStylePrompts();   /* 主动触发两个美术技能的对应画风提示词 */
+        });
+    });
+    renderStylePresets();
+    fetchArtSkillStylePrompts();           /* 有本地记忆的画风时，进入页面即主动取对应提示词 */
 
     importSkillMdBtn.addEventListener("click", ()=> skillMdInput.click());
     skillMdInput.onchange = (e)=>{
