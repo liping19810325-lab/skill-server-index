@@ -2374,14 +2374,23 @@ Object.assign(FV,{
                 x.fillStyle="rgba(4,8,20,.34)"; x.fillRect(0,0,W,H);
             }catch(e){}
         }
+        this.drawElements(x,W,H,elements,t,opts);
+        x.restore();
+    },
+    /* 只画花字图形（不填背景、不画媒体）：通用成片导出 drawStageFrame 复用它把花字烧进主画面。
+       与预览 renderFancyOverlay / AI包装独立导出 共用 fvDesc/fvLayout/fvFxState，保证所见即所得。
+       opts.peers 传「全时间线花字描述」让时间重叠错开分组与预览一致；opts.guard 指定五官保护区。 */
+    drawElements(x,W,H,elements,t,opts){
+        opts=opts||{};
+        x.save();
         x.textAlign="center"; x.textBaseline="middle";
-        /* 与预览共用 fvDesc/fvLayout/fvFxState：防超屏 + 人脸避让 + 分层锚点 + 持续动效，保证所见即所得 */
-        const guard=state.fvFaceGuard||FV_GUARD_DEFAULT;
-        const descs=elements.map(e=>{ const d=fvDesc(e); d.uid=e.uid||d.template+"_"+d.start; return d; });
-        elements.forEach((el,idx)=>{
-            const d=descs[idx];
+        const guard=(opts&&opts.guard)||state.fvFaceGuard||FV_GUARD_DEFAULT;
+        const givenPeers=(opts&&opts.peers&&opts.peers.length)?opts.peers:null;
+        const descs=elements.map(e=>{ const d=fvDesc(e); d.uid=e.uid||e.id||d.template+"_"+d.start; return d; });
+        const layoutPeers=givenPeers||descs;
+        descs.forEach((d,idx)=>{
             const fs=FV_FX.state(d,t); if(!fs.visible) return;
-            const L=fvLayout(d,W,H,guard,descs);
+            const L=fvLayout(d,W,H,guard,layoutPeers);
             const anim=fvFxState(d,t);
             const size=L.size, color=d.color;
             x.save();
@@ -10486,6 +10495,24 @@ function drawStageFrame(x,W,H,opts){
         x.restore();
         });
     }
+    /* 花字(c.fv)进成片：花字走独立 overlay、不进 SRT/ASS，普通视频导出必须在这里用 canvas 画进画面，
+       否则时间轴上的花字轨在成片里全部丢失（此前只在预览 #fzOverlay 与 AI包装独立导出里绘制）。
+       与预览同样用 stage 尺寸布局再整体 scale 到导出画布，保证所见即所得；
+       与 noSub 无关——烧录模式下花字不在 ASS 里，必须画进纯净画面由 FFmpeg 整体转码带出。 */
+    try{
+        if(typeof hasFancy==="function" && hasFancy()){
+            const stg0=$("stage"), SW0=(stg0&&stg0.clientWidth>0)?stg0.clientWidth:640, SH0=(stg0&&stg0.clientHeight>0)?stg0.clientHeight:360;
+            const active=activeFancyClips();
+            if(active.length){
+                const all=state.clips.filter(c=>c.fv&&trackKind(c.track)==="text");
+                const peers=all.map(c=>{ const d=fvDesc(c); d.uid=c.id; d.text=c.text||d.text; return d; });
+                x.save();
+                x.scale(W/SW0, H/SH0);
+                FV.drawElements(x, SW0, SH0, active, state.playhead, {peers:peers, guard:state.fvFaceGuard||FV_GUARD_DEFAULT});
+                x.restore();
+            }
+        }
+    }catch(e){}
 }
 let _grainTile=null;
 function grainTile(){
