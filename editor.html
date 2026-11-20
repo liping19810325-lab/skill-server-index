@@ -1281,7 +1281,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <textarea id="aiIdeaText" placeholder="例如：整体节奏快一点，删掉前面的空镜；前 3 秒要抓人；把两段对白之间的停顿压掉；旁白字幕放画面下方……"></textarea>
             <div class="ai-progress" id="aiProgress" hidden><div class="ai-progress-fill" id="aiProgressFill"></div></div>
             <div class="ai-steps" id="aiSteps"></div>
-            <div class="ai-state" id="aiIdeaState" style="margin-top:9px">填好思路、选好模型后点「开始 AI 剪辑」；方案生成后会先弹出来让你确认，确认后才写到轨道（可 Ctrl+Z 撤销）。</div>
+            <div class="ai-state" id="aiIdeaState" style="margin-top:9px">点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ 把整条轨道（含字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。</div>
             <!-- 原「算力总控」下的 AI 剪辑状态栏，已整合进本浮窗；浮窗由用户自行关闭 -->
             <div class="ai-panel" id="edEditPanel">
                 <div class="ai-panel-title">✨ AI 剪辑 · 运行状态 <span class="ai-panel-tag">/v1/chat/completions</span></div>
@@ -1296,8 +1296,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
         </div>
         <div class="modal-foot">
             <button class="mini-btn gray" data-close="aiIdeaModal">取消</button>
-            <button class="mini-btn cyan" id="aiIdeaSmartCut" title="打开智能剪口播：本地检测气口与语气词并生成剪辑候选">✂ 智能剪口播</button>
-            <button class="mini-btn green" id="aiIdeaStart">▶ 开始 AI 剪辑</button>
+            <button class="mini-btn green" id="aiIdeaStart">▶ 开始 AI 剪辑（自动剪口播 → 字幕 → 智能剪辑）</button>
         </div>
     </div>
 </div>
@@ -1896,7 +1895,7 @@ function schedulePlayFrame(fn){
     return requestAnimationFrame(fn);
 }
 let bootWsId=null;                    /* 页面启动时的工作区，用于防止切换瞬间把状态写错屋 */
-const AI_STEPS=["模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
+const AI_STEPS=["智能剪口播","AI字幕","模型已调用","轨道素材分析中","视频画面抽帧中","AI 剪辑进程中","生成剪辑方案","完成"];
 const ASR_STEPS=["模型已调用","轨道素材分析中","音视频真实转写中","时间码对齐","字幕写入轨道"];
 const $ = id => document.getElementById(id);
 
@@ -2116,13 +2115,11 @@ function switchAiMode(pane){
     const q=$("aiPaneQuick"), c=$("aiPaneChat");
     if(q) q.hidden=(pane!=="quick");
     if(c) c.hidden=(pane!=="chat");
-    /* 两个模式的底部按钮各自显示：快速=开始AI剪辑+智能剪口播；对话=清空对话 */
+    /* 底部按钮：快速=开始AI剪辑（内含自动剪口播+字幕）；对话=无额外按钮 */
     const foot=document.querySelector("#aiIdeaModal .modal-foot");
     if(foot){
-        const start=$("aiIdeaStart"), smart=$("aiIdeaSmartCut"), cancel=foot.querySelector('[data-close]');
-        const clr=$("agentClear");
+        const start=$("aiIdeaStart"), clr=$("agentClear");
         if(start) start.style.display=(pane==="quick")?"":"none";
-        if(smart) smart.style.display=(pane==="quick")?"":"none";
         if(clr) clr.style.display="none";   /* 清空对话已在 pane 内 */
     }
     if(pane==="chat"){
@@ -2145,7 +2142,7 @@ function openAiIdea(){
     fillAiIdeaModels();
     $("aiProgress").hidden=true; $("aiProgressFill").style.width="0%"; $("aiSteps").innerHTML="";
     const st=$("aiIdeaState"); st.className="ai-state";
-    st.textContent="填好思路、选好模型后点「开始 AI 剪辑」；方案生成后会先弹出来让你确认，确认后才写到轨道（可 Ctrl+Z 撤销）。";
+    st.textContent="点「开始 AI 剪辑」会自动跑完整流程：① 智能剪口播检测停顿/气口 → ② AI字幕真实转写 → ③ 把整条轨道（含字幕/候选/画面）交给模型智能剪辑；方案先弹出确认，确认后才写轨道（可 Ctrl+Z 撤销）。";
     $("aiIdeaStart").disabled=false;
     switchAiMode("quick");
     $("aiIdeaModal").classList.add("show");
@@ -6287,21 +6284,54 @@ async function runAiEdit(idea,overrideModel){
     }
     if(!cfg.endpoint||!cfg.model){ showAiSetup(cfg); setAiProgress(0,"模型还没配置好：请在弹窗里选一个已部署的模型，或到创作台 / 画布填好第三方API接口、接通本机算力。",true); return; }
     const btn=$("aiIdeaStart"); btn.disabled=true;
+    let silBackup=[];   /* 阶段①静音备份：runAsrCore 会清空静音，阶段②后合并回来 */
     try{
-        setAiProgress(0,"已调用模型「"+cfg.model+"」（"+cfg.label+"）"+(idea?"，已带上你的剪辑思路":"，未写思路，由模型自主判断"));
+        /* ===== 阶段①：智能剪口播 —— 真实检测静音/气口，生成剪辑候选，喂给后面的模型 ===== */
+        setAiProgress(0,"正在对音视频做智能剪口播分析（静音 / 气口 / 停顿检测）…");
+        await new Promise(r=>setTimeout(r,120));
+        try{
+            if(!svcOnline) await pingService(2800);
+            const ready=mediaReadyClips();
+            for(const c of ready){
+                const a=assetById(c.assetId);
+                if(a) try{ await detectClipSilences(a,c,scConfig()); }catch(e){}
+            }
+            smartCutCandidates=buildSmartCutCandidates();
+            silBackup=lastSilences.slice();   /* runAsrCore 内部会清空静音：先备份，阶段②后合并回来 */
+            scLogPush("AI剪辑流水线 ①智能剪口播完成："+ready.length+" 段素材 → "+smartCutCandidates.length+" 处候选 / "+lastSilences.length+" 段静音");
+        }catch(e){ scLogPush("AI剪辑流水线 ①智能剪口播异常（继续）："+((e&&e.message)||e)); }
+
+        /* ===== 阶段②：AI字幕 —— 真实转写并写入字幕轨，让模型拿到毫秒字幕与字级时间戳 =====
+           失败不中断：静音候选已在阶段①备好，字幕不可用也照常进入模型剪辑。 */
+        setAiProgress(1,"正在真实转写音视频并写入字幕轨（AI字幕）…");
+        const subBefore=state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim()).length;
+        let asrElapsed=0;
+        const asrHb=setInterval(()=>{ asrElapsed+=5; setAiProgress(1,"AI字幕真实转写中：已等待 "+asrElapsed+" 秒（长视频转写可能需要 10~60 秒）…"); },5000);
+        try{ await runAsrCore(); }
+        catch(e){ scLogPush("AI剪辑流水线 ②AI字幕异常（继续）："+((e&&e.message)||e)); }
+        finally{ clearInterval(asrHb); }
+        const subAfter=state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim()).length;
+        /* runAsrCore 会清空 lastSilences 再重算：把阶段①备份的静音合并回来（addSilences 自带去重），
+           再刷新候选，确保阶段③无论字幕成败都拿得到完整的静音+候选数据 */
+        try{ addSilences(silBackup); }catch(e){}
+        try{ smartCutCandidates=buildSmartCutCandidates(); }catch(e){}
+        scLogPush("AI剪辑流水线 ②AI字幕完成：字幕 "+subBefore+" → "+subAfter+" 条，候选 "+smartCutCandidates.length+" 处 / 静音 "+lastSilences.length+" 段");
+
+        /* ===== 阶段③：真·AI剪辑 —— 把整条轨道结构 + 静音候选 + 字幕 + 音视频/图片抽帧交给模型 ===== */
+        setAiProgress(2,"前置分析完成，已调用模型「"+cfg.model+"」（"+cfg.label+"）"+(idea?"，已带上你的剪辑思路":"，未写思路，由模型自主判断"));
         await new Promise(r=>setTimeout(r,160));
-        setAiProgress(1,"正在整理 "+state.tracks.length+" 条轨道 / "+state.clips.length+" 个片段的结构与素材信息…");
+        setAiProgress(3,"正在整理 "+state.tracks.length+" 条轨道 / "+state.clips.length+" 个片段 / "+subAfter+" 条字幕 / "+smartCutCandidates.length+" 处候选的结构与素材信息…");
         const frames=$("aiFrames").checked?await collectFrames():[];
-        setAiProgress(2,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
-        setAiProgress(3,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
+        setAiProgress(4,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
+        setAiProgress(5,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
         let elapsed=0;
-        const hb=setInterval(()=>{ elapsed+=5; setAiProgress(3,"AI 剪辑进程中：已等待 "+elapsed+" 秒（强多模态模型通常需要 10~60 秒）…"); },5000);
+        const hb=setInterval(()=>{ elapsed+=5; setAiProgress(5,"AI 剪辑进程中：已等待 "+elapsed+" 秒（强多模态模型通常需要 10~60 秒）…"); },5000);
         let text="";
         try{
             try{ text=await aiChat(cfg,buildAiMessages(frames,idea)); }
             catch(e){
                 if(frames.length){
-                    setAiProgress(3,"带图请求失败，正在改用纯轨道数据重试…");
+                    setAiProgress(5,"带图请求失败，正在改用纯轨道数据重试…");
                     try{
                         text=await aiChat(cfg,buildAiMessages([],idea));
                         toast("当前模型可能不支持视觉输入，已改用纯轨道数据分析；建议换 Claude / GPT-4o / Gemini 等多模态模型","err");
@@ -6309,18 +6339,18 @@ async function runAiEdit(idea,overrideModel){
                 }else throw e;
             }
         }finally{ clearInterval(hb); }
-        setAiProgress(4,"模型已返回，正在解析可执行的剪辑方案…");
+        setAiProgress(6,"模型已返回，正在解析可执行的剪辑方案…");
         const plan=parseAiPlan(text);
         if(!plan){
-            setAiProgress(4,"模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o 等综合能力强的多模态模型重试。",true);
+            setAiProgress(6,"模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o 等综合能力强的多模态模型重试。",true);
             toast("方案解析失败，建议换 Claude / GPT 重试","err"); return;
         }
-        setAiProgress(5,"方案已生成（"+plan.actions.length+" 项操作 / "+plan.newSubtitles.length+" 条新字幕），请在弹窗里确认后应用");
+        setAiProgress(7,"方案已生成（"+plan.actions.length+" 项操作 / "+plan.newSubtitles.length+" 条新字幕），请在弹窗里确认后应用");
         pendingPlan=plan; renderAiPlan(plan,cfg,frames.length);
         /* 浮窗关闭交给用户：方案弹窗叠在上面，用户关掉方案后仍可在原浮窗查看运行状态 */
         $("aiPlanModal").classList.add("show");
     }catch(e){
-        setAiProgress(3,"AI 剪辑失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域 CORS）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
+        setAiProgress(5,"AI 剪辑失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域 CORS）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
         toast("AI 剪辑失败，请看弹窗里的状态说明","err");
     }finally{ btn.disabled=false; }
 }
@@ -7360,13 +7390,9 @@ function wire(){
     window.addEventListener("storage",e=>{
         if(e.key===ED_COMPUTE_KEY && e.newValue && ED_COMPUTE_LABEL[e.newValue] && e.newValue!==state.compute) applyCompute(e.newValue,true,true);
     });
-    /* AI 剪辑弹窗：模型下拉 / 手填 / 开始 / 智能剪口播（替换原「切换算力档位」） */
+    /* AI 剪辑弹窗：模型下拉 / 手填 / 开始（点开始自动跑剪口播→字幕→智能剪辑） */
     $("aiIdeaStart").onclick=startAiIdea;
     $("aiIdeaModel").onchange=()=>{ $("aiIdeaModelCustom").value=""; };
-    $("aiIdeaSmartCut").onclick=()=>{
-        $("aiIdeaModal").classList.remove("show");
-        openSmartCutModal();
-    };
     initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
     /* 右栏两个并列标签 */
     $("propTabs").addEventListener("click",e=>{
