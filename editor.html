@@ -1953,6 +1953,13 @@ let state = {
     fvStyles:[]
 };
 let historyStack=[], redoStack=[], playing=false, rafId=0, lastTs=0, saveTimer=0;
+/* 手势级历史快照：用户按下任何可调控件/拖动手柄时先存变更前状态。
+   滑块/颜色/下拉等 oninput 可能直接改 fx 而忘了 pushHistory；手势结束时若没人消费
+   这份快照就自动入库，有人消费则只记一条，杜绝重复条目。 */
+let gestureSnap=null;
+/* 素材撤销回收站：只缓存被删素材的完整对象（含 Blob），上限 60 条；
+   历史快照里只存 asset id 列表，不序列化大 Blob，避免 50 条历史把内存吃满。 */
+const assetUndoCache=new Map();
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
 /* 活动轨道：最近一次被选中素材所在的轨道。点标尺/空白清空选中时不会重置，
    「剪辑/分割」据此优先切同一条轨道（音视频字幕等所有轨道通用）。 */
@@ -2230,6 +2237,31 @@ function fvStyleColor(type){
     const v=fvStyleVis(), map={english:"english",data:"data",knowledge:"knowledge",steps:"steps",quote:"quote"};
     return v[map[String(type||"")]||"kw"]||v.kw||"#ffd23e";
 }
+/* 花字轨「时间去重叠」：同一花字N轨上的片段按 start 排序，后一条起点不早于前一条终点+0.04s。
+   根因：模型分镜/字级兜底会给同一模板输出时间相交的多个元素，而时间轴片段是按绝对 left/width 画的，
+   同轨时间相交就会看到很多条字幕叠在一起。之前 fvLayout 的纵向错开只解决「预览画面」不叠，
+   管不到轨道显示；这里只整理 c.fv 花字片段的时间（保留每条原时长，不裁内容），
+   普通字幕/音视频轨一律不动。写回与旧工程加载都会跑，返回被顺排的条数。 */
+function deoverlapFancyClips(){
+    const groups=new Map();
+    for(const c of state.clips){
+        if(!c.fv || trackKind(c.track)!=="text") continue;
+        let arr=groups.get(c.track); if(!arr){ arr=[]; groups.set(c.track,arr); }
+        arr.push(c);
+    }
+    let changed=0;
+    groups.forEach(arr=>{
+        arr.sort((a,b)=>(Number(a.start)||0)-(Number(b.start)||0));
+        let cursor=0;
+        arr.forEach(c=>{
+            const old=Number(c.start)||0, st=Math.max(old,cursor);
+            const dur=Math.max(0.4,Number(c.duration)||0.4);
+            if(Math.abs(st-old)>0.001){ c.start=+st.toFixed(3); changed++; }
+            cursor=+((st+dur+0.04).toFixed(3));
+        });
+    });
+    return changed;
+}
 const FV_STEPS=["读取台词","ASR 字级时间戳","大模型输出分镜","逐帧渲染画面","绑定音轨编码 MP4","写入可编辑工程","完成"];
 const FV={
     /* 显示层画面模板：默认一套都不选＝全自动智能识别（用户要求改完后不要默认全选）。
@@ -2264,6 +2296,7 @@ const FV={
         if(hint) hint.textContent=n?("已选 "+n+" 套画面模板："+this.styles.map(k=>FV_STYLES[k].name).join(" / ")):"一套都不选＝全自动智能识别：AI 自主判断内容并选用合适组件";
     },
     toggleTplAll(on){
+        pushHistory();
         this.styles=on?Object.keys(FV_STYLES).slice():[];
         this.renderTpl();
     },
@@ -2276,6 +2309,7 @@ const FV={
         }).join("");
         box.onclick=e=>{ const c=e.target.closest(".fv-tpl-card"); if(!c) return;
             const k=c.getAttribute("data-tpl"), i=this.styles.indexOf(k);
+            pushHistory();   /* 勾选/取消画面模板是可逆编辑，随撤销恢复 */
             if(i>=0) this.styles.splice(i,1); else this.styles.push(k);
             c.classList.toggle("active",i<0);
             this.syncTplAll();
@@ -2667,6 +2701,7 @@ Object.assign(FV,{
                 made++;
             }
         }
+        deoverlapFancyClips();   /* 同轨花字按时间顺排，时间轴不再叠成一条 */
         renderAll(); autoSave();
         return made;
     },
@@ -3783,7 +3818,9 @@ function renderBasicBox(){
         $(id).addEventListener("focus",()=>pushHistory());
         $(id).addEventListener("input",apply);
     });
+    $("fxOpacity").addEventListener("pointerdown",()=>pushHistory());   /* 滑块按一次只记一条 */
     $("fxOpacity").oninput=e=>{ f.opacity=Number(e.target.value); $("fxOpacityV").textContent=f.opacity+"%"; applyClipTransforms(); autoSave(); };
+    $("fxBg").addEventListener("pointerdown",()=>pushHistory());
     $("fxBg").oninput=e=>{ f.bg=e.target.value; applyClipTransforms(); autoSave(); };
     $("fxBgReset").onclick=()=>{ pushHistory(); f.bg="#000000"; $("fxBg").value="#000000"; apply(); };
     ["fxRotCW","fxRotCCW"].forEach(id=>$(id).onclick=()=>{
@@ -4031,10 +4068,13 @@ function wireFxBox(){
         };
         document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
     });
+    let wheelSnapAt=0;
     $("stage").addEventListener("wheel",e=>{
         const c=selectedClip(); if(!c) return;
         e.preventDefault();
         const f=fxOf(c);
+        /* 滚轮连续缩放合并成一条历史（700ms 内只记一次），避免每次 tick 都占一条 */
+        const now=Date.now(); if(now-wheelSnapAt>700){ pushHistory(); wheelSnapAt=now; }
         f.scale=clamp((Number(f.scale)||1)*(e.deltaY<0?1.06:0.94),0.1,5);
         applyClipTransforms(); updateFxInputs(f); autoSave();
     },{passive:false});
@@ -4183,18 +4223,18 @@ function exportRange(){
 function setInPoint(){
     const t=clamp(state.playhead,0,Math.max(0,contentEnd()));
     if(Number.isFinite(state.outPoint)&&t>=state.outPoint){ toast("入点必须早于出点（当前出点 "+fmt(state.outPoint)+"）","err"); return; }
-    state.inPoint=+t.toFixed(4); autoSave(); renderAll();
+    pushHistory(); state.inPoint=+t.toFixed(4); autoSave(); renderAll();
     toast("入点已设为 "+timecode(t)+"，导出将从此开始","ok");
 }
 function setOutPoint(){
     const t=clamp(state.playhead,0,Math.max(0,contentEnd()));
     if(Number.isFinite(state.inPoint)&&t<=state.inPoint){ toast("出点必须晚于入点（当前入点 "+fmt(state.inPoint)+"）","err"); return; }
-    state.outPoint=+t.toFixed(4); autoSave(); renderAll();
+    pushHistory(); state.outPoint=+t.toFixed(4); autoSave(); renderAll();
     toast("出点已设为 "+timecode(t)+"，导出将到此结束","ok");
 }
 function clearInOut(){
     if(!Number.isFinite(state.inPoint)&&!Number.isFinite(state.outPoint)){ toast("当前没有设置入点 / 出点"); return; }
-    state.inPoint=null; state.outPoint=null; autoSave(); renderAll();
+    pushHistory(); state.inPoint=null; state.outPoint=null; autoSave(); renderAll();
     toast("已清除入点 / 出点，导出恢复整条素材","ok");
 }
 /* 按导出区间裁剪片段：与 [start,end] 相交的部分保留，start 平移到区间内相对时间。
@@ -4584,6 +4624,9 @@ function updateSmartCutAvailability(){
 
 function removeAsset(id){
     const a=assetById(id); if(!a) return;
+    pushHistory();
+    assetUndoCache.set(id,a);
+    if(assetUndoCache.size>60) assetUndoCache.delete(assetUndoCache.keys().next().value);
     state.assets=state.assets.filter(x=>x.id!==id);
     if(state.selectedAsset===id) state.selectedAsset=null;
     renderAssets(); renderProjInfo(); autoSave();
@@ -4666,6 +4709,7 @@ function currentSubTrack(){
 function delTrack(id){
     const t=trackById(id); if(!t) return;
     if(state.clips.some(c=>c.track===id)){ toast("这条轨道上还有片段，请先删除片段","err"); return; }
+    pushHistory();
     state.tracks=state.tracks.filter(x=>x.id!==id);
     if(state.subTrack===id) state.subTrack="";
     renderAll(); autoSave(); toast("已删除空轨道「"+t.label+"」","ok");
@@ -5118,6 +5162,7 @@ function wireClipContextMenu(){
 }
 /* 复制轨道：复制轨参数 + 该轨全部片段，整体平移到新轨（时间位置不变） */
 function copyTrack(tr){
+    pushHistory();
     const nt=newTrack(tr.kind,{below:tr.kind==="audio"});
     nt.locked=tr.locked; nt.hidden=tr.hidden; nt.muted=tr.muted;
     const map={};
@@ -5586,14 +5631,69 @@ function renderProjInfo(){
 function renderAll(){ updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; fancyCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); drawLutFrame(); syncFaceGuard(); syncFvShowBaseSub(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
-function snapshot(){ state.clips.forEach(fxOf); return JSON.stringify({clips:state.clips,tracks:state.tracks,markers:state.markers}); }
-function pushHistory(){ historyStack.push(snapshot()); if(historyStack.length>40) historyStack.shift(); redoStack=[]; }
+/* 历史快照：覆盖用户所有可逆编辑状态。
+   资源上限 50 条（连续重复快照自动去重），老版本为 40 条；assets 的 Blob 不进快照，
+   只快照剪辑数据/轨道/标记/字幕默认样式/AI包装显示层设置，避免大文件把内存吃满。 */
+function snapshot(){
+    state.clips.forEach(fxOf);
+    return JSON.stringify({clips:state.clips,tracks:state.tracks,markers:state.markers,
+        subStyle:state.subStyle,fvStyles:state.fvStyles,fvFaceGuard:state.fvFaceGuard,
+        fvHideBaseSub:state.fvHideBaseSub,fvMediaFit:state.fvMediaFit,
+        fvMediaFitOn:state.fvMediaFitOn,fvMediaFitUserSet:state.fvMediaFitUserSet,
+        inPoint:state.inPoint,outPoint:state.outPoint,
+        assetIds:state.assets.map(a=>a.id)});
+}
+function commitHistory(s){
+    if(!s) return;
+    if(historyStack.length && historyStack[historyStack.length-1]===s) return;   /* 同一手势不重复占位 */
+    historyStack.push(s); if(historyStack.length>50) historyStack.shift(); redoStack=[];
+}
+function pushHistory(){
+    const s=gestureSnap||snapshot();
+    if(gestureSnap) gestureSnap=null;   /* 消费手势快照：后续同一手势里的重复 push 用实时状态去重 */
+    commitHistory(s);
+}
+/* 手势起点/终点：按下任意可调控件或拖动手柄时先存变更前状态。
+   面板里大量 range/color/select 直接改 fx，没有也不能逐个补 push；
+   手势结束时若没人主动 push，就由这里兜底入库，保证「所有可逆小操作」都能 Ctrl+Z。 */
+function beginGesture(){ if(!gestureSnap) gestureSnap=snapshot(); }
+function endGesture(){
+    const s=gestureSnap; gestureSnap=null;
+    if(!s || s===snapshot()) return;   /* 纯点击/无实际改动不占历史 */
+    commitHistory(s);
+}
+function bindHistoryGestures(){
+    const inputSel="input,select,textarea";
+    const dragSel=".clip,#fxBox,#cropFrame,#faceGuard,.fz-item,#tracks .track-label";
+    document.addEventListener("pointerdown",e=>{
+        if(!e.target||!e.target.closest) return;
+        if(e.target.closest(inputSel+","+dragSel)) beginGesture();
+    },true);
+    document.addEventListener("focusin",e=>{ if(e.target&&e.target.matches&&e.target.matches(inputSel)) beginGesture(); },true);
+    document.addEventListener("pointerup",()=>setTimeout(endGesture,0),true);
+    document.addEventListener("change",()=>setTimeout(endGesture,0),true);
+    document.addEventListener("keyup",e=>{ if(e.target&&e.target.matches&&e.target.matches(inputSel)) endGesture(); },true);
+}
 function restore(s){
     let o; try{ o=JSON.parse(s); }catch(e){ return; }
     state.clips=Array.isArray(o.clips)?o.clips:state.clips;
     state.tracks=Array.isArray(o.tracks)&&o.tracks.length?o.tracks:defaultTracks();
     state.markers=Array.isArray(o.markers)?o.markers:state.markers;
-    state.selected=null; state.multi=[]; subCache="";
+    if(o.subStyle) state.subStyle=cloneSubStyle(o.subStyle);
+    state.fvStyles=Array.isArray(o.fvStyles)?o.fvStyles.slice():[];
+    if(o.fvFaceGuard) state.fvFaceGuard=Object.assign({},FV_GUARD_DEFAULT,o.fvFaceGuard);
+    if(typeof o.fvHideBaseSub==="boolean") state.fvHideBaseSub=o.fvHideBaseSub;
+    state.fvMediaFit=(o.fvMediaFit&&typeof o.fvMediaFit==="object")?o.fvMediaFit:null;
+    state.fvMediaFitOn=(o.fvMediaFitOn===true);
+    state.fvMediaFitUserSet=(o.fvMediaFitUserSet===true);
+    state.inPoint=(o.inPoint==null||!Number.isFinite(Number(o.inPoint)))?null:Number(o.inPoint);
+    state.outPoint=(o.outPoint==null||!Number.isFinite(Number(o.outPoint)))?null:Number(o.outPoint);
+    if(Array.isArray(o.assetIds)){
+        const live=new Map(state.assets.map(a=>[a.id,a]));
+        state.assets=o.assetIds.map(id=>live.get(id)||assetUndoCache.get(id)).filter(Boolean);
+        state.selectedAsset=null;
+    }
+    state.selected=null; state.multi=[]; subCache=""; fancyCache="";
     renderAll(); autoSave();
 }
 function undo(){ if(!historyStack.length){ toast("没有可撤销的操作"); return; } redoStack.push(snapshot()); restore(historyStack.pop()); toast("已撤销"); }
@@ -7758,6 +7858,7 @@ async function loadProject(date){
                 c.fx.sub=cloneSubStyle(c.fx.sub||state.subStyle);
             }
         });
+        deoverlapFancyClips();   /* 旧工程里已经叠在一起的花字轨也顺排一次 */
         state.assets=[];
         for(const a of (p.assets||[])){
             const x=Object.assign({},a);
@@ -8298,6 +8399,7 @@ function wireAIB(){
 
 /* ---------- 事件绑定 ---------- */
 function wire(){
+    bindHistoryGestures();   /* 所有可逆控件/拖拽的变更前快照兜底 */
     wireClipContextMenu();
     wireStageContextMenu();
     /* 顶栏 */
@@ -8596,11 +8698,11 @@ function wire(){
     if($("fvTplAll")) $("fvTplAll").onchange=e=>FV.toggleTplAll(e.target.checked);
     if($("fvShowBaseSub")){
         syncFvShowBaseSub();
-        $("fvShowBaseSub").onchange=e=>{ state.fvHideBaseSub=!e.target.checked; subCache=""; fancyCache=""; renderSubtitleOverlay(); autoSave();
+        $("fvShowBaseSub").onchange=e=>{ pushHistory(); state.fvHideBaseSub=!e.target.checked; subCache=""; fancyCache=""; renderSubtitleOverlay(); autoSave();
             toast(e.target.checked?"已显示原「字幕1」白色字幕，花字自动避让":"已隐藏原「字幕1」白色字幕","ok"); };
     }
     if($("fvMediaFitOn")){
-        $("fvMediaFitOn").onchange=e=>{ state.fvMediaFitOn=e.target.checked; state.fvMediaFitUserSet=true; applyClipTransforms(); autoSave();
+        $("fvMediaFitOn").onchange=e=>{ pushHistory(); state.fvMediaFitOn=e.target.checked; state.fvMediaFitUserSet=true; applyClipTransforms(); autoSave();
             toast(e.target.checked?"已启用：主画面将按模板缩到一侧腾出图文区":"已关闭主画面构图，画面恢复全屏铺底","ok"); };
     }
     initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
@@ -8728,6 +8830,7 @@ function wire(){
             drag={handle:handle,sx:e.clientX,sy:e.clientY,
                 x:g.x*W,y:g.y*H,w:g.w*W,h:g.h*H,
                 left:r.left,top:r.top,W:W,H:H};
+            let fgSnap=false;   /* 保护区挪动/缩放是可逆操作：改坐标前记一次快照 */
             e.preventDefault(); e.stopPropagation();
             const move=ev=>{
                 if(!drag) return;
@@ -8740,6 +8843,7 @@ function wire(){
                     if(d.handle.indexOf("w")>=0){ nw=Math.max(40,d.w-dx); nx=d.x+(d.w-nw); }
                     if(d.handle.indexOf("n")>=0){ nh=Math.max(40,d.h-dy); ny=d.y+(d.h-nh); }
                 }
+                if(!fgSnap){ pushHistory(); fgSnap=true; }
                 g.x=FV_FX.clamp(nx/d.W,0,1-g.w+0.001);
                 g.y=FV_FX.clamp(ny/d.H,0,1-g.h+0.001);
                 g.w=FV_FX.clamp(nw/d.W,0.06,1-g.x);
@@ -8766,10 +8870,11 @@ function wire(){
             const sx=e.clientX, sy=e.clientY;
             const fv=(c.fx&&c.fx.sub&&c.fx.sub.fv)||{};
             const ox=Number(fv.x)||0.5, oy=Number(fv.y)||0.7;
-            let moved=false;
+            let moved=false, snapPushed=false;
             const move=ev=>{
                 const dx=(ev.clientX-sx)/W, dy=(ev.clientY-sy)/H;
                 if(Math.abs(dx)+Math.abs(dy)<0.003) return;
+                if(!snapPushed){ pushHistory(); snapPushed=true; }   /* 必须在改坐标前记快照，否则撤销回不到原位 */
                 moved=true;
                 c.fx.sub.fv.userMoved=true;
                 c.fx.sub.fv.x=FV_FX.clamp(ox+dx,0.02,0.98);
@@ -8780,7 +8885,7 @@ function wire(){
             };
             const up=()=>{
                 document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up);
-                if(moved){ pushHistory(); fancyCache=""; subCache=""; renderSubtitleOverlay(); renderProps(); autoSave(); }
+                if(snapPushed){ fancyCache=""; subCache=""; renderSubtitleOverlay(); renderProps(); autoSave(); }
             };
             document.addEventListener("mousemove",move); document.addEventListener("mouseup",up);
         });
@@ -8865,13 +8970,13 @@ function wire(){
     sc.addEventListener("click",e=>{
         if(suppressLaneClick){ suppressLaneClick=false; return; }
         const up=e.target.closest("[data-tkup]");
-        if(up){ moveVisualTrack(up.dataset.tkup,-1); renderAll(); drawLutFrame(); autoSave(); return; }
+        if(up){ pushHistory(); moveVisualTrack(up.dataset.tkup,-1); renderAll(); drawLutFrame(); autoSave(); return; }
         const dn=e.target.closest("[data-tkdn]");
-        if(dn){ moveVisualTrack(dn.dataset.tkdn,1); renderAll(); drawLutFrame(); autoSave(); return; }
+        if(dn){ pushHistory(); moveVisualTrack(dn.dataset.tkdn,1); renderAll(); drawLutFrame(); autoSave(); return; }
         const add=e.target.closest("[data-tkadd]");
         if(add){
             const t=trackById(add.dataset.tkadd);
-            if(t){ newTrack(t.kind); renderAll(); autoSave(); toast("已新建「"+TK_NAME[t.kind]+"」轨道","ok"); }
+            if(t){ pushHistory(); newTrack(t.kind); renderAll(); autoSave(); toast("已新建「"+TK_NAME[t.kind]+"」轨道","ok"); }
             return;
         }
         const del=e.target.closest("[data-tkdel]");
@@ -8939,6 +9044,7 @@ function wire(){
         const dragFrom=visRows.indexOf(row);
         if(dragFrom<0) return;
         let targetIdx=dragFrom, started=false;
+        const preSnap=snapshot();   /* 重排前状态：拖拽改完 z 后要把这条压进历史 */
         const y0=e.clientY;
         const clearMarks=()=>document.querySelectorAll("#tracks .track-row.reorder-before,#tracks .track-row.reorder-after")
             .forEach(x=>x.classList.remove("reorder-before","reorder-after"));
@@ -8970,6 +9076,7 @@ function wire(){
             if(!started) return;
             suppressLaneClick=true;
             if(reorderVisualTrackTo(dragT.id,targetIdx)){
+                if(historyStack[historyStack.length-1]!==preSnap){ historyStack.push(preSnap); if(historyStack.length>50) historyStack.shift(); redoStack=[]; }
                 renderAll(); drawLutFrame(); autoSave();
                 toast("已把「"+dragT.label+"」移到新层级：LUT 只影响它下方的视觉层","ok");
             }
@@ -9032,7 +9139,7 @@ function wire(){
         const cutSrc=mergedCutRanges(c).reduce((a,r)=>a+(r.end-r.start),0);
         const maxDur=Math.max(0.2,(srcDur-offset0-cutSrc)/sp);      // 右裁剪：时长上限
         const minLeftD=-Math.min(start0,offset0/sp);                 // 左裁剪：偏移下限（不越时间轴 0 / 源起点）
-        let hint=null, dropTrackId="";
+        let hint=null, dropTrackId="", dragSnap=false;
         /* 跨轨拖移：鼠标上下移动到其它轨道时，记录落点轨道并在 mouseup 时换轨 / 新建同类轨 */
         const laneAtY=y=>{
             const lanes=document.querySelectorAll("#tracks .lane");
@@ -9062,6 +9169,12 @@ function wire(){
         };
         const mv=ev=>{
             const dx=(ev.clientX-x0)/zoom;
+            /* 拖动/裁剪/跨轨落位都改 clips/tracks：首次超过 2px 时先记快照，
+               否则用户移动片段、裁边、换轨后 Ctrl+Z 无从恢复（原实现完全没有记录）。 */
+            if(!dragSnap){
+                if(Math.abs(ev.clientX-x0)<2 && Math.abs(ev.clientY-e.clientY)<2) return;
+                pushHistory(); dragSnap=true;
+            }
             if(resize){
                 let ne=clamp(dur0+dx,0.2,maxDur);
                 ne=clamp(snapPos(start0+ne,c.id,zoom)-start0,0.2,maxDur);
@@ -9601,9 +9714,9 @@ function renderLutAdjustBox(){
 }
 function applyLutAtPlayhead(lut){
     if(!lut){ toast("请先加载一个 LUT 文件","err"); return; }
+    pushHistory();   /* 新建 LUT 轨也必须在变更前记录，否则撤销后残留空轨 */
     let tr=state.tracks.find(t=>t.kind==="lut");
     if(!tr){ tr={id:"tk_lut1",kind:"lut",label:"LUT 1",order:0,locked:false,hidden:false,muted:false}; state.tracks.push(tr); }
-    pushHistory();
     const st=state.playhead, remain=Math.max(1,totalDuration()-st);
     const exist=state.clips.find(c=>c.track===tr.id&&st>=c.start&&st<c.start+c.duration);
     if(exist){ exist.lut=lut; exist.name="LUT · "+lut.name; }
