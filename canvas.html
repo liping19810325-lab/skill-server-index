@@ -200,7 +200,7 @@
     .h-thumb img,.h-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
     .h-meta{padding:6px 8px;font-size:10.5px;color:var(--text2);display:flex;flex-direction:column;gap:5px;}
     .h-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
-    .h-acts{display:flex;gap:6px;}
+    .h-acts{display:flex;gap:6px;flex-wrap:wrap;}
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
     .result-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
 
@@ -493,7 +493,7 @@
             <li><b>生成节点</b>：选「1. 漫流算力」「2. 本机算力」或「3. 第三方API」后点「运行」，会自动收集所有连进来的提示词、参考图、视频与声音参考。生成节点上直接选<b>画幅比例 / 分辨率</b>（生图：16:9、9:16、3:2、2:3、1:1 + 1K/2K/4K；生视频：16:9、9:16 + 0.4（864×480）/0.9（1280×736）/2.0（1920×1088）三档百万像素），生视频还可选 <b>1–15 秒时长</b>（Seedance 2.0 官方支持 4–15 秒，1–3 秒个别模型可能报错）。<b>两种引擎都生效</b>：第三方 API 走接口参数；本地 ComfyUI 对 MiniMax H3 官方模板直接写 ResolutionSelector（宽高比 + 百万像素 + 32 步进）与 duration 秒数（自动换算合法帧位），其它工作流写 Latent 宽高与帧数，留空「跟随工作流」则完全不修改原工作流。<b>声音与视频参考也会自动上传并写进工作流</b>：识别工作流里的 LoadAudio / VHS_LoadAudio / LoadVideo / VHS_LoadVideo 节点，把画布连入的素材上传后替换其文件字段 —— 配合 MiniMax H3 这类多参考工作流，提示词 + 参考图 + 声音 + 参考视频可以一次性全部生效。识别不到对应载入节点时会明确报错并给解决办法。点「运行生成」时，若本节点右侧没有连着「结果」节点，会<b>立即在右侧自动新建一个连好线的结果节点</b>（生成中就能看到）；已有结果节点则直接沿用、不重复创建，生成失败时错误信息也会写进这个结果节点。<b>引擎不用一个个改：左侧【算力总控】可一键把本画布所有生成节点切到同一档；在节点里改「生成引擎」也会同步写回本页总控（不影响创作台与 AI 剪辑台），但只改当前这一个节点</b>，其它节点仍可各自保留。<b>「本机算力」的「模型 / 工作流」里也直接列了本机大语言模型</b>：页面已自动接通的 llama / Ollama / LM Studio 等会按探测到的真实模型名显示一条（端口能对应到明确软件时补软件名，识别不到就统一显示「大语言模型」），和你自己导入的 ComfyUI 生图 / 生视频工作流分在同一栏、两组里任选；选中它后点「运行生成」会直接用本机大模型走 /v1/chat/completions 把上游提示词生成文字、写进右侧结果节点，画幅 / 分辨率 / 时长自动隐藏，<b>不经过 ComfyUI</b>；改选任意 ComfyUI 工作流则一切照旧。本机大模型没接通时这一条仍在，选中并运行会给出排查提示，不会弹窗打断画布。</li>
             <li><b>浮窗预览</b>：所有素材都能点击放大看 —— 结果节点的图片 / 视频、参考图节点的缩略图、声音 / 视频参考的条目（点名称行，视频也可双击画面）、提示词节点的「🔍 浮窗预览」按钮。浮窗内点空白处或按 <code>Esc</code> 关闭。</li>
             <li><b>结果节点</b>：展示图片 / 视频 / 接口原文（自动按原始比例自适应显示，不拉伸变形），<b>点图片 / 视频可浮窗放大预览</b>（Esc 或点空白关闭），可下载，也可作为下一轮参考图。视频若因跨域 / 直链格式受限无法直接播放，点一下视频窗口会<b>自动缓存到本地播放</b>，连缓存也被挡时自动转下载。</li>
-            <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，<b>预览时按 <code>←</code> <code>→</code> 方向键或滚动鼠标滚轮，可连续切换全部历史图片 / 视频（首尾循环，Esc 关闭）</b>，可逐条下载 / 删除，也可整面板清空。blob 临时链接不会入档。</li>
+            <li><b>🖼 历史结果</b>：顶栏「历史结果」按钮可回看之前成功生成的所有图片 / 视频（跨画布共享、只存本机，最多 60 条），点缩略图浮窗预览，<b>预览时按 <code>←</code> <code>→</code> 方向键或滚动鼠标滚轮，可连续切换全部历史图片 / 视频（首尾循环，Esc 关闭）</b>，每条右侧的「加载参考」可把该图 / 视频直接放进画布，成为对应的参考图节点 / 视频参考节点，也可整面板清空。blob 临时链接不会入档。</li>
         </ul>
         <h2>多参考素材怎么生效（异步任务型网关）</h2>
         <p>连入声音或视频参考节点、且生成类型选「生视频」时，按 <code>-multi</code> 多模态格式提交（部分服务商需自行选 <code>-multi</code> 版本模型）；本地文件先经 <code>POST /v1/files/upload</code> 换成 24 小时有效的直链，再按官方文档一起写进 <code>metadata.content</code>：图片 <code>{"type":"image_url","image_url":{"url":"…"}}</code>、视频 <code>{"type":"video_url","video_url":{"url":"…"}}</code>、音频 <code>{"type":"audio_url","audio_url":{"url":"…"}}</code>。官方上限：图 ≤9 张、视频 ≤3 个（MP4，单个 ≤50MB）、音频 ≤3 段；一旦传了 <code>content</code>，它会整体覆盖顶层 <code>images</code>，所以代码会把参考图也一起转成 content 数组。多模态提示词里可用 <code>@Image 1</code>、<code>@Video 1</code> 指代素材。<code>generate_audio</code> 是「是否生成配音」的开关，不是声音参考，不要混用。若用本地 ComfyUI，声音/视频参考目前只作为素材留在画布上，需工作流本身带对应输入节点才能用。</p>
@@ -2399,7 +2399,10 @@ function renderHistory(){
             resultHistory=resultHistory.filter(x=>x.id!==h.id);
             renderHistory(); scheduleSave();
         });
-        acts.appendChild(dl); acts.appendChild(del);
+        const ref=document.createElement("button"); ref.className="mini-btn purple"; ref.textContent="加载参考";
+        ref.title=h.kind==="video"?"在画布上新建视频参考节点并加入此视频":"在画布上新建参考图节点并加入此图";
+        ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(h); });
+        acts.appendChild(dl); acts.appendChild(del); acts.appendChild(ref);
         meta.appendChild(nm); meta.appendChild(tm); meta.appendChild(acts);
         item.appendChild(meta);
         grid.appendChild(item);
@@ -3539,11 +3542,11 @@ function defaultNodeData(type){
     if(type==="video") return {videos:[]};
     return {text:"",sourceId:""};
 }
-function spawn(type){
+function spawn(type,data){
     const v=canvas.viewport, r=el("stage").getBoundingClientRect();
     const p=toCanvasXY(r.left+r.width*.42,r.top+r.height*.32);
     const jitter=canvas.nodes.length%5*18;
-    const n=newNode(type,p.x+jitter,p.y+jitter,defaultNodeData(type));
+    const n=newNode(type,p.x+jitter,p.y+jitter,Object.assign(defaultNodeData(type),data||{}));
     renderAll(); selectNode(n.id); scheduleSave();
     return n;
 }
@@ -3718,6 +3721,22 @@ function reuseAsImage(url){
     const n=spawn("image");
     n.data.images=[url]; n.title="上一轮结果图";
     renderAll(); scheduleSave();
+}
+/* 历史结果 → 画布参考节点：图片进参考图节点(images)，视频进视频参考节点(videos，直链格式)。
+   复用 spawn 的落点/选中/持久化逻辑；新节点不自动连线，由用户自己从圆点拉线。 */
+function loadHistoryAsReference(h){
+    if(!h||!h.url||(h.kind!=="image"&&h.kind!=="video")) return false;
+    const isVideo=h.kind==="video";
+    const name=h.name||(isVideo?"历史参考视频":"历史参考图");
+    const data=isVideo
+        ?{videos:[{name:name,url:h.url,size:0,mime:"video/mp4",duration:0,remote:true}]}
+        :{images:[h.url],assetImages:[]};
+    const n=spawn(isVideo?"video":"image",data);
+    n.title=name;
+    renderAll(); selectNode(n.id); scheduleSave();
+    closeHistory();   /* 关面板让新节点立即可见（可再打开继续加载其它历史结果） */
+    setStatus("已把历史"+(isVideo?"视频":"图片")+"加载到画布，成为参考"+(isVideo?"视频":"图")+"节点","ok");
+    return true;
 }
 let imageTargetId=null;
 function openImagePicker(id){ imageTargetId=id; el("nodeImageInput").click(); }
