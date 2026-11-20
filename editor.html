@@ -220,6 +220,23 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .fz-step.done i{background:rgba(52,211,153,.9);color:#04120b;}
 .fz-step.cur{opacity:1;font-weight:800;}
 .fz-step.cur i{background:#34d399;color:#04120b;}
+/* 画面模板专属花字外观（预览层）：与导出 canvas 的 FV.plate 一一呼应，
+   让5套新模板在剪辑台预览里也各有辨识度，而不是只换文字颜色。经典套不挂这些 class。 */
+.fz-motif-collage .fz-card{background:rgba(56,189,248,.16);border:1.5px solid currentColor;border-radius:4px;box-shadow:inset 0 .5em 0 rgba(56,189,248,.26);padding-left:1.1em;}
+.fz-motif-collage .fz-tpl-steps{background:rgba(6,26,48,.86);border-radius:4px;}
+.fz-motif-editorial .fz-item{text-shadow:0 1px 2px rgba(255,255,255,.92);font-family:"PingFang SC","Microsoft YaHei",sans-serif;}
+.fz-motif-editorial .fz-card{background:rgba(255,255,255,.94);border:1px solid rgba(37,99,235,.45);border-left:4px solid currentColor;border-radius:3px;color:#1e293b;}
+.fz-motif-editorial .fz-tpl-steps{background:rgba(255,255,255,.94);border:1px solid rgba(37,99,235,.42);border-left:4px solid #2563eb;border-radius:3px;color:#1e293b;}
+.fz-motif-console .fz-item{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;}
+.fz-motif-console .fz-card{background:rgba(10,15,33,.92);border:1.5px solid currentColor;border-radius:4px;box-shadow:0 0 12px rgba(34,211,238,.38);}
+.fz-motif-console .fz-tpl-steps{background:rgba(10,15,33,.92);border-radius:4px;box-shadow:0 0 12px rgba(34,211,238,.3);}
+.fz-motif-cardTable .fz-card{background:rgba(10,42,26,.95);border:2px solid rgba(250,204,21,.82);border-radius:.5em;box-shadow:0 .25em .5em rgba(0,0,0,.5);}
+.fz-motif-cardTable .fz-tpl-steps{background:rgba(10,42,26,.95);border-color:rgba(250,204,21,.82);}
+.fz-motif-cardTable .fz-step.done i,.fz-motif-cardTable .fz-step.cur i{background:rgba(74,222,128,.9);color:#062015;}
+.fz-motif-gallery .fz-item{font-family:Georgia,"PingFang SC","Microsoft YaHei",serif;}
+.fz-motif-gallery .fz-card{background:rgba(38,28,20,.95);border:2px solid rgba(217,164,65,.85);border-radius:3px;box-shadow:inset 0 0 0 3px rgba(243,223,193,.36),0 2px 8px rgba(0,0,0,.5);}
+.fz-motif-gallery .fz-tpl-steps{background:rgba(38,28,20,.95);border-color:rgba(217,164,65,.85);border-radius:3px;}
+.fz-motif-gallery .fz-step.done i,.fz-motif-gallery .fz-step.cur i{background:rgba(217,164,65,.9);color:#1a1009;}
 .face-guard{position:absolute;z-index:7;border:1.5px dashed rgba(251,146,60,.8);background:rgba(251,146,60,.06);pointer-events:auto;cursor:move;}
 .face-guard[hidden]{display:none;}
 .fg-tag{position:absolute;top:-20px;left:0;font-size:10px;color:#fb923c;white-space:nowrap;background:rgba(8,12,24,.8);padding:1px 6px;border-radius:4px;pointer-events:none;}
@@ -556,13 +573,19 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ai-mode-tab.active{background:var(--card);color:#fff;border-color:var(--purple);font-weight:600;box-shadow:inset 0 2px 0 var(--purple);}
 /* AI包装 Tab：模板卡片（视觉与预设卡片统一，青蓝渐变突出"代码渲染"），与另两 Tab 完全隔离 */
 .fv-tpl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:2px 0 10px;}
-.fv-tpl-card{position:relative;border:1px solid var(--border2);border-radius:9px;padding:9px 11px;cursor:pointer;background:linear-gradient(160deg,rgba(6,182,212,.09),rgba(124,58,237,.06));transition:border-color .12s,transform .12s;min-height:74px;}
-.fv-tpl-card:hover{border-color:#06b6d4;transform:translateY(-1px);}
-.fv-tpl-card.active{border-color:#06b6d4;box-shadow:0 0 0 2px rgba(6,182,212,.28);background:linear-gradient(160deg,rgba(6,182,212,.18),rgba(124,58,237,.1));}
-.fv-tpl-card .ic{font-size:18px;}
-.fv-tpl-card .nm{font-size:12px;color:#fff;font-weight:600;margin:3px 0 2px;}
-.fv-tpl-card .ds{font-size:10px;color:var(--muted);line-height:1.5;}
-.fv-tpl-card .tick{position:absolute;top:7px;right:9px;color:#22d3ee;font-size:13px;display:none;}
+/* 每张卡片用该模板自己的底色/主色，选择前就能一眼分辨6套风格 */
+.fv-tpl-card{position:relative;border:1px solid var(--border2);border-radius:9px;padding:9px 11px 9px 15px;cursor:pointer;background:var(--fv-bg,#0a0e1a);transition:border-color .12s,transform .12s;min-height:74px;overflow:hidden;}
+.fv-tpl-card::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,var(--fv-accent,#38bdf8),transparent 52%);opacity:.13;pointer-events:none;}
+.fv-tpl-card .fv-swatch{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--fv-accent,#38bdf8);}
+.fv-tpl-card:hover{border-color:var(--fv-accent,#06b6d4);transform:translateY(-1px);}
+.fv-tpl-card.active{border-color:var(--fv-accent,#06b6d4);box-shadow:0 0 0 1px var(--fv-accent,#06b6d4);}
+.fv-tpl-card.active::after{opacity:.3;}
+.fv-tpl-card .ic{font-size:18px;position:relative;z-index:1;}
+.fv-tpl-card .nm{font-size:12px;color:#fff;font-weight:600;margin:3px 0 2px;position:relative;z-index:1;}
+.fv-tpl-card .ds{font-size:10px;color:var(--muted);line-height:1.5;position:relative;z-index:1;}
+.fv-tpl-card.light .nm{color:#1e293b;}
+.fv-tpl-card.light .ds{color:#475569;}
+.fv-tpl-card .tick{position:absolute;top:7px;right:9px;color:var(--fv-accent,#22d3ee);font-size:13px;display:none;z-index:2;}
 .fv-tpl-card.active .tick{display:block;}
 .fv-all-box{display:inline-flex;align-items:center;gap:4px;margin-left:8px;color:#a5f3fc;font-size:11.5px;cursor:pointer;user-select:none;}
 .fv-all-box input{accent-color:#06b6d4;cursor:pointer;width:14px;height:14px;}
@@ -2216,10 +2239,12 @@ const FV_STYLES={
             stepNumText:"#1a1009",textMain:"#fbf5e9",textDim:"rgba(231,201,163,.6)",textShadow:"rgba(24,15,8,.82)"},
         fit:{scale:0.64,x:0.18,y:0.0,align:"left"}}   /* 画廊：主画面缩到右侧，左侧留相框陈列区 */
 };
-/* 取当前主画面风格的视觉参数：未勾选＝全自动＝用经典风格；多选时以第一套为画面基调（风格只影响视觉，不改花字逻辑） */
+/* 取当前主画面风格的视觉参数：未勾选＝全自动＝用经典风格；多选时以第一套为画面基调（风格只影响视觉，不改花字逻辑）。
+   motif 就是模板 key：花字底板绘制(FV.plate)按它走各自的图形母题，让6套模板不只是换颜色。 */
 function fvStyleVis(){
     const k=FV.styles&&FV.styles.length?FV.styles[0]:"classic";
-    return (FV_STYLES[k]||FV_STYLES.classic).vis;
+    const st=FV_STYLES[k]||FV_STYLES.classic;
+    return Object.assign({key:k,motif:k},st.vis);
 }
 /* 当前画面模板建议的主画面构图（经典套为 null）。未勾选＝全自动＝经典全屏。
    默认 fvMediaFitOn=false：即使选了分栏风格也绝不改动原始视频；只有用户主动勾选此开关才生效。
@@ -2299,13 +2324,15 @@ const FV={
         pushHistory();
         this.styles=on?Object.keys(FV_STYLES).slice():[];
         this.renderTpl();
+        applyClipTransforms(); renderFancyOverlay();   /* 切换画面模板：预览外观/构图立即更新 */
     },
     renderTpl(){
         const box=$("fvTemplates"); if(!box) return;
         box.innerHTML=Object.keys(FV_STYLES).map(k=>{
-            const t=FV_STYLES[k];
-            return '<div class="fv-tpl-card'+(this.styles.indexOf(k)>=0?" active":"")+'" data-tpl="'+k+'">'
-                +'<span class="tick">✓</span><div class="ic">'+t.ic+'</div><div class="nm">'+t.name+'</div><div class="ds">'+t.ds+'</div></div>';
+            const t=FV_STYLES[k], v=t.vis||{}, light=k==="editorial";   /* 浅色风格卡片改用深色文字 */
+            return '<div class="fv-tpl-card'+(this.styles.indexOf(k)>=0?" active":"")+(light?" light":"")+'" data-tpl="'+k+'" '
+                +'style="--fv-bg:'+esc(v.bg||"#0a0e1a")+';--fv-accent:'+esc(v.kw||"#38bdf8")+'">'
+                +'<i class="fv-swatch"></i><span class="tick">✓</span><div class="ic">'+t.ic+'</div><div class="nm">'+t.name+'</div><div class="ds">'+t.ds+'</div></div>';
         }).join("");
         box.onclick=e=>{ const c=e.target.closest(".fv-tpl-card"); if(!c) return;
             const k=c.getAttribute("data-tpl"), i=this.styles.indexOf(k);
@@ -2313,6 +2340,7 @@ const FV={
             if(i>=0) this.styles.splice(i,1); else this.styles.push(k);
             c.classList.toggle("active",i<0);
             this.syncTplAll();
+            applyClipTransforms(); renderFancyOverlay();   /* 切换画面模板：预览外观/构图立即更新 */
             autoSave();   /* 画面模板随工程保存 */
         };
         this.syncTplAll();
@@ -2538,10 +2566,12 @@ Object.assign(FV,{
             if(d.type==="keyword"||d.type==="data"||d.type==="knowledge"){
                 const tw=x.measureText(d.text).width;
                 const pad=size*0.28, bw=Math.min(W*0.96,tw+pad*2), bh=size*1.5;
-                x.fillStyle=d.type==="data"?V.dataFill:(d.type==="knowledge"?V.knowledgeFill:V.kwFill);
-                FV.roundRect(x,-bw/2,-bh/2,bw,bh,Math.min(bh/2,14)); x.fill();
-                x.strokeStyle=color; x.lineWidth=Math.max(1.5,size*0.035);
-                FV.roundRect(x,-bw/2,-bh/2,bw,bh,Math.min(bh/2,14)); x.stroke();
+                const base=d.type==="data"?V.dataFill:(d.type==="knowledge"?V.knowledgeFill:V.kwFill);
+                if(!FV.plate(x,V,-bw/2,-bh/2,bw,bh,size,color,base)){
+                    x.fillStyle=base; FV.roundRect(x,-bw/2,-bh/2,bw,bh,Math.min(bh/2,14)); x.fill();
+                    x.strokeStyle=color; x.lineWidth=Math.max(1.5,size*0.035);
+                    FV.roundRect(x,-bw/2,-bh/2,bw,bh,Math.min(bh/2,14)); x.stroke();
+                }
                 if(d.type==="data"){
                     const by=bh/2-size*0.18;
                     for(let b=0;b<3;b++){ const bh2=size*(0.18+b*0.12)*fs.e;
@@ -2552,9 +2582,11 @@ Object.assign(FV,{
                 const fsz=size*0.78; x.font='700 '+fsz+'px '+(V.font||'"Microsoft YaHei","PingFang SC",sans-serif');
                 const lines=String(d.text||"").split("\n"), tw=Math.max.apply(null,lines.map(s=>x.measureText(s).width));
                 const pad=size*0.6, bw=Math.min(W*0.96,tw+pad*2), bh=lines.length*fsz*1.5+size*0.7;
-                x.fillStyle=V.quoteFill;
-                FV.roundRect(x,-bw/2,-bh/2,bw,bh,18); x.fill();
-                x.strokeStyle=color; x.lineWidth=2; FV.roundRect(x,-bw/2,-bh/2,bw,bh,18); x.stroke();
+                if(!FV.plate(x,V,-bw/2,-bh/2,bw,bh,size,color,V.quoteFill)){
+                    x.fillStyle=V.quoteFill;
+                    FV.roundRect(x,-bw/2,-bh/2,bw,bh,18); x.fill();
+                    x.strokeStyle=color; x.lineWidth=2; FV.roundRect(x,-bw/2,-bh/2,bw,bh,18); x.stroke();
+                }
                 x.fillStyle=V.quoteMark; x.font='700 '+(size*1.5)+'px Georgia,serif';
                 x.textAlign="left"; x.fillText("“",-bw/2+pad*0.5,-bh/2+size*0.65);
                 x.textAlign="right"; x.fillText("”",bw/2-pad*0.5,bh/2-size*0.45);
@@ -2566,8 +2598,10 @@ Object.assign(FV,{
                 const arr=d.steps, active=Math.max(1,Math.round(d.stepActive||1)), fs=size, lh=fs*1.85;
                 x.font='600 '+fs+'px '+(V.font||'"Microsoft YaHei","PingFang SC",sans-serif');
                 const bw=Math.min(W*0.96,Math.max.apply(null,arr.map(s=>x.measureText(s).width))+fs*2.6), bh=arr.length*lh+fs*0.5;
-                x.fillStyle=V.stepsFill; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.fill();
-                x.strokeStyle=V.stepsStroke; x.lineWidth=1.5; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.stroke();
+                if(!FV.plate(x,V,-bw/2,-bh/2,bw,bh,size,color,V.stepsFill)){
+                    x.fillStyle=V.stepsFill; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.fill();
+                    x.strokeStyle=V.stepsStroke; x.lineWidth=1.5; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.stroke();
+                }
                 x.textAlign="left";
                 arr.forEach((s,i)=>{
                     const idx=i+1, ly=-bh/2+fs*0.55+i*lh;
@@ -2585,6 +2619,15 @@ Object.assign(FV,{
                 });
                 x.restore(); return;
             }
+            /* 纯文字类（英文/标签/标题）：新风格也加各自的轻装饰，不再和经典套一模一样 */
+            if(V.motif&&V.motif!=="classic"){
+                const tw=x.measureText(d.text).width;
+                if(V.motif==="collage"){ x.fillStyle="rgba(56,189,248,.20)"; x.fillRect(-tw/2-size*0.14,-size*0.62,tw+size*0.28,size*1.24); }
+                else if(V.motif==="editorial"){ x.fillStyle="rgba(37,99,235,.16)"; x.fillRect(-tw/2-size*0.1,size*0.5,tw+size*0.2,Math.max(1,size*0.12)); }
+                else if(V.motif==="console"){ x.fillStyle="rgba(34,211,238,.40)"; x.fillRect(-tw/2,size*0.56,tw,Math.max(1,size*0.035)); }
+                else if(V.motif==="cardTable"){ x.fillStyle="rgba(74,222,128,.18)"; FV.roundRect(x,-tw/2-size*0.2,-size*0.7,tw+size*0.4,size*1.4,size*0.26); x.fill(); }
+                else if(V.motif==="gallery"){ x.strokeStyle="rgba(217,164,65,.58)"; x.lineWidth=Math.max(1,size*0.03); FV.roundRect(x,-tw/2-size*0.2,-size*0.7,tw+size*0.4,size*1.4,4); x.stroke(); }
+            }
             x.lineWidth=Math.max(2,size*0.06); x.strokeStyle=V.textShadow; x.strokeText(d.text,0,0);
             x.fillStyle=color; x.fillText(d.text,0,0);
             x.restore();
@@ -2595,6 +2638,66 @@ Object.assign(FV,{
         r=Math.min(r,w/2,h/2); x.beginPath();
         x.moveTo(px+r,py); x.arcTo(px+w,py,px+w,py+h,r); x.arcTo(px+w,py+h,px,py+h,r);
         x.arcTo(px,py+h,px,py,r); x.arcTo(px,py,px+w,py,r); x.closePath();
+    },
+    /* 画面模板专属花字底板：5 套新模板各有辨识度（拼贴窗口/纸张/终端面板/牌面/相框），
+       让花字本身一眼可辨，不依赖把原始视频缩到一侧。classic 返回 false，调用方走原来的
+       胶囊卡片画法——老工程与经典套外观零变化。这里只画底板/装饰，文字排版仍由各分支负责，
+       预览 / 成片导出 / AI包装导出共用本函数，保证所见即所得。 */
+    plate(x,V,px,py,bw,bh,size,color,base){
+        const m=V&&V.motif;
+        if(!m||m==="classic") return false;
+        const r=Math.min(bh*0.3,18), lw=Math.max(1.4,size*0.035);
+        x.save();
+        if(m==="collage"){
+            /* 多屏拼贴：科技蓝分屏窗口——顶部标题栏三点 + 左侧色条 + 右下节点 */
+            x.fillStyle=base||"rgba(56,189,248,.16)"; FV.roundRect(x,px,py,bw,bh,r); x.fill();
+            x.save(); FV.roundRect(x,px,py,bw,bh,r); x.clip();
+            x.fillStyle="rgba(56,189,248,.26)"; x.fillRect(px,py,bw,bh*0.3);
+            x.fillStyle="rgba(3,14,30,.24)"; x.fillRect(px,py+bh*0.3,bw,bh*0.7);
+            x.restore();
+            for(let i=0;i<3;i++){ x.beginPath(); x.arc(px+size*0.48+i*size*0.27,py+bh*0.15,size*0.085,0,Math.PI*2); x.fillStyle=i===0?color:"rgba(125,211,252,.72)"; x.fill(); }
+            x.fillStyle=color; x.fillRect(px+1,py+bh*0.3,Math.max(3,size*0.1),bh*0.7-1);
+            x.beginPath(); x.arc(px+bw-size*0.45,py+bh-size*0.35,size*0.12,0,Math.PI*2); x.fillStyle=color; x.fill();
+            x.strokeStyle=color; x.lineWidth=lw; FV.roundRect(x,px,py,bw,bh,r); x.stroke();
+        }else if(m==="editorial"){
+            /* 现代图文：米白纸张卡片——细蓝描边 + 左侧克莱因蓝竖条 + 底部细分割线 */
+            x.fillStyle="rgba(255,255,255,.93)"; FV.roundRect(x,px,py,bw,bh,Math.min(7,bh*0.2)); x.fill();
+            x.fillStyle=color; x.fillRect(px+1,py+1,Math.max(4,size*0.12),bh-2);
+            x.strokeStyle="rgba(37,99,235,.45)"; x.lineWidth=lw; FV.roundRect(x,px,py,bw,bh,Math.min(7,bh*0.2)); x.stroke();
+            x.fillStyle="rgba(37,99,235,.42)"; x.fillRect(px+size*0.36,py+bh-size*0.24,bw-size*0.56,Math.max(1,size*0.03));
+        }else if(m==="console"){
+            /* 科技控制台：深色霓虹面板——发光描边 + 四角 L 形角标 + 终端三点 */
+            x.fillStyle="rgba(10,15,33,.92)"; FV.roundRect(x,px,py,bw,bh,6); x.fill();
+            x.shadowColor=color; x.shadowBlur=Math.min(14,size*0.3);
+            x.strokeStyle=color; x.lineWidth=lw; FV.roundRect(x,px,py,bw,bh,6); x.stroke(); x.shadowBlur=0;
+            const cc=Math.min(size*0.38,bw*0.22);
+            x.lineWidth=Math.max(1.6,size*0.05);
+            [[px,py,1,1],[px+bw,py,-1,1],[px,py+bh,1,-1],[px+bw,py+bh,-1,-1]].forEach(q=>{
+                x.beginPath(); x.moveTo(q[0]+q[2]*cc,q[1]); x.lineTo(q[0],q[1]); x.lineTo(q[0],q[1]+q[3]*cc); x.stroke();
+            });
+            for(let i=0;i<3;i++){ x.beginPath(); x.arc(px+size*0.52+i*size*0.3,py+bh*0.19,size*0.075,0,Math.PI*2); x.fillStyle=i===0?color:"rgba(103,232,249,.62)"; x.fill(); }
+        }else if(m==="cardTable"){
+            /* 牌桌洗牌：发亮的牌面——投影 + 金边 + 左上圆形角标 + 底部筹码点 */
+            x.shadowColor="rgba(0,0,0,.55)"; x.shadowBlur=Math.min(16,size*0.35); x.shadowOffsetY=size*0.14;
+            x.fillStyle="rgba(10,42,26,.95)"; FV.roundRect(x,px,py,bw,bh,Math.min(size*0.32,bh*0.34)); x.fill();
+            x.shadowBlur=0; x.shadowOffsetY=0;
+            x.strokeStyle="rgba(250,204,21,.82)"; x.lineWidth=Math.max(1.8,size*0.055); FV.roundRect(x,px,py,bw,bh,Math.min(size*0.32,bh*0.34)); x.stroke();
+            x.beginPath(); x.arc(px+size*0.55,py+size*0.5,size*0.2,0,Math.PI*2); x.fillStyle=color; x.fill();
+            for(let i=0;i<3;i++){ x.beginPath(); x.arc(px+bw-size*0.5-i*size*0.28,py+bh-size*0.4,size*0.07,0,Math.PI*2); x.fillStyle="rgba(74,222,128,.9)"; x.fill(); }
+        }else if(m==="gallery"){
+            /* 空间画廊：相框——双层暖金边框 + 四角铆钉 */
+            x.fillStyle="rgba(38,28,20,.95)"; FV.roundRect(x,px,py,bw,bh,Math.min(9,bh*0.2)); x.fill();
+            x.strokeStyle="rgba(217,164,65,.85)"; x.lineWidth=Math.max(2,size*0.05); FV.roundRect(x,px,py,bw,bh,Math.min(9,bh*0.2)); x.stroke();
+            const inn=Math.max(4,size*0.17);
+            x.strokeStyle="rgba(243,223,193,.42)"; x.lineWidth=Math.max(1,size*0.025); FV.roundRect(x,px+inn,py+inn,bw-inn*2,bh-inn*2,4); x.stroke();
+            [[px,py],[px+bw,py],[px,py+bh],[px+bw,py+bh]].forEach(q=>{ x.beginPath(); x.arc(q[0],q[1],size*0.12,0,Math.PI*2); x.fillStyle="rgba(217,164,65,.95)"; x.fill(); });
+        }else{
+            /* 未知母题：退回胶囊卡片，避免以后加新风格时花字消失 */
+            x.fillStyle=base||V.kwFill; FV.roundRect(x,px,py,bw,bh,r); x.fill();
+            x.strokeStyle=color; x.lineWidth=lw; FV.roundRect(x,px,py,bw,bh,r); x.stroke();
+        }
+        x.restore();
+        return true;
     },
 
     /* ③ 渲染 + 绑定音轨 + 编码。复用项目 MediaRecorder 路径：离屏 canvas 逐帧画 FV 画面，
@@ -5282,7 +5385,8 @@ function fancyCacheKey(){
        （updateFancyFrame 只改已有元素 transform，不会新建元素）。 */
     const activeIds=activeFancyClips().map(c=>c.id).sort().join(",");
     return fz.map(c=>c.id+c.text+(c.fx&&c.fx.sub&&JSON.stringify(c.fx.sub.fv)||"")+(c.fx&&c.fx.sub&&c.fx.sub.size||"")).join("|")
-        +"@"+[g.on,g.x,g.y,g.w,g.h].join(",")+"#"+activeIds+"$"+(baseSubHidden()?"hideBase":"showBase");
+        +"@"+[g.on,g.x,g.y,g.w,g.h].join(",")+"#"+activeIds+"$"+(baseSubHidden()?"hideBase":"showBase")
+        +"%"+(fvStyleVis().motif||"classic");   /* 切画面模板要重建预览 DOM 才能换上对应外观 */
 }
 function activeFancyClips(){
     const out=[];
@@ -5294,6 +5398,10 @@ function activeFancyClips(){
 }
 function renderFancyOverlay(){
     const box=$("fzOverlay"); if(!box) return;
+    /* 预览花字套用当前画面模板的图形母题（与导出 canvas 的 FV.plate 一致） */
+    const motif=fvStyleVis().motif||"classic";
+    ["classic","collage","editorial","console","cardTable","gallery"].forEach(k=>box.classList.remove("fz-motif-"+k));
+    if(motif!=="classic") box.classList.add("fz-motif-"+motif);
     const key=fancyCacheKey();
     const active=activeFancyClips();
     if(key!==fancyCache){
