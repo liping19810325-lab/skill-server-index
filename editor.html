@@ -761,7 +761,6 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 </div>
                 <div class="import-row">
                     <button class="mini-btn" id="importFiles" title="导入素材 (Ctrl+I)">＋ 导入素材</button>
-                    <button class="mini-btn cyan" id="musicLibBtn" title="配置 NAS 音乐音效素材包地址">🎵 音乐音效库</button>
                     <button class="mini-btn purple" id="importUrl">🔗 粘贴在线 URL</button>
                 </div>
                 <div class="drop-zone" id="dropZone" title="点击或双击导入本地素材，也可把文件或在线 URL 拖到这里">
@@ -7889,7 +7888,6 @@ function wire(){
         $("nasLibModal").classList.add("show");
         $("nasLibUrl").focus();
     };
-    $("musicLibBtn").onclick=()=>openNasLib("music");
     $("lutLibBtn").onclick=()=>openNasLib("lut");
     $("nasLibSave").onclick=()=>{
         const v=$("nasLibUrl").value.trim();
