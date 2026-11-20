@@ -1195,6 +1195,24 @@ function renderAll(){
     canvas.nodes.forEach(n=>layer.appendChild(buildNode(n)));
     drawEdges(); updateStat();
 }
+/* ============ 局部节点刷新（运行生成专用）============
+   renderAll() 会 layer.innerHTML="" 全量重建所有节点。运行某个生成节点时反复调它，
+   会把其它结果节点的 <video>/<img> 一起销毁重建：视频重新加载、直连失败时
+   ensurePlayableVideo 的 fallback 还会 v.play() 自动播放，图片也会重新加载闪一下。
+   下面两个函数只触碰指定节点，其它节点 DOM 原样保留（播放进度/暂停状态不变）。 */
+function refreshNodeDom(id){
+    const n=canvas.nodes.find(x=>x.id===id); if(!n) return;
+    const old=document.querySelector('.node[data-id="'+id+'"]');
+    const fresh=buildNode(n);
+    if(old&&old.parentNode) old.parentNode.replaceChild(fresh,old);
+    else el("nodeLayer").appendChild(fresh);
+    paintSelection();
+}
+/* 结果节点首次入画布时补建 DOM；已存在则原样保留，避免打断其上正在播放的旧结果 */
+function ensureNodeDom(n){
+    if(!n) return;
+    if(!document.querySelector('.node[data-id="'+n.id+'"]')) el("nodeLayer").appendChild(buildNode(n));
+}
 function buildNode(n){
     const meta = NODE_META[n.type] || {label:"节点",color:"#9ca3af"};
     const box = document.createElement("div");
@@ -5096,7 +5114,7 @@ async function runGenerate(n){
         setGenStatus(n,"漫流算力即将开放，暂未接入，未发起任何请求","err");
         return;
     }
-    n.data.busy=true; renderAll(); selectNode(n.id);
+    n.data.busy=true; refreshNodeDom(n.id); selectNode(n.id);
     const input=collectInputs(n);
     /* NAS 资产库引用：选中时只记引用，这里才下载 originals / voices 原文件，且只放进本次 input，不写回画布存档 */
     if((input.assetImages&&input.assetImages.length)||(input.assetAudios&&input.assetAudios.length)){
@@ -5104,21 +5122,22 @@ async function runGenerate(n){
         catch(e){
             const msg="载入 NAS 高清素材失败："+(e&&e.message?e.message:String(e))+"。请确认绿联 NAS 的 app.py 已更新并重启 skill-api 容器（跨域访问与音频列表接口）。";
             setStatus(msg,"err"); setGenStatus(n,msg,"err");
-            n.data.busy=false; renderAll(); return;
+            n.data.busy=false; refreshNodeDom(n.id); return;
         }
     }
-    if(!input.prompt && n.data.engine!=="comfyui"){ setGenStatus(n,"没有连入提示词：请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; renderAll(); return; }
+    if(!input.prompt && n.data.engine!=="comfyui"){ setGenStatus(n,"没有连入提示词：请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; refreshNodeDom(n.id); return; }
     if(cvIsLocalLlm(n) && !input.prompt){
-        setGenStatus(n,"没有连入提示词：本机大语言模型需要文字提示词，请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; renderAll(); return;
+        setGenStatus(n,"没有连入提示词：本机大语言模型需要文字提示词，请从提示词节点右侧圆点连到本节点左侧。","err"); n.data.busy=false; refreshNodeDom(n.id); return;
     }
     if(n.data.engine==="comfyui" && !input.prompt && !input.images.length && !input.audios.length && !input.videos.length){
-        setGenStatus(n,"没有连入提示词 / 参考图：连入后才会写入工作流，否则等于按工作流自带内容原样跑。","err"); n.data.busy=false; renderAll(); return;
+        setGenStatus(n,"没有连入提示词 / 参考图：连入后才会写入工作流，否则等于按工作流自带内容原样跑。","err"); n.data.busy=false; refreshNodeDom(n.id); return;
     }
     /* 点「运行生成」且校验通过后立刻补好结果节点：生成中就能在右侧看到连好线的空结果节点。
        已有直连结果节点则沿用、不重复创建；生成完成或失败时 resultNodeFor(n) 会再取一次，
        期间用户若删掉或另行接了结果节点，也都能正确写入。 */
     resultNodeFor(n);
-    renderAll(); selectNode(n.id); scheduleSave();
+    ensureNodeDom(canvas.nodes.find(x=>x.type==="result"&&canvas.edges.some(e=>e.from===n.id&&e.to===x.id)));
+    drawEdges(); updateStat(); selectNode(n.id); scheduleSave();
     setGenStatus(n,"正在生成…","busy");
     if((input.audios.length||input.videos.length) && n.data.kind!=="video" && n.data.engine==="third_party")
         setStatus(n.data.kind==="text"
@@ -5141,13 +5160,14 @@ async function runGenerate(n){
         if(input.videos.length) parts.push("视频 "+input.videos.length+" 个");
         const inj=(n.data.engine==="comfyui"&&n.data.lastInject)?(" · "+n.data.lastInject):"";
         setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):"")+inj,"ok");
-        renderAll(); scheduleSave();
+        /* 只重建本次的结果节点：其它结果节点的视频/图片保持原样，不重新加载播放 */
+        refreshNodeDom(r.id); scheduleSave();
     }catch(e){
         console.error(e);
         const r=resultNodeFor(n);
         r.data={kind:"text",text:"生成失败：\n"+(e&&e.message?e.message:String(e))};
         setGenStatus(n,"生成失败："+(e&&e.message?e.message:e),"err");
-        renderAll(); scheduleSave();
+        refreshNodeDom(r.id); scheduleSave();
     }finally{
         n.data.busy=false;
         const box=document.querySelector('.node[data-id="'+n.id+'"] .run-btn');
