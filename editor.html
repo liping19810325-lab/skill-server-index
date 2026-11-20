@@ -1371,7 +1371,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="fv-tpl-grid" id="fvTemplates"></div>
                 <div class="fv-tip">ℹ️ 本方案通过代码渲染输出完整视频成片；仅导入口播音频也可生成完整动态字幕画面，生成后素材仍支持时间轴局部编辑。修改片段后可再次点「渲染」重新出片。</div>
                 <label class="fv-all-box" style="margin-top:6px" title="默认关闭：AI包装时隐藏原「字幕1」白色字幕，避免与花字4完整字幕重复叠字。勾选后恢复显示原白色字幕，花字会自动避开字幕1所在区域，双方不冲突。"><input type="checkbox" id="fvShowBaseSub"><span>AI包装时同时显示原「字幕1」白色字幕（勾选开启 · 花字自动避让）</span></label>
-                <label class="fv-all-box" style="margin-top:6px" title="默认开启：多屏拼贴/现代图文/科技控制台/牌桌洗牌/空间画廊这五套画面模板会把轨道上的视频图片缩到画幅一侧，腾出区域放图形与花字。取消勾选则主画面始终全屏铺底。经典套不受影响。"><input type="checkbox" id="fvMediaFitOn" checked><span>画面模板可调整主画面构图（非全屏分栏，取消则始终全屏）</span></label>
+                <label class="fv-all-box" style="margin-top:6px" title="默认关闭，不改动原始视频构图。勾选后：多屏拼贴/现代图文/科技控制台/牌桌洗牌/空间画廊这五套画面模板才会把轨道视频/图片缩到画幅一侧，腾出区域放图形与花字；取消勾选或点基础调整里的复位按钮，主画面立即恢复全屏铺底。经典套不受影响。"><input type="checkbox" id="fvMediaFitOn"><span>画面模板可调整主画面构图（默认关闭，勾选才缩到一侧）</span></label>
                 <div class="ai-progress" id="fvProgress" hidden><div class="ai-progress-fill" id="fvProgressFill"></div></div>
                 <div class="ai-steps" id="fvSteps"></div>
                 <div class="ai-state" id="fvState" style="margin-top:8px">就绪。轨道放一条口播音频或口播视频，选模板与模型后点「渲染AI包装成片」。</div>
@@ -1943,11 +1943,12 @@ let state = {
     /* AI包装模式下是否隐藏「字幕1」的普通白色字幕：花字4(knowledge)本身就是完整字幕，
        默认隐藏避免与花字重复叠字；关闭后普通字幕照常显示。随工程保存。 */
     fvHideBaseSub:true,
-    /* AI包装画面模板的「主画面构图」：五套新风格会把轨道视频/图片缩到画幅一侧、留出图形/字幕区。
-       fvMediaFit={scale,x,y}（x/y 归一化偏移，正=右/下）；null=全屏（经典套 & 默认）。
-       fvMediaFitOn 为用户开关（可在 AI包装面板关闭，回到全屏）。预览 applyClipTransforms 与导出
-       drawStageFrame 同读此值，保证所见即所得；随工程保存、不写进花字数据。 */
-    fvMediaFit:null, fvMediaFitOn:true,
+    /* AI包装画面模板的「主画面构图」：属于工程级覆盖层，默认关闭，绝不自动缩小原始视频。
+       只有用户在 AI包装面板主动勾选「画面模板可调整主画面构图」后，五套分栏风格才会把轨道视频/图片
+       缩到画幅一侧；fvMediaFit={scale,x,y}（x/y 归一化偏移，正=右/下）为工程里显式保存的构图。
+       基础调整的「复位裁剪/重置变换」会调用 clearFvMediaFit() 一并清掉此覆盖层，避免怎么复位都还是缩小。
+       预览 applyClipTransforms 与导出 drawStageFrame 同读此值，保证所见即所得。 */
+    fvMediaFit:null, fvMediaFitOn:false, fvMediaFitUserSet:false,
     /* 当前选中的画面模板 key 列表（显示层 6 套），随工程保存；FV.styles 代理到此字段 */
     fvStyles:[]
 };
@@ -2214,9 +2215,10 @@ function fvStyleVis(){
     return (FV_STYLES[k]||FV_STYLES.classic).vis;
 }
 /* 当前画面模板建议的主画面构图（经典套为 null）。未勾选＝全自动＝经典全屏。
-   用户可用 state.fvMediaFitOn=false 关闭缩放、回到全屏；返回 null 表示不改变主画面。 */
+   默认 fvMediaFitOn=false：即使选了分栏风格也绝不改动原始视频；只有用户主动勾选此开关才生效。
+   返回 null 表示不改变主画面。 */
 function fvStyleFit(){
-    if(state.fvMediaFitOn===false) return null;
+    if(state.fvMediaFitOn!==true) return null;   /* 默认关闭：不强制缩小任何素材 */
     if(state.fvMediaFit) return state.fvMediaFit;   /* 工程里显式保存的构图优先 */
     const k=FV.styles&&FV.styles.length?FV.styles[0]:"classic";
     const st=FV_STYLES[k]||FV_STYLES.classic;
@@ -3517,6 +3519,15 @@ function fvFitTransform(){
     const sc=Number(fit.scale)||1, dx=(Number(fit.x)||0)*100, dy=(Number(fit.y)||0)*100;
     return "translate("+dx+"%,"+dy+"%) scale("+sc+")";
 }
+/* 关闭画面模板的「整体缩放+位移」覆盖层，主画面恢复全屏铺底。
+   这层构图保存在工程级 state 里、不属于任何片段的 fx，所以单靠片段的复位裁剪/重置变换清不掉；
+   基础调整的两个复位按钮和预览右键「复位裁剪」都会调用本函数，返回是否真的清掉了构图。 */
+function clearFvMediaFit(){
+    const had=!!state.fvMediaFit||state.fvMediaFitOn===true;
+    state.fvMediaFit=null; state.fvMediaFitOn=false; state.fvMediaFitUserSet=false;
+    const cb=$("fvMediaFitOn"); if(cb) cb.checked=false;
+    return had;
+}
 function applyClipTransforms(){
     const vc=mainVisualClip(), tr=vc?fxTransform(vc):"", fl=vc?fxFilter(vc):"none", op=vc?animOpacity(vc):1;
     const fitTr=fvFitTransform();   /* 画面模板构图（经典套/未启用时为空串） */
@@ -3746,6 +3757,7 @@ function renderBasicBox(){
         +'<label><input type="checkbox" id="fxMirror"'+(f.mirror?" checked":"")+'> ⇋ 镜像</label>'
         +'<label><input type="checkbox" id="fxReverse"'+(f.reverse?" checked":"")+'> ◀ 倒放</label></div></div>'
       +cropHtml
+      +(fvStyleFit()?'<div class="row" style="gap:5px;margin:4px 0"><button class="mini-btn" id="fxFitReset" style="flex:1">⤢ 主画面被模板缩放，点此恢复全屏</button></div>':"")
       +'<div class="row"><button class="mini-btn gray" id="fxReset" style="flex:1">↺ 重置变换</button></div>';
     const apply=()=>{
         f.x=Number($("fxX").value)||0; f.y=Number($("fxY").value)||0;
@@ -3787,10 +3799,16 @@ function renderBasicBox(){
         if($("fxCropOn")) $("fxCropOn").addEventListener("change",()=>{ pushHistory(); apply(); });
         if($("fxCropReset")) $("fxCropReset").onclick=()=>{
             pushHistory(); f.crop={on:false,top:0,right:0,bottom:0,left:0};
-            applyClipTransforms(); renderBasicBox(); renderAll(); autoSave(); toast("裁剪已复位","ok");
+            const fitCleared=clearFvMediaFit();
+            applyClipTransforms(); renderBasicBox(); renderAll(); autoSave();
+            toast(fitCleared?"裁剪已复位，主画面构图已关闭（恢复全屏）":"裁剪已复位","ok");
         };
     }
-    $("fxReset").onclick=()=>{ pushHistory(); const d=defaultFx(); ["x","y","scale","rotate","mirror","reverse","opacity","bg"].forEach(k=>f[k]=d[k]); if(isVisual) f.crop=Object.assign({},d.crop); renderAll(); autoSave(); toast("已重置该片段的基础调整","ok"); };
+    if($("fxFitReset")) $("fxFitReset").onclick=()=>{
+        pushHistory(); clearFvMediaFit(); applyClipTransforms(); renderBasicBox(); autoSave();
+        toast("主画面构图已关闭，已恢复全屏铺底","ok");
+    };
+    $("fxReset").onclick=()=>{ pushHistory(); const d=defaultFx(); ["x","y","scale","rotate","mirror","reverse","opacity","bg"].forEach(k=>f[k]=d[k]); if(isVisual) f.crop=Object.assign({},d.crop); const fitCleared=clearFvMediaFit(); renderAll(); autoSave(); toast(fitCleared?"已重置基础调整，并关闭主画面构图（恢复全屏）":"已重置该片段的基础调整","ok"); };
 }
 function showPropTab(name){
     const ok=["basic","audio","anim","speed","color","sub"];
@@ -5037,11 +5055,12 @@ function wireStageContextMenu(){
         if(!(trackKind(c.track)==="video"||trackKind(c.track)==="image")) return;
         pushHistory();
         const crop=fxCrop(c);
+        let fitCleared=false;
         if(b.dataset.sc==="cropToggle") crop.on=!crop.on;
-        else if(b.dataset.sc==="cropReset"){ crop.top=0;crop.right=0;crop.bottom=0;crop.left=0; }
+        else if(b.dataset.sc==="cropReset"){ crop.top=0;crop.right=0;crop.bottom=0;crop.left=0; fitCleared=clearFvMediaFit(); }
         fxOf(c).crop=crop;
         applyClipTransforms(); renderBasicBox(); renderAll(); autoSave();
-        toast(b.dataset.sc==="cropToggle"?("画面裁剪已"+(crop.on?"开启":"关闭")):"裁剪已复位","ok");
+        toast(b.dataset.sc==="cropToggle"?("画面裁剪已"+(crop.on?"开启":"关闭")):(fitCleared?"裁剪已复位，主画面构图已关闭（恢复全屏）":"裁剪已复位"),"ok");
     });
 }
 function wireClipContextMenu(){
@@ -5283,7 +5302,7 @@ function baseSubHidden(){ return !!(state.fvHideBaseSub && hasFancy()); }
    工程载入/重置后 state 变化，renderAll 调此函数让复选框跟随之前的保存值。 */
 function syncFvShowBaseSub(){
     const cb=$("fvShowBaseSub"); if(cb) cb.checked=(state.fvHideBaseSub===false);
-    const fit=$("fvMediaFitOn"); if(fit) fit.checked=(state.fvMediaFitOn!==false);
+    const fit=$("fvMediaFitOn"); if(fit) fit.checked=(state.fvMediaFitOn===true);
 }
 function syncFaceGuard(){
     const el=$("faceGuard"); if(!el) return;
@@ -7605,7 +7624,8 @@ function projectPayload(){
         fvFaceGuard:Object.assign({},FV_GUARD_DEFAULT,state.fvFaceGuard||{}),  /* AI包装花字的人脸保护区 */
         fvHideBaseSub:state.fvHideBaseSub!==false,  /* AI包装模式是否隐藏基础白色字幕 */
         fvStyles:(state.fvStyles||[]).slice(),  /* AI包装画面模板（6 套显示层） */
-        fvMediaFit:state.fvMediaFit||null, fvMediaFitOn:state.fvMediaFitOn!==false,  /* 主画面构图与开关 */
+        fvMediaFit:state.fvMediaFit||null, fvMediaFitOn:state.fvMediaFitOn===true,
+        fvMediaFitUserSet:state.fvMediaFitUserSet===true,  /* 主画面构图与开关（默认关；仅用户主动勾选过才在加载后恢复） */
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
             delete o.previewUrl; delete o.mkvNote;   /* 转封装副本是一次性 blob，重开工程后重新生成 */
             o.remoteUrl=(a.urlKind==="blob")?"":(a.url||""); return o; }),
@@ -7727,7 +7747,10 @@ async function loadProject(date){
         /* AI包装画面模板 + 主画面构图（6 套显示层，随工程恢复） */
         state.fvStyles=Array.isArray(p.fvStyles)?p.fvStyles.filter(k=>!!FV_STYLES[k]).slice():[];
         state.fvMediaFit=(p.fvMediaFit&&typeof p.fvMediaFit==="object")?p.fvMediaFit:null;
-        state.fvMediaFitOn=(p.fvMediaFitOn!==false);
+        /* 旧版本默认勾选会把 fvMediaFitOn=true 写进工程，导致一加载就强制缩小原始视频。
+           只有带「用户主动勾选过」标记的工程才恢复构图，其余一律回到全屏。 */
+        state.fvMediaFitUserSet=(p.fvMediaFitUserSet===true);
+        state.fvMediaFitOn=(state.fvMediaFitUserSet && p.fvMediaFitOn===true);
         /* 关键：把每条字幕的样式重新克隆成独立对象。旧工程里所有字幕曾共用一份 sub，
            虽然 JSON 反序列化后已不是同一引用，这里再显式隔离一次，杜绝改一条影响其它条。 */
         state.clips.forEach(c=>{
@@ -8577,8 +8600,8 @@ function wire(){
             toast(e.target.checked?"已显示原「字幕1」白色字幕，花字自动避让":"已隐藏原「字幕1」白色字幕","ok"); };
     }
     if($("fvMediaFitOn")){
-        $("fvMediaFitOn").onchange=e=>{ state.fvMediaFitOn=e.target.checked; applyClipTransforms(); autoSave();
-            toast(e.target.checked?"已启用画面模板的主画面构图":"已关闭主画面构图，画面恢复全屏铺底","ok"); };
+        $("fvMediaFitOn").onchange=e=>{ state.fvMediaFitOn=e.target.checked; state.fvMediaFitUserSet=true; applyClipTransforms(); autoSave();
+            toast(e.target.checked?"已启用：主画面将按模板缩到一侧腾出图文区":"已关闭主画面构图，画面恢复全屏铺底","ok"); };
     }
     initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
     /* 右栏两个并列标签 */
