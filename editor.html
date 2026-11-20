@@ -1049,7 +1049,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </ul>
             <h2>④ 时间轴 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
-                <li><b>🎨 AI包装</b>：点按钮直接打开 AI 弹窗并切到「AI包装」面板。它用<b>代码渲染完整画面成片</b>：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字 / 标签 / 数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4；同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。可选 1~6 套画面模板（多选），一套都不选＝全自动智能识别。<br>生成后按模板固定序号分成 <b>花字1~花字6</b> 六条独立轨（花字1=关键词高亮、2=英文字母弹出、3=数据卡片、4=知识图文、5=步骤清单、6=引用金句；<b>用到哪套建哪条</b>——口播里没出现英文 / 数字 / 步骤 / 金句，对应轨就不会生成，这是按内容识别的结果，不是漏建）。每条可单独选中、拖动位置、改文字/字号/渐变色/持续动效。<b>花字独立排版</b>：自动按模板分区锚点摆放、不扎堆居中、超长文字自动缩字号不越屏；<b>同一轨上前一条还没出完、后一条又出现时，后一条自动错开档位，绝不叠加覆盖</b>；花字4（知识图文）是完整字幕，固定放在画面下方中央、等同原「字幕1」的位置，面板里可勾选是否隐藏原「字幕1」白色基础字幕避免重复叠字。花字只避开画面中央偏上的<b>面部五官区</b>（眉眼鼻口，x∈0.39~0.61/y∈0.22~0.40），<b>脖子和头发区域允许放字幕</b>；避让在布局层自动生效，不显示辅助框、不会出现在成片里。持续动效含呼吸浮动 / 心跳缩放 / 轻微旋转 / 渐变流动 / 呼吸发光，预览与成片完全一致。</li>
+                <li><b>🎨 AI包装</b>：点按钮直接打开 AI 弹窗并切到「AI包装」面板。它用<b>代码渲染完整画面成片</b>：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字 / 标签 / 数据卡片的出现时间、位置、颜色、动画），最后逐帧渲染并绑定原音轨合成 MP4；同时输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。可选 1~6 套画面模板（多选），一套都不选＝全自动智能识别。<br>生成后按模板固定序号分成 <b>花字1~花字6</b> 六条独立轨（花字1=关键词高亮、2=英文字母弹出、3=数据卡片、4=知识图文、5=步骤清单、6=引用金句；<b>用到哪套建哪条</b>——口播里没出现英文 / 数字 / 步骤 / 金句，对应轨就不会生成，这是按内容识别的结果，不是漏建）。每条可单独选中、拖动位置、改文字/字号/渐变色/持续动效。<b>花字独立排版</b>：自动按模板分区锚点摆放、不扎堆居中、超长文字自动缩字号不越屏；<b>同一轨上前一条还没出完、后一条又出现时，后一条自动错开档位，绝不叠加覆盖</b>；花字4（知识图文）固定在画面<b>左上角</b>，补足左上区域。面板里的<b>「同时显示原字幕1」开关默认关闭</b>（AI包装下隐藏原「字幕1」白色字幕、避免与花字重复）；<b>勾选后</b>原白色字幕恢复显示，且所有花字自动避开底部中央的字幕1位置，双方不冲突。花字只避开画面中央偏上的<b>面部五官区</b>（眉眼鼻口，x∈0.39~0.61/y∈0.22~0.40），<b>脖子和头发区域允许放字幕</b>；避让在布局层自动生效，不显示辅助框、不会出现在成片里。持续动效含呼吸浮动 / 心跳缩放 / 轻微旋转 / 渐变流动 / 呼吸发光，预览与成片完全一致。</li>
                 <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材元信息、独立音轨、毫秒字幕、静音区间、视频抽帧与你的思路，先做语义分析区分有效停顿 / 无效废片并给出内容优化建议；确认后删除建议会转成剪口播候选（可勾选、全选、撤销），其它裁切 / 字幕优化可直接写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b><b>跨域说明</b>：模型请求与「对话剪辑」一样优先经本机服务（127.0.0.1:8788）转发，服务会自动探测 127.0.0.1 / localhost 两个地址；双击启动本机服务即可绕开浏览器 CORS，服务离线时才尝试直连并给出明确诊断。</li>
                 <li><b>🤖 对话剪辑（真正由大模型驱动的 AI 剪辑）</b>：点这个按钮打开对话面板，用<b>日常自然语言</b>说需求即可，例如「删掉所有嗯啊语气词和长停顿」「把节奏加快」「挑出高光片段」「读取文稿并总结」。AI 会真正调用工具：先 <code>read_timeline</code> 读时间轴拿到准确的片段 id 和秒数，必要时 <code>read_script</code> 读出带 <code>[sN]</code> 段号的文稿，用 <code>preview_frame</code> <b>抽真实画面做视觉自检</b>（图片会回注给模型看图），改完再自检、不对就用工具继续修正。所有编辑<b>只生成提案</b>，面板底部会出现「待确认的剪辑提案」卡片，列清楚每一项改动（裁片头、删片段、移动、变速、按文稿写回等），你点「✅ 应用提案」才真正写入轨道（<code>Ctrl+Z</code> 一步撤销），点「放弃」则时间轴分毫不动。模型需要 Claude / GPT 这类能稳定输出工具调用的强模型；模型与 Key 复用左上「算力总控」，经本机服务代理转发，Key 不会暴露给第三方页面。对话支持多轮连续编辑，复杂需求可多步完成。</li>
                 <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给AI剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
@@ -1370,7 +1370,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="row" style="margin-bottom:2px"><label class="ai-idea-label">画面模板</label><label class="fv-all-box" title="一键勾选或取消全部模板"><input type="checkbox" id="fvTplAll"><span>全选</span></label><span class="hint" id="fvTplHint" style="margin:0">可多选 1~6 套；一套都不选＝全自动智能识别</span></div>
                 <div class="fv-tpl-grid" id="fvTemplates"></div>
                 <div class="fv-tip">ℹ️ 本方案通过代码渲染输出完整视频成片；仅导入口播音频也可生成完整动态字幕画面，生成后素材仍支持时间轴局部编辑。修改片段后可再次点「渲染」重新出片。</div>
-                <label class="fv-all-box" style="margin-top:6px" title="花字4(知识图文)本身是完整字幕，默认隐藏原字幕的白色基础字幕避免重复叠字；取消勾选可恢复显示"><input type="checkbox" id="fvHideBaseSub" checked><span>AI包装时隐藏原「字幕1」白色字幕（避免重复叠字）</span></label>
+                <label class="fv-all-box" style="margin-top:6px" title="默认关闭：AI包装时隐藏原「字幕1」白色字幕，避免与花字4完整字幕重复叠字。勾选后恢复显示原白色字幕，花字会自动避开字幕1所在区域，双方不冲突。"><input type="checkbox" id="fvShowBaseSub"><span>AI包装时同时显示原「字幕1」白色字幕（勾选开启 · 花字自动避让）</span></label>
                 <div class="ai-progress" id="fvProgress" hidden><div class="ai-progress-fill" id="fvProgressFill"></div></div>
                 <div class="ai-steps" id="fvSteps"></div>
                 <div class="ai-state" id="fvState" style="margin-top:8px">就绪。轨道放一条口播音频或口播视频，选模板与模型后点「渲染AI包装成片」。</div>
@@ -2148,7 +2148,7 @@ const FV_TPLS={
 };
 const FV_STEPS=["读取台词","ASR 字级时间戳","大模型输出分镜","逐帧渲染画面","绑定音轨编码 MP4","写入可编辑工程","完成"];
 const FV={
-    tpls:["keyword"], busy:false,
+    tpls:Object.keys(FV_TPLS), busy:false,   /* 默认全选 6 套画面模板；0 勾选＝全自动智能识别 */
     /* 兼容旧代码里的单一 this.tpl：取最后选中的模板；无勾选时为空串（全自动智能识别） */
     get tpl(){ return this.tpls.length?this.tpls[this.tpls.length-1]:""; },
     onShow(){
@@ -2250,7 +2250,7 @@ const FV={
 \"motion\":\"none|float|pulse|rotate|flow|glow\",\"motionAmp\":0.5~2,\"motionDur\":秒(1.5~4),\
 \"steps\":[\"步骤1\",\"步骤2\"],\"stepActive\":当前讲解步骤序号(从1开始),\"template\":\"所属模板key\"}]}。\
 要求：1) start/end 必须落在台词时间范围内，逐句覆盖，超出部分会被裁掉；\
-2) x/y 用 0~1；**严禁遮挡面部五官**（眉眼鼻口在画面中央偏上，x∈0.39~0.61/y∈0.22~0.40 是五官绝对保护区，禁止占用；脖子和头发区域允许放字幕，不用整颗头都空着）；每套模板用固定分区锚点：关键词下中 x≈0.5/y≈0.80，英文标签右上 x≈0.80/y≈0.22，数据卡片右侧 x≈0.80/y≈0.55，知识卡下方中央 x≈0.5/y≈0.88（完整字幕），步骤清单左侧 x≈0.16/y≈0.58 竖向排列，金句引用下中 x≈0.5/y≈0.82；同一时刻多个元素分属不同模板、落在不同分区，禁止重叠；文字简短不要超过画面宽度的 90%（超长会自动缩字号）；\
+2) x/y 用 0~1；**严禁遮挡面部五官**（眉眼鼻口在画面中央偏上，x∈0.39~0.61/y∈0.22~0.40 是五官绝对保护区，禁止占用；脖子和头发区域允许放字幕，不用整颗头都空着）；每套模板用固定分区锚点：关键词下中偏左 x≈0.28/y≈0.85，英文标签右上 x≈0.84/y≈0.18，数据卡片右侧 x≈0.85/y≈0.56，知识卡左上角 x≈0.26/y≈0.16，步骤清单左侧 x≈0.14/y≈0.58 竖向排列，金句引用下中偏右 x≈0.72/y≈0.85；**底部中央 x∈0.14~0.86/y>0.82 是原字幕1基础字幕保留区，任何花字都不要占用**；同一时刻多个元素分属不同模板、落在不同分区，禁止重叠；文字简短不要超过画面宽度的 90%（超长会自动缩字号）；\
 给每个元素配一个合适的持续动效 motion（强调词用 pulse、陈述用 float、金句用 glow、色彩词用 flow），让画面生动但不花哨；\
 3) "+(auto?"未指定模板，开启全自动智能识别：根据台词内容自主判断该突出什么，自由组合下面所有组件：\n"+tplBrief:"同时启用全部 "+sel.length+" 套已勾选模板的识别与渲染规则：\n"+tplBrief)+"；\
 4) 数字口述用 type=data，英文单词用 type=english，中文重点词用 type=keyword，知识讲解用 type=knowledge 并带 ①② 编号，\
@@ -2648,8 +2648,10 @@ const FV_FX={
    motion ∈ none|float|pulse|rotate|flow|glow（持续动效）；anim 仍是入场动效。 */
 const FV_TPL_SLOTS=["keyword","english","data","knowledge","steps","quote"];  /* 花字1..6 固定顺序 */
 const FV_ANCHORS={   /* 每套模板的固定分区锚点（归一化 0~1）：分散四周、避开面部五官区 x∈0.39~0.61/y∈0.22~0.40（脖子/头发可放花字）。
-                        花字4(knowledge)出的基本是完整字幕，固定放在画面下方中央＝原「字幕1」的位置，长句不会再从左侧溢出。 */
-    knowledge:{x:0.50,y:0.88},  /* 知识图文(花字4) → 下方中央，等同原「字幕1」 */
+                        底部中央(y>0.80)是原「字幕1」基础字幕区：当用户开启字幕1显示时，fvLayout 会让所有花字自动避开。
+                        花字4(knowledge)放回左上角（左中偏上），既补上左上空白，又不再占用字幕1位置导致开启后被盖住；
+                        长句溢出由 fvLayout 里「按文字半宽收敛中心 cx」兜底，不再从左边缘溢出。 */
+    knowledge:{x:0.26,y:0.16},  /* 知识图文(花字4) → 左上角(y=0.16 使卡片底边仍在五官区上方)，注释见上 */
     english:  {x:0.84,y:0.18},  /* 英文字母 → 右上 */
     steps:    {x:0.14,y:0.58},  /* 步骤清单 → 左中（竖向排列） */
     data:     {x:0.85,y:0.56},  /* 数据卡片 → 右中 */
@@ -2757,7 +2759,22 @@ function fvLayout(d,W,H,guard,peers){
             if(cand.length){ cand.sort((a,b)=>a.d-b.d); cx=cand[0].x; cy=cand[0].y; }
         }
     }
-    return {cx:clamp(cx,size*0.5,W-size*0.5),cy:clamp(cy,size*0.6,H-size*0.6),size:size,align:d.align||"center"};
+    /* ⑤ 字幕1避让：当用户开启「字幕1」显示（fvHideBaseSub=false）时，花字避开底部中央字幕条。
+       底部 x∈0.14~0.86 / y>0.82 视为字幕1占位带，花字盒与之相交就推到带正上方；
+       若花字太高塞不进上方，则推到左右外侧。默认隐藏字幕1时此带不生效，花字照常自由布局。
+       预览(renderFancyOverlay)与导出(FV.drawFrame)都调 fvLayout，所见即所得。 */
+    if(typeof baseSubHidden==="function" && !baseSubHidden()){
+        const s1x0=0.14*W, s1x1=0.86*W, s1y0=0.82*H;
+        const hw=Math.min(need,maxW)/2+8, hh=size*0.8;
+        if(cx+hw>s1x0 && cx-hw<s1x1 && cy+hh>s1y0){
+            const ny=s1y0-hh-6;
+            if(ny>=hh+6) cy=ny;
+            else cx=(cx<W/2)?clamp(s1x0-hw-6,hw+6,W-hw-6):clamp(s1x1+hw+6,hw+6,W-hw-6);
+        }
+    }
+    /* 水平夹紧用「文字半宽」而非半个字号：长句放大卡片时也不会从画面左/右边缘溢出 */
+    const halfW=Math.min(need,maxW)/2;
+    return {cx:clamp(cx,halfW+4,W-halfW-4),cy:clamp(cy,size*0.6,H-size*0.6),size:size,align:d.align||"center"};
 }
 /* 动效状态：入场（anim）+ 持续（motion）统一计算，返回 transform 参数与附加视觉量。
    预览用 CSS style、导出用 canvas，两边都读同一个结果。 */
@@ -5078,7 +5095,7 @@ function fancyCacheKey(){
        （updateFancyFrame 只改已有元素 transform，不会新建元素）。 */
     const activeIds=activeFancyClips().map(c=>c.id).sort().join(",");
     return fz.map(c=>c.id+c.text+(c.fx&&c.fx.sub&&JSON.stringify(c.fx.sub.fv)||"")+(c.fx&&c.fx.sub&&c.fx.sub.size||"")).join("|")
-        +"@"+[g.on,g.x,g.y,g.w,g.h].join(",")+"#"+activeIds;
+        +"@"+[g.on,g.x,g.y,g.w,g.h].join(",")+"#"+activeIds+"$"+(baseSubHidden()?"hideBase":"showBase");
 }
 function activeFancyClips(){
     const out=[];
@@ -5139,6 +5156,9 @@ function hasFancy(){ return state.clips.some(c=>c.fv&&trackKind(c.track)==="text
 /* AI包装模式（时间轴已有花字片段）下是否隐藏普通白色字幕：默认开，花字4=完整字幕不再重复叠字。
    仅影响预览与普通字幕烧录；花字始终由独立 overlay 渲染，不受此开关影响。 */
 function baseSubHidden(){ return !!(state.fvHideBaseSub && hasFancy()); }
+/* 「显示原字幕1」复选框正向同步：勾选=显示=state.fvHideBaseSub=false。
+   工程载入/重置后 state 变化，renderAll 调此函数让复选框跟随之前的保存值。 */
+function syncFvShowBaseSub(){ const cb=$("fvShowBaseSub"); if(cb) cb.checked=(state.fvHideBaseSub===false); }
 function syncFaceGuard(){
     const el=$("faceGuard"); if(!el) return;
     if(!el.hidden) el.hidden=true;   /* 永久隐藏辅助框 */
@@ -5418,7 +5438,7 @@ function renderProjInfo(){
     $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
     $("dateChip").textContent="当天工程 "+state.date;
 }
-function renderAll(){ updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; fancyCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); drawLutFrame(); syncFaceGuard(); }
+function renderAll(){ updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; fancyCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); drawLutFrame(); syncFaceGuard(); syncFvShowBaseSub(); }
 
 /* ---------- 撤销 / 编辑操作 ---------- */
 function snapshot(){ state.clips.forEach(fxOf); return JSON.stringify({clips:state.clips,tracks:state.tracks,markers:state.markers}); }
@@ -8419,10 +8439,10 @@ function wire(){
     if($("fvRender")) $("fvRender").onclick=()=>FV.run();
     if($("fvModel")) $("fvModel").onchange=()=>{ const c=$("fvModelCustom"); if(c) c.value=""; };
     if($("fvTplAll")) $("fvTplAll").onchange=e=>FV.toggleTplAll(e.target.checked);
-    if($("fvHideBaseSub")){
-        $("fvHideBaseSub").checked=state.fvHideBaseSub!==false;
-        $("fvHideBaseSub").onchange=e=>{ state.fvHideBaseSub=e.target.checked; subCache=""; renderSubtitleOverlay(); autoSave();
-            toast(e.target.checked?"已隐藏基础白色字幕（花字4=完整字幕）":"已恢复基础白色字幕显示","ok"); };
+    if($("fvShowBaseSub")){
+        syncFvShowBaseSub();
+        $("fvShowBaseSub").onchange=e=>{ state.fvHideBaseSub=!e.target.checked; subCache=""; fancyCache=""; renderSubtitleOverlay(); autoSave();
+            toast(e.target.checked?"已显示原「字幕1」白色字幕，花字自动避让":"已隐藏原「字幕1」白色字幕","ok"); };
     }
     initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
     /* 右栏两个并列标签 */
