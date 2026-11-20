@@ -895,7 +895,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div id="colorBox"></div>
                 <div class="lut-manager" id="lutManager">
                     <div class="fx-sec">LUT 文件库 · 时间轴独立 LUT 轨</div>
-                    <div class="hint" style="margin:0 0 5px">加载 <code>.cube / .3dl / .lut</code> 后可存成多个预制反复调用；LUT 片段位于图片轨 / 视频轨上方，实时影响下方所有<b>视频画面与图片层</b>，导出时也会烘焙进成片。</div>
+                    <div class="hint" style="margin:0 0 5px">加载 <code>.cube / .3dl / .lut</code> 后可存成多个预制反复调用；LUT <b>只影响排在它下方的图片 / 视频层</b>。用轨道标签的 <b>▲▼</b> 可上下移动 LUT（或图片、视频）的位置：不想被调用色的层移到 LUT 上方即可。导出同样按此层级烘焙进成片。</div>
                     <div class="row"><button class="mini-btn cyan" id="lutLibBtn" style="flex:1" title="配置 NAS LUT 文件包地址">🎨 LUT库</button></div>
                     <div class="row"><input type="file" id="lutFile" accept=".cube,.3dl,.lut" style="flex:1;font-size:10.5px"><button class="mini-btn" id="lutLoad">加载</button></div>
                     <div class="row"><select id="lutPreset" style="flex:1"></select><button class="mini-btn gray" id="lutSavePreset">存为预制</button></div>
@@ -1001,10 +1001,10 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li>每个素材的预览缩略图已<b>放大一倍</b>，卡片上不再放演示、＋、播放、删除按钮：按住素材<b>拖到下方对应类型的轨道</b>即可放到鼠标落点的时间位置；<b>双击</b>则自动放到该类轨道的播放头处。</li>
                 <li><b>单击</b>选中素材（蓝色高亮），按 <code>Delete</code> / <code>Backspace</code> 删除；文本与 SRT/VTT 会自动拆成一条条字幕落到字幕轨。本地大文件只存本机 IndexedDB，不上传服务器。</li>
             </ul>
-            <h2>③ 轨道自适应：字幕 → LUT → 图片 → 视频 → 音频</h2>
+            <h2>③ 轨道层级：字幕固定最上 · 视觉层可上下移动 · 音频固定最下</h2>
             <ul>
                 <li>轨道不再固定六条，改为<b>按你拖入的素材类型自动生成</b>：同类素材可以有多条轨道，拖入时优先复用该类轨道上与落点不重叠的空位，都占满了就自动新建一条同类轨道；拖到类型不符的轨道会自动改放到正确类型的轨道并提示。</li>
-                <li>层级固定为<b>最上层字幕（文本）→ LUT 调色 → 图片 → 视频 → 最下层音轨</b>，新轨道自动插在所属分组里。<b>LUT 调色轨位于图片轨与视频轨上方，调色同时作用于视频画面与所有图片层</b>。<b>字幕层不再区分对白 / 旁白 / 内心独白</b>，全部由你自己决定放哪条字幕轨、写什么内容；单条字幕只保留一个可选「类型标签」用于颜色与 SRT 标注。</li>
+                <li>层级：<b>字幕轨恒在最上、音频轨恒在最下</b>，中间的<b>图片 / LUT / 视频轨可用轨道标签上的 ▲▼ 自由上下移动</b>（新轨默认 LUT 在图片/视频上方、图片在视频上方）。<b>LUT 只调色排在它下方的图片 / 视频层</b>——不想受影响的层，用 ▲▼ 移到 LUT 上方即可；渲染与导出都遵循这一层级关系。<b>字幕层不再区分对白 / 旁白 / 内心独白</b>，全部由你自己决定放哪条字幕轨、写什么内容；单条字幕只保留一个可选「类型标签」用于颜色与 SRT 标注。</li>
                 <li>轨道名右侧的 <b>＋</b> 新建一条同类型轨道、<b>×</b> 删除该空轨道（有片段时先删片段）；工具条「＋ 轨道」可直接选类型新建。<b>LUT 调色轨同样可删除；删掉后如需再用，从「＋ 轨道」菜单选「LUT 调色轨」即可重新加回，或在调色 LUT 面板加载 / 应用 LUT 时自动重建。</b>旧工程里原来的对白 / 旁白 / 内心独白三条字幕轨会自动合并成一条字幕轨，片段不丢失。</li>
                 <li><b>跨轨拖动（新）</b>：按住时间轴上的片段<b>往上下轨道拖</b>，松开时如果落点已有同类轨道就直接移进去；如果落点是别的类型轨道，会自动新建一条同类轨（如「视频 2」「音频 2」）并把片段放进去。拖动过程中落点轨道会绿色高亮并提示。片段只能在同类轨之间自由移动。</li>
                 <li><b>主轨磁吸（新）</b>：第一条视频素材进主视频轨时自动贴到 0 秒；「🧲 磁吸」默认开启，开启时在主轨上裁剪 / 删除 / 剪断 / 粘贴 / 拖动造成中间空档，<b>后面的片段自动前移紧跟</b>（波纹前移），始终保持无间隙。其它轨道不受影响，仍可自由分布。</li>
@@ -1021,7 +1021,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li><b>🤖 对话剪辑（真正由大模型驱动的 AI 剪辑）</b>：点这个按钮打开对话面板，用<b>日常自然语言</b>说需求即可，例如「删掉所有嗯啊语气词和长停顿」「把节奏加快」「挑出高光片段」「读取文稿并总结」。AI 会真正调用工具：先 <code>read_timeline</code> 读时间轴拿到准确的片段 id 和秒数，必要时 <code>read_script</code> 读出带 <code>[sN]</code> 段号的文稿，用 <code>preview_frame</code> <b>抽真实画面做视觉自检</b>（图片会回注给模型看图），改完再自检、不对就用工具继续修正。所有编辑<b>只生成提案</b>，面板底部会出现「待确认的剪辑提案」卡片，列清楚每一项改动（裁片头、删片段、移动、变速、按文稿写回等），你点「✅ 应用提案」才真正写入轨道（<code>Ctrl+Z</code> 一步撤销），点「放弃」则时间轴分毫不动。模型需要 Claude / GPT 这类能稳定输出工具调用的强模型；模型与 Key 复用左上「算力总控」，经本机服务代理转发，Key 不会暴露给第三方页面。对话支持多轮连续编辑，复杂需求可多步完成。</li>
                 <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给智能剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
                 <li><b>✂ 剪口播</b>：对照剪映「自动识别片段中的停顿、重复和语气词等无效片段，并支持一键删除」做的<b>纯本地实现</b>，<b>不调用任何云端 VIP / 火山引擎</b>。静音检测<b>不依赖 Whisper</b>：默认 <code>-35dB</code>、停顿 <code>≥0.5 秒</code>，可自定义阈值、最短停顿与切口留白（默认 0.12 秒，删掉长静音时两侧各保留一点气口）；Whisper 失败时还能退回浏览器 WebAudio 本地分析。文本规则会抓<b>句内</b>语气词（啊 / 嗯 / 那个 / 就是…）与相邻相似重复句。候选逐条勾选、全选 / 全不选，一键<b>波纹删除</b>并可 <code>Ctrl+Z</code> 撤销；弹窗内有<b>检测日志面板</b>展示 Whisper 调用状态与静音原始数据。素材时长显示 0.00 时按钮会禁用并说明原因。<b>删除后视频 / 音频 / 字幕 / LUT 会按同一批区间物理切成多个独立片段</b>，没剪好的段落可继续手动裁剪、变速、倒放；<b>导出成片仍是完整一条</b>，由本机 FFmpeg 按各片段真实源范围拼接重编码，不是只做预览隐藏。</li>
-                <li><b>🎨 时间轴 LUT 轨</b>：视频轨上方新增独立的 LUT 轨。在右侧「调整 · 调色 LUT」面板加载 <code>.cube / .3dl / .lut</code> 文件，可保存多个预制反复调用；LUT 自带强度 / 亮度 / 对比度 / 饱和度 / 色温参数，拖动滑块实时改变画面。LUT 片段可裁剪、可移动，只影响它覆盖时间段内下方的视频；导出时由本机 FFmpeg 的 <code>lut3d</code> 滤镜真实烘焙进成片，预览与成品一致。</li>
+                <li><b>🎨 时间轴 LUT 轨</b>：新增独立的 LUT 轨（默认在图片 / 视频上方）。在右侧「调整 · 调色 LUT」面板加载 <code>.cube / .3dl / .lut</code> 文件，可保存多个预制反复调用；LUT 自带强度 / 亮度 / 对比度 / 饱和度 / 色温参数，拖动滑块实时改变画面。<b>LUT 只影响排在它下方的图片 / 视频层</b>：用轨道标签的 ▲▼ 可上下移动 LUT（或图片、视频）的位置；不想被调色的层移到 LUT 上方即可。LUT 片段可裁剪、可移动，预览与导出成片遵循同一套层级调色，保持一致。</li>
                 <li><b>🧲 磁吸 / 双向裁剪 / 变换框</b>：时间轴工具栏「🧲 磁吸」按钮<b>高亮=开启</b>，点一下开/关（选择会记住）。开启后拖动片段或裁剪手柄时，靠近<b>其它片段首尾、播放头、0 秒</b>会自动吸附对齐，浮层显示「🧲 已吸附」；关闭则完全自由拖动。每个片段头尾各有一个可拖动手柄（鼠标移上去高亮变蓝）：<b>向右拖开头=裁掉片头；向左拖开头=在源素材范围内找回片头</b>（到源起点为止，拉不出界）；<b>向左拖结尾=裁掉片尾；向右拖结尾=找回片尾</b>（到源素材末尾为止）。裁剪时画面上方实时显示起点/终点时间码。剪刀 ✂ 按钮在手柄内侧，悬停片段才出现，点一下从播放头处剪断（等价快捷键 S）。预览窗口的移动 / 缩放 / 旋转控件默认不再常显——只有鼠标移到预览画面上才出现，也可点播放器右下「比例」菜单里的「◇ 变换框」常显。磁吸开启时主轨编辑后会自动波纹前移填满空档（详见第 ③ 节）。</li>
                 <li><b>🎬🔊 复合音视频轨 / 波形</b>：带声音的视频片段在时间轴上高度加倍，上半是画面、下半是音频波形；所有音频轨片段也自带波形（由浏览器 WebAudio 解码生成，不上传任何数据）。右键这类视频片段可选「拆分视频和音频轨道」，音频会下移到新音轨并与画面严格对齐，之后可单独剪辑或删除。</li>
                 <li><b>⏺ 录音</b>：点位录音按钮后先弹出输入选择窗，可选任一麦克风或「系统声音 / 当前标签页内录」；录音时预览画面与弹窗同时显示左右双声道实时电平表，再点顶栏「⏹ 停止录音」结束，录音文件自动加入音频轨。调用电脑麦克风，<b>录音开始时轨道上所有声音自动静音</b>（视频与所有音频轨），保证录进来的声音纯净；再点一次「⏹ 停止录音」结束，轨道声音立即恢复，录音文件自动加入音频轨。</li>
@@ -1554,7 +1554,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 </div>
 <div class="menu-pop" id="trackMenu">
     <button data-kind="text">＋ 字幕 / 文本轨（最上层）</button>
-    <button data-kind="lut">＋ LUT 调色轨（图片 / 视频轨上方）</button>
+    <button data-kind="lut">＋ LUT 调色轨（可用 ▲▼ 移动）</button>
     <button data-kind="image">＋ 图片轨</button>
     <button data-kind="video">＋ 视频轨</button>
     <button data-kind="audio">＋ 音频轨（最下层）</button>
@@ -1568,7 +1568,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
    漫流 AI 剪辑台（站点正式页 editor.html）
    - 与 index.html / canvas.html 同一套色板与交互语言，三页顶部互链
    - 数据全部留在本机：IndexedDB 存媒体 Blob，localStorage 存工程结构
-   - 轨道按素材类型自适应：字幕 → LUT → 图片 → 视频 → 音频，同类可多层
+   - 字幕恒顶 / 音频恒底；中间视觉轨（图片/LUT/视频）按 z 值排序，可用 ▲▼ 上下移动；LUT 只影响它下方的视觉层
    - 三栏 / 时间轴可拖拽调整；剪映风格按钮与快捷键
    ============================================================ */
 
@@ -1864,9 +1864,10 @@ function classifyUrl(u){
 
 
 
-/* 四类轨道：数组顺序即渲染层级（上 → 下） */
-/* 轨道层级（从上到下）：字幕 → LUT 调色 → 图片 → 视频 → 音频。
-   LUT 轨放到图片轨上方，调色才能同时作用于视频画面与图片层（合成链见 drawLutFrame）。 */
+/* 轨道大类固定上下：字幕恒在最上、音频恒在最下；中间的视觉轨（图片/LUT/视频）
+   不再按 kind 硬分组，而是按每条轨的 z 值自由上下排列——LUT 只影响排在它下方的视觉层。 */
+const VISUAL_KINDS = ["image","lut","video"];
+/* TK_ORDER 仅作为「新轨默认落位 / 旧工程迁移」的参考次序，不再决定视觉轨显示顺序 */
 const TK_ORDER = ["text","lut","image","video","audio"];
 const TK_NAME  = {text:"字幕", image:"图片", lut:"LUT", video:"视频", audio:"音频"};
 const TK_COLOR = {text:"#0891b2", image:"#7c3aed", lut:"#d97706", video:"#2563eb", audio:"#059669"};
@@ -1880,9 +1881,11 @@ function defaultTracks(){
     /* 剪映时间轴轨道状态：locked 锁定 / hidden 隐藏 / muted 静音，旧工程缺省为 false */
     return [
         {id:"tk_text1",  kind:"text",  label:"字幕 1", order:0, locked:false, hidden:false, muted:false},
-        {id:"tk_lut1",   kind:"lut",   label:"LUT 1", order:0, locked:false, hidden:false, muted:false},
-        {id:"tk_image1", kind:"image", label:"图片 1", order:0, locked:false, hidden:false, muted:false},
-        {id:"tk_video1", kind:"video", label:"视频 1", order:0, locked:false, hidden:false, muted:false},
+        /* z = 视觉层级（越小越靠上）。默认 LUT 在图片/视频上方 → 调色作用于它下方的所有层。
+           用户可用轨道标签上的 ▲▼ 改变 z：把某图/视频移到 LUT 上方即不受调色。 */
+        {id:"tk_lut1",   kind:"lut",   label:"LUT 1", order:0, z:10, locked:false, hidden:false, muted:false},
+        {id:"tk_image1", kind:"image", label:"图片 1", order:0, z:20, locked:false, hidden:false, muted:false},
+        {id:"tk_video1", kind:"video", label:"视频 1", order:0, z:30, locked:false, hidden:false, muted:false},
         {id:"tk_audio1", kind:"audio", label:"音频 1", order:0, locked:false, hidden:false, muted:false}
     ];
 }
@@ -3693,9 +3696,33 @@ function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.get
 function fmt(t){ t=Math.max(0,Number(t)||0); const m=Math.floor(t/60), s=t-m*60; return String(m).padStart(2,"0")+":"+s.toFixed(1).padStart(4,"0"); }
 function fmtSize(n){ n=Number(n)||0; return n>1048576 ? (n/1048576).toFixed(1)+" MB" : (n>1024 ? Math.round(n/1024)+" KB" : n+" B"); }
 function toast(msg, kind){ const el=$("toast"); el.textContent=msg; el.className="show"+(kind?" "+kind:""); clearTimeout(toastTimer); toastTimer=setTimeout(()=>{el.className="";},2800); }
+/* 视觉轨层级 z：越小越靠上。旧工程没有 z 时按 TK_ORDER 的 kind 次序回退（lut→image→video），
+   保证升级后原工程显示与调色关系不变；同 z 再按 order、id 稳定排序。 */
+function trackZ(t){
+    if(Number.isFinite(Number(t.z))) return Number(t.z);
+    return TK_ORDER.indexOf(t.kind)*10;
+}
 function orderedTracks(){
+    const rank=k=>(k==="text"?0:(k==="audio"?2:1));   /* 字幕恒顶、视觉居中、音频恒底 */
     return state.tracks.slice().sort((a,b)=>
-        (TK_ORDER.indexOf(a.kind)-TK_ORDER.indexOf(b.kind)) || ((a.order||0)-(b.order||0)) || (a.id<b.id?-1:1));
+        (rank(a.kind)-rank(b.kind))
+        || (rank(a.kind)===1 ? (trackZ(a)-trackZ(b)) : 0)
+        || ((a.order||0)-(b.order||0)) || (a.id<b.id?-1:1));
+}
+/* 视觉轨序列（从上到下）：仅 image/lut/video，用于分层合成与 ▲▼ 移动 */
+function visualTracks(){ return orderedTracks().filter(t=>VISUAL_KINDS.indexOf(t.kind)>=0); }
+/* 把某视觉轨上/下移动一层：与相邻的视觉轨交换 z。返回是否真的移动。 */
+function moveVisualTrack(id, dir){
+    const t=trackById(id); if(!t||VISUAL_KINDS.indexOf(t.kind)<0) return false;
+    const vis=visualTracks(), i=vis.findIndex(x=>x.id===id), j=i+dir;
+    if(i<0||j<0||j>=vis.length) return false;
+    const other=vis[j];
+    /* z 可能来自旧工程回退值，先把相邻两轨的 z 具体化再交换，避免歧义 */
+    const za=trackZ(t), zb=trackZ(other);
+    t.z=zb; other.z=za;
+    /* 交换后若恰好相等（回退值与显式值撞车），用相邻整数错开 */
+    if(t.z===other.z){ t.z=za; other.z=zb+(dir<0?-1:1); }
+    return true;
 }
 function trackById(id){ return state.tracks.find(t=>t.id===id)||null; }
 function trackKind(id){ const t=trackById(id); return t?t.kind:""; }
@@ -4214,7 +4241,7 @@ function newTrack(kind,opt){
     /* 视频轨按「视频1、视频2、视频3…」顺序在已有视频轨下面新增：始终保持向下插（order 更大），
        已有视频轨（含视频1）的 order 不变、位置不动。
        LUT / 图片 / 字幕轨仍默认插到同类轨最上面；音频轨沿用向下新增。跨轨拖动落点新建同类轨时同规则。
-       层级：字幕 → LUT → 图片 → 视频 → 音频；LUT 在图片上方，调色覆盖视频画面与图片层。 */
+       层级：字幕恒顶 / 音频恒底，中间视觉轨按 z 排序（默认 LUT→图片→视频），可用 ▲▼ 移动；LUT 只影响下方视觉层。 */
     const insertAbove = kind!=="audio" && kind!=="video" && !(opt&&opt.below);
     const minOrder=same.length?Math.min.apply(null,same.map(x=>Number(x.order)||0)):0;
     const maxOrder=same.length?Math.max.apply(null,same.map(x=>Number(x.order)||0)):0;
@@ -4222,6 +4249,18 @@ function newTrack(kind,opt){
     const order=insertAbove ? (same.length?minOrder-1:0) : (same.length?maxOrder+1:0);
     const t={id:"tk_"+uid(), kind:kind, label:TK_NAME[kind]+" "+(same.length+1),
              order:order,locked:false, hidden:false, muted:false};
+    /* 视觉轨按 z 排列：新 LUT/图片轨插到同类最上、新视频轨插到同类最下（沿用 insertAbove 语义，
+       默认保证新图片仍在 LUT 下方、新 LUT 在全体上方）。用 0.5 细步长 + 防撞车，兼容用户 ▲▼ 移动后的任意 z。 */
+    if(VISUAL_KINDS.indexOf(kind)>=0){
+        const sameZ=same.map(x=>trackZ(x));
+        const allZ=state.tracks.filter(x=>VISUAL_KINDS.indexOf(x.kind)>=0).map(x=>trackZ(x));
+        let z = sameZ.length
+            ? (insertAbove ? Math.min.apply(null,sameZ)-0.5 : Math.max.apply(null,sameZ)+0.5)
+            : TK_ORDER.indexOf(kind)*10;
+        const step=insertAbove?-0.5:0.5;
+        while(allZ.indexOf(z)>=0) z+=step;
+        t.z=z;
+    }
     state.tracks.push(t);
     return t;
 }
@@ -4436,7 +4475,12 @@ function renderTracks(){
           +'<button data-tkmute="'+esc(t.id)+'" class="tk-vol'+(t.muted?" on":"")+'" title="'+(t.muted?"取消静音":"静音")+'轨道：静音后该轨声音不参与预览">音</button>'
           +'</span></div>'
           +'<div class="tl-sub"><span>'+TK_NAME[t.kind]+'层 · '+clips.length+' 段'+(isMain?" · 主轨":"")+'</span>'
-          +'<span class="tl-ops"><button data-tkadd="'+esc(t.id)+'" title="新建一条同类型轨道（音频在下方，其它在上方）">＋</button>'
+          +'<span class="tl-ops">'
+          +(VISUAL_KINDS.indexOf(t.kind)>=0
+              ?'<button data-tkup="'+esc(t.id)+'" title="上移一层（LUT 只影响它下方的视觉层）">▲</button>'
+               +'<button data-tkdn="'+esc(t.id)+'" title="下移一层（LUT 只影响它下方的视觉层）">▼</button>'
+              :'')
+          +'<button data-tkadd="'+esc(t.id)+'" title="新建一条同类型轨道（音频在下方，其它在上方）">＋</button>'
           +'<button class="tkdel" data-tkdel="'+esc(t.id)+'" title="删除这条空轨道">×</button></span></div>'
           +'<div class="tl-bar" style="background:'+TK_COLOR[t.kind]+'"></div></div>'
           +'<div class="lane" data-track="'+esc(t.id)+'" style="width:'+w+'px;--grid-step:'+Math.max(24,rulerStep()*state.zoom)+'px">'+inner+'</div></div>';
@@ -6637,7 +6681,7 @@ function buildAiMessages(frames,idea){
     const full=collectTimelineStructure();
     const info={
         version:full.version,project:full.project,totalDuration:full.totalDuration,
-        trackOrder:"字幕(text) → LUT(lut) → 图片(image) → 视频(video) → 音频(audio)",
+        trackOrder:"字幕(text) 恒最上、音频(audio) 恒最下；中间视觉轨（图片 image / LUT lut / 视频 video）按各自 z 值上下排序，LUT 只对排在它下方的图片/视频层调色",
         config:full.config,tracks:full.tracks,clips:full.clips,assets:full.assets,
         subtitles:full.subtitles,silences:full.silences,candidates:full.candidates
     };
@@ -7151,8 +7195,10 @@ async function loadProject(date){
         state.date=date; state.projName=String(p.name||""); state.zoom=p.zoom||36;
         state.tracks=(Array.isArray(p.tracks)&&p.tracks.length)
             ? p.tracks.map(t=>{ const kind=(TK_ORDER.indexOf(t.kind)>=0?t.kind:"video");
-                return {id:String(t.id||uid()),kind:kind,label:String(t.label||TK_NAME[kind]||"轨道"),
-                    order:Number(t.order)||0,locked:!!t.locked,hidden:!!t.hidden,muted:!!t.muted}; })
+                const o={id:String(t.id||uid()),kind:kind,label:String(t.label||TK_NAME[kind]||"轨道"),
+                    order:Number(t.order)||0,locked:!!t.locked,hidden:!!t.hidden,muted:!!t.muted};
+                if(Number.isFinite(Number(t.z))) o.z=Number(t.z);   /* 视觉层级：用户上下移动过的顺序 */
+                return o; })
             : defaultTracks();
         state.markers=Array.isArray(p.markers)
             ? p.markers.filter(m=>Number.isFinite(Number(m.t))).map(m=>({t:Number(m.t),label:String(m.label||"")}))
@@ -8205,6 +8251,10 @@ function wire(){
     const sc=$("tlScroll");
     sc.addEventListener("click",e=>{
         if(suppressLaneClick){ suppressLaneClick=false; return; }
+        const up=e.target.closest("[data-tkup]");
+        if(up){ moveVisualTrack(up.dataset.tkup,-1); renderAll(); drawLutFrame(); autoSave(); return; }
+        const dn=e.target.closest("[data-tkdn]");
+        if(dn){ moveVisualTrack(dn.dataset.tkdn,1); renderAll(); drawLutFrame(); autoSave(); return; }
         const add=e.target.closest("[data-tkadd]");
         if(add){
             const t=trackById(add.dataset.tkadd);
@@ -8642,11 +8692,17 @@ function lutShader(gl,type,src){
 function initLutGL(){
     if(lutGL!==null) return lutGL;
     const stage=$("stage"); if(!stage){ lutGL=false; return false; }
+    /* 三画布分工（分层调色需要「调色后再往上叠加」）：
+       cv       = 显示层（2D，class=lut-canvas，最终累积画面，导出也取它）
+       glCv     = 离屏 WebGL 调色器（preserveDrawingBuffer 便于回读）
+       srcCanvas= 离屏 2D 累积画布（逐层绘制 + 接收调色结果）
+       旧版只有一张 WebGL canvas 既调色又显示，无法在调色结果上继续画上层画面。 */
     const cv=document.createElement("canvas");
     cv.className="lut-canvas"; cv.hidden=true;
     stage.insertBefore(cv,$("fxColorOverlay")||null);
+    const glCv=document.createElement("canvas");
     let gl=null;
-    try{ gl=cv.getContext("webgl",{preserveDrawingBuffer:true,premultipliedAlpha:false,alpha:true}); }catch(e){}
+    try{ gl=glCv.getContext("webgl",{preserveDrawingBuffer:true,premultipliedAlpha:false,alpha:false}); }catch(e){}
     if(!gl){ lutGL=false; cv.remove(); return false; }
     try{
         const vs=lutShader(gl,gl.VERTEX_SHADER,
@@ -8677,7 +8733,7 @@ function initLutGL(){
             gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
         });
-        lutGL={cv:cv,gl:gl,prog:prog,texVideo:texVideo,texLut:texLut,
+        lutGL={cv:cv,glCv:glCv,gl:gl,prog:prog,texVideo:texVideo,texLut:texLut,
             u:{size:gl.getUniformLocation(prog,"u_size"),intensity:gl.getUniformLocation(prog,"u_intensity"),
                brightness:gl.getUniformLocation(prog,"u_brightness"),contrast:gl.getUniformLocation(prog,"u_contrast"),
                saturate:gl.getUniformLocation(prog,"u_saturate"),temp:gl.getUniformLocation(prog,"u_temp"),
@@ -8702,80 +8758,109 @@ function uploadLutTex(gl, tex, lut){
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,W,H,0,gl.RGBA,gl.UNSIGNED_BYTE,px);
 }
 function drawLutFrame(){
-    /* 性能：没有 LUT 轨时绝不创建 WebGL 上下文。
-       旧版每次启动/每次操作都先 initLutGL()，在无 LUT 的工程里也会建一个
-       preserveDrawingBuffer 的 WebGL 上下文；Windows 核显/驱动异常时这一步本身就会
-       拖慢整页渲染，甚至让浏览器退回软件合成。现在改为真正用到 LUT 才懒初始化。 */
-    const cur=currentLut();
-    if(!cur){ if(lutGL&&lutGL.cv) lutGL.cv.hidden=true; return; }
-    const g=initLutGL();
-    if(!g){ return; }
-    const st=$("stage"); if(!st){ g.cv.hidden=true; return; }
-    /* LUT 轨位于图片 / 视频轨上方 → 调色必须作用于「主画面 + 所有画中画图片」。
-       旧版纹理源固定取主视频 vEl，且主画面非视频时直接隐藏，导致图片层完全不被调色。
-       现在先把当前可见画面（视频或图片主画面 + 各图片轨画中画）按舞台布局合成到一张
-       离屏 canvas，再把这张合成图交给 WebGL 做 3D LUT；无可见画面时仍隐藏，保持零开销。 */
+    /* 性能：没有任何生效的 LUT 片段时绝不创建 WebGL 上下文（Windows 卡顿修复保留）。 */
+    const st=$("stage"); if(!st){ if(lutGL&&lutGL.cv) lutGL.cv.hidden=true; return; }
+    /* 当前时刻所有生效的 LUT 层（可能有多条 LUT 轨）。 */
+    const lutItems=[];
+    for(const t of orderedTracks()){
+        if(t.kind!=="lut"||t.hidden) continue;
+        const c=activeClipOn(t.id);
+        if(c&&c.lut) lutItems.push({z:trackZ(t),order:Number(t.order)||0,type:"lut",lut:c.lut});
+    }
+    if(!lutItems.length){ if(lutGL&&lutGL.cv) lutGL.cv.hidden=true; return; }
+    const g=initLutGL(); if(!g) return;
+
+    /* 分层合成：收集所有可见画面（主画面 + 各图片轨画中画），各自带上所属视觉轨的 z，
+       与 LUT 层一起「从下往上」（z 大 → 小）逐层处理：
+         · 画面层：叠到累积画布；
+         · LUT 层：对当前累积画面整体调色，结果写回累积画布。
+       排在 LUT 上方的画面在其后再画上去，因此不受调色——这正是「LUT 只影响下方层」。 */
+    const items=lutItems.slice();
     const vOK=vEl.classList.contains("show")&&vEl.readyState>=2&&vEl.videoWidth>0;
     const iOK=imgEl.classList.contains("show")&&imgEl.complete&&imgEl.naturalWidth>0;
-    const pips=[];
-    pipLayer.querySelectorAll(".pip-item").forEach(el=>{ if(el.complete&&el.naturalWidth) pips.push(el); });
-    if(!vOK&&!iOK&&!pips.length){ g.cv.hidden=true; return; }
-    const gl=g.gl, lut=cur.lut, ad=lut.adjust||{};
+    const mv=mainVisualClip();
+    if(mv&&(vOK||iOK)){
+        const t=trackById(mv.track);
+        items.push({z:t?trackZ(t):999,order:t?(Number(t.order)||0):0,type:"main",clip:mv,el:vOK?vEl:imgEl});
+    }
+    pipLayer.querySelectorAll(".pip-item").forEach(el=>{
+        if(!el.complete||!el.naturalWidth) return;
+        const c=clipById(el.dataset.clip); if(!c) return;
+        const t=trackById(c.track);
+        items.push({z:t?trackZ(t):999,order:t?(Number(t.order)||0):0,type:"pip",clip:c,el:el});
+    });
+    if(!items.some(x=>x.type==="main"||x.type==="pip")){ g.cv.hidden=true; return; }
+    /* z 相同（同一层级）时 order 大的在下方先画 */
+    items.sort((a,b)=>(b.z-a.z)||(b.order-a.order));
+
     const dpr=Math.min(2,window.devicePixelRatio||1);
     const w=Math.max(1,Math.round((st.clientWidth||640)*dpr)), h=Math.max(1,Math.round((st.clientHeight||360)*dpr));
-    if(g.cv.width!==w||g.cv.height!==h){ g.cv.width=w; g.cv.height=h; }
+    if(g.cv.width!==w||g.cv.height!==h){ g.cv.width=w; g.cv.height=h; g.glCv.width=w; g.glCv.height=h; }
     if(!g.srcCanvas) g.srcCanvas=document.createElement("canvas");
     if(g.srcCanvas.width!==w||g.srcCanvas.height!==h){ g.srcCanvas.width=w; g.srcCanvas.height=h; }
     const sx=g.srcCanvas.getContext("2d",{alpha:false});
-    const vc=mainVisualClip(), vf=vc?(fxOf(vc).color||{}):{};
+    const bg=((mv&&(vOK||iOK))?(fxOf(mv).color||{}):{});
     sx.setTransform(1,0,0,1,0,0); sx.globalAlpha=1; sx.filter="none";
-    sx.fillStyle=vf.bg?String(vf.bg):"#000"; sx.fillRect(0,0,w,h);
-    /* 主画面：视频或图片，按 contain 完整铺入（与 CSS object-fit:contain 一致），叠加四边裁剪 */
-    const main=vOK?vEl:(iOK?imgEl:null);
-    if(main){
-        const nw=main.videoWidth||main.naturalWidth||w, nh=main.videoHeight||main.naturalHeight||h;
-        const s=Math.min(w/nw,h/nh), dw=nw*s, dh=nh*s;
-        const cr=vc?fxCropEff(vc):{left:0,right:0,top:0,bottom:0};
-        const sw=nw*(1-(cr.left+cr.right)/100), sh=nh*(1-(cr.top+cr.bottom)/100);
-        sx.filter=vc?fxFilter(vc):"none";
-        sx.drawImage(main, nw*cr.left/100, nh*cr.top/100, sw, sh,
-            (w-dw)/2+dw*cr.left/100, (h-dh)/2+dh*cr.top/100,
-            dw*(sw/nw), dh*(sh/nh));
-        sx.filter="none";
-    }
-    /* 画中画图片：按舞台上的真实矩形 + 片段变换画进合成源，与主画面一同被调色 */
-    pips.forEach(el=>{
-        const c=clipById(el.dataset.clip); if(!c) return;
-        const b=elementBaseRect(el,st), q=fxOf(c), cr=fxCropEff(c);
-        sx.save();
-        sx.filter=fxFilter(c);
-        sx.translate((b.left+b.w/2)*dpr+Number(q.x||0)*dpr,(b.top+b.h/2)*dpr+Number(q.y||0)*dpr);
-        sx.rotate(Number(q.rotate||0)*Math.PI/180);
-        const sc=(Number(q.scale)||1)*dpr;
-        sx.scale((q.mirror?-1:1)*sc,sc);
-        sx.globalAlpha=clamp(animOpacity(c),0,1);
-        const nw=el.naturalWidth, nh=el.naturalHeight;
-        const fit=Math.min(b.w*dpr/nw,b.h*dpr/nh), dw=nw*fit, dh=nh*fit;
-        const sw=nw*(1-(cr.left+cr.right)/100), sh=nh*(1-(cr.top+cr.bottom)/100);
-        try{ sx.drawImage(el, nw*cr.left/100, nh*cr.top/100, sw, sh,
-            -dw/2+dw*cr.left/100, -dh/2+dh*cr.top/100, dw*(sw/nw), dh*(sh/nh)); }catch(e){}
-        sx.restore();
-    });
+    sx.fillStyle=bg.bg?String(bg.bg):"#000"; sx.fillRect(0,0,w,h);
+
+    const gl=g.gl;
     gl.viewport(0,0,w,h); gl.useProgram(g.prog);
-    if(g.lastLut!==lut){ uploadLutTex(gl,g.texLut,lut); g.lastLut=lut; }
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,g.texVideo);
-    try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,g.srcCanvas); }
-    catch(e){ g.cv.hidden=true; return; }
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,g.texLut);
-    gl.uniform1i(g.u.video,0); gl.uniform1i(g.u.lut,1);
-    gl.uniform1f(g.u.size,lut.size||33);
-    gl.uniform1f(g.u.intensity,Number(ad.intensity)===0?1:Number(ad.intensity)||1);
-    gl.uniform1f(g.u.brightness,Number(ad.brightness)||0);
-    gl.uniform1f(g.u.contrast,Number(ad.contrast)||0);
-    gl.uniform1f(g.u.saturate,Number(ad.saturate)||0);
-    gl.uniform1f(g.u.temp,Number(ad.temperature)||0);
-    gl.drawArrays(gl.TRIANGLES,0,6);
-    g.cv.hidden=false;
+
+    for(const it of items){
+        if(it.type==="lut"){
+            const lut=it.lut, ad=lut.adjust||{};
+            if(g.lastLut!==lut){ uploadLutTex(gl,g.texLut,lut); g.lastLut=lut; }
+            gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,g.texVideo);
+            try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,g.srcCanvas); }
+            catch(e){ continue; }
+            gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,g.texLut);
+            gl.uniform1i(g.u.video,0); gl.uniform1i(g.u.lut,1);
+            gl.uniform1f(g.u.size,lut.size||33);
+            gl.uniform1f(g.u.intensity,Number(ad.intensity)===0?1:Number(ad.intensity)||1);
+            gl.uniform1f(g.u.brightness,Number(ad.brightness)||0);
+            gl.uniform1f(g.u.contrast,Number(ad.contrast)||0);
+            gl.uniform1f(g.u.saturate,Number(ad.saturate)||0);
+            gl.uniform1f(g.u.temp,Number(ad.temperature)||0);
+            gl.drawArrays(gl.TRIANGLES,0,6);
+            /* 调色结果读回累积画布，供更上方的画面层继续叠加（不受本次调色） */
+            sx.save(); sx.setTransform(1,0,0,1,0,0); sx.globalAlpha=1; sx.globalCompositeOperation="source-over"; sx.filter="none";
+            sx.clearRect(0,0,w,h); sx.drawImage(g.glCv,0,0,w,h); sx.restore();
+            continue;
+        }
+        const c=it.clip, el=it.el;
+        if(it.type==="main"){
+            /* 主画面：视频或图片，按 contain 完整铺入 + 四边裁剪 + 片段滤镜/透明度 */
+            const nw=el.videoWidth||el.naturalWidth||w, nh=el.videoHeight||el.naturalHeight||h;
+            const s=Math.min(w/nw,h/nh), dw=nw*s, dh=nh*s, cr=fxCropEff(c);
+            const sw=nw*(1-(cr.left+cr.right)/100), sh=nh*(1-(cr.top+cr.bottom)/100);
+            sx.save(); sx.filter=fxFilter(c); sx.globalAlpha=clamp(animOpacity(c),0,1);
+            sx.drawImage(el, nw*cr.left/100, nh*cr.top/100, sw, sh,
+                (w-dw)/2+dw*cr.left/100, (h-dh)/2+dh*cr.top/100, dw*(sw/nw), dh*(sh/nh));
+            sx.restore();
+        }else{
+            /* 画中画图片：舞台真实矩形 + 片段位移/旋转/缩放/镜像/裁剪/滤镜 */
+            const b=elementBaseRect(el,st), q=fxOf(c), cr=fxCropEff(c);
+            sx.save(); sx.filter=fxFilter(c);
+            sx.translate((b.left+b.w/2)*dpr+Number(q.x||0)*dpr,(b.top+b.h/2)*dpr+Number(q.y||0)*dpr);
+            sx.rotate(Number(q.rotate||0)*Math.PI/180);
+            const sc=(Number(q.scale)||1)*dpr;
+            sx.scale((q.mirror?-1:1)*sc,sc);
+            sx.globalAlpha=clamp(animOpacity(c),0,1);
+            const nw=el.naturalWidth, nh=el.naturalHeight;
+            const fit=Math.min(b.w*dpr/nw,b.h*dpr/nh), dw=nw*fit, dh=nh*fit;
+            const sw=nw*(1-(cr.left+cr.right)/100), sh=nh*(1-(cr.top+cr.bottom)/100);
+            try{ sx.drawImage(el, nw*cr.left/100, nh*cr.top/100, sw, sh,
+                -dw/2+dw*cr.left/100, -dh/2+dh*cr.top/100, dw*(sw/nw), dh*(sh/nh)); }catch(e){}
+            sx.restore();
+        }
+    }
+    /* 最终累积画面复制到显示层（2D canvas）；导出 drawStageFrame 取 .lut-canvas 即此画面 */
+    try{
+        const dcv=g.cv.getContext("2d");
+        dcv.setTransform(1,0,0,1,0,0); dcv.globalAlpha=1; dcv.globalCompositeOperation="source-over";
+        dcv.clearRect(0,0,w,h); dcv.drawImage(g.srcCanvas,0,0);
+        g.cv.hidden=false;
+    }catch(e){ g.cv.hidden=true; }
 }
 
 /* ================= LUT 文件 / 预制 / 时间轴 LUT 轨 ================= */
@@ -8855,7 +8940,7 @@ function applyLutAtPlayhead(lut){
     const exist=state.clips.find(c=>c.track===tr.id&&st>=c.start&&st<c.start+c.duration);
     if(exist){ exist.lut=lut; exist.name="LUT · "+lut.name; }
     else state.clips.push({id:uid(),track:tr.id,assetId:"",start:st,duration:Math.min(3,remain),offset:0,text:"",name:"LUT · "+lut.name,fx:defaultFx(),lut:lut});
-    renderAll(); autoSave(); drawLutFrame(); toast("LUT「"+lut.name+"」已放到图片 / 视频轨上方，图片层同步调色","ok");
+    renderAll(); autoSave(); drawLutFrame(); toast("LUT「"+lut.name+"」已加入，默认影响下方画面；可用轨道 ▲▼ 调整位置","ok");
 }
 
 const COLOR_PRESETS={
@@ -9708,9 +9793,10 @@ function drawStageFrame(x,W,H,opts){
     }catch(e){ throw new Error("素材受跨域保护，浏览器无法把画面写入导出画布；请把该素材下载到本地后重新导入"); }
     x.restore();
     x.filter="none";
-    /* LUT 调色轨：预览里 WebGL .lut-canvas 已把「主画面 + 所有画中画图片」合成后整体调色，
-       成片直接把它铺满画布即可；不再要求必须视频在播（图片主画面 / 仅图片层也要调色）。
-       录制期间 tick 持续刷新该 canvas。lutShown 为真时下方不再单独画未调色的图片层。 */
+    /* LUT 调色轨：预览里 .lut-canvas 已按视觉层级从下往上合成——主画面/图片逐层叠加，
+       每遇一条 LUT 轨就对当时累积的画面调色，LUT 上方的层随后叠加、不受调色。
+       成片直接把这张已合成好的画布铺满即可（覆盖上面先画的未调色主画面）；
+       lutShown 为真时下方不再单独画未调色的图片层。录制期间 tick 持续刷新它。 */
     let lutShown=false;
     try{
         const _st=$("stage"), lutCv=_st&&_st.querySelector(".lut-canvas");
