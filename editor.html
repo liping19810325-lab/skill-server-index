@@ -531,6 +531,8 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .fv-tpl-card .ds{font-size:10px;color:var(--muted);line-height:1.5;}
 .fv-tpl-card .tick{position:absolute;top:7px;right:9px;color:#22d3ee;font-size:13px;display:none;}
 .fv-tpl-card.active .tick{display:block;}
+.fv-all-box{display:inline-flex;align-items:center;gap:4px;margin-left:8px;color:#a5f3fc;font-size:11.5px;cursor:pointer;user-select:none;}
+.fv-all-box input{accent-color:#06b6d4;cursor:pointer;width:14px;height:14px;}
 .fv-tip{background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.25);border-radius:7px;padding:8px 10px;font-size:11px;color:#a5f3fc;line-height:1.7;margin:2px 0 10px;}
 .fv-stage{color:#67e8f9;font-weight:600;}
 .ai-mode-pane{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 15px;}
@@ -1314,7 +1316,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="row" style="margin-top:0"><label class="ai-idea-label">当前算力</label><span class="kv" id="fvMode">—</span></div>
                 <div class="row"><label class="ai-idea-label">选择模型</label><select id="fvModel" style="flex:1"></select></div>
                 <div class="row"><input type="text" id="fvModelCustom" placeholder="下拉里没有？可直接手填模型名，如 gpt-4o / claude-sonnet-4"></div>
-                <div class="row" style="margin-bottom:2px"><label class="ai-idea-label">画面模板</label><span class="hint" style="margin:0">选一套模板决定分镜风格；不选中则按台词智能匹配</span></div>
+                <div class="row" style="margin-bottom:2px"><label class="ai-idea-label">画面模板</label><label class="fv-all-box" title="一键勾选或取消全部模板"><input type="checkbox" id="fvTplAll"><span>全选</span></label><span class="hint" id="fvTplHint" style="margin:0">可多选 1~6 套；一套都不选＝全自动智能识别</span></div>
                 <div class="fv-tpl-grid" id="fvTemplates"></div>
                 <div class="fv-tip">ℹ️ 本方案通过代码渲染输出完整视频成片；仅导入口播音频也可生成完整动态字幕画面，生成后素材仍支持时间轴局部编辑。修改片段后可再次点「渲染」重新出片。</div>
                 <div class="ai-progress" id="fvProgress" hidden><div class="ai-progress-fill" id="fvProgressFill"></div></div>
@@ -2076,11 +2078,15 @@ const FV_TPLS={
     keyword:   {name:"关键词高亮", ic:"🟨", ds:"中文重点词放大、色块描边高亮，重点词短暂停留展示"},
     english:   {name:"英文字母弹出", ic:"🔤", ds:"中英混读场景，英文词汇做成弹跳发光标签，与中文台词区分"},
     data:      {name:"数据卡片", ic:"📊", ds:"识别口述数字，生成带简易图表的大号数据卡片，淡入动画"},
-    knowledge: {name:"知识讲解图文", ic:"📚", ds:"生成编号知识卡片 + 简短解释小字，适合干货解说类口播"}
+    knowledge: {name:"知识讲解图文", ic:"📚", ds:"生成编号知识卡片 + 简短解释小字，适合干货解说类口播"},
+    steps:     {name:"步骤流程清单", ic:"📋", ds:"识别口述操作步骤、流程要点，生成竖向有序列表卡片；当前讲解条目高亮、已讲解条目灰度弱化、逐条顺序入场"},
+    quote:     {name:"引用金句强调", ic:"💬", ds:"识别核心观点、总结金句，生成带引号的大版式引用卡片，缓慢淡入、延长展示时长，突出核心结论"}
 };
 const FV_STEPS=["读取台词","ASR 字级时间戳","大模型输出分镜","逐帧渲染画面","绑定音轨编码 MP4","写入可编辑工程","完成"];
 const FV={
-    tpl:"keyword", busy:false,
+    tpls:["keyword"], busy:false,
+    /* 兼容旧代码里的单一 this.tpl：取最后选中的模板；无勾选时为空串（全自动智能识别） */
+    get tpl(){ return this.tpls.length?this.tpls[this.tpls.length-1]:""; },
     onShow(){
         const sel=$("fvModel");
         if(sel && !sel.options.length){
@@ -2093,17 +2099,34 @@ const FV={
         const md=$("fvMode"); if(md) md.textContent=ED_COMPUTE_LABEL[state.compute]||"第三方API";
         this.renderTpl();
     },
+    /* 模板多选：点卡片切换勾选；「全选」与 6 张卡片双向联动；0 勾选＝全自动智能识别 */
+    syncTplAll(){
+        const all=$("fvTplAll"); if(!all) return;
+        const total=Object.keys(FV_TPLS).length;
+        const n=this.tpls.length;
+        all.checked=n===total && total>0;
+        all.indeterminate=n>0 && n<total;
+        const hint=$("fvTplHint");
+        if(hint) hint.textContent=n?("已选 "+n+" 套模板，模型将同时启用这些识别与渲染规则"):"一套都不选＝全自动智能识别：AI 自主判断内容并选用合适组件";
+    },
+    toggleTplAll(on){
+        this.tpls=on?Object.keys(FV_TPLS).slice():[];
+        this.renderTpl();
+    },
     renderTpl(){
         const box=$("fvTemplates"); if(!box) return;
         box.innerHTML=Object.keys(FV_TPLS).map(k=>{
             const t=FV_TPLS[k];
-            return '<div class="fv-tpl-card'+(this.tpl===k?" active":"")+'" data-tpl="'+k+'">'
+            return '<div class="fv-tpl-card'+(this.tpls.indexOf(k)>=0?" active":"")+'" data-tpl="'+k+'">'
                 +'<span class="tick">✓</span><div class="ic">'+t.ic+'</div><div class="nm">'+t.name+'</div><div class="ds">'+t.ds+'</div></div>';
         }).join("");
         box.onclick=e=>{ const c=e.target.closest(".fv-tpl-card"); if(!c) return;
-            this.tpl=c.getAttribute("data-tpl");
-            box.querySelectorAll(".fv-tpl-card").forEach(x=>x.classList.toggle("active",x===c));
+            const k=c.getAttribute("data-tpl"), i=this.tpls.indexOf(k);
+            if(i>=0) this.tpls.splice(i,1); else this.tpls.push(k);
+            c.classList.toggle("active",i<0);
+            this.syncTplAll();
         };
+        this.syncTplAll();
     },
     progress(i,text,err){
         const box=$("fvProgress"), fill=$("fvProgressFill"), steps=$("fvSteps");
@@ -2149,19 +2172,28 @@ const FV={
        坐标为 0~1 归一化（相对画幅），由 render 阶段映射到像素。失败时抛出，交给兜底规则分镜。 */
     async storyboard(lines,cfg,onMsg){
         onMsg&&onMsg("大模型正在设计画面分镜…");
-        const tplInfo=FV_TPLS[this.tpl];
+        const sel=this.tpls.length?this.tpls.slice():Object.keys(FV_TPLS);   /* 0 勾选＝全部模板，全自动智能识别 */
+        const auto=!this.tpls.length;
+        const tplBrief=sel.map(k=>"· "+FV_TPLS[k].name+"："+FV_TPLS[k].ds).join("\n");
         const brief=lines.map((l,i)=>({i,t:l.text,s:l.start,e:l.end,
             /** 关键词/数字/英文提示：让模型挑重点 */
             w:l.words.map(x=>x.ch).join("")}));
         const sys="你是短视频分镜设计师，为「口播花式代码视频」输出严格的 JSON 分镜方案。\
 只输出一个 JSON 对象，不要任何解释文字。方案把口播台词拆成一个个画面元素，绑定到精确时间。\
-字段规范：{\"elements\":[{\"type\":\"text|keyword|english|data|knowledge|title\",\"text\":\"元素文字\",\
+字段规范：{\"elements\":[{\"type\":\"text|keyword|english|data|knowledge|steps|quote|title\",\"text\":\"元素文字\",\
 \"start\":秒(浮点),\"end\":秒(浮点),\"x\":0~1横向位置,\"y\":0~1纵向位置,\"size\":字号像素(24~120),\
-\"color\":\"#RRGGBB\",\"anim\":\"pop|fade|rise|bounce|blink\",\"animDur\":秒(0.2~0.8)}]}。\
-要求：1) start/end 必须落在台词时间范围内，逐句覆盖，不得重叠超出；2) x/y 用 0~1，y=0.7 附近为画面中下部；\
-3) 模板「"+tplInfo.name+"」的风格要求："+tplInfo.ds+"；\
-4) 数字用 type=data，英文单词用 type=english，中文重点词用 type=keyword，知识卡片用 type=knowledge 并带 ①② 编号；\
-5) 每个元素文字简短（≤16 字），贴合原台词用词，不要编造不存在的信息；6) 最多 60 个元素。";
+\"color\":\"#RRGGBB\",\"anim\":\"pop|fade|rise|bounce|blink\",\"animDur\":秒(0.2~0.9),\
+\"steps\":[\"步骤1\",\"步骤2\"],\"stepActive\":当前讲解步骤序号(从1开始),\"template\":\"所属模板key\"}]}。\
+要求：1) start/end 必须落在台词时间范围内，逐句覆盖，超出部分会被裁掉；\
+2) x/y 用 0~1；排版避让：同一时间多个元素必须分散到不同 x/y 与层级，禁止互相重叠遮挡——\
+主文字/关键词放中下部 y≈0.62，英文标签放右上 x≈0.72/y≈0.30，数据卡片放中部 x≈0.5/y≈0.5，\
+知识卡放中部偏上 y≈0.45，步骤清单放左侧 x≈0.30/y≈0.55 且竖向排列，金句引用放正中 x≈0.5/y≈0.42；\
+3) "+(auto?"未指定模板，开启全自动智能识别：根据台词内容自主判断该突出什么，自由组合下面所有组件：\n"+tplBrief:"同时启用全部 "+sel.length+" 套已勾选模板的识别与渲染规则：\n"+tplBrief)+"；\
+4) 数字口述用 type=data，英文单词用 type=english，中文重点词用 type=keyword，知识讲解用 type=knowledge 并带 ①② 编号，\
+步骤/流程/要点用 type=steps（把 2~5 个步骤填入 steps 数组，stepActive 指向当前正在讲解的一步，该步高亮、已讲解步灰度弱化、依次顺序入场），\
+核心观点/总结金句用 type=quote（text 带「」引号，anim 用 fade 且 animDur 取 0.8~0.9 缓慢淡入、延长展示）；\
+5) 每个元素必须带 template 字段，值为 ["+sel.join("|")+"] 之一，标明它属于哪套模板；\
+6) 每个元素文字简短（≤16 字），贴合原台词用词，不要编造不存在的信息；最多 60 个元素。";
         const user="台词时间轴（秒）：\n"+JSON.stringify(brief);
         const txt=await aiChat(cfg,[{role:"system",content:sys},{role:"user",content:user}]);
         let raw=String(txt||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"").trim();
@@ -2172,34 +2204,51 @@ const FV={
         return this.normalizePlan(o.elements,lines);
     },
 
-    /* 兜底规则分镜：模型不可用时，按模板把台词/词/数字规则化成分镜，保证流水线可用 */
+    /* 兜底规则分镜：模型不可用时，按全部勾选模板把台词/词/数字/步骤/金句规则化成分镜，保证流水线可用。
+       每个模板用自己的专属区域（x/y 分层）避免元素互相遮挡；0 勾选＝启用全部模板。 */
     fallbackPlan(lines){
-        const els=[]; const tpl=this.tpl;
+        const els=[]; const sel=this.tpls.length?this.tpls.slice():Object.keys(FV_TPLS);
         const isNum=s=>/[0-9０-９]/.test(s);
         const isEn=s=>/[A-Za-z]{2,}/.test(s);
+        const stepRe=/(第一步|第二步|第三步|首先|其次|然后|接着|最后|步骤|方法|①|②|③|\d+[、.])/;
+        const quoteRe=/(记住|核心|本质|关键|真相|一定要|所谓|总结|金句|很重要的|最)/;
         lines.forEach((l,li)=>{
             const dur=Math.max(0.6,l.end-l.start);
-            if(tpl==="english"||tpl==="keyword"){
+            if(sel.indexOf("keyword")>=0||sel.indexOf("english")>=0){
                 const words=l.words.length?l.words:[{ch:l.text,s:l.start,e:l.end}];
-                const pick=words.filter(w=>tpl==="english"?isEn(w.ch):(w.ch.length>=2&&!/[，。、！？,.!?\,\s]/.test(w.ch)));
-                (pick.length?pick:[{ch:l.text,s:l.start,e:l.end}]).forEach((w,wi)=>{
-                    els.push({type:tpl==="english"?(isEn(w.ch)?"english":"text"):"keyword",text:w.ch.slice(0,16),
-                        start:+w.s.toFixed(3),end:+Math.min(l.end,w.e+0.35).toFixed(3),
-                        x:0.5,y:0.62+(wi%2)*0.08,size:tpl==="english"?64:72,
-                        color:tpl==="english"?"#7dd3fc":"#ffd23e",anim:tpl==="english"?"bounce":"pop",
-                        animDur:0.4,template:tpl});
+                sel.forEach(tpl=>{
+                    if(tpl!=="keyword"&&tpl!=="english") return;
+                    const pick=words.filter(w=>tpl==="english"?isEn(w.ch):(w.ch.length>=2&&!/[，。、！？,.!?\,\s]/.test(w.ch)));
+                    (pick.length?pick:[]).slice(0,3).forEach((w,wi)=>{
+                        els.push({type:tpl==="english"?(isEn(w.ch)?"english":"text"):"keyword",text:w.ch.slice(0,16),
+                            start:+w.s.toFixed(3),end:+Math.min(l.end,w.e+0.35).toFixed(3),
+                            x:tpl==="english"?0.74:0.5,y:tpl==="english"?(0.28+wi*0.1):(0.6+wi*0.05),
+                            size:tpl==="english"?54:62,color:tpl==="english"?"#7dd3fc":"#ffd23e",
+                            anim:tpl==="english"?"bounce":"pop",animDur:0.4,template:tpl});
+                    });
                 });
-            }else if(tpl==="data"){
+            }
+            if(sel.indexOf("data")>=0){
                 const nums=(l.text.match(/[0-9０-９][0-9０-９.%万亿千百十]*/g)||[]);
-                if(nums.length) nums.forEach((n,ni)=>els.push({type:"data",text:n,
+                nums.slice(0,3).forEach((n,ni)=>els.push({type:"data",text:n,
                     start:+(l.start+dur*ni/Math.max(1,nums.length)).toFixed(3),
                     end:+(l.start+dur*(ni+1)/Math.max(1,nums.length)).toFixed(3),
-                    x:0.5,y:0.55,size:110,color:"#22d3ee",anim:"rise",animDur:0.5,template:tpl}));
-                else els.push({type:"text",text:l.text.slice(0,16),start:+l.start.toFixed(3),end:+l.end.toFixed(3),
-                    x:0.5,y:0.66,size:44,color:"#ffffff",anim:"fade",animDur:0.4,template:tpl});
-            }else if(tpl==="knowledge"){
+                    x:0.5,y:0.5,size:104,color:"#22d3ee",anim:"rise",animDur:0.5,template:"data"}));
+            }
+            if(sel.indexOf("knowledge")>=0){
                 els.push({type:"knowledge",text:"①"+" "+l.text.slice(0,14),start:+l.start.toFixed(3),end:+l.end.toFixed(3),
-                    x:0.5,y:0.6,size:52,color:"#a78bfa",anim:"rise",animDur:0.45,template:tpl});
+                    x:0.5,y:0.42,size:50,color:"#a78bfa",anim:"rise",animDur:0.45,template:"knowledge"});
+            }
+            if(sel.indexOf("steps")>=0&&stepRe.test(l.text)){
+                const steps=(l.text.split(/[，,；;]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=14)||[]).slice(0,5);
+                const arr=steps.length>=2?steps:[l.text.slice(0,14)];
+                els.push({type:"steps",text:String(li+1),steps:arr,stepActive:1,
+                    start:+l.start.toFixed(3),end:+Math.min(l.end,dur>3?l.start+dur:l.end).toFixed(3),
+                    x:0.22,y:0.5,size:34,color:"#34d399",anim:"rise",animDur:0.45,template:"steps"});
+            }
+            if(sel.indexOf("quote")>=0&&quoteRe.test(l.text)){
+                els.push({type:"quote",text:"「"+l.text.slice(0,16)+"」",start:+l.start.toFixed(3),end:+l.end.toFixed(3),
+                    x:0.5,y:0.42,size:62,color:"#fcd34d",anim:"fade",animDur:0.85,template:"quote"});
             }
         });
         return els;
@@ -2208,15 +2257,23 @@ const FV={
     normalizePlan(arr,lines){
         const t0=lines.length?lines[0].start:0, t1=lines.length?lines[lines.length-1].end:t0+5;
         const num=(v,d)=>{ const n=Number(v); return Number.isFinite(n)?n:d; };
+        const validTpl=k=>!!FV_TPLS[String(k||"")];
         return arr.slice(0,60).map(e=>{
             let s=num(e.start,t0), en=num(e.end,s+1);
             if(en<=s) en=s+0.8;
-            return {type:String(e.type||"text"),text:String(e.text||"").slice(0,20),
+            const out={type:String(e.type||"text"),text:String(e.text||"").slice(0,20),
                 start:+s.toFixed(3),end:+en.toFixed(3),
                 x:FV_FX.clamp(num(e.x,0.5),0,1),y:FV_FX.clamp(num(e.y,0.65),0,1),
                 size:FV_FX.clamp(num(e.size,56),20,140),color:/^#[0-9a-f]{6}$/i.test(String(e.color))?e.color:"#ffffff",
-                anim:String(e.anim||"pop"),animDur:+FV_FX.clamp(num(e.animDur,0.4),0.12,1).toFixed(2),template:this.tpl};
-        }).filter(e=>e.text);
+                anim:String(e.anim||"pop"),animDur:+FV_FX.clamp(num(e.animDur,0.4),0.12,1).toFixed(2),
+                template:validTpl(e.template)?String(e.template):(this.tpl||"keyword")};
+            /* 步骤清单：保留模型给的步骤数组与当前高亮序号（逐条顺序入场、已讲灰度弱化的真源） */
+            if(Array.isArray(e.steps)&&e.steps.length){
+                out.steps=e.steps.slice(0,6).map(s=>String(s).slice(0,16));
+                out.stepActive=Math.max(1,Math.round(num(e.stepActive,1)));
+            }
+            return out;
+        }).filter(e=>e.text||e.steps);
     }
 };
 
@@ -2265,6 +2322,45 @@ Object.assign(FV,{
                         x.fillStyle=b===2?el.color:"rgba(34,211,238,.5)";
                         x.fillRect(-bw/2+pad+b*(size*0.5),by-bh2,size*0.34,bh2); }
                 }
+            }else if(el.type==="quote"){
+                /* 金句引用卡：大版式双引号 + 缓慢淡入（animDur 0.8~0.9 由分镜指定） */
+                const fs=size*0.78; x.font='700 '+fs+'px "Microsoft YaHei","PingFang SC",sans-serif';
+                const lines=String(el.text||"").split("\n"), tw=Math.max.apply(null,lines.map(s=>x.measureText(s).width));
+                const pad=size*0.6, bw=tw+pad*2, bh=lines.length*fs*1.5+size*0.7;
+                x.fillStyle="rgba(251,191,36,.10)";
+                FV.roundRect(x,-bw/2,-bh/2,bw,bh,18); x.fill();
+                x.strokeStyle=el.color; x.lineWidth=2; FV.roundRect(x,-bw/2,-bh/2,bw,bh,18); x.stroke();
+                x.fillStyle="rgba(252,211,77,.5)"; x.font='700 '+(size*1.5)+'px Georgia,serif';
+                x.textAlign="left"; x.fillText("“",-bw/2+pad*0.5,-bh/2+size*0.65);
+                x.textAlign="right"; x.fillText("”",bw/2-pad*0.5,bh/2-size*0.45);
+                x.textAlign="center"; x.font='700 '+fs+'px "Microsoft YaHei","PingFang SC",sans-serif';
+                x.lineWidth=Math.max(2,size*0.05); x.strokeStyle="rgba(0,0,0,.7)";
+                lines.forEach((ln,li)=>{ const ly=(li-(lines.length-1)/2)*fs*1.5; x.strokeText(ln,0,ly); x.fillStyle=el.color; x.fillText(ln,0,ly); });
+                x.restore(); continue;
+            }else if(el.type==="steps"){
+                /* 步骤流程清单：竖向有序列表，当前步高亮、已讲步灰度弱化、逐条顺序入场 */
+                const arr=Array.isArray(el.steps)&&el.steps.length?el.steps:[String(el.text||"")];
+                const active=Math.max(1,Math.round(el.stepActive||1)), fs=size, lh=fs*1.85;
+                const bw=Math.max.apply(null,arr.map(s=>x.measureText(s).width))+fs*2.6, bh=arr.length*lh+fs*0.5;
+                x.fillStyle="rgba(15,23,42,.62)"; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.fill();
+                x.strokeStyle="rgba(52,211,153,.55)"; x.lineWidth=1.5; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.stroke();
+                x.textAlign="left"; x.font='600 '+fs+'px "Microsoft YaHei","PingFang SC",sans-serif';
+                arr.forEach((s,i)=>{
+                    const idx=i+1, ly=-bh/2+fs*0.55+i*lh;
+                    const stepIn=FV_FX.clamp((st.k*arr.length-i)/0.8,0,1);   /* 逐条顺序入场 */
+                    x.globalAlpha=alpha*stepIn;
+                    const done=idx<active, cur=idx===active;
+                    x.beginPath(); x.arc(-bw/2+fs*0.95,ly,fs*0.5,0,Math.PI*2);
+                    x.fillStyle=done?"rgba(52,211,153,.85)":(cur?el.color:"rgba(148,163,184,.35)"); x.fill();
+                    x.fillStyle=done?"#04120b":"#04120b"; x.textAlign="center";
+                    x.font='700 '+(fs*0.62)+'px sans-serif'; x.fillText(done?"✓":String(idx),-bw/2+fs*0.95,ly);
+                    x.textAlign="left"; x.font=(cur?"700 ":"500 ")+fs+'px "Microsoft YaHei","PingFang SC",sans-serif';
+                    x.lineWidth=Math.max(1.5,fs*0.045); x.strokeStyle="rgba(0,0,0,.7)";
+                    x.fillStyle=cur?"#ffffff":"rgba(203,213,225,.5)";
+                    const tx=-bw/2+fs*1.7; x.strokeText(s,tx,ly); x.fillText(s,tx,ly);
+                });
+                x.globalAlpha=alpha; x.textAlign="center";
+                x.restore(); continue;
             }
             x.lineWidth=Math.max(2,size*0.06); x.strokeStyle="rgba(0,0,0,.72)"; x.strokeText(el.text,0,0);
             x.fillStyle=el.color; x.fillText(el.text,0,0);
@@ -2318,14 +2414,19 @@ Object.assign(FV,{
 
     /* ⑤a 结构化 JSON 工程：记录每个图形元素的全部可编辑字段 */
     projectJson(elements,lines,opts){
-        return {app:"漫流AI剪辑台 · 花式代码视频",version:1,template:this.tpl,
+        return {app:"漫流AI剪辑台 · 花式代码视频",version:2,templates:this.tpls.slice(),
+            autoMode:!this.tpls.length,
             canvas:{w:exportSize().w,h:exportSize().h,fps:opts.fps||30},
             audio:{source:opts.audioName||"",duration:+opts.duration.toFixed(3)},
             transcript:lines.map(l=>({text:l.text,start:l.start,end:l.end,
                 words:l.words.map(w=>({ch:w.ch,s:w.s,e:w.e}))})),
-            elements:elements.map((e,i)=>({id:"fv_e"+(i+1),type:e.type,text:e.text,
-                start:e.start,end:e.end,x:e.x,y:e.y,size:e.size,color:e.color,
-                anim:e.anim,animParams:{animDur:e.animDur},template:e.template}))};
+            elements:elements.map((e,i)=>{
+                const o={id:"fv_e"+(i+1),type:e.type,text:e.text,
+                    start:e.start,end:e.end,x:e.x,y:e.y,size:e.size,color:e.color,
+                    anim:e.anim,animParams:{animDur:e.animDur},template:e.template};
+                if(Array.isArray(e.steps)){ o.steps=e.steps.slice(); o.stepActive=e.stepActive||1; }
+                return o;
+            })};
     },
 
     /* ⑤b 回写时间轴：每个图形元素拆成一条独立 text 片段，挂 fx.sub.fv 元信息，可选中/删除/拖拽/改文字样式。
@@ -2334,15 +2435,19 @@ Object.assign(FV,{
         pushHistory();
         let tr=state.tracks.find(t=>t.kind==="text"&&t.label.indexOf("花式")>=0&&!t.locked);
         if(!tr) tr=newTrack("text");
-        if(tr.label.indexOf("花式")<0) tr.label="花式 · "+FV_TPLS[this.tpl].name;
+        const label=this.tpls.length?this.tpls.map(k=>FV_TPLS[k]?FV_TPLS[k].name:k).join("+"):"智能识别";
+        if(tr.label.indexOf("花式")<0) tr.label="花式 · "+label;
         /* 清掉本轨旧元素工程，写入新的一批（保留其它轨道/素材，不裁切原音视频） */
         state.clips=state.clips.filter(c=>c.track!==tr.id);
         for(const el of elements){
             const fx=defaultFx(); fx.sub=cloneSubStyle(state.subStyle);
             fx.sub.size=el.size; fx.sub.color=el.color; fx.sub.pos="center";
-            fx.sub.fv={type:el.type,x:el.x,y:el.y,anim:el.anim,animDur:el.animDur,template:el.template};
+            const fv={type:el.type,x:el.x,y:el.y,anim:el.anim,animDur:el.animDur,template:el.template};
+            if(Array.isArray(el.steps)){ fv.steps=el.steps.slice(); fv.stepActive=el.stepActive||1; }
+            fx.sub.fv=fv;
             state.clips.push({id:uid(),track:tr.id,assetId:"",start:el.start,
-                duration:Math.max(0.4,el.end-el.start),offset:0,text:el.text,name:el.text.slice(0,10),
+                duration:Math.max(0.4,el.end-el.start),offset:0,
+                text:el.text||((el.steps||[]).join(" / ")),name:(el.text||(el.steps||[])[0]||"").slice(0,10),
                 subKind:"fancy",fv:true,fx:fx});
         }
         renderAll(); autoSave();
@@ -2364,11 +2469,13 @@ Object.assign(FV,{
             if(existing.length){
                 elements=existing.map(c=>{
                     const s=(c.fx&&c.fx.sub)||{}, m=s.fv||{};
-                    return {type:m.type||"text",text:String(c.text||""),start:+c.start||0,
+                    const e={type:m.type||"text",text:String(c.text||""),start:+c.start||0,
                         end:+((c.start||0)+(c.duration||0)).toFixed(3),x:m.x==null?0.5:m.x,y:m.y==null?0.65:m.y,
                         size:Number(s.size)||56,color:/^#[0-9a-f]{6}$/i.test(String(s.color))?s.color:"#ffffff",
-                        anim:m.anim||"pop",animDur:Number(m.animDur)||0.4,template:m.template||this.tpl};
-                }).filter(e=>e.text);
+                        anim:m.anim||"pop",animDur:Number(m.animDur)||0.4,template:m.template||this.tpls[0]||"keyword"};
+                    if(Array.isArray(m.steps)&&m.steps.length){ e.steps=m.steps.slice(); e.stepActive=m.stepActive||1; }
+                    return e;
+                }).filter(e=>e.text||e.steps);
                 lines=existing.map(c=>({text:String(c.text||""),start:+c.start||0,
                     end:+((c.start||0)+(c.duration||0)).toFixed(3),words:[]}));
                 reused=true;
@@ -7822,6 +7929,7 @@ function wire(){
     /* 花式代码视频：独立渲染按钮 + 模型手填联动（与快速剪辑互不干扰） */
     if($("fvRender")) $("fvRender").onclick=()=>FV.run();
     if($("fvModel")) $("fvModel").onchange=()=>{ const c=$("fvModelCustom"); if(c) c.value=""; };
+    if($("fvTplAll")) $("fvTplAll").onchange=e=>FV.toggleTplAll(e.target.checked);
     initAiMergedModal();   /* 把对话剪辑 body 搬进统一弹窗，必须在事件绑定后执行 */
     /* 右栏两个并列标签 */
     $("propTabs").addEventListener("click",e=>{
