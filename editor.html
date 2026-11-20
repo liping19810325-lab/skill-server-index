@@ -2253,7 +2253,7 @@ const FV={
 2) x/y 用 0~1；**严禁遮挡面部五官**（眉眼鼻口在画面中央偏上，x∈0.39~0.61/y∈0.22~0.40 是五官绝对保护区，禁止占用；脖子和头发区域允许放字幕，不用整颗头都空着）；每套模板用固定分区锚点：关键词下中偏左 x≈0.28/y≈0.85，英文标签右上 x≈0.84/y≈0.18，数据卡片右侧 x≈0.85/y≈0.56，知识卡左上角 x≈0.26/y≈0.16，步骤清单左侧 x≈0.14/y≈0.58 竖向排列，金句引用下中偏右 x≈0.72/y≈0.85；**底部中央 x∈0.14~0.86/y>0.82 是原字幕1基础字幕保留区，任何花字都不要占用**；同一时刻多个元素分属不同模板、落在不同分区，禁止重叠；文字简短不要超过画面宽度的 90%（超长会自动缩字号）；\
 给每个元素配一个合适的持续动效 motion（强调词用 pulse、陈述用 float、金句用 glow、色彩词用 flow），让画面生动但不花哨；\
 3) "+(auto?"未指定模板，开启全自动智能识别：根据台词内容自主判断该突出什么，自由组合下面所有组件：\n"+tplBrief:"同时启用全部 "+sel.length+" 套已勾选模板的识别与渲染规则：\n"+tplBrief)+"；\
-4) 数字口述用 type=data，英文单词用 type=english，中文重点词用 type=keyword，知识讲解用 type=knowledge 并带 ①② 编号，\
+4) 数字口述用 type=data，英文单词用 type=english，中文重点词用 type=keyword，知识讲解用 type=knowledge（正文纯文字，不要加任何 ①②③ 圆圈编号），\
 步骤/流程/要点用 type=steps（把 2~5 个步骤填入 steps 数组，stepActive 指向当前正在讲解的一步，该步高亮、已讲解步灰度弱化、依次顺序入场），\
 核心观点/总结金句用 type=quote（text 带「」引号，anim 用 fade 且 animDur 取 0.8~0.9 缓慢淡入、延长展示）；\
 5) 每个元素必须带 template 字段，值为 ["+sel.join("|")+"] 之一，标明它属于哪套模板；\
@@ -2300,7 +2300,7 @@ const FV={
                     x:0.5,y:0.5,size:104,color:"#22d3ee",anim:"rise",animDur:0.5,template:"data"}));
             }
             if(sel.indexOf("knowledge")>=0){
-                els.push({type:"knowledge",text:"①"+" "+l.text.slice(0,14),start:+l.start.toFixed(3),end:+l.end.toFixed(3),
+                els.push({type:"knowledge",text:l.text.slice(0,14),start:+l.start.toFixed(3),end:+l.end.toFixed(3),
                     x:0.5,y:0.42,size:50,color:"#a78bfa",anim:"rise",animDur:0.45,template:"knowledge"});
             }
             if(sel.indexOf("steps")>=0&&stepRe.test(l.text)){
@@ -2322,6 +2322,9 @@ const FV={
         const t0=lines.length?lines[0].start:0, t1=lines.length?lines[lines.length-1].end:t0+5;
         const num=(v,d)=>{ const n=Number(v); return Number.isFinite(n)?n:d; };
         const validTpl=k=>!!FV_TPLS[String(k||"")];
+        /* 花字正文去掉开头的圆圈数字序号（①②③… / ❶❷ / (1) / 1. 等）：知识卡每行都带"①"是模型习惯，
+           用户不需要，统一剥掉；步骤清单的步骤数组不在此列（那是有序列表，编号另由渲染器画）。 */
+        const stripOrdinal=s=>String(s||"").replace(/^\s*[①②③④⑤⑥⑦⑧⑨⑩⑪⑫❶❷❸❹❺❻❼❽❾❿\u2460-\u2473\u2776-\u277f]\s*/u,"").replace(/^\s*[\(（]?\d+[\)）.、]\s*/,"");
         /* 模型漏写/写错 template 时按 type+内容推断归属，避免全被塞进 keyword(花字1) 造成同轨叠字；
            模型给了合法 template 则一律尊重，不覆盖模型意图。 */
         const inferTpl=e=>{
@@ -2336,7 +2339,7 @@ const FV={
         return arr.slice(0,60).map(e=>{
             let s=num(e.start,t0), en=num(e.end,s+1);
             if(en<=s) en=s+0.8;
-            const out={type:String(e.type||"text"),text:String(e.text||"").slice(0,20),
+            const out={type:String(e.type||"text"),text:stripOrdinal(e.text).slice(0,20),
                 start:+s.toFixed(3),end:+en.toFixed(3),
                 x:FV_FX.clamp(num(e.x,0.5),0,1),y:FV_FX.clamp(num(e.y,0.65),0,1),
                 size:FV_FX.clamp(num(e.size,56),20,140),color:/^#[0-9a-f]{6}$/i.test(String(e.color))?e.color:"#ffffff",
@@ -2543,9 +2546,12 @@ Object.assign(FV,{
                     motionDur:el.motionDur||2.4};
                 if(Array.isArray(el.steps)){ fv.steps=el.steps.slice(); fv.stepActive=el.stepActive||1; }
                 fx.sub.fv=fv;
+                /* 步骤清单：片段标题用 steps 数组的真实内容（兜底分镜里 el.text 只是行号"1/2"，
+                   直接用会让花字5轨看起来"空轨"）；成片画面仍由 d.steps 渲染，不受此标题影响。 */
+                const clipText=(Array.isArray(el.steps)&&el.steps.length)?el.steps.join(" / "):(el.text||"");
                 state.clips.push({id:uid(),track:tr.id,assetId:"",start:el.start,
                     duration:Math.max(0.4,el.end-el.start),offset:0,
-                    text:el.text||((el.steps||[]).join(" / ")),name:(el.text||(el.steps||[])[0]||"").slice(0,10),
+                    text:clipText,name:clipText.slice(0,10),
                     subKind:"fancy",fv:true,fx:fx});
                 made++;
             }
@@ -2711,6 +2717,19 @@ function fvLayout(d,W,H,guard,peers){
     if(d.steps && d.steps.length) size=Math.min(size,Math.floor(maxH/(d.steps.length*1.9))||size);
     /* ② 基准锚点：优先用元素自带 x/y（分镜或用户拖动后的值） */
     let cx=FV_FX.clamp(d.x,0.04,0.96)*W, cy=FV_FX.clamp(d.y,0.06,0.94)*H;
+    /* ②.5 字幕1避让：当用户开启「字幕1」显示（fvHideBaseSub=false）时，花字避开底部中央字幕条。
+       底部 x∈0.14~0.86 / y>0.82 视为字幕1占位带，相交花字整体抬到带正上方；塞不下再横向推两侧。
+       关键：必须在 ③ 时间错开「之前」做——否则错开后又被这里压回同一个 y，把档位抹平又叠一起。
+       默认隐藏字幕1时此带不生效。预览(renderFancyOverlay)与导出(FV.drawFrame)共用，所见即所得。 */
+    if(typeof baseSubHidden==="function" && !baseSubHidden()){
+        const s1x0=0.14*W, s1x1=0.86*W, s1y0=0.82*H;
+        const hw=Math.min(need,maxW)/2+8, hh=size*0.8;
+        if(cx+hw>s1x0 && cx-hw<s1x1 && cy+hh>s1y0){
+            const ny=s1y0-hh-6;
+            if(ny>=hh+6) cy=ny;
+            else cx=(cx<W/2)?clamp(s1x0-hw-6,hw+6,W-hw-6):clamp(s1x1+hw+6,hw+6,W-hw-6);
+        }
+    }
     /* ③ 时间重叠避让：「前一个还没出完、后一个已出」的同模板花字按开始时间错开档位，
        绝不叠加覆盖。注意只算时间窗真正相交的片段——不重叠的各自回到自己的分区锚点。
        下半屏锚点向上错、上半屏向下错，避免被 clamp 到同一条边缘又叠一起；
@@ -2757,19 +2776,6 @@ function fvLayout(d,W,H,guard,peers){
                 {x:cx,y:gy1+halfH+10,d:Math.abs(cy-(gy1+halfH+10))}
             ].filter(p=>p.x>=halfW&&p.x<=W-halfW&&p.y>=halfH&&p.y<=H-halfH);
             if(cand.length){ cand.sort((a,b)=>a.d-b.d); cx=cand[0].x; cy=cand[0].y; }
-        }
-    }
-    /* ⑤ 字幕1避让：当用户开启「字幕1」显示（fvHideBaseSub=false）时，花字避开底部中央字幕条。
-       底部 x∈0.14~0.86 / y>0.82 视为字幕1占位带，花字盒与之相交就推到带正上方；
-       若花字太高塞不进上方，则推到左右外侧。默认隐藏字幕1时此带不生效，花字照常自由布局。
-       预览(renderFancyOverlay)与导出(FV.drawFrame)都调 fvLayout，所见即所得。 */
-    if(typeof baseSubHidden==="function" && !baseSubHidden()){
-        const s1x0=0.14*W, s1x1=0.86*W, s1y0=0.82*H;
-        const hw=Math.min(need,maxW)/2+8, hh=size*0.8;
-        if(cx+hw>s1x0 && cx-hw<s1x1 && cy+hh>s1y0){
-            const ny=s1y0-hh-6;
-            if(ny>=hh+6) cy=ny;
-            else cx=(cx<W/2)?clamp(s1x0-hw-6,hw+6,W-hw-6):clamp(s1x1+hw+6,hw+6,W-hw-6);
         }
     }
     /* 水平夹紧用「文字半宽」而非半个字号：长句放大卡片时也不会从画面左/右边缘溢出 */
