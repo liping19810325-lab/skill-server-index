@@ -2601,7 +2601,8 @@ Object.assign(FV,{
             }else if(d.type==="steps"&&d.steps&&d.steps.length){
                 const arr=d.steps, active=Math.max(1,Math.round(d.stepActive||1)), fs=size, lh=fs*1.85;
                 x.font='600 '+fs+'px '+(V.font||'"Microsoft YaHei","PingFang SC",sans-serif');
-                const bw=Math.min(W*0.96,Math.max.apply(null,arr.map(s=>x.measureText(s).width))+fs*2.6), bh=arr.length*lh+fs*0.5;
+                /* 已去掉每行前的圆形序号：不再为序号圆预留 fs*2.6，只用常规左右内边距 fs*0.8 */
+                const bw=Math.min(W*0.96,Math.max.apply(null,arr.map(s=>x.measureText(s).width))+fs*1.6), bh=arr.length*lh+fs*0.5;
                 if(!FV.plate(x,V,-bw/2,-bh/2,bw,bh,size,color,V.stepsFill)){
                     x.fillStyle=V.stepsFill; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.fill();
                     x.strokeStyle=V.stepsStroke; x.lineWidth=1.5; FV.roundRect(x,-bw/2,-bh/2,bw,bh,14); x.stroke();
@@ -2611,15 +2612,12 @@ Object.assign(FV,{
                     const idx=i+1, ly=-bh/2+fs*0.55+i*lh;
                     const stepIn=FV_FX.clamp((fs.k*arr.length-i)/0.8,0,1);
                     x.globalAlpha=anim.opacity*stepIn;
-                    const done=idx<active, cur=idx===active;
-                    x.beginPath(); x.arc(-bw/2+fs*0.95,ly,fs*0.5,0,Math.PI*2);
-                    x.fillStyle=done?V.stepDone:(cur?color:"rgba(148,163,184,.35)"); x.fill();
-                    x.fillStyle=V.stepNumText; x.textAlign="center";
-                    x.font='700 '+(fs*0.62)+'px sans-serif'; x.fillText(done?"✓":String(idx),-bw/2+fs*0.95,ly);
-                    x.textAlign="left"; x.font=(cur?"700 ":"500 ")+fs+'px '+(V.font||'"Microsoft YaHei","PingFang SC",sans-serif');
+                    const cur=idx===active;
+                    /* 圆形序号圆与序号文字已移除：每行只画步骤文字，靠高亮/灰度区分当前步 */
+                    x.font=(cur?"700 ":"500 ")+fs+'px '+(V.font||'"Microsoft YaHei","PingFang SC",sans-serif');
                     x.lineWidth=Math.max(1.5,fs*0.045); x.strokeStyle=V.textShadow;
                     x.fillStyle=cur?V.textMain:V.textDim;
-                    const tx=-bw/2+fs*1.7; x.strokeText(s,tx,ly); x.fillText(s,tx,ly);
+                    const tx=-bw/2+fs*0.8; x.strokeText(s,tx,ly); x.fillText(s,tx,ly);
                 });
                 x.restore(); return;
             }
@@ -2945,6 +2943,21 @@ function fvDesc(src){
         steps:Array.isArray(m.steps)?m.steps:(Array.isArray(src.steps)?src.steps:null),
         stepActive:num(m.stepActive||src.stepActive,1)
     };
+}
+/* 花字文字同步：steps 类型（花字5·步骤流程清单）画面文字的真源是 fx.sub.fv.steps，
+   c.text 只是它的拼接标题（steps.join(" / ")）。改 c.text 后必须反拆回 steps，
+   否则出现「属性面板显示已改、预览画面仍旧」的 bug。
+   兼容用户用 " / "、换行、中英文分号、顿号分隔多条步骤；非 steps 类型无需处理。 */
+function syncFancyTextToSteps(c){
+    if(!c || !c.fv || !c.fx || !c.fx.sub || !c.fx.sub.fv) return;
+    const fv=c.fx.sub.fv;
+    if(!Array.isArray(fv.steps)) return;
+    const txt=String(c.text||"").trim();
+    if(!txt) return;
+    let parts=txt.split(/\s*\/\s*|\r?\n+|[；;]+|[、]+/).map(s=>s.trim()).filter(Boolean);
+    if(!parts.length) parts=[txt];
+    fv.steps=parts.slice(0,6);
+    fv.stepActive=Math.max(1,Math.min(Math.round(Number(fv.stepActive)||1),fv.steps.length));
 }
 /* 文本像素宽（用约 1 个 canvas 测量，带缓存） */
 let _fvMeasureCtx=null;
@@ -5439,7 +5452,7 @@ function renderFancyOverlay(){
             const color=(c.fx&&c.fx.sub&&c.fx.sub.color)||d.color;
             const fill=grad?("background:linear-gradient(90deg,"+esc(grad)+");-webkit-background-clip:text;background-clip:text;color:transparent;"):("color:"+esc(color)+";");
             const isSteps=d.type==="steps"&&d.steps&&d.steps.length;
-            const inner=isSteps?d.steps.map((s,i)=>'<div class="fz-step'+(i+1===(d.stepActive||1)?" cur":"")+(i+1<(d.stepActive||1)?" done":"")+'"><i>'+(i+1<(d.stepActive||1)?"✓":(i+1))+'</i>'+esc(s)+'</div>').join(""):esc(d.text);
+            const inner=isSteps?d.steps.map((s,i)=>'<div class="fz-step'+(i+1===(d.stepActive||1)?" cur":"")+(i+1<(d.stepActive||1)?" done":"")+'">'+esc(s)+'</div>').join(""):esc(d.text);
             const card=(d.type==="keyword"||d.type==="data"||d.type==="knowledge"||d.type==="quote")?" fz-card":"";
             return '<div class="fz-item fz-'+esc(d.type)+card+(d.template?" fz-tpl-"+esc(d.template):"")+'" data-clip="'+esc(c.id)+'" '
                 +'style="left:'+Math.round(L.cx)+'px;top:'+Math.round(L.cy)+'px;font-size:'+Math.round(L.size)+'px;'+fill+'">'+inner+'</div>';
@@ -5720,7 +5733,7 @@ function renderProps(){
         c.start=Math.max(0,Number($("pStart").value)||0);
         c.duration=Math.max(0.2,Number($("pDur").value)||0.2);
         c.offset=Math.max(0,Number($("pOffset").value)||0);
-        if($("pText")){ c.text=normalizeSubText($("pText").value); c.name=(c.text.replace(/\n/g," ")||"字幕").slice(0,12); }
+        if($("pText")){ c.text=normalizeSubText($("pText").value); c.name=(c.text.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); }
         if($("pKind")) c.subKind=$("pKind").value;
         if(c.fv) applyFancyProps(c);
         subCache=""; fancyCache=""; renderAll(); autoSave(); toast("片段已更新","ok");
@@ -8935,16 +8948,16 @@ function wire(){
         const nv=normalizeSubText(inp.value);
         if(nv===c.text) return;
         if(!inp.dataset.editing){ inp.dataset.editing="1"; pushHistory(); }
-        c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12);
-        subCache=""; renderSubtitleOverlay();
+        c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c);
+        subCache=""; fancyCache=""; renderFancyOverlay(); renderSubtitleOverlay();
     });
     $("subList").addEventListener("change",e=>{
         const inp=e.target.closest("[data-text]"); if(!inp)return;
         const c=clipById(inp.dataset.text); if(!c)return;
         const nv=normalizeSubText(inp.value);
-        if(!inp.dataset.editing){ if(nv!==c.text){ pushHistory(); c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); } }
+        if(!inp.dataset.editing){ if(nv!==c.text){ pushHistory(); c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); } }
         else delete inp.dataset.editing;
-        renderTimeline(); renderProps(); subCache=""; renderSubtitleOverlay(); autoSave();
+        renderTimeline(); renderProps(); subCache=""; fancyCache=""; renderFancyOverlay(); renderSubtitleOverlay(); autoSave();
     });
     $("addSub").onclick=addBlankSubtitle;
     $("exportProject").onclick=exportProject;
@@ -8957,8 +8970,8 @@ function wire(){
         el.classList.remove("sub-editing"); el.removeAttribute("contenteditable");
         const c=clipById(id), txt=normalizeSubText(String(el.innerText||"").replace(/\u00a0/g," "));
         if(save && c && txt && txt!==orig){
-            pushHistory(); c.text=txt; c.name=(txt.replace(/\n/g," ")||"字幕").slice(0,12);
-            renderTimeline(); renderSubList(); renderProps(); subCache=""; autoSave();
+            pushHistory(); c.text=txt; c.name=(txt.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c);
+            renderTimeline(); renderSubList(); renderProps(); subCache=""; fancyCache=""; renderFancyOverlay(); autoSave();
         }else{ subCache=""; renderSubtitleOverlay(); }   /* 取消或空文本：恢复原字幕 */
     };
     /* 人脸保护区：鼠标拖动整体移动，四角把手缩放；写回归一化坐标并触发花字重排 */
