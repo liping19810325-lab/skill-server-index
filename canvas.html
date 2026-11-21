@@ -1085,10 +1085,13 @@ async function loadCanvas(){
 function resetRuntimeFlags(){
     seenSourceIds=new Set(); selectedId=null; selectedIds=new Set();
     cvNotes.clear();                       /* 节点内提示只属于当前会话，换/开画布不继承 */
+    /* 换/开画布：丢弃本机 ComfyUI 排队队列与运行锁（旧画布的排队不应带过来） */
+    if(typeof cvGenQueue!=="undefined"&&Array.isArray(cvGenQueue)) cvGenQueue.length=0;
+    if(typeof cvGenActive!=="undefined"){ cvGenActive=false; cvGenActiveId=null; }
     canvas.nodes.forEach(n=>{
         if(n.data && n.data.sourceId) seenSourceIds.add(n.data.sourceId);
-        /* 上次生成被中途关闭时 busy 可能残留 true，恢复为可运行状态 */
-        if(n.type==="generate" && n.data) n.data.busy=false;
+        /* 上次生成被中途关闭时 busy/queued 可能残留 true，恢复为可运行状态 */
+        if(n.type==="generate" && n.data){ n.data.busy=false; n.data.queued=false; }
         /* 旧存档 / 被中断的任务留下的 splitting=true 会让提示词节点永远提示
            「上一个任务还在处理中」：这是纯运行时状态，加载时一律清掉。 */
         if(n.data && "splitting" in n.data) n.data.splitting=false;
@@ -1992,6 +1995,10 @@ function buildGenerateBody(body,n){
 
     const run = document.createElement("button"); run.className="run-btn"; run.textContent="▶ 运行生成";
     if(d.busy){ run.disabled=true; run.textContent="生成中…"; }
+    else if(d.queued){
+        const pos=cvQueueIndexOf(n);
+        run.disabled=true; run.textContent="排队中"+(pos>=0?(" "+(pos+1)+"/"+cvGenQueue.length):"");
+    }
     body.appendChild(run);
     const st = document.createElement("div"); st.className="gen-status"; st.textContent = d.status||""; body.appendChild(st);
 
@@ -5219,8 +5226,63 @@ async function genComfy(n,input){
     }
     throw new Error("等待 ComfyUI 结果超时（30 分钟）。请检查队列、显存或输出节点；若 ComfyUI 里还在跑，跑完后可在 ComfyUI 历史记录里取结果。任务ID："+pid);
 }
+/* ===== 本机算力 ComfyUI 生成任务 FIFO 队列 =====
+   规则：仅「本机算力 + ComfyUI 工作流」生成节点串行排队；第三方 API / 本机 LLM / 漫流算力
+   不受影响，仍按原逻辑即时执行（可并发）。排队顺序 = 用户点击「运行生成」的先后。
+   - 点运行时若已有本机 ComfyUI 任务在跑（或自己已在队列），不再重复提交，只入队等待；
+   - 上一个完成（成功/失败）后，调度器自动取出队首开始生成，显示「排队中·第N位」进度。 */
+const cvGenQueue=[];              // 等待中的本机 ComfyUI 节点 id：[{id}]
+let cvGenActive=false;            // 是否有本机 ComfyUI 任务正在真正运行
+let cvGenActiveId=null;           // 当前真正运行的节点 id（防同一节点重复点）
+function cvIsLocalComfyGen(n){
+    return !!(n&&n.type==="generate"&&n.data&&n.data.engine==="comfyui"&&!cvIsLocalLlm(n));
+}
+function cvQueueIndexOf(n){ return cvGenQueue.findIndex(x=>x.id===n.id); }
+function cvSetRunBtn(n,disabled,text){
+    const box=document.querySelector('.node[data-id="'+n.id+'"]'); if(!box) return;
+    const b=box.querySelector(".run-btn"); if(b){ b.disabled=disabled; b.textContent=text; }
+    const a=box.querySelector('.node-actions .act-run'); if(a){ a.disabled=disabled; a.style.opacity=disabled?"0.5":""; }
+}
+/* 重新编号并显示所有排队节点的「第N位」；队首被取走后调用一次即可同步后面位次 */
+function cvRefreshQueueLabels(){
+    cvGenQueue.forEach((q,i)=>{
+        const n=canvas.nodes.find(x=>x.id===q.id); if(!n) return;
+        n.data.queued=true;
+        setGenStatus(n,"排队中·第"+(i+1)+"位（本机算力队列）","busy");
+        cvSetRunBtn(n,true,"排队中 "+(i+1)+"/"+cvGenQueue.length);
+    });
+}
+/* 调度器：空闲且队列非空 → 取队首真正开始生成 */
+function cvGenPump(){
+    if(cvGenActive||!cvGenQueue.length) return;
+    const q=cvGenQueue.shift();
+    const n=canvas.nodes.find(x=>x.id===q.id);
+    if(!n){ cvRefreshQueueLabels(); return; }   /* 排队期间被删除：跳过 */
+    n.data.queued=false;
+    cvGenActive=true; cvGenActiveId=n.id;
+    cvRefreshQueueLabels();
+    cvRunGenerateNow(n);   /* 内部 finally 会清 cvGenActive 并再次 pump */
+}
+/* 入口：本机 ComfyUI 走 FIFO 队列；其它引擎保持原即时逻辑 */
 async function runGenerate(n){
     if(n.data.busy) return;
+    if(n.data.engine==="manflow"){
+        setStatus("漫流算力即将开放（扫码充值即可使用，正在接入中）。当前请在生成节点改用「本机算力」或「第三方API」。","err");
+        setGenStatus(n,"漫流算力即将开放，暂未接入，未发起任何请求","err");
+        return;
+    }
+    if(cvIsLocalComfyGen(n)){
+        if(cvGenActiveId===n.id||cvQueueIndexOf(n)>=0) return;   /* 自己正在跑或已在队列 */
+        n.data.queued=true;
+        cvGenQueue.push({id:n.id});
+        cvRefreshQueueLabels();
+        cvGenPump();
+        return;
+    }
+    await cvRunGenerateNow(n);
+}
+/* 真正执行一次生成（原 runGenerate 主体）。本机 ComfyUI 任务由队列调度器调用。 */
+async function cvRunGenerateNow(n){
     /* 漫流算力：预置模型 / 扫码充值 / 积分扣费尚未接入，本次仅占位，不发任何请求 */
     if(n.data.engine==="manflow"){
         setStatus("漫流算力即将开放（扫码充值即可使用，正在接入中）。当前请在生成节点改用「本机算力」或「第三方API」。","err");
@@ -5285,7 +5347,12 @@ async function runGenerate(n){
         n.data.busy=false;
         const box=document.querySelector('.node[data-id="'+n.id+'"] .run-btn');
         if(box){ box.disabled=false; box.textContent="▶ 运行生成"; }
+        const act=box&&box.querySelector('.node-actions .act-run');
+        if(act){ act.disabled=false; act.style.opacity=""; }
+        /* 本机算力队列任务完成：释放队列锁，调度下一个排队节点 */
+        if(cvGenActiveId===n.id){ cvGenActive=false; cvGenActiveId=null; }
         scheduleSave();
+        cvGenPump();
     }
 }
 
