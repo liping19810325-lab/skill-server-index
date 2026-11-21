@@ -471,7 +471,7 @@
             <div class="file-note fold-hint">仅支持TXT剧本上传（可先把docx另存为txt）</div>
             <div class="ref-note fold-hint">
                 需模型支持识图（多模态）。
-                <label class="vision-mode-lbl" title="自动：按模型名判断；若判断为纯文本会自动改用预选画风。选「支持」强制带图，选「不支持」强制回退预选画风。">识图能力
+                <label class="vision-mode-lbl" title="自动：本地模型以桥接探测到的视觉模块(mmproj)为准；第三方API按模型名识别，无法确认时按支持带图。选「支持」强制带图，选「不支持」强制回退预选画风。">识图能力
                     <select id="modelVisionSel">
                         <option value="auto">自动识别</option>
                         <option value="on">支持识图</option>
@@ -806,7 +806,7 @@ const HELP_HTML = `
 <li>技能加载失败：网络无法访问后端技能服务，可以尝试导入本地md技能应急；</li>
 <li>API请求报错：核对接口地址、key、模型名称，检查余额与跨域插件；</li>
 <li>本地模式无响应：确认本机大模型软件正在运行，左栏点【⚡ 自动接通】重新扫描端口，或手动填含端口的完整地址；必要时给软件加跨域放行。</li>
-<li>带图请求报错：多半是模型或接口不支持图片输入，删除参考图或换视觉模型即可。</li>
+<li>带图请求报错：多半是模型或接口不支持图片输入，删除参考图或换视觉模型即可。本地模型（如 Qwen3.8）若视觉模块是独立文件，须在 Llama 里让主模型与视觉模块一起加载，并把「识图能力」设为自动（创作台会从本机桥接读取视觉模块是否已加载）；第三方多模态模型（如 gpt-4o / gemini / qwen-vl）保持自动即可，识别不出时可手动设为「支持识图」。</li>
 <li>本地单文件预览时左上角显示文字标：说明同目录没有 logo.png；把本页与 logo.png 一起放到 GitHub 仓库根目录即会自动显示原图。</li>
 <li>预览环境（沙箱 / 隐私模式）按钮点击或历史保存异常：多为浏览器禁用了站点数据，本页已做兜底，此时 API 配置与历史刷新后不保留，其余功能照常可用；正式部署到 GitHub Pages 后恢复正常。</li>
 </ul>
@@ -1280,10 +1280,19 @@ function setSoleStylePreset(key,name){
 }
 
 /* ===== 当前模型是否支持识图（多模态）=====
-   判定顺序：用户手动覆盖(off/on) > 按模型名自动识别 > 默认(视作支持，避免误伤)。
-   自动识别仅用于"提醒并回退"提示，不会阻止发送；真正是否带图仍由技能类型决定。 */
+   判定顺序：用户手动覆盖(off/on) > 本机桥接真实上报(本地模型看 mmproj 是否加载)
+             > 模型名特征识别 > 默认(视作支持，避免误伤)。
+   本地 GGUF 模型（如 Qwen3.8）的视觉模块是独立文件、和主模型一起加载，名字里没有
+   vision/vl 特征，靠正则必然误判；改由桥接 /health 读 models.user.ini 的 mmproj 段
+   如实上报。自动识别只用于"提醒并回退"提示，不单独阻止发送。 */
 const VISION_MODEL_RE = /(gpt-?4o|gpt-?4\.1|gpt-?4v|gpt-?4-turbo|o[134][\s-]|vision|vl|vlm|claude[- ]?[34]|gemini|llava|internvl|minicpm|qwen[^\s]*vl|qwen-vl|glm-?4v|step-1v|deepseek-vl|pixtral|grok[- ]?2|kimi-vl|多模态|视觉)/i;
 const TEXT_ONLY_MODEL_RE = /(text-?only|纯文本|embedding|whisper|tts|rerank|nomic|bge-|gte-)/i;
+/* 本机 GGUF 模型（本地算力）与主模型名：这类模型的视觉能力不看名字，
+   而是看启动时是否把独立的视觉模块(mmproj)和主模型一起加载 —— 由桥接 /health
+   的 visionModels / visionOfDefault 真实上报。下面仅用于缓存该上报结果。 */
+const STORAGE_KEY_LOCAL_VISION = "manflows_local_vision";
+let localVisionOfDefault = null;   // null=未知 / true=默认模型多模态 / false=默认模型纯文本
+let localVisionModels = [];        // 配了 mmproj 的模型 ID 列表
 function currentModelName(){
     try{
         if(computeMode==="api") return String(inpModel&&inpModel.value||"").trim();
@@ -1299,9 +1308,30 @@ function detectVisionCapability(){
     if(modelVisionOverride==="off") return {vision:false,known:true,reason:"用户指定当前模型不支持识图"};
     if(modelVisionOverride==="on")  return {vision:true, known:true,reason:"用户指定当前模型支持识图"};
     const name=currentModelName();
-    if(!name) return {vision:false,known:false,reason:"未识别到具体模型名，无法判断是否多模态"};
-    if(VISION_MODEL_RE.test(name)) return {vision:true, known:true,reason:"模型名含多模态/视觉特征"};
-    return {vision:false,known:true,reason:TEXT_ONLY_MODEL_RE.test(name)?"模型名显示为纯文本模型":"模型名无视觉特征，按纯文本处理"};
+
+    /* ① 本地算力：优先用桥接从 models.user.ini 读到的真实视觉配置。
+       主模型 + 独立视觉模块(mmproj)一起加载时 visionOfDefault=true。 */
+    if(computeMode==="local"){
+        const vm = localVisionModels;
+        let reported = localVisionOfDefault;
+        /* 用户手填了具体本地模型名时，按模型 ID 精确匹配；否则用默认模型的上报 */
+        if(name && Array.isArray(vm) && vm.length){
+            if(vm.some(id => String(id).toLowerCase() === name.toLowerCase())) reported = true;
+            else if(/^local\//i.test(name) || /\.gguf$/i.test(name)) reported = false;
+        }
+        if(reported === true)  return {vision:true, known:true, reason:"本机模型已加载视觉模块（mmproj），支持识图"};
+        if(reported === false) return {vision:false, known:true, reason:"本机模型未加载视觉模块（纯文本）"};
+        /* 未拿到上报：本地 GGUF 多为可挂载视觉模块的模型，保守当作支持，绝不因名字误丢图 */
+        if(name && TEXT_ONLY_MODEL_RE.test(name)) return {vision:false,known:true,reason:"模型名显示为纯文本模型"};
+        return {vision:true, known:false, reason:"本地模型，视觉能力未探测到，按支持识图处理"};
+    }
+
+    /* ② 第三方 API：模型名特征优先；名字为空/无特征时不武断判死，避免误丢图 */
+    if(name && VISION_MODEL_RE.test(name)) return {vision:true, known:true,reason:"模型名含多模态/视觉特征"};
+    if(name && TEXT_ONLY_MODEL_RE.test(name)) return {vision:false,known:true,reason:"模型名显示为纯文本模型"};
+    /* 无法可靠判断时不打断、按原样带图：带图交给多模态接口通常能被识别；
+       纯文本接口会忽略或报错，用户可用「识图能力=不支持识图」强制回退。 */
+    return {vision:true, known:false, reason:"无法从模型名确认视觉能力，按支持识图尝试带图"};
 }
 /* 选中项作为一段文字指令注入请求。
    withRefImage=true（本次请求会真正带参考图）：参考图优先，预选画风仅作文字补充；
@@ -2310,11 +2340,31 @@ async function mfProbeOne(base){
             if(data && Array.isArray(data.data) && data.data.length) model = String(data.data[0].id || "");
             else if(data && Array.isArray(data.models) && data.models.length) model = String(data.models[0].name || data.models[0].model || "");
             const kind = (p === "/api/tags") ? "Ollama" : (p === "/health" ? "llama.cpp / 兼容服务" : "OpenAI 兼容服务");
-            return { base:base, kind:kind, model:model };
+            /* 桥接 /health 会如实上报本机模型是否加载了视觉模块(mmproj) */
+            let visionOfDefault = null, visionModels = [];
+            if(data && typeof data === "object"){
+                if(typeof data.visionOfDefault === "boolean") visionOfDefault = data.visionOfDefault;
+                if(Array.isArray(data.visionModels)) visionModels = data.visionModels;
+            }
+            return { base:base, kind:kind, model:model, visionOfDefault:visionOfDefault, visionModels:visionModels };
         }catch(e){ /* 端口没开或跨域被拦，试下一个端点 */ }
         finally { clearTimeout(timer); }
     }
     return null;
+}
+function mfSetLocalVision(choice){
+    /* 保存桥接上报的视觉能力（主模型是否挂载 mmproj），供 detectVisionCapability 判定；
+       未上报的服务（原生 llama-server / Ollama）保持 null，走模型名兜底逻辑。 */
+    const v = choice && choice.visionOfDefault;
+    localVisionOfDefault = (typeof v === "boolean") ? v : null;
+    localVisionModels = (choice && Array.isArray(choice.visionModels)) ? choice.visionModels : [];
+    try{
+        safeStorage.set(STORAGE_KEY_LOCAL_VISION, JSON.stringify({
+            visionOfDefault: localVisionOfDefault, visionModels: localVisionModels
+        }));
+    }catch(e){}
+    const badge = mfEl("refBadge");
+    if(badge && typeof updateRefBadge === "function") updateRefBadge();
 }
 function mfApplyLocalChoice(choice){
     if(!choice) return;
@@ -2322,7 +2372,9 @@ function mfApplyLocalChoice(choice){
     if(input) input.value = choice.base;
     safeStorage.set(STORAGE_KEY_LOCAL_BASE, choice.base);
     localConnReady = true;
-    mfSetLocalState("✓ 已接通 " + choice.label + (choice.model ? " · 模型 " + choice.model : ""), "ok");
+    mfSetLocalVision(choice);
+    mfSetLocalState("✓ 已接通 " + choice.label + (choice.model ? " · 模型 " + choice.model : "")
+        + (localVisionOfDefault === true ? " · 已识别视觉模块" : ""), "ok");
     // Ollama / LM Studio 要求真实模型名：探测到就自动填，用户已填的不覆盖
     if(choice.model && inpLocalModel && !inpLocalModel.value.trim()){
         inpLocalModel.value = choice.model;
@@ -2800,6 +2852,15 @@ function initUI(){
     });
     renderStylePresets();
     fetchArtSkillStylePrompts();           /* 有会话记忆的画风时，进入页面即主动取对应提示词 */
+
+    /* 恢复上次桥接上报的本地视觉能力（刷新页面后不用重新扫描就能正确判定识图） */
+    try{
+        const cached = JSON.parse(safeStorage.get(STORAGE_KEY_LOCAL_VISION) || "null");
+        if(cached && typeof cached === "object"){
+            localVisionOfDefault = (typeof cached.visionOfDefault === "boolean") ? cached.visionOfDefault : null;
+            localVisionModels = Array.isArray(cached.visionModels) ? cached.visionModels : [];
+        }
+    }catch(e){}
 
     /* 识图能力开关：用户可手动指定当前模型是否支持读参考图（auto/on/off） */
     const visionSel=document.getElementById("modelVisionSel");
