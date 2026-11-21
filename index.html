@@ -2314,6 +2314,38 @@ function mfChatUrl(base){
     if(/\/api\/chat$/i.test(s)) return s.replace(/\/api\/chat$/i, "/v1/chat/completions");
     return s + "/v1/chat/completions";
 }
+/* 从「当前本地地址」解析它真正加载的模型名。
+   关键：本机地址可能是桥接(8080，/health 带 activeModel)，也可能是用户直连的上游
+   (llama-server 9931 等，只有 /v1/models)。只认 /health 的话，直连场景拿不到模型名，
+   浏览器残留的旧模型名就无法纠正 → 400 model not found → 文字出不来的连锁故障。
+   所以两条路都试：先 /health(activeModel/defaultModel)，再 /v1/models 第一个 id。 */
+async function mfResolveActiveModel(base){
+    base = mfNormalizeBase(base);
+    if(!base) return "";
+    // ① 桥接 /health：优先 activeModel，其次 defaultModel
+    try{
+        const hr = await fetch(base + "/health", { cache:"no-store" });
+        if(hr.ok){
+            const hd = await hr.json();
+            const active = (typeof hd.activeModel === "string" && hd.activeModel.trim())
+                ? hd.activeModel.trim()
+                : (typeof hd.defaultModel === "string" ? hd.defaultModel.trim() : "");
+            if(active) return active;
+        }
+    }catch(e){}
+    // ② 直连上游 /v1/models：取第一个加载的模型 id
+    try{
+        const mr = await fetch(base + "/v1/models", { cache:"no-store" });
+        if(mr.ok){
+            const md = await mr.json();
+            if(md && Array.isArray(md.data) && md.data.length){
+                const id = String(md.data[0].id || "").trim();
+                if(id) return id;
+            }
+        }
+    }catch(e){}
+    return "";
+}
 /* 仅当首选地址在网络层连不上时（HTTPS 主站的私有网络拦截、软件刚重启、端口变了）才会用到：
    按已探测到的其它本机服务 + 常见端口依次补试，选中能正常返回的那个。
    首选地址能通时一次都不会走这里，Windows 原有通路不变。 */
@@ -2570,20 +2602,22 @@ async function sendMessage(autoSourceText) {
     if(computeMode === "local"){
         // 还没自动接通就先静默扫一次端口，保证「本机大模型软件开着就能用」
         if(!localConnReady) await mfDetectLocal({ quiet:true });
-        /* 保险：即使本次会话已接通过，也向当前桥接核对一次真实加载的模型名，
-           避免换模型后浏览器残留旧名导致 400 model not found（轻量 GET，失败静默）。 */
+        /* 保险：即使本次会话已接通过，也向当前地址核对一次真实加载的模型名，
+           避免换模型后浏览器残留旧名导致 400 model not found（轻量 GET，失败静默）。
+           直连上游(9931 等)没有 /health.activeModel，新函数会回退读 /v1/models。 */
         try{
+            const real = await mfResolveActiveModel(mfCurrentBase());
+            if(real){
+                if(inpLocalModel && inpLocalModel.value.trim() !== real){
+                    inpLocalModel.value = real; localModelName = real;
+                    safeStorage.set("manflows_local_model", real);
+                }
+            }
+            // 视觉能力：桥接 /health 会带 vision 字段；直连上游没有就保持 null（走模型名兜底）
             const hr = await fetch(mfCurrentBase() + "/health", { cache:"no-store" });
             if(hr.ok){
                 const hd = await hr.json();
-                const active = (typeof hd.activeModel === "string" && hd.activeModel.trim())
-                    ? hd.activeModel.trim() : (typeof hd.defaultModel === "string" ? hd.defaultModel.trim() : "");
-                if(active){
-                    const real = active;
-                    if(inpLocalModel && inpLocalModel.value.trim() !== real){
-                        inpLocalModel.value = real; localModelName = real;
-                        safeStorage.set("manflows_local_model", real);
-                    }
+                if(typeof hd.visionOfDefault === "boolean" || Array.isArray(hd.visionModels)){
                     mfSetLocalVision({ visionOfDefault: hd.visionOfDefault, visionModels: hd.visionModels });
                 }
             }
@@ -2634,15 +2668,7 @@ async function sendMessage(autoSourceText) {
         if(!response.ok && response.status === 400 && computeMode === "local"
            && /not\s*found|unknown\s*model|model.*not\s*found/i.test(errText)){
             let fixed = "";
-            try{
-                const hr = await fetch(mfCurrentBase() + "/health", { cache:"no-store" });
-                if(hr.ok){
-                    const hd = await hr.json();
-                    const active = (typeof hd.activeModel === "string" && hd.activeModel.trim())
-                        ? hd.activeModel.trim() : (typeof hd.defaultModel === "string" ? hd.defaultModel.trim() : "");
-                    fixed = active;
-                }
-            }catch(e){}
+            try{ fixed = await mfResolveActiveModel(mfCurrentBase()); }catch(e){}
             if(fixed){
                 if(inpLocalModel) inpLocalModel.value = fixed;
                 localModelName = fixed;
