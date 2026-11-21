@@ -335,8 +335,8 @@
         <div class="tb-sep"></div>
         <button class="tb-btn add-btn" data-add="prompt">＋ 提示词</button>
         <button class="tb-btn add-btn" data-add="image">＋ 参考图</button>
-        <button class="tb-btn add-btn" data-add="audio">＋ 声音</button>
-        <button class="tb-btn add-btn" data-add="video">＋ 视频</button>
+        <button class="tb-btn add-btn" data-add="audio">＋ 声音参考</button>
+        <button class="tb-btn add-btn" data-add="video">＋ 视频参考</button>
         <button class="tb-btn add-btn" data-add="generate">＋ 生成</button>
         <!-- 「＋ 结果」已移除：结果节点由「运行生成」自动创建，用户不能手动新建 -->
         <div class="tb-sep"></div>
@@ -1825,18 +1825,25 @@ function buildGenerateBody(body,n){
         const gLlm=document.createElement("optgroup"); gLlm.label="大语言模型（本机 llama / Ollama 等）";
         const lo=document.createElement("option"); lo.value=CV_LOCAL_LLM_WFID;
         lo.textContent=cvLocalLlmLabel(); gLlm.appendChild(lo); wfSel.appendChild(gLlm);
-        /* ② 用户自己导入的 ComfyUI 生图 / 生视频工作流 API（原有内容与顺序不变） */
+        /* ② 用户自己导入的 ComfyUI 工作流 API：拆成「生图」「生视频」两组，
+              生图组在前、生视频组放最下面；原有内容与组内顺序不变 */
         const list=canvas.settings.workflows||[];
-        const gWf=document.createElement("optgroup"); gWf.label="ComfyUI 工作流（生图 / 生视频）";
-        if(!list.length){
-            const o=document.createElement("option"); o.value=""; o.textContent="未导入，请先在左侧导入"; gWf.appendChild(o);
-        }else{
-            list.forEach(w=>{
+        const appendWfGroup=(label,arr)=>{
+            const g=document.createElement("optgroup"); g.label=label;
+            arr.forEach(w=>{
                 const o=document.createElement("option"); o.value=w.id;
-                o.textContent="["+(w.kind==="video"?"生视频":"生图")+"] "+w.name; gWf.appendChild(o);
+                o.textContent="["+(cvWfKind(w)==="video"?"生视频":"生图")+"] "+w.name; g.appendChild(o);
             });
+            wfSel.appendChild(g);
+            return g;
+        };
+        const imageWfs=list.filter(w=>cvWfKind(w)!=="video");
+        const videoWfs=list.filter(w=>cvWfKind(w)==="video");
+        const gImage=appendWfGroup("ComfyUI 工作流（生图）",imageWfs);
+        appendWfGroup("ComfyUI 工作流（生视频）",videoWfs);
+        if(!list.length){
+            const o=document.createElement("option"); o.value=""; o.textContent="未导入，请先在左侧导入"; gImage.appendChild(o);
         }
-        wfSel.appendChild(gWf);
         /* 记住选择：特殊值原样保留；普通工作流走原来的有效性判断；没有工作流时保持空值 */
         const valid=d.workflowId && list.some(w=>w.id===d.workflowId);
         if(d.workflowId===CV_LOCAL_LLM_WFID) wfSel.value=CV_LOCAL_LLM_WFID;
@@ -2031,12 +2038,7 @@ function buildGenerateBody(body,n){
     function wfKindOf(){
         const list=canvas.settings.workflows||[];
         const w=list.find(x=>x.id===d.workflowId)||list[0];
-        if(w){
-            if(w.kind==="video") return "video";
-            const wfOuts=Object.keys(w.workflow||{}).map(k=>String((w.workflow[k]||{}).class_type||""));
-            if(wfOuts.some(c=>/SaveVideo|CreateVideo|VHS_SaveVideo|SaveAnimated/i.test(c))) return "video";
-        }
-        return "image";
+        return cvWfKind(w);
     }
     function syncFields(){
         const c = d.engine==="comfyui", m = d.engine==="manflow", t = !c && !m;
@@ -2972,6 +2974,39 @@ async function fetchSkillText(type){
    把用户写的非标提示词改写成【一条】该模型专用的完整提示词。
    与 SD / H3 按钮的区别：绝不拆成多条、绝不生成多个节点，结果写回当前提示词节点（Ctrl+Z 可撤销）。
    生图 = 一条图提示词；生视频 = 一条视频提示词（内部按技能规范含多个子分镜仍算一条）。 ===== */
+/* 统一判定一份 ComfyUI 工作流是「生图 / 生视频」。
+   过去只看导入时手选的 w.kind（默认生图），导致「参考生视频minimax_h3_r2v」这类
+   被错标成生图。判定优先级：① 输出节点类型（SaveVideo / VHS_VideoCombine / SaveAnimated 等最可靠）；
+   ② 名称强信号（生视频 / r2v / i2v / t2v / 文生图 / 图片编辑 等）；③ 手选 w.kind 兜底。
+   注意：minimax / h3 不能单看——「image_h3文生图」是生图，须带视频输出或视频信号才算视频。 */
+function cvWfKind(w){
+    if(!w) return "image";
+    if(w.kindManual) return w.kind==="video"?"video":"image";   /* 用户在左侧手动指定过的，强制优先 */
+    const wf=w.workflow||{};
+    const keys=Object.keys(wf);
+    const nodes=keys.map(k=>String((wf[k]||{}).class_type||"")).join(" ").toLowerCase();
+    /* JSON 内的模型文件名 / 节点 class_type 就是最硬的线索：本地视频模型就那几家 */
+    let raw=nodes;
+    keys.forEach(k=>{
+        const ins=(wf[k]||{}).inputs||{};
+        ["unet_name","ckpt_name","model_name","vae_name","filename_prefix","clip_name","lora_name"].forEach(f=>{
+            if(typeof ins[f]==="string") raw+=" "+ins[f].toLowerCase();
+        });
+    });
+    const hint=raw.replace(/[\s_\-.]+/g,"");
+    const name=String(w.name||"").toLowerCase().replace(/[\s_\-.]+/g,"");
+    const imgName=/文生图|图片编辑|生图|image|t2i/.test(name);
+    /* ① 输出节点：视频专属输出 / 帧合成节点，最可靠 */
+    if(/savevideo|createvideo|vhs_savevideo|vhs_videocombine|vhs_video|saveanimated|savegif|savewebp/.test(nodes)) return "video";
+    /* ② 名称信号 */
+    if(!imgName && /生视频|视频|r2v|i2v|t2v/.test(name)) return "video";
+    if(imgName) return "image";
+    /* ③ JSON 内模型族 / 视频专属节点：hunyuan / kling / wan / seedance / SVD / AnimateDiff / minimax-h3 …
+          h3 不单独判（image_h3文生图 是生图），须配合名字或输出节点 */
+    if(/hunyuan|混元|kling|可灵|wanvideo|wanimage|wantext|wanx|seedance|即梦|svd|stablevideo|animatediff|cogvideox|ltxvideo|imagetovideo|texttovideo|videocombine|minimax|h3/.test(hint)) return "video";
+    /* ④ 兜底：导入时手选 */
+    return w.kind==="video"?"video":"image";
+}
 /* 本地 ComfyUI 工作流 → 模型族 / 专用提示词规范识别。
    线索来源（优先级）：① 工作流名（导入文件名常含模型关键字，如「参考生视频minimax_h3_r2v」）；
    ② 工作流 JSON 里的模型文件名 / class_type（unet_name / ckpt_name / filename_prefix 等）；
@@ -2989,9 +3024,9 @@ function cvComfyModelInfo(w){
         if(typeof nd.class_type==="string") hint+=" "+nd.class_type;
     });
     const s=hint.toLowerCase().replace(/[\s_\-.]+/g,"");
-    const kind=((w&&w.kind==="video")||/savevideo|createvideo|vhs_savevideo|saveanimated|wan.*video|i2v|t2v|r2v/.test(s))?"video":"image";
+    const kind=cvWfKind(w);   /* 生图 / 生视频统一判定：避免 image_h3文生图 被 h3 误判成视频 */
     /* 顺序：具体模型在前、大类名在后，避免「生图 / 生视频」这类泛词抢先命中 */
-    if(/minimax|h3|海螺|r2v/.test(s))              return {label:"MiniMax H3",             kind:"video", type:"d"};
+    if(kind==="video" && /minimax|h3|海螺|r2v/.test(s)) return {label:"MiniMax H3",       kind:"video", type:"d"};
     if(/midjourney|minjourney|niji/.test(s))       return {label:"Midjourney",             kind:"image", type:"e"};
     if(/seedance|即梦|doubao|豆包/.test(s))         return {label:"Seedance 即梦",          kind:"video", type:"b"};
     if(/flux/.test(s))                            return {label:"FLUX.1",                 kind:"image", type:"f"};
@@ -3278,20 +3313,36 @@ function showPortAddMenu(cx,cy,src){
     const h=document.createElement("div"); h.className="qa-head";
     h.textContent="从「"+(src.title||(NODE_META[src.type]||{}).label||"节点")+"」连出 · 选择节点";
     m.appendChild(h);
-    USER_ADDABLE_TYPES.forEach(type=>{       /* 结果节点自动生成，不在手动菜单里列出 */
+    /* 生成节点右圆点：只提供「生成结果」一项；其余节点保持原五类菜单 */
+    const menuTypes=src.type==="generate"?["result"]:USER_ADDABLE_TYPES;
+    menuTypes.forEach(type=>{
         const meta=NODE_META[type];
+        const label=type==="result"?"生成结果":meta.label;
         const b=document.createElement("button");
         const ico=document.createElement("span"); ico.className="qa-ico"; ico.style.background=meta.color;
-        b.appendChild(ico); b.appendChild(document.createTextNode(meta.label));
-        b.title="新建「"+meta.label+"」节点并自动连好线";
+        b.appendChild(ico); b.appendChild(document.createTextNode(label));
+        b.title=type==="result"?"新建「生成结果」节点并连到生成节点":"新建「"+label+"」节点并自动连好线";
         b.addEventListener("click",ev=>{
             ev.stopPropagation();
             m.classList.remove("show");
+            if(type==="result"){
+                /* 已连到生成节点的「生成结果」则直接选中，不重复创建 */
+                const linked=canvas.edges.filter(e=>e.from===src.id).map(e=>e.to);
+                const exist=canvas.nodes.find(n=>n.type==="result"&&linked.includes(n.id));
+                if(exist){ selectNode(exist.id); setStatus("已连到现有的生成结果节点","ok"); return; }
+                const p=portFreeSpot(src);
+                const q=newNode("result",p.x,p.y,{kind:"",url:"",text:""});
+                q.title="生成结果";
+                addEdge(src.id,q.id);
+                renderAll(); selectNode(q.id); commitHistory(); scheduleSave();
+                setStatus("已添加「生成结果」节点并连到生成节点","ok");
+                return;
+            }
             const p=portFreeSpot(src);
             const q=newNode(type,p.x,p.y,defaultNodeData(type));
             addEdge(src.id,q.id);
             renderAll(); selectNode(q.id); commitHistory(); scheduleSave();
-            setStatus("已添加「"+meta.label+"」节点并自动连好线","ok");
+            setStatus("已添加「"+label+"」节点并自动连好线","ok");
         });
         m.appendChild(b);
     });
@@ -3345,8 +3396,9 @@ function showInputAddMenu(cx,cy,gen){
         m.appendChild(b);
     });
     m.classList.add("show");
+    /* 菜单放到生成节点左侧：右边缘贴住左圆点，不遮挡生成节点；贴近屏幕左边缘时兜底 */
     const r=m.getBoundingClientRect();
-    m.style.left=Math.max(6,Math.min(cx,window.innerWidth-r.width-10))+"px";
+    m.style.left=Math.max(6,cx-r.width-10)+"px";
     m.style.top=Math.max(6,Math.min(cy,window.innerHeight-r.height-10))+"px";
 }
 document.addEventListener("click",e=>{
@@ -5512,16 +5564,16 @@ function renderWorkflowInfo(){
     }
     list.forEach(w=>{
         const o=document.createElement("option"); o.value=w.id;
-        o.textContent="["+(w.kind==="video"?"生视频":"生图")+"] "+w.name; sel.appendChild(o);
+        o.textContent="["+(cvWfKind(w)==="video"?"生视频":"生图")+"] "+w.name; sel.appendChild(o);
     });
     sel.value=list.some(w=>w.id===canvas.settings.activeWorkflowId)?canvas.settings.activeWorkflowId:list[0].id;
     canvas.settings.activeWorkflowId=sel.value;
     const w=activeWorkflow(), m=w.mapping||{};
-    el("workflowKind").value=w.kind;
+    el("workflowKind").value=cvWfKind(w);
     const pn=(m.promptNodes||[]).length||(m.promptNode?1:0);
     const szN=comfySizeTargets(w.workflow).length;
     const frN=comfyFrameTargets(w.workflow).length;
-    el("workflowInfo").innerHTML='共 <b>'+list.length+'</b> 个模板 · 当前 <b>'+esc(w.name)+'</b>（'+(w.kind==="video"?"生视频":"生图")+'，'+Object.keys(w.workflow).length+' 节点）<br>'+
+    el("workflowInfo").innerHTML='共 <b>'+list.length+'</b> 个模板 · 当前 <b>'+esc(w.name)+'</b>（'+(cvWfKind(w)==="video"?"生视频":"生图")+'，'+Object.keys(w.workflow).length+' 节点）<br>'+
         '映射：提示词 '+pn+' 处（'+esc(m.promptNode||"未识别")+'） · 参考图 '+((m.imageNodes||[]).length)+' 路 · 声音 '+((m.audioNodes||[]).length)+' 路 · 视频 '+((m.videoNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处 · 宽高 '+szN+' 处'+(frN?(' · 帧数 '+frN+' 处'):'');
     el("mappingBox").value=mappingText();
 }
@@ -5535,9 +5587,12 @@ el("workflowImport").addEventListener("change",async e=>{
         const withCls=keys.filter(k=>wf[k]&&typeof wf[k]==="object"&&wf[k].class_type).length;
         if(!keys.length||withCls<keys.length/2) throw new Error("顶层多数节点缺少 class_type，看起来是普通 workflow 格式，请用「文件 → 导出工作流 (API)」重新导出");
         ensureWorkflows(canvas.settings);
+        const wfName=f.name.replace(/\.json$/i,"")||"未命名工作流";
         const item={
-            id:uid(), name:f.name.replace(/\.json$/i,"")||"未命名工作流",
-            kind:el("workflowKind").value==="video"?"video":"image",
+            id:uid(), name:wfName,
+            /* 根据工作流名称 + JSON 内节点 / 模型文件名自动识别生图 / 生视频，
+               不盲信左侧下拉框的默认值（默认生图会把 minimax_h3_r2v 等错标成生图） */
+            kind:cvWfKind({name:wfName,workflow:wf,kind:el("workflowKind").value==="video"?"video":"image"}),
             workflow:wf, mapping:inferMapping(wf)
         };
         canvas.settings.workflows.push(item);
@@ -5708,6 +5763,7 @@ function bindToolbar(){
     el("workflowKind").addEventListener("change",()=>{
         const w=activeWorkflow(); if(!w) return;
         w.kind=el("workflowKind").value==="video"?"video":"image";
+        w.kindManual=true;   /* 手动指定后锁定，自动识别不再覆盖 */
         renderWorkflowInfo(); renderAll(); scheduleSave();
     });
     el("workflowRenameBtn").addEventListener("click",()=>{
