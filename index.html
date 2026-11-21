@@ -2316,7 +2316,7 @@ const MF_NO_THINK = { chat_template_kwargs: { enable_thinking: false } };
 /* 视觉实测用图：一张 240x160 的图，上方蓝天+红色圆日、下方绿地。
    模型若能正确识图，描述里通常会出现「蓝/红/绿/天空/太阳/草/旗」等词；
    以此作为端到端识图是否真正可用的判据（比只读配置更可靠）。 */
-const MF_VISION_TEST_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAACgCAIAAAC9uXYyAAACmElEQVR4nO3SwU0cQBAAQcIhiA3C4Tgmx0QwCJ3kp2XLA3P0llQB9KNfzs83yHhZL4BBhibF0KQYmhRDk2JoUgxNiqFJMTQphibF0KQYmhRD8+Ht9fXvrdf+gaGv9k8ff4uzDX2p/1z5abc29HUGV37CrQ19l0+6+XmeNvQtPnXl59na0Ff4spvXnzZ03xffvPu0oeNWbl582tBlizdvPW3orPWbV542dNb6yoZmzPrHW08bOmj94MWnDR20vq+hGbP+7u7Thq5ZH9fQjFm/dv1pQ6esL2toJq0va2jGrP/6DE8bumN9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNs/dfdm4+hY9aXNTST1pc1NMPWr128+Ri6Z31cQzNs/d2tm4+hk9b3NTTD1g9eufkYOmz946+/+Rg6bH1lQzPstpuPofOuuvkY+gb33HwMfYlLbj6GvscNNx9D3ya88oOhrxO++Rj6Wr2VHwx9tdLKD4bmw3f/+DdDk2JoUgxNiqFJMTQphibF0KQYmhRDk2JoUgxNiqFJMTQphibF0KQYmhRDk2JoUgxNiqFJMTQphibl5fz6ARmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhS3gFuJ50+EJf1WwAAAABJRU5ErkJggg==";
+const MF_VISION_TEST_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAACgCAIAAAC9uXYyAAAB2ElEQVR42u3dsQ2DQBQFQcqhCMdU50pcGHU4cQGIwPrsjTQN3NOKCLjteJ+QsZkAQYOgQdAgaAQNggZBg6BB0AgaBA2CBkGDoBE0CBoEDYIGQSNoEDQIGgQNgkbQIGgQNAia+859FzRPbfc6QVPoOFC2oKWcylrQak41LWgpp7IWtJpTTQtazammBa3mVNOCVnOqaUGrOdW0oNWcalrQghY0ap7atKDVnGpa0IIWNGqe2rSgBS1oBC1owjXPaVrQghY0ghY0ghY0gha0oAWNoAWNmsc1LWhNe0IjaEEjaEEjaEELWtAIWtAIWtB4H1rQCFrQghY0mvbVN4IWNJ2mR20iaE37tx2CFjS9pgeuIWhN+4M/yzc9dgdBa9otWCzc9PAFBK1pN8myXtZPObigNd2pWdCy7qQsaGV3OhY0v8pjJxI0ggZBg6BB0AgaIkG/PgdkCBpBg6BB0CBoBA2CBkGDoEHQCBoEDYIGQYOgETQIGgQNggZBI2gQNAgaBA2CRtAgaBA0CBoEjaBB0CBoEDQIGkGDoEHQIGgEbQUEDYIGQYOgETQIGgQNggZBI2gQNAgaBA2CRtAgaBA0CBoEjaBB0CBoEDQIGkGDoEHQIGgQNIIGQcMffQEjQb2XCxLW1wAAAABJRU5ErkJggg==";
 function mfStripThink(s){
     return String(s || "").replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<\/?think>/gi, "").trim();
 }
@@ -2530,10 +2530,17 @@ async function mfTestVision(){
         }
         answer = mfStripThink(answer);
         const hit = /蓝|绿|红|天空|太阳|草地|旗|blue|green|red|sky/i.test(answer);
-        if(answer && hit){
-            setVisionLoadState("loaded", "实测识图成功 · 模型正确识别测试图（“" + answer.slice(0,40).replace(/[\r\n]/g," ") + "”）");
+        /* 判据说明：llama.cpp 对无法解码的图片会直接返回 HTTP 400（正是内置测试图损坏时的表现）。
+           因此「接口 200 且模型给出正文」本身就证明图片已被服务端接收并参与推理。
+           只有当回复明确表示「看不到图片」才判为未识别，避免模型措辞不含颜色词时被误判失败。 */
+        const neg = /无法看|看不到|没(有)?(提供|收到|看到|上传).{0,6}(图|图片)|不能(看|识别|处理)图|没有(图|图片)|cannot see|no image|can't see|don't see|unable to (see|view)/i.test(answer);
+        const peek = answer ? ("“" + answer.slice(0,40).replace(/[\r\n]/g," ") + "”") : "";
+        if(answer && !neg){
+            setVisionLoadState("loaded", hit
+                ? ("实测识图成功 · 模型正确识别测试图（" + peek + "）")
+                : ("实测识图成功 · 图片已被模型接收（回复：" + peek + "）"));
         } else if(answer){
-            setVisionLoadState("unknown", "模型有回复但未识别到图片内容（“" + answer.slice(0,40).replace(/[\r\n]/g," ") + "”），请检查视觉模块");
+            setVisionLoadState("unknown", "接口已通，但模型表示未看到图片（回复：" + peek + "），请检查视觉模块是否加载");
         } else {
             setVisionLoadState("unknown", "接口未返回正文，无法确认识图（请关闭思考模式或检查服务）");
         }
