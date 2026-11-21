@@ -271,6 +271,17 @@
         .ref-badge { display: none; align-items: center; font-size: 11px; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--border2); background: var(--panel); line-height: 1.3; }
         .ref-badge-on { color: #a7f3d0; }
         .ref-badge-off { color: #fcd34d; }
+        /* 本地模型名旁的视觉模块加载状态提示 */
+        .vision-load-state { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5;
+            margin: 2px 0 6px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border2);
+            background: var(--panel); color: var(--muted); word-break: break-all; }
+        .vision-load-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+        .vision-load-state.vl-loaded { color: #a7f3d0; border-color: rgba(167,243,208,.35); }
+        .vision-load-state.vl-loaded .vision-load-dot { background: #34d399; box-shadow: 0 0 6px rgba(52,211,153,.6); }
+        .vision-load-state.vl-notloaded { color: #fcd34d; }
+        .vision-load-state.vl-notloaded .vision-load-dot { background: #f59e0b; }
+        .vision-load-state.vl-unknown { color: #fca5a5; }
+        .vision-load-state.vl-unknown .vision-load-dot { background: #ef4444; }
 
         #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid var(--border); padding: 16px 18px; border-radius: 12px; overflow-y: auto; background-color: var(--card); }
         #chatBox::-webkit-scrollbar { width: 6px; }
@@ -387,6 +398,9 @@
                 <div class="param-item" id="localModelRow">
                     <label>本地模型名称（可选）：</label>
                     <input type="text" id="localModel" placeholder="留空 = local；部分服务需填真实模型名">
+                </div>
+                <div class="vision-load-state" id="visionLoadState" style="display:none" title="视觉模块独立于主模型，通过 llama-server 的 --mmproj 与主模型一起加载；此处显示本机真实加载结果">
+                    <span class="vision-load-dot"></span><span id="visionLoadText">视觉模块状态：未检测</span>
                 </div>
                 <div class="local-hint fold-hint" id="localComputeHint">
                     <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「二、打通本机软件与第三方API」。</span>
@@ -641,6 +655,15 @@ const REF_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
 const IMAGE_SKILL_KEYS = ["c", "e"];
 let refImages = [];            // [{id, name, dataUrl, bytes, width, height}] 会话结束即丢弃
 let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
+/* 当前技能是否允许随请求附带参考图。
+   · c/e 美术技能：带图（原规则）。
+   · 未加载任何技能（currentSkillKey 为空）：也带图——用户可直接上传图 + 写「反推这张图的提示词」
+     之类的指令来测试识图，不必先点一个美术技能。
+   · a/b/d/custom 明确的文本技能：忽略参考图，避免纯文本接口报图片错误（原规则不变）。
+   注意：这里只决定「技能侧是否允许带图」，最终是否真带还要看模型识图能力（见 sendMessage）。 */
+function skillAllowsImage(){
+    return IMAGE_SKILL_KEYS.includes(currentSkillKey) || !currentSkillKey;
+}
 
 /* 画风预选：2D / 3D / 真人 三类各 9 项，三类互斥——只能选其中一类的一项（选了新的会自动清掉其它两类）。
    选择仅存当前对话标签页（sessionStorage），新建对话不继承；选中项作为文字风格指令随请求发送。
@@ -912,6 +935,8 @@ function applyComputeModePanels(){
     const isApi     = computeMode === "api";
     const isManflow = computeMode === "manflow";
     if(localModelRow) localModelRow.style.display = isLocal ? "flex" : "none";
+    const vlState = document.getElementById("visionLoadState");
+    if(vlState) vlState.style.display = isLocal ? "flex" : "none";
     const hint = document.getElementById("localComputeHint");
     if(hint) hint.style.display = isLocal ? "flex" : "none";
     const connBox = document.getElementById("localConnBox");
@@ -1186,7 +1211,7 @@ function updateRefBadge(){
         refBadge.textContent = "";
         return;
     }
-    const withImg = IMAGE_SKILL_KEYS.includes(currentSkillKey);
+    const withImg = skillAllowsImage();
     const vis = (typeof detectVisionCapability==="function") ? detectVisionCapability() : {vision:true,known:false};
     const imageBlocked = withImg && refImages.length>0 && vis.known && !vis.vision;
     const parts = [];
@@ -1194,7 +1219,7 @@ function updateRefBadge(){
         parts.push(imageBlocked
             ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 模型不支持识图，将按预选画风处理`
             : (withImg
-                ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前美术技能会随请求发送`
+                ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · ${currentSkillKey ? "当前美术技能" : "未选技能，参考图"}会随请求发送`
                 : `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前技能自动忽略（不带图）`));
     }
     if(picked.length) parts.push("🎨 "+picked.map(x=>x.label+"·"+x.name).join(" / ")+" 预选");
@@ -2375,9 +2400,12 @@ async function mfProbeOne(base){
             /* 桥接 /health 会如实上报：当前上游真正加载的模型(defaultModel)、
                本机模型是否加载了视觉模块(mmproj)。用于纠正浏览器残留的旧模型名。 */
             let visionOfDefault = null, visionModels = [], defaultModel = "";
+            let visionStatus = "", visionDetail = "";
             if(data && typeof data === "object"){
                 if(typeof data.visionOfDefault === "boolean") visionOfDefault = data.visionOfDefault;
                 if(Array.isArray(data.visionModels)) visionModels = data.visionModels;
+                if(typeof data.visionStatus === "string") visionStatus = data.visionStatus.trim();
+                if(typeof data.visionDetail === "string") visionDetail = data.visionDetail.trim();
                 /* activeModel = 本机 llama 当前真正加载的模型；创作台动态跟随它，不写死默认模型 */
                 const active = (typeof data.activeModel === "string" && data.activeModel.trim())
                     ? data.activeModel.trim()
@@ -2385,11 +2413,28 @@ async function mfProbeOne(base){
                 defaultModel = active;
             }
             return { base:base, kind:kind, model:model, defaultModel:defaultModel,
-                visionOfDefault:visionOfDefault, visionModels:visionModels };
+                visionOfDefault:visionOfDefault, visionModels:visionModels,
+                visionStatus:visionStatus, visionDetail:visionDetail };
         }catch(e){ /* 端口没开或跨域被拦，试下一个端点 */ }
         finally { clearTimeout(timer); }
     }
     return null;
+}
+function setVisionLoadState(status, detail){
+    /* 本地模型名旁的视觉模块加载状态徽标。status: loaded/not-loaded/no-upstream/unknown */
+    const box = mfEl("visionLoadState");
+    const txt = mfEl("visionLoadText");
+    if(!box || !txt) return;
+    box.classList.remove("vl-loaded","vl-notloaded","vl-unknown","vl-no-upstream");
+    let label = detail || "";
+    switch(String(status || "")){
+        case "loaded":     box.classList.add("vl-loaded"); break;
+        case "not-loaded": box.classList.add("vl-notloaded"); break;
+        case "no-upstream":box.classList.add("vl-unknown"); if(!label) label="本机大模型服务未运行，无法确认视觉模块"; break;
+        case "unknown":    box.classList.add("vl-unknown"); break;
+        default: break;
+    }
+    txt.textContent = "视觉模块状态：" + (label || "未检测");
 }
 function mfSetLocalVision(choice){
     /* 保存桥接上报的视觉能力（主模型是否挂载 mmproj），供 detectVisionCapability 判定；
@@ -2397,9 +2442,20 @@ function mfSetLocalVision(choice){
     const v = choice && choice.visionOfDefault;
     localVisionOfDefault = (typeof v === "boolean") ? v : null;
     localVisionModels = (choice && Array.isArray(choice.visionModels)) ? choice.visionModels : [];
+    const vs = (choice && choice.visionStatus) ? String(choice.visionStatus) : "";
+    const vd = (choice && choice.visionDetail) ? String(choice.visionDetail) : "";
+    if(vs){
+        setVisionLoadState(vs, vd);
+        try{
+            const c = JSON.parse(safeStorage.get(STORAGE_KEY_LOCAL_VISION) || "{}") || {};
+            c.visionStatus = vs; c.visionDetail = vd;
+            safeStorage.set(STORAGE_KEY_LOCAL_VISION, JSON.stringify(c));
+        }catch(e){}
+    }
     try{
         safeStorage.set(STORAGE_KEY_LOCAL_VISION, JSON.stringify({
-            visionOfDefault: localVisionOfDefault, visionModels: localVisionModels
+            visionOfDefault: localVisionOfDefault, visionModels: localVisionModels,
+            visionStatus: vs, visionDetail: vd
         }));
     }catch(e){}
     const badge = mfEl("refBadge");
@@ -2522,7 +2578,7 @@ async function sendMessage(autoSourceText) {
        ② 技能支持带图 + 已确认模型不可识图 → 提醒用户、丢弃参考图，自动以预选画风为准；
        ③ 模型名无法判定 → 不打断，按原样带图；a/b/d 等技能本就不带图，无冲突。
        预选画风三类互斥由 setSoleStylePreset 保证，selectedStylePresets() 只会返回一条。 */
-    const skillCanUseImg = IMAGE_SKILL_KEYS.includes(currentSkillKey) && refImages.length > 0;
+    const skillCanUseImg = skillAllowsImage() && refImages.length > 0;
     const vis = detectVisionCapability();
     let useImages = skillCanUseImg;
     let visFallback = false;
@@ -2535,7 +2591,12 @@ async function sendMessage(autoSourceText) {
         append("⚠️ 当前模型无法识别参考图（" + vis.reason + "）。" + hint, "tip");
     }
     if (useImages) {
-        combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，请以其画风、色调、线条与质感作为最高优先级视觉基准；图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
+        if (IMAGE_SKILL_KEYS.includes(currentSkillKey)) {
+            combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，请以其画风、色调、线条与质感作为最高优先级视觉基准；图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
+        } else {
+            /* 未加载技能时：中性引导，不预设「只回画风」——让用户可自由反整图提示词/内容描述 */
+            combinedContent += `\n\n【参考图】\n本次随请求附带 ${refImages.length} 张图片，请仔细识别图中的内容、主体、构图、色彩与风格；用户指令未指定时，可据此反推出完整的画面提示词。`;
+        }
     }
     /* 画风预选文字指令：有参考图时用"参考图优先"措辞；无图/回退时作为唯一视觉基准 */
     const styleTxt = stylePresetPrompt(useImages);
@@ -2617,8 +2678,9 @@ async function sendMessage(autoSourceText) {
             const hr = await fetch(mfCurrentBase() + "/health", { cache:"no-store" });
             if(hr.ok){
                 const hd = await hr.json();
-                if(typeof hd.visionOfDefault === "boolean" || Array.isArray(hd.visionModels)){
-                    mfSetLocalVision({ visionOfDefault: hd.visionOfDefault, visionModels: hd.visionModels });
+                if(typeof hd.visionOfDefault === "boolean" || Array.isArray(hd.visionModels) || hd.visionStatus){
+                    mfSetLocalVision({ visionOfDefault: hd.visionOfDefault, visionModels: hd.visionModels,
+                        visionStatus: hd.visionStatus, visionDetail: hd.visionDetail });
                 }
             }
         }catch(e){}
@@ -2953,6 +3015,7 @@ function initUI(){
         if(cached && typeof cached === "object"){
             localVisionOfDefault = (typeof cached.visionOfDefault === "boolean") ? cached.visionOfDefault : null;
             localVisionModels = Array.isArray(cached.visionModels) ? cached.visionModels : [];
+            if(cached.visionStatus) setVisionLoadState(cached.visionStatus, cached.visionDetail || "");
         }
     }catch(e){}
 
