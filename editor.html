@@ -2978,7 +2978,12 @@ function fvLayout(d,W,H,guard,peers){
        预览(stage高)、Canvas 通用导出(stage高)、AI包装独立导出(成片高)三处都传入各自的 H，
        缩放后相对比例恒为 d.size/SUB_DESIGN_H，保证所见即所得。 */
     const k=subScale(H), minS=16*k;
-    let size=FV_FX.clamp((Number(d.size)||56)*k,minS,Math.round(H*0.20));
+    /* 上限必须覆盖属性面板字号输入框的范围(16~160，同 SUB_FV_SIZE_MAX)：字号 d.size 已按 k
+       放大到当前画幅，若上限沿用旧的绝对 H*0.20(=72*k，设计基准仅 72)，用户设 80~160 时
+       全部被截断成同一个值，画面纹丝不动——这是引入画幅缩放后"改字号不生效"的根因。
+       上限改为 SUB_FV_SIZE_MAX*k，与字号同一缩放口径；超宽仍有下面的 maxW 收敛兜底防溢出。 */
+    const capPx=Math.round(SUB_FV_SIZE_MAX*k);
+    let size=FV_FX.clamp((Number(d.size)||56)*k,minS,capPx);
     const maxW=W*0.90, maxH=H*0.34;
     /* ① 防超屏：按文本宽收敛字号，最多缩到 minS；卡片类按模板系数 */
     const long=String(d.text||"");
@@ -3607,6 +3612,7 @@ function applyFxOverlay(){
    转成当前画幅像素。位置 x/y 本就按画幅宽高比例算，无需再缩放。
    预览 CSS / 烧录 ASS / 录制 Canvas 三处共用同一套缩放，保证三处比例一致且跨显示器不变。 */
 const SUB_DESIGN_H=360;
+const SUB_FV_SIZE_MAX=160;   /* 花字字号设计基准上限（设计高360），与属性面板 fpsize 输入框 max 一致 */
 function subScale(H){ return (Number(H)>0?H:SUB_DESIGN_H)/SUB_DESIGN_H; }
 /* 舞台像素尺寸指纹：并入字幕/花字缓存键，分辨率或窗口尺寸变化时强制重建预览 DOM，
    让按画幅等比缩放后的字号立即生效。 */
@@ -5744,13 +5750,18 @@ function fancyPropsHtml(c){
       +'<div style="font-size:10.5px;color:var(--muted);line-height:1.5">位置为画幅比例（0~1），也可在画面上直接拖动花字调整。花字会自动避开画面中上部的人脸区（辅助框已隐藏，不进成片）。</div>'
       +'</div>';
 }
-function applyFancyProps(c){
+function applyFancyProps(c,opts){
+    opts=opts||{};
     const fx=c.fx||defaultFx(); if(!fx.sub) fx.sub=cloneSubStyle(state.subStyle);
     const q=fx.sub, fv=q.fv||(q.fv={});
     const num=(id,d)=>{ const el=$(id); if(!el) return d; const n=Number(el.value); return Number.isFinite(n)?n:d; };
-    fv.x=FV_FX.clamp(num("fpx",fv.x==null?0.5:fv.x),0.02,0.98);
-    fv.y=FV_FX.clamp(num("fpy",fv.y==null?0.7:fv.y),0.02,0.98);
-    fv.userMoved=true;   /* 面板显式改位置＝用户自定义，之后按此坐标而非模板锚点 */
+    /* 批量应用(skipPos)：只同步字号/渐变/动效，保留每条花字各自的画面位置，
+       否则框选多条一起改字号时会被强行叠到同一个 x/y。 */
+    if(!opts.skipPos){
+        fv.x=FV_FX.clamp(num("fpx",fv.x==null?0.5:fv.x),0.02,0.98);
+        fv.y=FV_FX.clamp(num("fpy",fv.y==null?0.7:fv.y),0.02,0.98);
+        fv.userMoved=true;   /* 面板显式改位置＝用户自定义，之后按此坐标而非模板锚点 */
+    }
     q.size=Math.max(16,Math.round(num("fpsize",q.size||56)));
     const grad=$("fpgrad")?$("fpgrad").value.trim():""; q.gradient=grad;
     fv.motion=$("fpmotion")?$("fpmotion").value:(fv.motion||"none");
@@ -5789,6 +5800,18 @@ function renderProps(){
         if($("pText")){ c.text=normalizeSubText($("pText").value); c.name=(c.text.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); }
         if($("pKind")) c.subKind=$("pKind").value;
         if(c.fv) applyFancyProps(c);
+        /* 框选多条花字时，把字号/渐变/动效同步到其余选中的花字片段（保留各自文字、时间、画面位置）。
+           文字与起止时间仍只改当前这条——不同花字内容各异，不能被覆盖成同一句。 */
+        if(c.fv && state.multi && state.multi.length>1){
+            let n=0;
+            state.multi.forEach(id=>{
+                if(id===c.id) return;
+                const oc=clipById(id);
+                if(!oc || !oc.fv || trackKind(oc.track)!=="text") return;
+                applyFancyProps(oc,{skipPos:true}); n++;
+            });
+            if(n) toast("已更新 "+n+" 条花字的字号/样式","ok");
+        }
         subCache=""; fancyCache=""; renderAll(); autoSave(); toast("片段已更新","ok");
     };
     $("pDelete").onclick=deleteSelected;
