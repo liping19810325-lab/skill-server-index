@@ -2451,20 +2451,23 @@ async function mfProbeOne(base){
     return null;
 }
 function setVisionLoadState(status, detail){
-    /* 本地模型名旁的视觉模块加载状态徽标。status: loaded/not-loaded/no-upstream/unknown */
+    /* 本地模型名旁的视觉模块加载状态徽标。status: loaded/not-loaded/no-upstream/unknown
+       正文只显示极简的「加载成功 / 加载失败」；模型名、回复摘要等详细原因收进 title 悬停提示。 */
     const box = mfEl("visionLoadState");
     const txt = mfEl("visionLoadText");
     if(!box || !txt) return;
     box.classList.remove("vl-loaded","vl-notloaded","vl-unknown","vl-no-upstream");
-    let label = detail || "";
-    switch(String(status || "")){
+    const st = String(status || "");
+    const ok = (st === "loaded");
+    switch(st){
         case "loaded":     box.classList.add("vl-loaded"); break;
         case "not-loaded": box.classList.add("vl-notloaded"); break;
-        case "no-upstream":box.classList.add("vl-unknown"); if(!label) label="本机大模型服务未运行，无法确认视觉模块"; break;
-        case "unknown":    box.classList.add("vl-unknown"); break;
-        default: break;
+        default:           box.classList.add("vl-unknown"); break;
     }
-    txt.textContent = "视觉模块状态：" + (label || "未检测");
+    txt.textContent = "视觉模块状态：" + (ok ? "加载成功" : "加载失败");
+    let tip = detail || "";
+    if(!tip && st === "no-upstream") tip = "本机大模型服务未运行，无法确认视觉模块";
+    if(tip) txt.title = String(tip); else txt.removeAttribute("title");
 }
 /* ===== 视觉模块实测检测 =====
    真正发一张已知内容的内置测试图给当前模型，看它能否识别（而不是只读配置）。
