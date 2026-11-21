@@ -165,8 +165,10 @@
         .start-btn { background: var(--green); color: #fff; font-weight: 500; }
         /* 停止 / 开始按钮高度增加一倍，扩大鼠标可点击面积（与输入框底对齐） */
         .input-row .stop-btn, .input-row .start-btn { min-height: 64px; font-size: 13px; }
-        .plus-upload-btn { width: 32px; height: 32px; font-size: 17px; line-height: 1; padding: 0; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; flex-shrink: 0; }
+        .plus-upload-btn { width: 64px; height: 64px; font-size: 34px; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 10px; cursor: pointer; flex-shrink: 0; }
         .plus-upload-btn:hover { background: #1d4ed8; }
+        /* 拖入 TXT 剧本到 + 按钮上时高亮 */
+        .plus-upload-btn.drag-over { background: #1e40af; outline: 2px dashed #fff; outline-offset: 2px; }
         .ref-upload-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 10px; min-height: 64px; background: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; white-space: nowrap; }
         .ref-upload-btn:hover { background: #8b5cf6; }
         .ref-upload-plus { font-size: 22px; line-height: 1; font-weight: 300; }
@@ -485,7 +487,7 @@
 
         <div class="card file-panel">
             <div class="file-head-row">
-                <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件">+</button>
+                <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件：点击选择，或直接把 TXT 拖到这里（一次一个，新文件替换旧文件）">+</button>
                 <span class="card-title">载入剧本文件 <span class="hint-q" data-hint-toggle title="点我看剧本文件说明">?</span></span>
                 <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 3 张）：点击选择，或直接把电脑里的图片拖到这里"><span class="ref-upload-plus">+</span><span class="ref-upload-text">上传画风参考图</span></button>
                 <input type="file" id="fileInput" accept=".txt">
@@ -1529,6 +1531,26 @@ async function handleRefFiles(fileList){
     }
     renderRefPreview();
     updateRefBadge();
+}
+
+/* 载入 TXT 剧本：单文件槽位——一次只载入一个，新文档取代旧文档。
+   点击选择与拖放共用此函数，确保两种入口行为一致。 */
+async function loadScriptFile(file){
+    if(!file) return;
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if(ext !== "txt"){
+        alert("仅支持TXT剧本上传（可先把docx另存为txt）");
+        return;
+    }
+    try{
+        const text = await file.text();
+        fileStore = [{ name:file.name, content:text, checked:true }];  // 取代旧文档
+        renderFileList();
+        alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
+    }catch(err){
+        console.error(err);
+        alert("读取文件失败");
+    }
 }
 
 function append(text, type = "tip") {
@@ -3089,24 +3111,35 @@ function initUI(){
     plusUploadBtn.addEventListener("click", ()=> fileInput.click());
     fileInput.onchange = async (e) => {
         const file = e.target.files[0];
-        if (!file) return;
-        const ext = file.name.split(".").pop().toLowerCase();
-        if (ext !== "txt") {
-            alert("仅支持TXT剧本上传（可先把docx另存为txt）");
-            fileInput.value = "";
-            return;
-        }
-        try {
-            const text = await file.text();
-            fileStore.push({ name: file.name, content: text, checked: true });
-            renderFileList();
-            alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
-        } catch (err) {
-            console.error(err);
-            alert("读取文件失败");
-        }
-        fileInput.value = "";
+        if(file) await loadScriptFile(file);
+        fileInput.value = "";   // 允许重复选择同一文件
     };
+    /* 载入剧本：支持把 TXT 直接拖到 + 按钮上（一次一个，新文件取代旧文件）。
+       fileStore 是单槽位，loadScriptFile 内部即替换而非累加。 */
+    let scriptDragDepth = 0;
+    const scriptDragClear = ()=>{ scriptDragDepth = 0; plusUploadBtn.classList.remove("drag-over"); };
+    plusUploadBtn.addEventListener("dragenter", (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        scriptDragDepth++; plusUploadBtn.classList.add("drag-over");
+    });
+    plusUploadBtn.addEventListener("dragover", (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        if(e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    });
+    plusUploadBtn.addEventListener("dragleave", (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        scriptDragDepth = Math.max(0, scriptDragDepth - 1);
+        if(scriptDragDepth === 0) plusUploadBtn.classList.remove("drag-over");
+    });
+    plusUploadBtn.addEventListener("drop", async (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        scriptDragClear();
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if(!files || !files.length) return;
+        const file = files[0];   // 一次只取第一个
+        if(files.length > 1) alert(`一次只能载入一个 TXT 剧本，已取第一个「${file.name}」，其余已忽略`);
+        await loadScriptFile(file);
+    });
     // 画风参考图：点击按钮前先挡住已满情况，change 里再做完整校验
     refUploadBtn.addEventListener("click", ()=>{
         if(refImages.length >= REF_MAX_COUNT){
