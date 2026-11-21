@@ -355,11 +355,11 @@
         <div class="card">
             <div class="card-title">创作技能</div>
             <div class="btn-group" id="skillBtnGroup">
-                <button class="skill-btn" data-skill-key="a">剧本创作助手（原创/改编）</button>
-                <button class="skill-btn" data-skill-key="b">导演分镜助手 V5（生视频提示词）</button>
-                <button class="skill-btn" data-skill-key="d">导演分镜助手V5 MiniMaxH3</button>
-                <button class="skill-btn" data-skill-key="c">美术画风助手 V5（资产图提示词）</button>
-                <button class="skill-btn" data-skill-key="e">美术画风助手V5 Midjourney</button>
+                <button class="skill-btn" data-skill-key="a">剧本创作助手V5（小说改编/原创剧本）</button>
+                <button class="skill-btn" data-skill-key="b">导演分镜助手V5（通用全剧视频提示词）</button>
+                <button class="skill-btn" data-skill-key="d">导演分镜助手V5（Minimax H3专用提词）</button>
+                <button class="skill-btn" data-skill-key="c">美术画风助手V5（通用全剧资产图提示词）</button>
+                <button class="skill-btn" data-skill-key="e">美术画风助手V5（Midjourney专用提示词）</button>
                 <button class="skill-btn import-skill-btn" id="importSkillMdBtn">📥 导入本地 .md 技能</button>
                 <input type="file" id="skillMdInput" accept=".md">
             </div>
@@ -760,7 +760,7 @@ const HELP_HTML = `
 <li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持 jpg / jpeg / png / webp，最多 2 张。</li>
 <li>浏览器内自动压缩：长边超过 1024px 才等比缩放（小图不放大），统一转为 JPEG、质量 0.8；单张压缩后需 ≤1.5MB，仍超限会提示换图。</li>
 <li>图片以 base64 只存在当前网页内存，刷新或关闭页面即丢弃；不写入本地历史、不上传技能服务，只随你自己的大模型请求发送。</li>
-<li>带图技能：c 美术画风助手 V5（资产图提示词）、e 美术画风助手 V5 Midjourney；a 剧本创作、b 导演分镜、d MiniMaxH3 发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
+<li>带图技能：c 美术画风助手V5（通用全剧资产图提示词）、e 美术画风助手V5（Midjourney专用提示词）；a 剧本创作助手V5、b 导演分镜助手V5、d 导演分镜助手V5（Minimax H3专用提词）发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
 <li>需要大模型本身支持图片输入（多模态）：云端请用视觉模型；本地 llama-server / Ollama 需加载支持视觉的模型及对应 mmproj。纯文本模型无法识别，建议此时先删除参考图。</li>
 <li>缩略图右侧的 × 可逐张移除；带图时请求会按 OpenAI 多模态格式附上图片，接口若不兼容请改用支持图片输入的模型。</li>
 <li><b>画风预选</b>：上传按钮下方有「2D / 3D / 真人」三组下拉，各含 9 个预设画风，每组单选一个、三组可叠加，选「不预选」即关闭该项。选中的画风会作为【画风预选】文字指令随请求发送，作为全剧统一风格基准（线条、色彩、光影、质感与造型倾向），只作风格引导，不改变剧本内容和技能规定的输出格式；与画风参考图并用时以参考图为准。选择画风时会主动带着画风参数请求两个美术画风助手技能（c/e），把技能里对应画风的提示词段提取出来随请求一并发送（技能模板更新后自动生效；未找到对应分段则只发上面的画风预选文字，不会整份注入技能模板）。三项选择只存本机、刷新后仍保留，图片本身依旧只在内存里。</li>
@@ -819,11 +819,11 @@ function setToken(v) {
 }
 
 const nameMap = {
-    a: "漫剧创作助手 V5",
-    b: "导演分镜助手 V5（生视频提示词）",
-    d: "导演分镜助手V5 MiniMaxH3",
-    c: "美术画风助手 V5（资产图提示词）",
-    e: "美术画风助手V5 Midjourney"
+    a: "剧本创作助手V5（小说改编/原创剧本）",
+    b: "导演分镜助手V5（通用全剧视频提示词）",
+    d: "导演分镜助手V5（Minimax H3专用提词）",
+    c: "美术画风助手V5（通用全剧资产图提示词）",
+    e: "美术画风助手V5（Midjourney专用提示词）"
 };
 
 function uuid() { return Math.random().toString(36).slice(2)+Date.now().toString(36); }
