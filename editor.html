@@ -2959,6 +2959,43 @@ function syncFancyTextToSteps(c){
     fv.steps=parts.slice(0,6);
     fv.stepActive=Math.max(1,Math.min(Math.round(Number(fv.stepActive)||1),fv.steps.length));
 }
+/* AI 字幕文字同步：带字级时间戳(fx.sub.words)的字幕，画面文字真源是 words[].ch，
+   而不是 c.text（wordsFor 优先读 words）。只改 c.text 会出现「属性/列表显示已改、画面仍旧」的 bug。
+   改文字后必须按新文字重建 words：沿用原 words 的总时间跨度（保留说话节奏），
+   用新文字 tokenize 后重新插值分配逐字时间；无 words 的普通字幕无需处理。 */
+function syncWordsToText(c){
+    if(!c || !c.fx || !c.fx.sub || !Array.isArray(c.fx.sub.words) || !c.fx.sub.words.length) return;
+    if(typeof AIB==="undefined") return;
+    const txt=String(c.text||"").trim();
+    if(!txt) return;
+    const toks=AIB.tokenize(txt);
+    if(!toks.length) return;
+    /* 原时间跨度：取首个字的 s 与末个字的 e（相对片段起点秒） */
+    const old=c.fx.sub.words;
+    const firstS=Number(old[0].s); const firstW=old[0].word;
+    const t0=Number.isFinite(firstS)?firstS:(Number.isFinite(Number(firstW))?Number(firstW):0);
+    let t1=0;
+    for(const w of old){
+        const e=Number(w.e);
+        if(Number.isFinite(e)) t1=Math.max(t1,e);
+        else if(w.end!==undefined && Number.isFinite(Number(w.end))){
+            /* 后端绝对秒格式：转为相对秒再比 */
+            const rel=Number(w.end)-(Number.isFinite(Number(old[0].start))?Number(old[0].start):0);
+            if(Number.isFinite(rel)) t1=Math.max(t1,rel);
+        }
+    }
+    const span=Math.max(0.3, t1-t0);
+    /* 用 tokenize + 与 interpolateWords 相同的权重策略，在 [0,span] 内重新分配逐字时间 */
+    const weights=toks.map(t=>t.punct?0.25:Math.max(1,Math.min(3,String(t.ch).length*0.6)));
+    const total=weights.reduce((a,b)=>a+b,0)||1;
+    const speak=span*0.94;
+    let acc=0;
+    const r3=x=>Math.round(x*1000)/1000;
+    c.fx.sub.words=toks.map((t,i)=>{
+        const s=acc/total*speak, acc2=acc+weights[i], e=acc2/total*speak; acc=acc2;
+        return {ch:t.ch, s:r3(s), e:r3(e), punct:!!t.punct, kw:false};
+    });
+}
 /* 文本像素宽（用约 1 个 canvas 测量，带缓存） */
 let _fvMeasureCtx=null;
 function fvTextW(text,size){
@@ -5797,7 +5834,7 @@ function renderProps(){
         c.start=Math.max(0,Number($("pStart").value)||0);
         c.duration=Math.max(0.2,Number($("pDur").value)||0.2);
         c.offset=Math.max(0,Number($("pOffset").value)||0);
-        if($("pText")){ c.text=normalizeSubText($("pText").value); c.name=(c.text.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); }
+        if($("pText")){ c.text=normalizeSubText($("pText").value); c.name=(c.text.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); syncWordsToText(c); }
         if($("pKind")) c.subKind=$("pKind").value;
         if(c.fv) applyFancyProps(c);
         /* 框选多条花字时，把字号/渐变/动效同步到其余选中的花字片段（保留各自文字、时间、画面位置）。
@@ -9024,14 +9061,14 @@ function wire(){
         const nv=normalizeSubText(inp.value);
         if(nv===c.text) return;
         if(!inp.dataset.editing){ inp.dataset.editing="1"; pushHistory(); }
-        c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c);
+        c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); syncWordsToText(c);
         subCache=""; fancyCache=""; renderFancyOverlay(); renderSubtitleOverlay();
     });
     $("subList").addEventListener("change",e=>{
         const inp=e.target.closest("[data-text]"); if(!inp)return;
         const c=clipById(inp.dataset.text); if(!c)return;
         const nv=normalizeSubText(inp.value);
-        if(!inp.dataset.editing){ if(nv!==c.text){ pushHistory(); c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); } }
+        if(!inp.dataset.editing){ if(nv!==c.text){ pushHistory(); c.text=nv; c.name=(nv.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); syncWordsToText(c); } }
         else delete inp.dataset.editing;
         renderTimeline(); renderProps(); subCache=""; fancyCache=""; renderFancyOverlay(); renderSubtitleOverlay(); autoSave();
     });
@@ -9046,7 +9083,7 @@ function wire(){
         el.classList.remove("sub-editing"); el.removeAttribute("contenteditable");
         const c=clipById(id), txt=normalizeSubText(String(el.innerText||"").replace(/\u00a0/g," "));
         if(save && c && txt && txt!==orig){
-            pushHistory(); c.text=txt; c.name=(txt.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c);
+            pushHistory(); c.text=txt; c.name=(txt.replace(/\n/g," ")||"字幕").slice(0,12); syncFancyTextToSteps(c); syncWordsToText(c);
             renderTimeline(); renderSubList(); renderProps(); subCache=""; fancyCache=""; renderFancyOverlay(); autoSave();
         }else{ subCache=""; renderSubtitleOverlay(); }   /* 取消或空文本：恢复原字幕 */
     };
