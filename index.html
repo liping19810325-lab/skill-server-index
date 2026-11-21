@@ -170,6 +170,9 @@
         .ref-upload-btn { padding: 6px 9px; font-size: 11.5px; min-height: 32px; background: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; white-space: nowrap; }
         .ref-upload-btn:hover { background: #8b5cf6; }
         .ref-note { font-size: 10.5px; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
+        .vision-mode-lbl { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; white-space: nowrap; }
+        .vision-mode-lbl select { background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 10.5px; padding: 2px 4px; outline: none; cursor: pointer; }
+        .vision-mode-lbl select:focus { border-color: var(--purple); }
         .ref-preview-list { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; }
         .ref-item { display: flex; align-items: center; gap: 8px; padding: 5px 7px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; }
         .ref-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; border: 1px solid var(--border2); background: var(--bg); }
@@ -461,15 +464,24 @@
             <div class="file-head-row">
                 <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件">+</button>
                 <span class="card-title">载入剧本文件 <span class="hint-q" data-hint-toggle title="点我看剧本文件说明">?</span></span>
-                <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 2 张）">🖼 上传画风参考图</button>
+                <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 3 张）">🖼 上传画风参考图</button>
                 <input type="file" id="fileInput" accept=".txt">
                 <input type="file" id="refImageInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple>
             </div>
             <div class="file-note fold-hint">仅支持TXT剧本上传（可先把docx另存为txt）</div>
-            <div class="ref-note fold-hint">需大模型支持图片输入（多模态），纯文本模型无法识别</div>
+            <div class="ref-note fold-hint">
+                需模型支持识图（多模态）。
+                <label class="vision-mode-lbl" title="自动：按模型名判断；若判断为纯文本会自动改用预选画风。选「支持」强制带图，选「不支持」强制回退预选画风。">识图能力
+                    <select id="modelVisionSel">
+                        <option value="auto">自动识别</option>
+                        <option value="on">支持识图</option>
+                        <option value="off">不支持识图</option>
+                    </select>
+                </label>
+            </div>
             <div class="ref-preview-list" id="refPreviewList"></div>
             <div class="style-preset-box" id="stylePresetBox">
-                <div class="style-preset-head">🎨 画风预选 <span class="style-preset-tip">可选，与画风参考图叠加（有参考图时以图为准）</span></div>
+                <div class="style-preset-head">🎨 画风预选 <span class="style-preset-tip">三组互斥只选一种；有参考图以图为准，模型不能识图时自动用此画风</span></div>
                 <div class="style-preset-rows">
                     <label class="style-preset-row" for="stylePreset2D"><span>2D</span><select id="stylePreset2D"></select></label>
                     <label class="style-preset-row" for="stylePreset3D"><span>3D</span><select id="stylePreset3D"></select></label>
@@ -596,6 +608,13 @@ const safeStorage = {
     set(k,v){ try { window.localStorage.setItem(k,v); return true; } catch(e){ console.warn("本地存储写入失败（可能被禁用或已超配额）：", e && e.name); return false; } },
     remove(k){ try { window.localStorage.removeItem(k); } catch(e){} }
 };
+/* 会话级存储：画风预选只属于当前对话标签页，新建对话（新标签页）不继承上次的预选。
+   刷新当前页仍在（sessionStorage 在同标签页刷新后保留），但开新对话即干净开始。 */
+const safeSession = {
+    get(k){ try { return window.sessionStorage.getItem(k); } catch(e){ return null; } },
+    set(k,v){ try { window.sessionStorage.setItem(k,v); return true; } catch(e){ return false; } },
+    remove(k){ try { window.sessionStorage.removeItem(k); } catch(e){} }
+};
 
 const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
 const SKILL_TOKEN = "CU001-ABC123";
@@ -608,7 +627,11 @@ const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
 
 /* ===== 画风参考图配置：全部仅在浏览器内存中处理，不落地、不传 skill-api ===== */
-const REF_MAX_COUNT = 2;
+const REF_MAX_COUNT = 3;
+/* 识图能力（多模态）覆盖：auto=按模型名自动判断 / on=强制支持 / off=强制不支持。
+   非多模态模型无法识别参考图时，改用预选画风并在发送时提醒用户。 */
+const STORAGE_KEY_MODEL_VISION = "manflows_model_vision";
+let modelVisionOverride = "auto";   /* auto/on/off，下方初始化时从本机读取 */
 const REF_MAX_EDGE = 1024;
 const REF_JPEG_QUALITY = 0.8;
 const REF_MAX_BYTES = 1.5 * 1024 * 1024;
@@ -619,8 +642,9 @@ const IMAGE_SKILL_KEYS = ["c", "e"];
 let refImages = [];            // [{id, name, dataUrl, bytes, width, height}] 会话结束即丢弃
 let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
 
-/* 画风预选：2D / 3D / 真人 三类各 9 项，每类至多选一项、可叠加；选中项作为文字风格指令随请求发送。
-   选择本地记住（仅三个字符串，不落地任何剧本/图片）；与画风参考图并用时以参考图为准。 */
+/* 画风预选：2D / 3D / 真人 三类各 9 项，三类互斥——只能选其中一类的一项（选了新的会自动清掉其它两类）。
+   选择仅存当前对话标签页（sessionStorage），新建对话不继承；选中项作为文字风格指令随请求发送。
+   与画风参考图并用时：参考图优先；若当前模型不支持识图，则自动回退为以预选画风为准。 */
 const STYLE_PRESETS = {
     twoD:  { label:"2D",   items:["日系赛璐璐","写实厚涂","Q版大头漫","水墨/工笔","吉卜力治愈","高饱和风","低饱和风","复古油画风","日系水彩风"] },
     threeD:{ label:"3D",   items:["写实次世代","三渲二","3D国漫","低模卡通","半写实美型","赛博朋克","卡通渲染","写实韩系风","超写实国风"] },
@@ -629,10 +653,13 @@ const STYLE_PRESETS = {
 const STORAGE_KEY_STYLE_PRESETS = "manflows_style_presets";
 let stylePresetSel = { twoD:"", threeD:"", real:"" };
 try{
-    const saved = JSON.parse(safeStorage.get(STORAGE_KEY_STYLE_PRESETS) || "{}");
-    Object.keys(stylePresetSel).forEach(k=>{
-        if(typeof saved[k]==="string" && STYLE_PRESETS[k].items.includes(saved[k])) stylePresetSel[k]=saved[k];
-    });
+    const saved = JSON.parse(safeSession.get(STORAGE_KEY_STYLE_PRESETS) || "{}");
+    /* 互斥：只恢复一个（老数据若三类都有，按 twoD→threeD→real 取第一个有效项） */
+    for(const k of Object.keys(stylePresetSel)){
+        if(typeof saved[k]==="string" && STYLE_PRESETS[k].items.includes(saved[k])){
+            stylePresetSel={ twoD:"", threeD:"", real:"" }; stylePresetSel[k]=saved[k]; break;
+        }
+    }
 }catch(e){}
 
 /* 三种算力：manflow=漫流算力（默认占位）、local=本机算力、api=第三方API。
@@ -757,13 +784,13 @@ const HELP_HTML = `
 
 <h2>五、画风参考图（仅美术技能可用）与画风预选</h2>
 <ul>
-<li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持 jpg / jpeg / png / webp，最多 2 张。</li>
+<li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持 jpg / jpeg / png / webp，最多 3 张。</li>
 <li>浏览器内自动压缩：长边超过 1024px 才等比缩放（小图不放大），统一转为 JPEG、质量 0.8；单张压缩后需 ≤1.5MB，仍超限会提示换图。</li>
 <li>图片以 base64 只存在当前网页内存，刷新或关闭页面即丢弃；不写入本地历史、不上传技能服务，只随你自己的大模型请求发送。</li>
 <li>带图技能：c 美术画风助手V5（通用全剧资产图提示词）、e 美术画风助手V5（Midjourney专用提示词）；a 剧本创作助手V5、b 导演分镜助手V5、d 导演分镜助手V5（MinimaxH3专用提示词）发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
-<li>需要大模型本身支持图片输入（多模态）：云端请用视觉模型；本地 llama-server / Ollama 需加载支持视觉的模型及对应 mmproj。纯文本模型无法识别，建议此时先删除参考图。</li>
+<li>需要大模型本身支持图片输入（多模态）：云端请用视觉模型；本地 llama-server / Ollama 需加载支持视觉的模型及对应 mmproj。参考图下方新增「识图能力」开关：<b>自动识别</b>（按模型名判断，默认）、<b>支持识图</b>（强制带图）、<b>不支持识图</b>（强制回退预选画风）。当判定当前模型无法识图时，系统会弹提示并忽略参考图，自动改以你预选的画风为准；若此时也没预选画风，会提示你换多模态模型或先选一种画风。</li>
 <li>缩略图右侧的 × 可逐张移除；带图时请求会按 OpenAI 多模态格式附上图片，接口若不兼容请改用支持图片输入的模型。</li>
-<li><b>画风预选</b>：上传按钮下方有「2D / 3D / 真人」三组下拉，各含 9 个预设画风，每组单选一个、三组可叠加，选「不预选」即关闭该项。选中的画风会作为【画风预选】文字指令随请求发送，作为全剧统一风格基准（线条、色彩、光影、质感与造型倾向），只作风格引导，不改变剧本内容和技能规定的输出格式；与画风参考图并用时以参考图为准。选择画风时会主动带着画风参数请求两个美术画风助手技能（c/e），把技能里对应画风的提示词段提取出来随请求一并发送（技能模板更新后自动生效；未找到对应分段则只发上面的画风预选文字，不会整份注入技能模板）。三项选择只存本机、刷新后仍保留，图片本身依旧只在内存里。</li>
+<li><b>画风预选</b>：上传按钮下方有「2D / 3D / 真人」三组下拉，各含 9 个预设画风。<b>三组互斥，只能选一种里的一项</b>（选了另一组会自动清掉之前的），选「不预选」即关闭。选中的画风会作为【画风预选】文字指令随请求发送，作为全剧统一风格基准（线条、色彩、光影、质感与造型倾向），只作风格引导，不改变剧本内容和技能规定的输出格式。<b>与画风参考图的冲突规则</b>：能识图时以参考图画风为准、预选画风仅作文字补充；模型不支持识图时弹提示并自动改以预选画风为准。选择画风时会主动带着画风参数请求两个美术画风助手技能（c/e），把技能里对应画风的提示词段提取出来随请求一并发送（技能模板更新后自动生效；未找到对应分段则只发上面的画风预选文字，不会整份注入技能模板）。<b>新建对话时默认不预选任何画风</b>；选择只存当前对话标签页、刷新本页仍保留，图片本身依旧只在内存里。</li>
 </ul>
 
 <h2>六、界面布局</h2>
@@ -1160,15 +1187,19 @@ function updateRefBadge(){
         return;
     }
     const withImg = IMAGE_SKILL_KEYS.includes(currentSkillKey);
+    const vis = (typeof detectVisionCapability==="function") ? detectVisionCapability() : {vision:true,known:false};
+    const imageBlocked = withImg && refImages.length>0 && vis.known && !vis.vision;
     const parts = [];
     if(refImages.length){
-        parts.push(withImg
-            ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前美术技能会随请求发送`
-            : `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前技能自动忽略（不带图）`);
+        parts.push(imageBlocked
+            ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 模型不支持识图，将按预选画风处理`
+            : (withImg
+                ? `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前美术技能会随请求发送`
+                : `🖼 参考图 ${refImages.length}/${REF_MAX_COUNT} 张 · 当前技能自动忽略（不带图）`));
     }
     if(picked.length) parts.push("🎨 "+picked.map(x=>x.label+"·"+x.name).join(" / ")+" 预选");
     refBadge.style.display = "inline-flex";
-    refBadge.className = "ref-badge " + ((refImages.length && !withImg) ? "ref-badge-off" : "ref-badge-on");
+    refBadge.className = "ref-badge " + (((refImages.length && !withImg) || imageBlocked) ? "ref-badge-off" : "ref-badge-on");
     refBadge.textContent = parts.join(" · ");
 }
 
@@ -1240,16 +1271,51 @@ function renderStylePresets(){
     updateRefBadge();
 }
 function saveStylePresets(){
-    try{ safeStorage.set(STORAGE_KEY_STYLE_PRESETS, JSON.stringify(stylePresetSel)); }catch(e){}
+    try{ safeSession.set(STORAGE_KEY_STYLE_PRESETS, JSON.stringify(stylePresetSel)); }catch(e){}
 }
-/* 选中项作为一段文字指令注入请求；与画风参考图并用时参考图优先，且不改技能输出格式 */
-function stylePresetPrompt(){
+/* 只保留当前唯一预选（三类互斥）：写入某类某项时清空其余两类 */
+function setSoleStylePreset(key,name){
+    stylePresetSel={ twoD:"", threeD:"", real:"" };
+    if(key && STYLE_PRESETS[key] && STYLE_PRESETS[key].items.includes(name)) stylePresetSel[key]=name;
+}
+
+/* ===== 当前模型是否支持识图（多模态）=====
+   判定顺序：用户手动覆盖(off/on) > 按模型名自动识别 > 默认(视作支持，避免误伤)。
+   自动识别仅用于"提醒并回退"提示，不会阻止发送；真正是否带图仍由技能类型决定。 */
+const VISION_MODEL_RE = /(gpt-?4o|gpt-?4\.1|gpt-?4v|gpt-?4-turbo|o[134][\s-]|vision|vl|vlm|claude[- ]?[34]|gemini|llava|internvl|minicpm|qwen[^\s]*vl|qwen-vl|glm-?4v|step-1v|deepseek-vl|pixtral|grok[- ]?2|kimi-vl|多模态|视觉)/i;
+const TEXT_ONLY_MODEL_RE = /(text-?only|纯文本|embedding|whisper|tts|rerank|nomic|bge-|gte-)/i;
+function currentModelName(){
+    try{
+        if(computeMode==="api") return String(inpModel&&inpModel.value||"").trim();
+        if(computeMode==="local") return String(localModelName||"").trim();
+    }catch(e){}
+    return "";
+}
+/* 返回 {vision:boolean, known:boolean, reason:string}
+   known=false 表示无法可靠判断（模型名为空），此时不据此打断用户、按原样带图。
+   多模态模型通常会在名字里标注 vision/vl/4o/gemini 等特征；无该特征的已命名模型
+   保守视作纯文本（known=true），可提醒并回退；误判时用开关手动指定即可。 */
+function detectVisionCapability(){
+    if(modelVisionOverride==="off") return {vision:false,known:true,reason:"用户指定当前模型不支持识图"};
+    if(modelVisionOverride==="on")  return {vision:true, known:true,reason:"用户指定当前模型支持识图"};
+    const name=currentModelName();
+    if(!name) return {vision:false,known:false,reason:"未识别到具体模型名，无法判断是否多模态"};
+    if(VISION_MODEL_RE.test(name)) return {vision:true, known:true,reason:"模型名含多模态/视觉特征"};
+    return {vision:false,known:true,reason:TEXT_ONLY_MODEL_RE.test(name)?"模型名显示为纯文本模型":"模型名无视觉特征，按纯文本处理"};
+}
+/* 选中项作为一段文字指令注入请求。
+   withRefImage=true（本次请求会真正带参考图）：参考图优先，预选画风仅作文字补充；
+   withRefImage=false（无图 / 模型不支持识图已回退）：预选画风作为唯一视觉基准。
+   无论哪种都只作风格引导，不改技能规定的输出格式与结构。 */
+function stylePresetPrompt(withRefImage){
     const picked=selectedStylePresets();
     if(!picked.length) return "";
     const lines=picked.map(x=>x.label+"画风："+x.name);
     return "\n\n【画风预选】\n"+lines.join("；")
         +"。请在视觉设定中以上述预选画风作为全剧统一风格基准（线条、色彩、光影、质感，以及人物与场景的造型倾向）"
-        +"；若同时上传了画风参考图，则以参考图的实际画风为最高优先级，预选画风仅作为文字补充。"
+        +(withRefImage
+            ? "；若同时上传了画风参考图，则以参考图的实际画风为最高优先级，预选画风仅作为文字补充。"
+            : "；本次无画风参考图，以上述预选画风为唯一视觉风格基准。")
         +"本项只作风格引导，不改变剧本内容，也不改变技能规定的输出格式与结构。";
 }
 
@@ -1375,7 +1441,7 @@ async function handleRefFiles(fileList){
     if(skipped > 0) alert(`已忽略 ${skipped} 个不支持的文件（仅支持 jpg / jpeg / png / webp）`);
     if(!valid.length) return;
 
-    // 2. 数量上限：最多 2 张，超出提示且不再添加
+    // 2. 数量上限：最多 REF_MAX_COUNT 张，超出提示且不再添加
     const room = REF_MAX_COUNT - refImages.length;
     if(room <= 0){ alert(`最多只能添加 ${REF_MAX_COUNT} 张画风参考图，请先删除已有图片`); return; }
     if(valid.length > room){
@@ -2348,18 +2414,38 @@ async function sendMessage(autoSourceText) {
         combinedContent += (combinedContent ? "\n\n" : "") + "【待处理的已有文字】\n请依据当前技能，对以下已有文字进行相应处理：\n" + autoSourceText;
     }
 
-    /* 带图判定：只有 c / e 两个美术技能且有图时才带；a / b / d、自定义技能、未加载技能一律忽略 */
-    const useImages = IMAGE_SKILL_KEYS.includes(currentSkillKey) && refImages.length > 0;
-    if (useImages) {
-        combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，请以其画风、色调、线条与质感作为视觉基准；图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
+    /* ===== 画风参考图 / 预选 冲突处理 =====
+       ① 技能支持带图(c/e) + 模型可识图 → 参考图优先，预选画风仅作文字补充；
+       ② 技能支持带图 + 已确认模型不可识图 → 提醒用户、丢弃参考图，自动以预选画风为准；
+       ③ 模型名无法判定 → 不打断，按原样带图；a/b/d 等技能本就不带图，无冲突。
+       预选画风三类互斥由 setSoleStylePreset 保证，selectedStylePresets() 只会返回一条。 */
+    const skillCanUseImg = IMAGE_SKILL_KEYS.includes(currentSkillKey) && refImages.length > 0;
+    const vis = detectVisionCapability();
+    let useImages = skillCanUseImg;
+    let visFallback = false;
+    if (skillCanUseImg && vis.known && !vis.vision) {
+        useImages = false; visFallback = true;
+        const picked = selectedStylePresets();
+        const hint = picked.length
+            ? `已忽略上传的 ${refImages.length} 张参考图，并自动改以你预选的「${picked[0].label} · ${picked[0].name}」画风为准。`
+            : `本次未附带参考图；请换用多模态模型，或在「画风预选」中选一种 2D / 3D / 真人 画风作为替代。`;
+        append("⚠️ 当前模型无法识别参考图（" + vis.reason + "）。" + hint, "tip");
     }
-    /* 画风预选：文字风格指令随请求发送（所有技能生效），与参考图并用时参考图优先 */
-    const styleTxt = stylePresetPrompt();
+    if (useImages) {
+        combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，请以其画风、色调、线条与质感作为最高优先级视觉基准；图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
+    }
+    /* 画风预选文字指令：有参考图时用"参考图优先"措辞；无图/回退时作为唯一视觉基准 */
+    const styleTxt = stylePresetPrompt(useImages);
     if (styleTxt) combinedContent += styleTxt;
-    /* 主动从两个美术技能提取的「对应画风提示词」：有则随请求发送（与 styleTxt 同源，不重复注入整份技能模板） */
+    /* 主动从两个美术技能提取的「对应画风提示词」：有则随请求发送（不重复注入整份技能模板） */
     const artStyleTxt = activeStylePromptBlocks();
     if (artStyleTxt) combinedContent += "\n\n【技能画风提示词】\n" + artStyleTxt;
-    if (!combinedContent.trim() && !useImages) { alert("请输入指令，或者勾选剧本文件"); return; }
+    if (!combinedContent.trim() && !useImages) {
+        alert(visFallback
+            ? "当前模型无法识别参考图，且你未预选画风、未写指令。请先在画风预选里选一种画风，或换用多模态模型。"
+            : "请输入指令，或者勾选剧本文件");
+        return;
+    }
     if (!combinedContent.trim() && useImages) {
         combinedContent = "【用户指令】\n请依据当前技能与所附画风参考图开始生成。";
     }
@@ -2386,7 +2472,9 @@ async function sendMessage(autoSourceText) {
     const max_tokens = parseInt(maxTokenInput.value);
     const imgNote = useImages
         ? `、${refImages.length}张参考图`
-        : (refImages.length > 0 ? "、参考图已按当前技能自动忽略" : "");
+        : (refImages.length > 0
+            ? (visFallback ? "、参考图因模型不支持识图已忽略" : "、参考图已按当前技能自动忽略")
+            : "");
     append(`【用户】：${userCmd}${autoSourceText ? "（已附带窗口内已有文字，按当前技能处理）" : ""}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
     userInput.value = "";
     aiMsgDom = append("【AI】：", "ai");
@@ -2700,18 +2788,33 @@ function initUI(){
         if(files && files.length) await handleRefFiles(files);
         refImageInput.value = "";   // 允许重复选择同一文件
     };
-    /* 画风预选：三类下拉初始化（含本地记忆恢复），切换即保存并刷新顶部状态 */
+    /* 画风预选：三类下拉互斥——选任一类即清空其余两类；切换即保存（会话级）并刷新状态 */
     Object.keys(STYLE_PRESETS).forEach(k=>{
         const sel=document.getElementById(presetSelectId(k));
         if(!sel) return;
         sel.addEventListener("change",e=>{
-            stylePresetSel[k]=e.target.value||"";
+            setSoleStylePreset(k,e.target.value||"");
             saveStylePresets(); renderStylePresets();
             fetchArtSkillStylePrompts();   /* 主动触发两个美术技能的对应画风提示词 */
         });
     });
     renderStylePresets();
-    fetchArtSkillStylePrompts();           /* 有本地记忆的画风时，进入页面即主动取对应提示词 */
+    fetchArtSkillStylePrompts();           /* 有会话记忆的画风时，进入页面即主动取对应提示词 */
+
+    /* 识图能力开关：用户可手动指定当前模型是否支持读参考图（auto/on/off） */
+    const visionSel=document.getElementById("modelVisionSel");
+    if(visionSel){
+        let mv="auto"; try{ mv=safeStorage.get(STORAGE_KEY_MODEL_VISION)||"auto"; }catch(e){}
+        if(!["auto","on","off"].includes(mv)) mv="auto";
+        modelVisionOverride=mv;
+        visionSel.value=mv;
+        visionSel.addEventListener("change",e=>{
+            const v=["auto","on","off"].includes(e.target.value)?e.target.value:"auto";
+            try{ safeStorage.set(STORAGE_KEY_MODEL_VISION,v); }catch(err){}
+            modelVisionOverride=v;
+            updateRefBadge(); updateStylePresetState();
+        });
+    }
 
     importSkillMdBtn.addEventListener("click", ()=> skillMdInput.click());
     skillMdInput.onchange = (e)=>{
