@@ -1072,7 +1072,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </ul>
             <h2>④ 时间轴 AI 按钮（剪辑轨道上方横向一排）</h2>
             <ul>
-                <li><b>🎨 AI包装</b>：点按钮直接打开 AI 弹窗并切到「AI包装」面板。它用<b>代码渲染画面</b>：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字 / 标签 / 数据卡片的出现时间、位置、颜色、动画），输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。<b>中间视频不再下载</b>——生成后直接在时间轴调整错别字/位置，再从主界面「导出成片」输出最终视频。可选 6 套<b>画面风格模板</b>（经典6合1 / 多屏拼贴 / 现代图文 / 科技控制台 / 牌桌洗牌 / 空间画廊，多选；默认一套都不选＝全自动智能识别）；<b>画面模板</b>决定整体配色/字体/背景，后 5 套还会把轨道视频图片缩到画幅一侧腾出图形区（面板可关、经典套始终全屏）。<br>花字按内容分成 <b>花字1~花字6</b> 六条独立轨（花字1=关键词高亮、2=英文字母弹出、3=数据卡片、4=知识图文、5=步骤清单、6=引用金句；<b>用到哪套建哪条</b>——口播里没出现英文 / 数字 / 步骤 / 金句，对应轨就不会生成，这是按内容识别的结果，不是漏建）。每条可单独选中、拖动位置、改文字/字号/渐变色/持续动效。<b>多条一起改画面位置</b>：在时间轴框选若干条花字、或点轨道头「选」全选整轨后，在预览画面拖动其中一条，所有选中花字的画面位置按相同位移一起平移（撤销一次整组还原）。<b>花字独立排版</b>：自动按模板分区锚点摆放、不扎堆居中、超长文字自动缩字号不越屏；<b>同一轨上前一条还没出完、后一条又出现时，后一条自动错开档位，绝不叠加覆盖</b>；花字4（知识图文）固定在画面<b>左上角</b>，补足左上区域。面板里的<b>「同时显示原字幕1」开关默认关闭</b>（AI包装下隐藏原「字幕1」白色字幕、避免与花字重复）；<b>勾选后</b>原白色字幕恢复显示，且所有花字自动避开底部中央的字幕1位置，双方不冲突。花字只避开画面中央偏上的<b>面部五官区</b>（眉眼鼻口，x∈0.39~0.61/y∈0.22~0.40），<b>脖子和头发区域允许放字幕</b>；避让在布局层自动生效，不显示辅助框、不会出现在成片里。持续动效含呼吸浮动 / 心跳缩放 / 轻微旋转 / 渐变流动 / 呼吸发光，预览与成片完全一致。</li>
+                <li><b>🎨 AI包装</b>：点按钮直接打开 AI 弹窗并切到「AI包装」面板。它用<b>代码渲染画面</b>：先复用 ASR 拿到台词与字级时间戳，再由大模型输出分镜方案（每个文字 / 标签 / 数据卡片的出现时间、位置、颜色、动画），输出结构化 JSON 工程并把每个图形元素回写为时间轴上可单独编辑的片段。<b>中间视频不再下载</b>——生成后直接在时间轴调整错别字/位置，再从主界面「导出成片」输出最终视频。可选 6 套<b>画面风格模板</b>（经典6合1 / 多屏拼贴 / 现代图文 / 科技控制台 / 牌桌洗牌 / 空间画廊，多选；默认一套都不选＝全自动智能识别）；<b>画面模板</b>决定整体配色/字体/背景，后 5 套还会把轨道视频图片缩到画幅一侧腾出图形区（面板可关、经典套始终全屏）。<br>花字按内容分成 <b>花字1~花字6</b> 六条独立轨（花字1=关键词高亮、2=英文字母弹出、3=数据卡片、4=知识图文、5=步骤清单、6=引用金句；<b>用到哪套建哪条</b>——口播里没出现英文 / 数字 / 步骤 / 金句，对应轨就不会生成，这是按内容识别的结果，不是漏建）。每条可单独选中、拖动位置、改文字/字号/渐变色/持续动效。<b>多条一起改画面位置</b>：在时间轴框选若干条字幕、或点轨道头「选」全选整轨后，在预览画面拖动其中一条，所有选中字幕的画面位置按相同位移一起平移（花字与普通字幕均支持，撤销一次整组还原）。<b>花字独立排版</b>：自动按模板分区锚点摆放、不扎堆居中、超长文字自动缩字号不越屏；<b>同一轨上前一条还没出完、后一条又出现时，后一条自动错开档位，绝不叠加覆盖</b>；花字4（知识图文）固定在画面<b>左上角</b>，补足左上区域。面板里的<b>「同时显示原字幕1」开关默认关闭</b>（AI包装下隐藏原「字幕1」白色字幕、避免与花字重复）；<b>勾选后</b>原白色字幕恢复显示，且所有花字自动避开底部中央的字幕1位置，双方不冲突。花字只避开画面中央偏上的<b>面部五官区</b>（眉眼鼻口，x∈0.39~0.61/y∈0.22~0.40），<b>脖子和头发区域允许放字幕</b>；避让在布局层自动生效，不显示辅助框、不会出现在成片里。持续动效含呼吸浮动 / 心跳缩放 / 轻微旋转 / 渐变流动 / 呼吸发光，预览与成片完全一致。</li>
                 <li><b>✨ AI剪辑</b>：点按钮先弹出「剪辑思路与模型」窗口 —— 可以写下你对这条片子的剪辑想法（节奏、删减、顺序、字幕位置等，可留空），并在下拉里<b>选一个你已经部署好的算力里的大语言模型</b>，<b>建议只选 Claude 或 GPT 系列之一</b>，下拉没有就手填模型名。点「▶ 开始 AI 剪辑」后会出现<b>分阶段进度条</b>：模型已调用 → 轨道素材分析中 → 视频画面抽帧中 → AI 剪辑进程中（带已等待秒数）→ 生成剪辑方案 → 完成。模型拿到整条时间轴结构、素材元信息、独立音轨、毫秒字幕、静音区间、视频抽帧与你的思路，先做语义分析区分有效停顿 / 无效废片并给出内容优化建议；确认后删除建议会转成剪口播候选（可勾选、全选、撤销），其它裁切 / 字幕优化可直接写入轨道（<code>Ctrl+Z</code> 可撤销）。带图请求失败会自动降级为纯轨道数据分析。<b>Claude / 普通 GPT 这类文本或视觉对话模型就能跑，不需要语音转写能力。</b><b>跨域说明</b>：模型请求与「对话剪辑」一样优先经本机服务（127.0.0.1:8788）转发，服务会自动探测 127.0.0.1 / localhost 两个地址；双击启动本机服务即可绕开浏览器 CORS，服务离线时才尝试直连并给出明确诊断。</li>
                 <li><b>🤖 对话剪辑（真正由大模型驱动的 AI 剪辑）</b>：点这个按钮打开对话面板，用<b>日常自然语言</b>说需求即可，例如「删掉所有嗯啊语气词和长停顿」「把节奏加快」「挑出高光片段」「读取文稿并总结」。AI 会真正调用工具：先 <code>read_timeline</code> 读时间轴拿到准确的片段 id 和秒数，必要时 <code>read_script</code> 读出带 <code>[sN]</code> 段号的文稿，用 <code>preview_frame</code> <b>抽真实画面做视觉自检</b>（图片会回注给模型看图），改完再自检、不对就用工具继续修正。所有编辑<b>只生成提案</b>，面板底部会出现「待确认的剪辑提案」卡片，列清楚每一项改动（裁片头、删片段、移动、变速、按文稿写回等），你点「✅ 应用提案」才真正写入轨道（<code>Ctrl+Z</code> 一步撤销），点「放弃」则时间轴分毫不动。模型需要 Claude / GPT 这类能稳定输出工具调用的强模型；模型与 Key 复用左上「算力总控」，经本机服务代理转发，Key 不会暴露给第三方页面。对话支持多轮连续编辑，复杂需求可多步完成。</li>
                 <li><b>🅰 AI字幕</b>：点按钮会先弹出与 AI 剪辑同款的算力 / 引擎 / 模型选择窗，可选自动探测、仅本机 faster-whisper、仅第三方转写接口，并填模型名与语言后开始。<b>真实分析轨道上的视频 / 音频素材</b>，绝不生成演示假字幕。现在改由<b>本机服务（127.0.0.1:8788）转发转写</b>：网页把素材交给服务，服务用 FFmpeg 抽成 <b>16kHz 单声道 WAV，按 60 秒切片</b>（每段约 1.9MB，彻底避开整段 mp4 超 20MB 的问题），逐段送转写接口，再把分段时间码合并（含毫秒级 startMs/endMs 分段与静音/气口区间数据）、对齐到片段在轨道上的位置写进字幕轨；即使转写后端不可用，静音区间也会独立返回给AI剪口播。转写后端<b>三级自动降级</b>：① 本机 faster-whisper（默认 9000 端口，纯本地免费）→ ② 创作台 / 画布里填的第三方 OpenAI 兼容 <code>/v1/audio/transcriptions</code>（由本机服务转发，<b>绕开浏览器 CORS，不再 Failed to fetch</b>）→ ③ 都没有则给出明确安装指引，绝不假造字幕。服务离线时才回退浏览器直连，并会区分「CORS 拦截 / 接口 404 / 连接失败」。<br><b>模型能力说明</b>：Claude 全系、普通 GPT / Qwen / DeepSeek 这类对话模型<b>不是语音转写模型</b>，也没有 <code>input_audio</code> 音频输入能力，能跑 AI剪辑但不能直接做 AI字幕；AI字幕需要 <code>whisper-1</code> / <code>gpt-4o-transcribe</code> 这类转写通道，或本机 faster-whisper。</li>
@@ -1090,7 +1090,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <tr><td>播放 / 暂停</td><td><code>Space</code></td><td>分割（剪断）</td><td><code>Ctrl/⌘ + B</code>（兼容 <code>S</code>）</td></tr>
                 <tr><td>删除选中片段 / 素材</td><td><code>Delete</code> / <code>Backspace</code></td><td>撤销 / 重做</td><td><code>Ctrl/⌘ + Z</code> / <code>Ctrl/⌘ + Shift + Z</code></td></tr>
                 <tr><td>复制 / 剪切 / 粘贴</td><td><code>Ctrl/⌘ + C</code> / <code>Ctrl/⌘ + X</code> / <code>Ctrl/⌘ + V</code></td><td>全选片段</td><td><code>Ctrl/⌘ + A</code></td></tr>
-                <tr><td colspan="4" style="color:#a5b4fc">💡 多条花字一起改画面位置：在时间轴<b>框选</b>若干花字，或点花字轨轨道头的<b>「选」</b>全选整轨 → 在预览画面里拖动其中一条，所有选中花字的画面位置一起平移；撤销一次即可整组还原。</td></tr>
+                <tr><td colspan="4" style="color:#a5b4fc">💡 多条字幕一起改画面位置：在时间轴<b>框选</b>若干条字幕，或点字幕/花字轨轨道头的<b>「选」</b>全选整轨 → 在预览画面里拖动其中一条，所有选中字幕的画面位置按相同位移一起平移（花字、普通字幕均支持）；撤销一次即可整组还原。</td></tr>
                 <tr><td>保存 / 历史工程</td><td><code>Ctrl/⌘ + S</code> / <code>Ctrl/⌘ + O</code></td><td>导入素材 / 导出成片</td><td><code>Ctrl/⌘ + I</code> / <code>Ctrl/⌘ + E</code></td></tr>
                 <tr><td>回到开头 / 结尾</td><td><code>Home</code> / <code>End</code></td><td>播放头逐帧 / 逐秒</td><td><code>← →</code> / <code>Shift + ← →</code></td></tr>
                 <tr><td>放大 / 缩小时间轴</td><td><code>+</code> / <code>-</code></td><td>时间轴自适应素材时长</td><td>工具条「适应」</td></tr>
@@ -4160,11 +4160,25 @@ function wireFxBox(){
         const mode=e.target.closest(".fx-corner")?"scale":(e.target.closest(".fx-rot")?"rotate":"move");
         const x0=e.clientX,y0=e.clientY;
         const rect=$("stage").getBoundingClientRect();
+        /* 多选整组平移：move 模式下，若当前片段在多选集合 state.multi(>1) 中，
+           则集合内所有用 fx.x/y 定位的片段按同一 dx/dy 一起平移画面位置。
+           花字(c.fv)另走 fzOverlay 的 fv.x/y，不在这里重复平移。 */
+        const groupMove = mode==="move" && state.multi.length>1 && state.multi.indexOf(c.id)>=0;
+        const groupSnap = groupMove ? state.multi.map(id=>{
+            const o=clipById(id);
+            if(!o || o.fv || !o.fx) return null;   /* 花字跳过（它有自己的 fv 通道）；无 fx 跳过 */
+            return {id:id, fx:fxOf(o), ox:Number(fxOf(o).x)||0, oy:Number(fxOf(o).y)||0};
+        }).filter(Boolean) : [];
         /* 以素材自身中心为缩放/旋转基准（对齐剪映）；字幕等中心不在舞台正中时也准确 */
         const cx=rect.left+g.cx+(Number(f.x)||0), cy=rect.top+g.cy+(Number(f.y)||0);
         const d0=Math.max(1,Math.hypot(x0-cx,y0-cy)), a0=Math.atan2(y0-cy,x0-cx);
         const mv=ev=>{
-            if(mode==="move"){ f.x=snap.x+(ev.clientX-x0); f.y=snap.y+(ev.clientY-y0); }
+            if(mode==="move"){
+                const dx=(ev.clientX-x0), dy=(ev.clientY-y0);
+                if(groupMove){
+                    groupSnap.forEach(gm=>{ gm.fx.x=gm.ox+dx; gm.fx.y=gm.oy+dy; });
+                }else{ f.x=snap.x+dx; f.y=snap.y+dy; }
+            }
             else if(mode==="scale"){ f.scale=clamp(snap.scale*(Math.hypot(ev.clientX-cx,ev.clientY-cy)/d0),0.1,5); }
             else{ f.rotate=snap.rotate+(Math.atan2(ev.clientY-cy,ev.clientX-cx)-a0)*180/Math.PI; }
             applyClipTransforms(); updateFxInputs(f);
@@ -4172,6 +4186,7 @@ function wireFxBox(){
         const up=()=>{
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
+            if(groupMove && groupSnap.length>1) toast("已整组移动 "+groupSnap.length+" 条画面位置","ok");
         };
         document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
     });
