@@ -30,6 +30,9 @@
     .brand-text p{font-size:10px;color:var(--muted);line-height:1.5;}
     .tb-btn,.nav-btn{padding:4px 5px;border:none;border-radius:8px;font-size:11px;cursor:pointer;min-height:32px;line-height:1.35;background:var(--panel);color:var(--text);border:1px solid var(--border2);white-space:nowrap;}
     .tb-btn:hover,.nav-btn:hover{background:var(--hover);}
+    /* 顶栏「历史结果」：常用按钮，改成与左栏「保存映射」同款绿底白字（hover 提亮） */
+    .tb-btn.green-solid{background:var(--green);border-color:transparent;color:#fff;}
+    .tb-btn.green-solid:hover{background:var(--green);filter:brightness(1.15);}
     .nav-btn{text-decoration:none;display:inline-flex;align-items:center;background:var(--purple);border-color:transparent;color:#fff;}
     .nav-btn:hover{background:#8b5cf6;}
     /* 右上角「AI剪辑台」：与创作台同款青底白字，与「漫流主站」一起靠右、紧挨着 */
@@ -342,7 +345,7 @@
         <button class="tb-btn" id="arrangeBtn">自动排版</button>
         <button class="tb-btn" id="exportBtn">导出画布</button>
         <button class="tb-btn" id="importBtn">导入画布</button>
-        <button class="tb-btn" id="historyBtn" title="查看本机生成的历史图片 / 视频（可预览、下载）">🖼 历史结果</button>
+        <button class="tb-btn green-solid" id="historyBtn" title="查看本机生成的历史图片 / 视频（可预览、下载）">🖼 历史结果</button>
         <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
         <a class="tb-btn editor-nav-btn" id="openEditorBtn" href="./editor.html" target="_blank" rel="noopener noreferrer" title="打开漫流 AI 剪辑台（新标签页）">✂ AI剪辑台</a>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
