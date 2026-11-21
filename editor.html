@@ -1192,7 +1192,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                             <div class="export-field"><span>格式</span><select id="expFormat"><option value="mp4">MP4</option><option value="mov">MOV</option><option value="webm">WebM</option></select></div>
                             <div class="export-field"><span>帧率</span><select id="expFps"><option value="24">24</option><option value="25">25</option><option value="30" selected>30</option><option value="60">60</option></select></div>
                             <div class="export-field"><span>画质</span><select id="expQuality"><option value="lossless">无损（文件较大）</option><option value="high" selected>高画质（推荐）</option><option value="medium">标准</option><option value="low">较小体积</option></select></div>
-                            <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="low">较低 (5M)</option><option value="8M">8 Mbps</option><option value="recommend">推荐 (12M)</option><option value="16M">16 Mbps</option><option value="high">较高 (20M)</option><option value="24M">极高 (24M)</option><option value="48M">48 Mbps（无损）</option></select></div>
+                            <div class="export-field"><span>视频码率</span><select id="expBitrate"><option value="low">较低 (5M)</option><option value="8M">8 Mbps</option><option value="recommend">推荐 (随分辨率)</option><option value="16M">16 Mbps</option><option value="high">较高 (20M)</option><option value="24M">极高 (24M)</option><option value="48M">48 Mbps（无损）</option></select></div>
                             <div class="export-field"><span>视频编码</span><select id="expCodec"><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="prores">Apple ProRes</option><option value="av1">AV1</option></select></div>
                             <div class="export-note" id="expCodecNote">画质档位控制最终编码质量（无损＝真正无损编码 / 高画质 CRF14，码率加倍）；H.264 可由浏览器 / 显卡直接编码，HEVC / ProRes / AV1 与 MOV 需要本机 ffmpeg。开启烧录字幕时，画质档位同样作用于烧录后的成片。所有视频输出的音频统一采用高保真编码。</div>
                             <div class="export-field"><span>网络播放优化 ⓘ</span><input type="checkbox" class="sw" id="expFaststart" checked><span style="flex:1;font-size:10px;color:var(--muted)">MP4 前置索引，边下边播</span></div>
@@ -10252,16 +10252,44 @@ function exportSize(){
     if(v==="source" && vEl.videoWidth){ w=Math.round(vEl.videoWidth/2)*2; h=Math.round(vEl.videoHeight/2)*2; }
     return {w:Math.max(64,Math.min(w,3840)),h:Math.max(64,Math.min(h,2160))};
 }
-function exportBitrate(){
-    const v=$("expBitrate").value;
-    if(v==="low") return 5000000;
-    if(v==="8M") return 8000000;
-    if(v==="16M") return 16000000;
-    if(v==="high") return 40000000;    /* 高画质码率翻倍 20M→40M */
-    if(v==="24M") return 24000000;
-    if(v==="48M") return 48000000;     /* 无损档：对应 48M 码率 */
-    return 12000000;   /* recommend：录制中间片给足码率，避免烧录前就先损失画质 */
+/* 分辨率档位对应的推荐码率(Mbps)：恒定码率下 720P 与 4K 体积几乎一样，
+   所以「推荐」档必须随分辨率放大码率，让分辨率选择真正影响体积与画质。
+   用户手动选了固定码率(8M/16M/24M/48M/low/high)则完全尊重、不覆盖。 */
+const FV_RES_BITRATE={720:5,1080:12,1440:20,2160:40};
+function recommendedBitrateMbps(){
+    const res=$("expRes")?$("expRes").value:"source";
+    if(res==="source"){
+        /* 原始：按素材实际输出像素粗略给档，避免 4K 素材却只给 5M */
+        const sz=exportSize();
+        if(sz.w>=2560||sz.h>=1440) return 20;
+        if(sz.w>=1920||sz.h>=1080) return 12;
+        return 8;
+    }
+    return FV_RES_BITRATE[res]||12;
 }
+/* 统一有效码率(Mbps)：真实导出与体积预估共用同一口径，确保所有参数都真实影响体积。
+   - 分辨率：通过「推荐」档联动（720P≈5M/1080P≈12M/2K≈20M/4K≈40M）；手动固定码率则尊重用户。
+   - 帧率：高帧率需更多数据维持同等画质，30fps 为基准（24→0.85 / 60→1.6）。
+   - 编码效率：HEVC/AV1 同画质所需码率更低（H.264 基准）。
+   - 画质：标准/小体积档降码率；无损档走 CRF0、由像素决定，不走本函数（见 updateExportEstimate）。
+   得到的码率会实际传给录制器与本机 ffmpeg，因此预估与成片体积一致。 */
+function effectiveBitrateMbps(){
+    const sel=$("expBitrate")?$("expBitrate").value:"recommend";
+    const base=sel==="recommend"?recommendedBitrateMbps()
+        :({low:5,"8M":8,"16M":16,high:40,"24M":24,"48M":48})[sel]||recommendedBitrateMbps();
+    const fps=Number($("expFps")?$("expFps").value:30)||30;
+    const ff=fps>=60?1.6:fps>=50?1.3:fps>=45?1.15:fps<=24?0.85:1;
+    const codec=$("expCodec")?$("expCodec").value:"h264";
+    const cf=codec==="hevc"?0.6:codec==="av1"?0.55:1;
+    const q=$("expQuality")?$("expQuality").value:"high";
+    const qf=q==="medium"?0.8:q==="low"?0.6:1;
+    return base*ff*cf*qf;
+}
+function effectiveBitrateStr(){
+    const m=effectiveBitrateMbps();
+    return (m>=10?Math.round(m):Math.round(m*10)/10)+"M";
+}
+function exportBitrate(){ return effectiveBitrateMbps()*1e6; }
 function blobToBase64(b){
     return new Promise((res,rej)=>{ const r=new FileReader();
         r.onload=()=>res(String(r.result).split(",")[1]||""); r.onerror=()=>rej(r.error); r.readAsDataURL(b); });
@@ -11044,13 +11072,12 @@ async function serviceBurnSubtitles(blob,srt,filename){
     /* 画质/编码跟随导出面板：烧录这一步是最后一次有损编码，参数必须够高，否则成片发糊 */
     const fmt=$("expFormat").value, codec=$("expCodec").value;
     const burnContainer=(codec==="prores")?"mov":fmt;   /* ProRes 强制 mov 容器 */
-    const bitrateSel=$("expBitrate")?$("expBitrate").value:"recommend";
-    const bitrateMap={low:"5M",recommend:"12M",high:"40M","8M":"8M","16M":"16M","24M":"24M","48M":"48M"};
+    const burnBitrate=effectiveBitrateStr();   /* 统一口径：分辨率/帧率/画质/编码都影响真实烧录码率 */
     const r=await fetch(LOCAL_SERVICE+"/api/burn-subtitles",{method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({filename:String(filename||exportTitle()),srt:burnSrt,ass:ass,subStyle:subStyle,
             vcodec:codec==="h264"?"h264":codec, container:burnContainer,
-            bitrate:bitrateMap[bitrateSel]||"12M", quality:$("expQuality")?$("expQuality").value:"high",
+            bitrate:burnBitrate, quality:$("expQuality")?$("expQuality").value:"high",
             faststart:$("expFaststart")?$("expFaststart").checked:true,
             dataBase64:await blobToBase64(blob)})});
     const j=await r.json();
@@ -11065,8 +11092,7 @@ async function exportVideoFile(recorded,onProgress){
     if(needFF&&!ffmpegReady()) throw new Error("无损 / MOV / "+codec.toUpperCase()+" 需要本机 ffmpeg；可改选高画质 + MP4 + H.264，或启动本机服务并安装 ffmpeg");
     const blob=await recorded();
     if(!blob||!blob.size) throw new Error("没有录到画面，请确认轨道上有视频 / 图片素材并且预览窗口能显示");
-    const bitrateSel=$("expBitrate")?$("expBitrate").value:"recommend";
-    const bitrateStr={low:"5M",recommend:"12M","8M":"8M","16M":"16M",high:"40M","24M":"24M","48M":"48M"}[bitrateSel]||"12M";
+    const bitrateStr=effectiveBitrateStr();   /* 统一口径：所有参数都影响真实码率 */
     const burn=$("expBurnSub")&&$("expBurnSub").checked&&ffmpegReady();
     const sr=(buildSubtitleText("srt"));
     const hasSub=burn&&sr.count>0;
@@ -11095,36 +11121,40 @@ async function exportGifFile(recorded){
         dataBase64:await blobToBase64(blob)});
     await saveBlob(base64ToBlob(j.dataBase64,"image/gif"),exportTitle()+".gif");
 }
+/* 分辨率提示：显示实际输出像素与当前有效码率（已综合分辨率/帧率/画质/编码） */
+function updateResNote(){
+    const el=$("expResNote"); if(!el) return;
+    const sz=exportSize();
+    const isRec=!($("expBitrate")&&$("expBitrate").value!=="recommend");
+    el.textContent="输出 "+sz.w+"×"+sz.h+(isRec?" · 推荐码率≈"+effectiveBitrateMbps().toFixed(1)+"M（随分辨率/帧率/画质/编码变化）":"");
+}
 function updateExportEstimate(){
     const rg=exportRange(), d=rg.end-rg.start;   /* 成片时长＝入点/出点区间（未设则为整条素材），无素材为 0 */
-    /* 按用户实际选择的画质 / 码率 / 编码 / 分辨率逐项估算，尽量贴近真实输出体积。
-       体积(MB) ≈ 码率(Mbps) × 秒数 ÷ 8。Mbit→MB 用 ÷8。 */
+    /* 体积(MB) ≈ 有效码率(Mbps) × 秒数 ÷ 8。有效码率由 effectiveBitrateMbps() 统一口径给出：
+       分辨率(推荐档) / 帧率 / 画质 / 编码效率都已折进该值，与真实导出完全一致；再叠加容器开销。 */
     const q=()=>$("expQuality")?$("expQuality").value:"high";
-    const bitSel=$("expBitrate")?$("expBitrate").value:"recommend";
-    const bitMbps=({low:5,"8M":8,recommend:12,"16M":16,high:20,"24M":24,"48M":48})[bitSel]||12;
     const codec=$("expCodec")?$("expCodec").value:"h264";
+    const fmt=$("expFormat")?$("expFormat").value:"mp4";
     const sz=exportSize();                      /* 实际输出宽高（跟随分辨率选择） */
     const px=sz.w*sz.h;
     const fps=Number($("expFps")?$("expFps").value:30)||30;
+    const bitMbps=effectiveBitrateMbps();       /* 与真实录制/烧录同一口径 */
     let mb=0;
     if($("expChkVideo").checked){
-        /* 码率基准：无损档用 CRF0，体积远大于设定码率——按分辨率/帧率给一个经验上界；
-           其余档位以所选码率为准，画质档做系数微调，编码效率做系数修正。 */
         let vMbps;
         if(q()==="lossless"){
-            /* 无损 H.264 CRF0：约 1~2 bit/像素/帧（内容越复杂越高），取中值估算；
-               且无损体积应明显高于同码率的有损档，至少按所选码率的 1.6 倍计。 */
+            /* 无损 CRF0：体积由像素×帧率决定（约 1~2 bit/像素/帧取中值），与真实服务端编码同口径 */
             vMbps=px*fps*1.2/1e6;
-            vMbps=Math.max(vMbps,bitMbps*1.6);
+        }else if(codec==="prores"){
+            /* ProRes 是固定码率母版格式，体积按像素×帧率估，显著大于普通有损档 */
+            vMbps=px*fps*1.6/1e6;
         }else{
+            /* 有损档：有效码率已含 分辨率/帧率/画质/编码效率 的全部影响 */
             vMbps=bitMbps;
-            if(q()==="medium") vMbps*=0.8;
-            else if(q()==="low") vMbps*=0.6;
         }
-        /* 编码效率：HEVC / AV1 约为 H.264 的 55% / 50%；ProRes 是中间母版格式，体积显著更大 */
-        if(codec==="hevc") vMbps*=0.55;
-        else if(codec==="av1") vMbps*=0.5;
-        else if(codec==="prores") vMbps=Math.max(vMbps,px*fps*1.6/1e6);
+        /* 容器开销：MOV 略高、WebM 略低（一般 <3%），让格式选择也真实反映在预估值 */
+        if(fmt==="mov") vMbps*=1.02;
+        else if(fmt==="webm") vMbps*=0.97;
         mb+=d*vMbps/8;
     }
     if($("expChkAudio").checked){
@@ -11184,7 +11214,7 @@ function updateExportStatus(){
         if(af.value!=="wav") af.value="wav";
         $("expChkGif").checked=false;
     }
-    updateExportEstimate();
+    updateResNote(); updateExportEstimate();
 }
 /* 导出弹窗封面：比例跟随工程实际画幅。
    与 applyAspect() 用同一套公式（画幅模式 / 自动读取第一条视频或图片的比例），
@@ -11255,7 +11285,7 @@ async function openExport(){
     loadExportPrefs();                       /* 恢复用户上次记忆的导出参数作为首选 */
     if(!$("exportTitle").value) $("exportTitle").value=todayStr();
     $("exportTitleHead").textContent=$("exportTitle").value;
-    updateExportEstimate();
+    updateResNote(); updateExportEstimate();
     const _rg=exportRange();
     $("exportTitleHead").textContent=$("exportTitle").value+(_rg.active?("  ·  入出点 "+fmt(_rg.start)+" → "+fmt(_rg.end)):"");
     $("exportSteps").textContent="";
@@ -11412,8 +11442,9 @@ function wireExport(){
         sync();
     });
     ["expRes","expFormat","expCodec","expBitrate","expQuality","expFps","expBurnSub","expFaststart","expAudioFmt","expGifRes","expSubFmt"].forEach(id=>{
-        const el=$(id); if(el) el.addEventListener("change",()=>{ updateExportEstimate(); saveExportPrefs(); });
+        const el=$(id); if(el) el.addEventListener("change",()=>{ updateResNote(); updateExportEstimate(); saveExportPrefs(); });
     });
+    updateResNote();
     document.querySelectorAll(".export-sec-head").forEach(h=>h.addEventListener("click",e=>{
         if(e.target.tagName==="INPUT") return;
         const f=h.parentElement.querySelector(".export-sec-fields"); if(!f) return;
