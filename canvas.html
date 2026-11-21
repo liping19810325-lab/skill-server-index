@@ -5011,6 +5011,45 @@ function applyComfySpec(wf,d,kindVideo){
     }
     return msgs.join(" · ");
 }
+/* ===== 本机算力 ComfyUI：提交前剥离工作流自带参考（图/声音/视频） =====
+   策略：只要走本机算力 ComfyUI，运行生成时一律不参考任何图/声音/视频——
+   既清掉工作流 JSON 导入时预置在 LoadImage/LoadAudio/LoadVideo 里的默认图（如 Qwen Image 2.1
+   的 clothing top.png 衬衫），也不把画布上连入的参考写进提交对象。
+   做法：① 识别纯载入类节点（只做载入、删掉安全）；② 断开下游所有指向这些节点的连线；
+        ③ 清掉各节点上字符串形式 / 列表形式的参考字段；④ 删除载入节点本身。
+   只动参考相关的载入节点与字段，提示词、seed、画幅、输出节点一律不碰。返回清掉的载入节点数。 */
+function cvStripComfyReferences(work){
+    const LOADER_RE=/^(LoadImage|LoadImageMask|VHS_LoadImage|LoadImageUpload|ImageLoad|ImageInput|ImageFromBase|LoadAudio|VHS_LoadAudio|VHS_LoadAudioUpload|AudioLoad|LoadVideo|VHS_LoadVideo|VideoLoad)/i;
+    const loaderIds=new Set();
+    Object.keys(work||{}).forEach(id=>{
+        if(LOADER_RE.test(String((work[id]||{}).class_type||""))) loaderIds.add(String(id));
+    });
+    /* 明确的多参考列表字段，无论值是连线还是文件名，一律清掉 */
+    const MULTI_REF_RE=/^(ref_audios|ref_videos|ref_video_audios)$/i;
+    /* 单值参考字段：载入节点的 image/audio/video，及下游 image_1/ref_image/start_video 等入口 */
+    const REF_FIELD_RE=/^(image|image_\d+|start_image|ref_image|reference_image|image_1|image_file|audio|audio_\d+|audio_file|sound|music|video|video_\d+|video_file|start_video|ref_video|ref_audio)/i;
+    Object.keys(work||{}).forEach(id=>{
+        const node=work[id];
+        if(!node||!node.inputs) return;
+        Object.keys(node.inputs).forEach(f=>{
+            if(MULTI_REF_RE.test(f)){ delete node.inputs[f]; return; }
+            const v=node.inputs[f];
+            /* 指向载入节点的单条连线 ["节点id", 槽位] —— 断开 */
+            if(Array.isArray(v)&&v.length>=1&&!Array.isArray(v[0])&&loaderIds.has(String(v[0]))){
+                delete node.inputs[f]; return;
+            }
+            /* 参考字段里的字符串文件名（工作流自带默认图/音/视频）—— 清空 */
+            if(REF_FIELD_RE.test(f)&&typeof v==="string"){ delete node.inputs[f]; return; }
+            /* 参考字段里混入的连线列表（如 autogrow）—— 逐项剔除指向载入节点的 */
+            if(REF_FIELD_RE.test(f)&&Array.isArray(v)&&v.length&&Array.isArray(v[0])){
+                const kept=v.filter(it=>!(Array.isArray(it)&&loaderIds.has(String(it[0]))));
+                if(kept.length!==v.length){ if(kept.length) node.inputs[f]=kept; else delete node.inputs[f]; }
+            }
+        });
+    });
+    loaderIds.forEach(id=>{ delete work[id]; });
+    return loaderIds.size;
+}
 async function genComfy(n,input){
     if(cvIsLocalLlm(n)) throw new Error("当前在「模型 / 工作流」里选的是本机大语言模型，不会走 ComfyUI；要出图 / 出视频请改选一份 ComfyUI 工作流。");
     const base=(canvas.settings.comfyBase||"").trim().replace(/\/+$/,"")||COMFY_DEFAULT;
@@ -5040,6 +5079,11 @@ async function genComfy(n,input){
     m.seedNodes=(m.seedNodes||[]).filter(t=>t&&t.node&&wf[t.node]);
     tpl.mapping=m; scheduleSave();
     const work=JSON.parse(JSON.stringify(wf));
+    /* 本机算力统一策略：不采用任何参考（图/声音/视频）。先剥离工作流 JSON 自带的预置参考
+       （如 Qwen Image 2.1 的 clothing top.png 衬衫），再让下方所有「写入画布连入参考」的逻辑整体跳过。
+       提示词节点 / seed / 画幅 / 输出节点不受影响，只移除参考载入节点与参考字段。 */
+    const useRef=false;
+    const strippedRefs=useRef?0:cvStripComfyReferences(work);
     /* 提示词可能分布在多个节点（Switch 的 on_false / LLM 扩写分支 / PrimitiveString），
        全部都写一遍，才不会出现「改了提示词却仍出默认图」。 */
     let targets=(m.promptNodes.length)?m.promptNodes
@@ -5049,20 +5093,24 @@ async function genComfy(n,input){
     if(negTargets.length) targets=negTargets;
     if(!targets.length)
         throw new Error("工作流里没识别到提示词节点，画布提示词无法写入（所以出图会一直是工作流自带的那句提示词）。\n解决办法：① 左侧「ComfyUI 工作流」面板点「重新推断映射」；② 或在「映射」框里把 promptNodes 指到真正的提示词节点；③ 或删掉该模板重新导入「导出(API)」JSON。");
-    if(input.images.length&&!m.imageNodes.length)
-        throw new Error("已连入 "+input.images.length+" 张参考图，但工作流里没识别到图片载入节点（LoadImage 等），参考图无法写入。\n解决办法：左侧「映射」框里把 imageNodes 指到图片载入节点（如 [\"6\"] 或 [{\"node\":\"6\",\"field\":\"image\"}]），或点「重新推断映射」。");
-    /* 声音 / 视频参考落点：先看映射里的载入节点；没有时 MiniMax H3 类工作流支持动态注入
-       （H3 主节点的 ref_audios / ref_videos 是 autogrow 可选输入，UI 里没连线时 API JSON 连键都没有——
-        这就是「已连入声音参考却报识别不到载入节点」的根因。注入格式已实测通过 ComfyUI /prompt 校验） */
+    /* 本机算力不采用参考：画布即便连了图/声音/视频也不上传、不写入、不注入、不因此报错。
+       参考相关节点已在上方 cvStripComfyReferences 里从 work 中清除，此处只留变量占位保持下文统计结构不变。 */
     let audInjected=0,vidInjected=0;
-    if(input.audios.length&&!m.audioNodes.length)
-        audInjected=await comfyInjectAutogrowAudio(work,input.audios.slice(0,3),base,n);
-    if(input.audios.length&&!m.audioNodes.length&&!audInjected)
-        throw new Error("已连入 "+input.audios.length+" 段声音参考，但工作流里既没有声音载入节点（LoadAudio / VHS_LoadAudio 等），也没有 MiniMax H3 这类支持 ref_audios 自动注入的节点，声音无法写入。\n解决办法：换用 MiniMax H3 / 含 LoadAudio 的工作流，或在「映射」框里补 audioNodes。");
-    if(input.videos.length&&!m.videoNodes.length)
-        vidInjected=await comfyInjectAutogrowVideo(work,input.videos.slice(0,3),base,n);
-    if(input.videos.length&&!m.videoNodes.length&&!vidInjected)
-        throw new Error("已连入 "+input.videos.length+" 个视频参考，但工作流里既没有视频载入节点（LoadVideo / VHS_LoadVideo 等），也没有 MiniMax H3 这类支持 ref_videos 自动注入的节点，视频无法写入。\n解决办法：换用含视频载入节点的工作流，或在「映射」框里补 videoNodes。");
+    if(useRef){
+        if(input.images.length&&!m.imageNodes.length)
+            throw new Error("已连入 "+input.images.length+" 张参考图，但工作流里没识别到图片载入节点（LoadImage 等），参考图无法写入。\n解决办法：左侧「映射」框里把 imageNodes 指到图片载入节点（如 [\"6\"] 或 [{\"node\":\"6\",\"field\":\"image\"}]），或点「重新推断映射」。");
+        /* 声音 / 视频参考落点：先看映射里的载入节点；没有时 MiniMax H3 类工作流支持动态注入
+           （H3 主节点的 ref_audios / ref_videos 是 autogrow 可选输入，UI 里没连线时 API JSON 连键都没有——
+            这就是「已连入声音参考却报识别不到载入节点」的根因。注入格式已实测通过 ComfyUI /prompt 校验） */
+        if(input.audios.length&&!m.audioNodes.length)
+            audInjected=await comfyInjectAutogrowAudio(work,input.audios.slice(0,3),base,n);
+        if(input.audios.length&&!m.audioNodes.length&&!audInjected)
+            throw new Error("已连入 "+input.audios.length+" 段声音参考，但工作流里既没有声音载入节点（LoadAudio / VHS_LoadAudio 等），也没有 MiniMax H3 这类支持 ref_audios 自动注入的节点，声音无法写入。\n解决办法：换用 MiniMax H3 / 含 LoadAudio 的工作流，或在「映射」框里补 audioNodes。");
+        if(input.videos.length&&!m.videoNodes.length)
+            vidInjected=await comfyInjectAutogrowVideo(work,input.videos.slice(0,3),base,n);
+        if(input.videos.length&&!m.videoNodes.length&&!vidInjected)
+            throw new Error("已连入 "+input.videos.length+" 个视频参考，但工作流里既没有视频载入节点（LoadVideo / VHS_LoadVideo 等），也没有 MiniMax H3 这类支持 ref_videos 自动注入的节点，视频无法写入。\n解决办法：换用含视频载入节点的工作流，或在「映射」框里补 videoNodes。");
+    }
     let written=0;
     targets.forEach(t=>{
         if(!work[t.node]) return;
@@ -5070,38 +5118,39 @@ async function genComfy(n,input){
         work[t.node].inputs[t.field||"text"]=input.prompt;
         written++;
     });
-    let imgWritten=0;
-    for(let i=0;i<(m.imageNodes||[]).length;i++){
-        if(!input.images[i]) break;
-        const cfg=m.imageNodes[i];
-        if(!work[cfg.node]) continue;
-        const name=await comfyUploadImage(base,input.images[i],i);
-        if(!work[cfg.node].inputs) work[cfg.node].inputs={};
-        work[cfg.node].inputs[cfg.field||"image"]=name;
-        imgWritten++;
-    }
-    /* 声音 / 视频参考：同样走 /upload/image 通用通道上传，再写进 LoadAudio / LoadVideo 的文件字段 */
-    let audWritten=0;
-    for(let i=0;i<(m.audioNodes||[]).length;i++){
-        if(!input.audios[i]) break;
-        const cfg=m.audioNodes[i];
-        if(!work[cfg.node]||!input.audios[i].url) continue;
-        const ext=(String(input.audios[i].name||"").match(/\.[a-z0-9]+$/i)||[".mp3"])[0];
-        const name=await comfyUploadFile(base,input.audios[i].url,"manflows_audio_"+(i+1)+ext);
-        if(!work[cfg.node].inputs) work[cfg.node].inputs={};
-        work[cfg.node].inputs[cfg.field||"audio"]=name;
-        audWritten++;
-    }
-    let vidWritten=0;
-    for(let i=0;i<(m.videoNodes||[]).length;i++){
-        if(!input.videos[i]) break;
-        const cfg=m.videoNodes[i];
-        if(!work[cfg.node]||!input.videos[i].url) continue;
-        const ext=(String(input.videos[i].name||"").match(/\.[a-z0-9]+$/i)||[".mp4"])[0];
-        const name=await comfyUploadFile(base,input.videos[i].url,"manflows_video_"+(i+1)+ext);
-        if(!work[cfg.node].inputs) work[cfg.node].inputs={};
-        work[cfg.node].inputs[cfg.field||"video"]=name;
-        vidWritten++;
+    /* 参考写入：本机算力 useRef=false 时整体跳过（连参考也不写），避免把画布图/声音/视频带进工作流 */
+    let imgWritten=0,audWritten=0,vidWritten=0;
+    if(useRef){
+        for(let i=0;i<(m.imageNodes||[]).length;i++){
+            if(!input.images[i]) break;
+            const cfg=m.imageNodes[i];
+            if(!work[cfg.node]) continue;
+            const name=await comfyUploadImage(base,input.images[i],i);
+            if(!work[cfg.node].inputs) work[cfg.node].inputs={};
+            work[cfg.node].inputs[cfg.field||"image"]=name;
+            imgWritten++;
+        }
+        /* 声音 / 视频参考：同样走 /upload/image 通用通道上传，再写进 LoadAudio / LoadVideo 的文件字段 */
+        for(let i=0;i<(m.audioNodes||[]).length;i++){
+            if(!input.audios[i]) break;
+            const cfg=m.audioNodes[i];
+            if(!work[cfg.node]||!input.audios[i].url) continue;
+            const ext=(String(input.audios[i].name||"").match(/\.[a-z0-9]+$/i)||[".mp3"])[0];
+            const name=await comfyUploadFile(base,input.audios[i].url,"manflows_audio_"+(i+1)+ext);
+            if(!work[cfg.node].inputs) work[cfg.node].inputs={};
+            work[cfg.node].inputs[cfg.field||"audio"]=name;
+            audWritten++;
+        }
+        for(let i=0;i<(m.videoNodes||[]).length;i++){
+            if(!input.videos[i]) break;
+            const cfg=m.videoNodes[i];
+            if(!work[cfg.node]||!input.videos[i].url) continue;
+            const ext=(String(input.videos[i].name||"").match(/\.[a-z0-9]+$/i)||[".mp4"])[0];
+            const name=await comfyUploadFile(base,input.videos[i].url,"manflows_video_"+(i+1)+ext);
+            if(!work[cfg.node].inputs) work[cfg.node].inputs={};
+            work[cfg.node].inputs[cfg.field||"video"]=name;
+            vidWritten++;
+        }
     }
     (m.seedNodes||[]).forEach(s=>{
         if(work[s.node]&&work[s.node].inputs) work[s.node].inputs[s.field||"seed"]=Math.floor(Math.random()*2147483647);
@@ -5111,10 +5160,8 @@ async function genComfy(n,input){
        否则「参考视频minimax_h3_r2v」这类标成生图的模板会漏写时长。 */
     const hasVideoOut=(m.outputNodes||[]).some(id=>wf[id]&&/SaveVideo|CreateVideo|VHS_SaveVideo|SaveAnimated/i.test(String((wf[id]||{}).class_type||"")));
     const specMsg=applyComfySpec(work,n.data,tpl.kind==="video"||hasVideoOut?"video":tpl.kind);
-    const injectMsg="提示词→"+written+" 处"
-        +(input.images.length?(" · 参考图 "+imgWritten+"/"+input.images.length):"")
-        +(input.audios.length?(" · 声音 "+(audWritten+audInjected)+"/"+input.audios.length):"")
-        +(input.videos.length?(" · 视频 "+(vidWritten+vidInjected)+"/"+input.videos.length):"");
+    const injectMsg="提示词→"+written+" 处 · 本机算力不采用参考"
+        +(strippedRefs?("（已清除工作流预置参考节点 "+strippedRefs+" 个）"):"");
     n.data.lastInject=injectMsg+(specMsg?(" · "+specMsg):"");   /* 轮询状态会覆盖中途提示，摘要并入完成消息 */
     setGenStatus(n,"["+tpl.name+"] "+n.data.lastInject,"busy");
     const clientId="manflows_"+Math.random().toString(36).slice(2,10);
