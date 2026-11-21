@@ -282,6 +282,10 @@
         .vision-load-state.vl-notloaded .vision-load-dot { background: #f59e0b; }
         .vision-load-state.vl-unknown { color: #fca5a5; }
         .vision-load-state.vl-unknown .vision-load-dot { background: #ef4444; }
+        .vision-test-btn { margin-left: auto; flex: 0 0 auto; font-size: 11px; line-height: 1; padding: 4px 8px; cursor: pointer;
+            background: var(--panel); color: var(--blue); border: 1px solid var(--border2); border-radius: 5px; }
+        .vision-test-btn:hover:not(:disabled) { border-color: var(--blue); }
+        .vision-test-btn:disabled { opacity: .55; cursor: wait; }
 
         #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid var(--border); padding: 16px 18px; border-radius: 12px; overflow-y: auto; background-color: var(--card); }
         #chatBox::-webkit-scrollbar { width: 6px; }
@@ -401,6 +405,7 @@
                 </div>
                 <div class="vision-load-state" id="visionLoadState" style="display:none" title="视觉模块独立于主模型，通过 llama-server 的 --mmproj 与主模型一起加载；此处显示本机真实加载结果">
                     <span class="vision-load-dot"></span><span id="visionLoadText">视觉模块状态：未检测</span>
+                    <button type="button" class="vision-test-btn" id="visionTestBtn" title="用一张内置测试图真实发给当前模型，验证它能否识别图片（端到端检测）">🔍 实测检测</button>
                 </div>
                 <div class="local-hint fold-hint" id="localComputeHint">
                     <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「二、打通本机软件与第三方API」。</span>
@@ -2308,6 +2313,10 @@ let localDetectRunning = false;
    reasoning_content、把 content 留空。请求里关掉 thinking 才能拿到正文；
    不支持该字段的服务端会直接忽略它，行为与原来完全一致（400 时另有回退）。 */
 const MF_NO_THINK = { chat_template_kwargs: { enable_thinking: false } };
+/* 视觉实测用图：一张 240x160 的图，上方蓝天+红色圆日、下方绿地。
+   模型若能正确识图，描述里通常会出现「蓝/红/绿/天空/太阳/草/旗」等词；
+   以此作为端到端识图是否真正可用的判据（比只读配置更可靠）。 */
+const MF_VISION_TEST_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAACgCAIAAAC9uXYyAAACmElEQVR4nO3SwU0cQBAAQcIhiA3C4Tgmx0QwCJ3kp2XLA3P0llQB9KNfzs83yHhZL4BBhibF0KQYmhRDk2JoUgxNiqFJMTQphibF0KQYmhRD8+Ht9fXvrdf+gaGv9k8ff4uzDX2p/1z5abc29HUGV37CrQ19l0+6+XmeNvQtPnXl59na0Ff4spvXnzZ03xffvPu0oeNWbl582tBlizdvPW3orPWbV542dNb6yoZmzPrHW08bOmj94MWnDR20vq+hGbP+7u7Thq5ZH9fQjFm/dv1pQ6esL2toJq0va2jGrP/6DE8bumN9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNpfVZDM2l9VkMzaX1WQzNs/dfdm4+hY9aXNTST1pc1NMPWr128+Ri6Z31cQzNs/d2tm4+hk9b3NTTD1g9eufkYOmz946+/+Rg6bH1lQzPstpuPofOuuvkY+gb33HwMfYlLbj6GvscNNx9D3ya88oOhrxO++Rj6Wr2VHwx9tdLKD4bmw3f/+DdDk2JoUgxNiqFJMTQphibF0KQYmhRDk2JoUgxNiqFJMTQphibF0KQYmhRDk2JoUgxNiqFJMTQphibl5fz6ARmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhSDE2KoUkxNCmGJsXQpBiaFEOTYmhS3gFuJ50+EJf1WwAAAABJRU5ErkJggg==";
 function mfStripThink(s){
     return String(s || "").replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<\/?think>/gi, "").trim();
 }
@@ -2412,6 +2421,27 @@ async function mfProbeOne(base){
                     : (typeof data.defaultModel === "string" ? data.defaultModel.trim() : "");
                 defaultModel = active;
             }
+            /* 关键修正：本机服务的模型列表(/v1/models、/api/tags)不含视觉信息，
+               若就此 return，视觉模块状态永远读不到、徽标一直"未检测"。
+               所以只要还没拿到 visionStatus，就补一次 /health（桥接会报 vision 字段）。 */
+            if(!visionStatus){
+                try{
+                    const hres = await fetch(base + "/health", { method:"GET", signal:ctrl.signal, cache:"no-store" });
+                    if(hres.ok){
+                        const hd = await hres.json();
+                        if(hd && typeof hd === "object"){
+                            if(typeof hd.visionOfDefault === "boolean") visionOfDefault = hd.visionOfDefault;
+                            if(Array.isArray(hd.visionModels)) visionModels = hd.visionModels;
+                            if(typeof hd.visionStatus === "string") visionStatus = hd.visionStatus.trim();
+                            if(typeof hd.visionDetail === "string") visionDetail = hd.visionDetail.trim();
+                            const act = (typeof hd.activeModel === "string" && hd.activeModel.trim())
+                                ? hd.activeModel.trim() : (typeof hd.defaultModel === "string" ? hd.defaultModel.trim() : "");
+                            if(act) defaultModel = act;
+                            if(model && act) model = act;   // 统一用上游真实加载的模型
+                        }
+                    }
+                }catch(e){}
+            }
             return { base:base, kind:kind, model:model, defaultModel:defaultModel,
                 visionOfDefault:visionOfDefault, visionModels:visionModels,
                 visionStatus:visionStatus, visionDetail:visionDetail };
@@ -2435,6 +2465,84 @@ function setVisionLoadState(status, detail){
         default: break;
     }
     txt.textContent = "视觉模块状态：" + (label || "未检测");
+}
+/* ===== 视觉模块实测检测 =====
+   真正发一张已知内容的内置测试图给当前模型，看它能否识别（而不是只读配置）。
+   本机算力：走 mfCurrentBase()；第三方 API：走填写的 endpoint/key/model。
+   判据：返回正文里出现 蓝/红/绿/天空/太阳/草/绿/flag/旗 等词之一即视为识图成功。 */
+let visionTestRunning = false;
+async function mfTestVision(){
+    if(visionTestRunning) return;
+    const btn = mfEl("visionTestBtn");
+    const txt = mfEl("visionLoadText");
+    visionTestRunning = true;
+    if(btn){ btn.disabled = true; btn.textContent = "检测中…"; }
+    if(txt) txt.textContent = "视觉模块状态：正在发送测试图，请稍候…";
+
+    let url, headers, model, bodyBase;
+    try{
+        if(computeMode === "local"){
+            if(!localConnReady) await mfDetectLocal({ quiet:true });
+            const real = await mfResolveActiveModel(mfCurrentBase());
+            model = real || (inpLocalModel && inpLocalModel.value.trim()) || "local";
+            url = mfChatUrl(mfCurrentBase());
+            headers = { "Content-Type":"application/json" };
+            bodyBase = Object.assign({}, MF_NO_THINK);
+        } else if(computeMode === "api"){
+            url = inpEndpoint.value.trim();
+            const key = inpKey.value.trim();
+            model = inpModel.value.trim();
+            if(!url || !model){ throw new Error("请先在第三方API配置里填好接口地址和模型名"); }
+            headers = { "Content-Type":"application/json", "Authorization":"Bearer " + key };
+            bodyBase = {};
+        } else {
+            throw new Error("请先切换到「本机算力」或「第三方API」再检测");
+        }
+        const body = Object.assign({}, bodyBase, {
+            model: model,
+            messages: [{ role:"user", content:[
+                { type:"text", text:"这张图片里主要有哪些颜色或物体？请简要描述你看到的内容。" },
+                { type:"image_url", image_url:{ url: MF_VISION_TEST_IMG } }
+            ]}],
+            temperature: 0, max_tokens: 160, stream: false
+        });
+        const ctrl = new AbortController();
+        const timer = setTimeout(()=>ctrl.abort(), 90000);
+        let resp, text = "";
+        try{
+            resp = await fetch(url, { method:"POST", headers, signal:ctrl.signal, body:JSON.stringify(body) });
+            text = await resp.text();
+        } finally { clearTimeout(timer); }
+        if(!resp.ok){
+            let msg = "HTTP " + resp.status;
+            try{ const j = JSON.parse(text); if(j && j.error && j.error.message) msg += " · " + j.error.message; }catch(e){}
+            throw new Error(msg);
+        }
+        // 解析正文：兼容 stream=false 的 JSON，也兼容误开流式时的 SSE
+        let answer = "";
+        try{
+            const j = JSON.parse(text);
+            const m = j.choices && j.choices[0] && (j.choices[0].message || {});
+            answer = String((m && (m.content || m.reasoning_content)) || "");
+        }catch(e){
+            const sseLines = text.split(/\r?\n/).filter(l=>l.indexOf("data:")===0 && l.indexOf("[DONE]")<0);
+            sseLines.forEach(l=>{ try{ const j=JSON.parse(l.slice(5).trim()); const d=j.choices&&j.choices[0]&&j.choices[0].delta||{}; answer+=String(d.content||""); }catch(e2){} });
+        }
+        answer = mfStripThink(answer);
+        const hit = /蓝|绿|红|天空|太阳|草地|旗|blue|green|red|sky/i.test(answer);
+        if(answer && hit){
+            setVisionLoadState("loaded", "实测识图成功 · 模型正确识别测试图（“" + answer.slice(0,40).replace(/[\r\n]/g," ") + "”）");
+        } else if(answer){
+            setVisionLoadState("unknown", "模型有回复但未识别到图片内容（“" + answer.slice(0,40).replace(/[\r\n]/g," ") + "”），请检查视觉模块");
+        } else {
+            setVisionLoadState("unknown", "接口未返回正文，无法确认识图（请关闭思考模式或检查服务）");
+        }
+    }catch(err){
+        setVisionLoadState("unknown", "实测失败：" + (err && err.message ? err.message : String(err)));
+    } finally {
+        visionTestRunning = false;
+        if(btn){ btn.disabled = false; btn.textContent = "🔍 实测检测"; }
+    }
 }
 function mfSetLocalVision(choice){
     /* 保存桥接上报的视觉能力（主模型是否挂载 mmproj），供 detectVisionCapability 判定；
@@ -2865,6 +2973,8 @@ function initUI(){
         });
     }
     if(autoDetectBtn) autoDetectBtn.addEventListener("click", ()=> mfDetectLocal());
+    const visionTestBtn = document.getElementById("visionTestBtn");
+    if(visionTestBtn) visionTestBtn.addEventListener("click", ()=> mfTestVision());
     if(computeMode === "local") setTimeout(()=> mfDetectLocal({ quiet:true }), 350);
 
     // 上下文窗口快捷值：统一事件绑定、恢复上次档位、当前档位高亮
