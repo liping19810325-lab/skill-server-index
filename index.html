@@ -165,11 +165,13 @@
         .start-btn { background: var(--green); color: #fff; font-weight: 500; }
         /* 停止 / 开始按钮高度增加一倍，扩大鼠标可点击面积（与输入框底对齐） */
         .input-row .stop-btn, .input-row .start-btn { min-height: 64px; font-size: 13px; }
-        .plus-upload-btn { width: 64px; height: 64px; font-size: 34px; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 10px; cursor: pointer; flex-shrink: 0; }
+        /* 两个上传按钮共用同一套尺寸与上下结构（上半 + 图标、下半文字），仅配色不同 */
+        .plus-upload-btn, .ref-upload-btn { width: 112px; height: 64px; padding: 6px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+        .plus-upload-btn { background: var(--blue); }
         .plus-upload-btn:hover { background: #1d4ed8; }
         /* 拖入 TXT 剧本到 + 按钮上时高亮 */
         .plus-upload-btn.drag-over { background: #1e40af; outline: 2px dashed #fff; outline-offset: 2px; }
-        .ref-upload-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 10px; min-height: 64px; background: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; white-space: nowrap; }
+        .ref-upload-btn { background: var(--purple); }
         .ref-upload-btn:hover { background: #8b5cf6; }
         .ref-upload-plus { font-size: 22px; line-height: 1; font-weight: 300; }
         .ref-upload-text { font-size: 11.5px; line-height: 1.2; }
@@ -487,7 +489,7 @@
 
         <div class="card file-panel">
             <div class="file-head-row">
-                <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件：点击选择，或直接把 TXT 拖到这里（一次一个，新文件替换旧文件）">+</button>
+                <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件：点击选择，或直接把 TXT 拖到这里（一次一个，新文件替换旧文件）"><span class="ref-upload-plus">+</span><span class="ref-upload-text">载入剧本文件</span></button>
                 <span class="card-title">载入剧本文件 <span class="hint-q" data-hint-toggle title="点我看剧本文件说明">?</span></span>
                 <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 3 张）：点击选择，或直接把电脑里的图片拖到这里"><span class="ref-upload-plus">+</span><span class="ref-upload-text">上传画风参考图</span></button>
                 <input type="file" id="fileInput" accept=".txt">
