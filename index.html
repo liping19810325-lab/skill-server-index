@@ -190,6 +190,11 @@
         .ref-del-btn { background: var(--red); color: #fff; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 13px; line-height: 1; cursor: pointer; flex-shrink: 0; }
         .ref-del-btn:hover { background: #b91c1c; }
         .ref-empty { font-size: 10.5px; color: var(--muted); }
+        /* 参考图画风解析状态行 */
+        .ref-style-state { font-size: 10.5px; line-height: 1.4; padding: 5px 8px; margin: 0 0 8px; border-radius: 7px; border: 1px solid var(--border2); background: var(--panel); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ref-style-state.is-parsing { color: #fcd34d; border-color: rgba(252,211,77,.35); }
+        .ref-style-state.is-done { color: #a7f3d0; border-color: rgba(167,243,208,.35); cursor: help; }
+        .ref-style-state.is-fail { color: #fca5a5; border-color: rgba(252,165,165,.35); cursor: help; }
         /* 画风预选：2D / 3D / 真人 三类，各 9 项，选「不预选」关闭 */
         .style-preset-box { margin: 2px 0 8px; padding: 8px 9px; background: var(--panel); border: 1px solid var(--border2); border-radius: 9px; }
         .style-preset-head { font-size: 11px; color: var(--text); font-weight: 600; margin-bottom: 7px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
@@ -507,6 +512,7 @@
                 </label>
             </div>
             <div class="ref-preview-list" id="refPreviewList"></div>
+            <div class="ref-style-state" id="refStyleState" style="display:none">🎨 画风待解析</div>
             <div class="style-preset-box" id="stylePresetBox">
                 <div class="style-preset-head">🎨 画风预选 <span class="style-preset-tip">三组互斥只选一种；有参考图以图为准，模型不能识图时自动用此画风</span></div>
                 <div class="style-preset-rows">
@@ -667,6 +673,13 @@ const REF_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
 /* 仅这两个美术画风技能随请求附带参考图；a 剧本创作、b 导演分镜、d MiniMaxH3 一律自动忽略 */
 const IMAGE_SKILL_KEYS = ["c", "e"];
 let refImages = [];            // [{id, name, dataUrl, bytes, width, height}] 会话结束即丢弃
+/* 参考图画风解析：上传后用当前多模态模型把参考图解析成一段文字画风锚，作为【技能画风提示词】
+   注入美术技能请求，确保生成的每条资产提示词都自带画风文字（用户复制到画布不带图也能统一画风）。
+   仅存内存、会话结束即丢弃，和参考图同生命周期。sig=当前参考图 id 拼接，图增删后自动失效重解析。 */
+let refStyleAnchor = "";       // 解析出的画风锚文字（空=未解析/失败）
+let refStyleSig = "";          // refStyleAnchor 对应的参考图签名
+let refStyleParsing = null;    // 正在进行的解析 Promise（并发去重）
+let refStyleStatus = "idle";   // idle|parsing|done|fail
 let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
 /* 当前技能是否允许随请求附带参考图。
    · c/e 美术技能：带图（原规则）。
@@ -826,7 +839,8 @@ const HELP_HTML = `
 <li>带图技能：c 美术画风助手V5（通用全剧资产图提示词）、e 美术画风助手V5（Midjourney专用提示词）；a 剧本创作助手V5、b 导演分镜助手V5、d 导演分镜助手V5（MinimaxH3专用提示词）发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
 <li>需要大模型本身支持图片输入（多模态）：云端请用视觉模型；本地 llama-server / Ollama 需加载支持视觉的模型及对应 mmproj。参考图下方新增「识图能力」开关：<b>自动识别</b>（按模型名判断，默认）、<b>支持识图</b>（强制带图）、<b>不支持识图</b>（强制回退预选画风）。当判定当前模型无法识图时，系统会弹提示并忽略参考图，自动改以你预选的画风为准；若此时也没预选画风，会提示你换多模态模型或先选一种画风。</li>
 <li>缩略图右侧的 × 可逐张移除；带图时请求会按 OpenAI 多模态格式附上图片，接口若不兼容请改用支持图片输入的模型。</li>
-<li><b>画风预选</b>：上传按钮下方有「2D / 3D / 真人」三组下拉，各含 9 个预设画风。<b>三组互斥，只能选一种里的一项</b>（选了另一组会自动清掉之前的），选「不预选」即关闭。选中的画风会作为【画风预选】文字指令随请求发送，作为全剧统一风格基准（线条、色彩、光影、质感与造型倾向），只作风格引导，不改变剧本内容和技能规定的输出格式。<b>与画风参考图的冲突规则</b>：能识图时以参考图画风为准、预选画风仅作文字补充；模型不支持识图时弹提示并自动改以预选画风为准。选择画风时会主动带着画风参数请求两个美术画风助手技能（c/e），把技能里对应画风的提示词段提取出来随请求一并发送（技能模板更新后自动生效；未找到对应分段则只发上面的画风预选文字，不会整份注入技能模板）。<b>新建对话时默认不预选任何画风</b>；选择只存当前对话标签页、刷新本页仍保留，图片本身依旧只在内存里。</li>
+<li><b>参考图画风会被自动解析成文字锚并写进每条提示词</b>：上传参考图后，创作台会用当前多模态模型先「看图」解析出一段「全剧统一画风锚」（媒介画种、线条笔触、色彩基调、光影、材质质感），显示在参考图下方。发送美术技能时，这段画风锚作为【技能画风提示词】随剧本一起发给模型，技能会把它<b>逐字复写进人物定妆立绘、四视图、场景、大远景、道具每一条提示词的 details 末句</b>。这样你把任意一条提示词复制到导演画布单独文生图（即使不带参考图），出来的图也统一是参考图的美术画风。解析在后台进行、不阻塞操作；解析失败则退回让模型直接从附图判断，不影响生成。</li>
+<li><b>画风预选</b>：上传按钮下方有「2D / 3D / 真人」三组下拉，各含 9 个预设画风。<b>三组互斥，只能选一种里的一项</b>（选了另一组会自动清掉之前的），选「不预选」即关闭。选中的画风会作为【画风预选】文字指令随请求发送，作为全剧统一风格基准（线条、色彩、光影、质感与造型倾向），只作风格引导，不改变剧本内容和技能规定的输出格式。<b>与画风参考图的冲突规则</b>：能识图时以参考图画风为准、预选画风仅作文字补充；模型不支持识图时弹提示并自动改以预选画风为准。选择画风时会主动带着画风参数请求两个美术画风助手技能（c/e），把技能第 6 章「画风预选库」里对应画风的整段提示词提取出来作为【技能画风提示词】随请求一并发送，技能会把它逐字复写进每条资产提示词（27 项画风名与下拉逐项对应；未找到对应分段则只发上面的画风预选文字，不会整份注入技能模板）。<b>没有参考图时，这个预选画风就是全剧统一画风基准，保证生成的全部资产提示词都是你选的画风。</b><b>新建对话时默认不预选任何画风</b>；选择只存当前对话标签页、刷新本页仍保留，图片本身依旧只在内存里。</li>
 </ul>
 
 <h2>六、界面布局</h2>
@@ -1282,8 +1296,155 @@ function renderRefPreview(){
 }
 function removeRefImage(id){
     refImages = refImages.filter(x => x.id !== id);
+    onRefImagesChanged();
     renderRefPreview();
     updateRefBadge();
+}
+
+/* ================= 参考图画风解析（多模态 → 文字画风锚）=================
+   目标：用户上传画风参考图后，先用当前多模态模型「看图说话」把画风解析成一段通用中文风格词
+   （媒介/线条/色彩/光影/质感），作为【技能画风提示词】文字注入美术技能请求。这样技能会把这段
+   画风锚逐字复写进每条资产提示词，用户复制到画布单独文生图（不带图）也能得到统一画风。
+   —— 这与「画风预选」走的是同一个注入标题【技能画风提示词】，技能侧规则第129行已支持。
+   触发：上传/删除参考图后自动后台解析（不阻塞用户操作）；发送时若尚未解析则等待本次解析结果。
+   失败不阻断生成：解析不出时退回让模型直接从附图判断（原有行为）。 */
+function refImagesSig(){ return refImages.map(x=>x.id).join(","); }
+
+function clearRefStyle(){
+    refStyleAnchor = ""; refStyleSig = ""; refStyleParsing = null; refStyleStatus = "idle";
+}
+
+/* 参考图集合变化时调用：图清空则彻底清掉旧锚；有图且签名变了则清掉旧锚并后台重新解析 */
+function onRefImagesChanged(){
+    const sig = refImagesSig();
+    if(sig !== refStyleSig){
+        refStyleAnchor = ""; refStyleSig = ""; refStyleParsing = null; refStyleStatus = "idle";
+    }
+    renderRefStyleState();
+    if(refImages.length) parseRefStyle({ quiet:true });   // 后台静默解析，失败也不打扰
+    else renderRefStyleState();
+}
+
+/* 处理画风解析返回的文字：去掉 think、包裹引号、多余前后缀，压成干净的一段风格词 */
+function normalizeStyleAnchor(raw){
+    let s = mfStripThink(raw || "").trim();
+    s = s.replace(/^["'“”『』「」\s]+|["'“”『』「」\s]+$/g, "").trim();
+    // 模型常带「画风锚：」「全剧统一画风锚：」之类前缀，去掉只留描述本身
+    s = s.replace(/^(全剧统一画风锚|画风锚|统一画风|画风描述|风格锚)\s*[:：]\s*/i, "").trim();
+    s = s.replace(/\s*\n\s*/g, " ").replace(/\s{2,}/g, " ");
+    return s.slice(0, 500);
+}
+
+/* 真正发一次带图识图请求解析画风。复用本机/第三方两种链路，stream:false、关思考。
+   返回画风锚文字；失败返回 ""（不抛出，由调用方决定是否提示）。 */
+async function doParseRefStyle(){
+    const sig = refImagesSig();
+    if(!refImages.length) return "";
+    // 复用已有结果
+    if(refStyleAnchor && refStyleSig === sig) return refStyleAnchor;
+
+    let url, headers, model, bodyBase;
+    try{
+        if(computeMode === "local"){
+            if(!localConnReady) await mfDetectLocal({ quiet:true });
+            const real = await mfResolveActiveModel(mfCurrentBase());
+            model = real || (inpLocalModel && inpLocalModel.value.trim()) || "local";
+            url = mfChatUrl(mfCurrentBase());
+            headers = { "Content-Type":"application/json" };
+            bodyBase = Object.assign({}, MF_NO_THINK);
+        } else if(computeMode === "api"){
+            url = inpEndpoint.value.trim();
+            const key = inpKey.value.trim();
+            model = inpModel.value.trim();
+            if(!url || !model) return "";
+            headers = { "Content-Type":"application/json", "Authorization":"Bearer " + key };
+            bodyBase = {};
+        } else {
+            return "";   // 漫流算力未开放，和 sendMessage 一致不发请求
+        }
+    }catch(e){ return ""; }
+
+    const content = [
+        { type:"text", text:
+            "你是专业美术画风分析师。请仔细观察用户提供的画风参考图，只总结它的【美术画风】，不要描述具体人物、剧情或文字内容。\n"+
+            "输出一段中文的「全剧统一画风锚」，必须同时涵盖：①媒介与画种（如2D赛璐璐/3D次世代/真人写实/厚涂/水彩/国漫等）"+
+            "②线条与笔触 ③色彩基调与饱和度 ④光影方式 ⑤材质质感。\n"+
+            "硬性要求：只用通用视觉风格词，禁止出现任何具体艺术家、工作室、动画/影视/游戏IP或明星名字；"+
+            "只输出这一段画风锚文字本身（80-160字），不要标题、不要列表、不要解释、不要引号、不要markdown。"
+        }
+    ];
+    refImages.forEach(img => content.push({ type:"image_url", image_url:{ url: img.dataUrl } }));
+    const body = Object.assign({}, bodyBase, {
+        model: model,
+        messages: [{ role:"user", content }],
+        temperature: 0, max_tokens: 320, stream: false
+    });
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), 90000);
+    try{
+        const resp = await fetch(url, { method:"POST", headers, signal:ctrl.signal, body:JSON.stringify(body) });
+        const text = await resp.text();
+        if(!resp.ok) return "";
+        let answer = "";
+        try{
+            const j = JSON.parse(text);
+            const m = j.choices && j.choices[0] && (j.choices[0].message || {});
+            answer = String((m && (m.content || m.reasoning_content)) || "");
+        }catch(e){
+            text.split(/\r?\n/).filter(l=>l.indexOf("data:")===0 && l.indexOf("[DONE]")<0).forEach(l=>{
+                try{ const j=JSON.parse(l.slice(5).trim()); const d=j.choices&&j.choices[0]&&j.choices[0].delta||{}; answer+=String(d.content||""); }catch(e2){}
+            });
+        }
+        const anchor = normalizeStyleAnchor(answer);
+        if(anchor && refImagesSig() === sig){   // 解析期间图没变才采纳，避免张冠李戴
+            refStyleAnchor = anchor; refStyleSig = sig; refStyleStatus = "done";
+            renderRefStyleState();
+            append("🎨 已从画风参考图解析出全剧统一画风锚，将写入每条资产提示词：" + anchor, "tip");
+            return anchor;
+        }
+    }catch(e){
+        console.warn("参考图画风解析失败", e);
+    }
+    if(refImagesSig() === sig){ refStyleStatus = "fail"; renderRefStyleState(); }
+    return "";
+}
+
+/* 并发去重：同一时刻只允许一次解析在跑；opts.quiet=true 时失败不弹提示 */
+function parseRefStyle(opts){
+    const sig = refImagesSig();
+    if(!refImages.length) return Promise.resolve("");
+    if(refStyleAnchor && refStyleSig === sig){ refStyleStatus="done"; renderRefStyleState(); return Promise.resolve(refStyleAnchor); }
+    if(refStyleParsing) return refStyleParsing;
+    refStyleStatus = "parsing"; renderRefStyleState();
+    refStyleParsing = doParseRefStyle().then(a=>{
+        refStyleParsing = null;
+        return a;
+    }).catch(()=>{ refStyleParsing = null; return ""; });
+    return refStyleParsing;
+}
+
+/* 参考图下方的小状态行：显示解析中 / 成功（含锚文字摘要）/ 失败 */
+function renderRefStyleState(){
+    const el = document.getElementById("refStyleState");
+    if(!el) return;
+    if(!refImages.length){ el.style.display = "none"; el.textContent = ""; return; }
+    el.style.display = "block";
+    if(refStyleStatus === "parsing"){
+        el.className = "ref-style-state is-parsing";
+        el.textContent = "🎨 正在解析参考图画风…";
+    } else if(refStyleStatus === "done" && refStyleAnchor){
+        el.className = "ref-style-state is-done";
+        const brief = refStyleAnchor.length > 46 ? refStyleAnchor.slice(0,46)+"…" : refStyleAnchor;
+        el.textContent = "🎨 画风锚：" + brief;
+        el.title = "已从参考图解析出画风锚，将逐字写入每条资产提示词：\n" + refStyleAnchor;
+    } else if(refStyleStatus === "fail"){
+        el.className = "ref-style-state is-fail";
+        el.textContent = "🎨 画风解析未完成，将由模型直接参考附图判断";
+        el.title = "画风解析请求失败，生成时仍会把参考图一并发送，由多模态模型直接从图中判断画风";
+    } else {
+        el.className = "ref-style-state";
+        el.textContent = "🎨 画风待解析";
+    }
 }
 
 /* ===== 画风预选：三类下拉的渲染、选择、本地记忆与注入文案 ===== */
@@ -1388,9 +1549,9 @@ function stylePresetPrompt(withRefImage){
 }
 
 /* ===== 画风预选 → 主动触发两个美术画风助手技能中「对应画风的提示词」 =====
-   两份技能内容尚未更新：这里先把「带画风参数请求 c / e 两技能 → 按画风名提取对应提示词段 →
-   发送时按当前技能注入」的完整链路写好。技能更新后，只要其模板按画风名分段
-   （如 ### 日系赛璐璐 / 【日系赛璐璐】 / 日系赛璐璐：）即可自动提取并注入；
+   两份技能已更新：第 6 章「画风预选库」按 ### 画风名 分段（27 项，标题与下拉逐项一致），
+   每项含「全剧统一画风锚」。带画风参数请求 c / e 两技能 → 按画风名提取对应段 → 发送时作为
+   【技能画风提示词】注入；技能规则会把该画风锚逐字复写进每条资产提示词的 details 末句。
    提取不到时静默留空，绝不注入整份技能模板，也不干扰现有生成流程。 */
 let artStylePromptCache = { c:{}, e:{} };   // { 技能key: { 画风名: 对应提示词 } }
 let artStyleFetchSeq = 0;                    // 防止并发切换画风时旧请求覆盖新结果
@@ -1532,6 +1693,7 @@ async function handleRefFiles(fileList){
         }
     }
     renderRefPreview();
+    onRefImagesChanged();          // 参考图变化：触发后台画风解析
     updateRefBadge();
 }
 
@@ -2736,9 +2898,26 @@ async function sendMessage(autoSourceText) {
             : `本次未附带参考图；请换用多模态模型，或在「画风预选」中选一种 2D / 3D / 真人 画风作为替代。`;
         append("⚠️ 当前模型无法识别参考图（" + vis.reason + "）。" + hint, "tip");
     }
+    /* 有参考图 + 美术技能：先确保「画风解析」完成，拿到文字画风锚。
+       这是参考图画风能写进每条提示词的关键——光把图片附上，模型不会把画风固化成文字，
+       用户把提示词复制到画布（不带图）时画风就丢了。上传时已后台解析，这里通常直接命中缓存；
+       若仍在解析则等待本次结果；解析失败则 refAnchor 为空，退回让模型直接从附图判断。 */
+    let refAnchorForSend = "";
+    if (useImages && IMAGE_SKILL_KEYS.includes(currentSkillKey)) {
+        try{
+            refAnchorForSend = (refStyleAnchor && refStyleSig === refImagesSig())
+                ? refStyleAnchor
+                : (await parseRefStyle({ quiet:true }) || "");
+        }catch(e){ refAnchorForSend = ""; }
+    }
+
     if (useImages) {
         if (IMAGE_SKILL_KEYS.includes(currentSkillKey)) {
-            combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，请以其画风、色调、线条与质感作为最高优先级视觉基准；图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
+            combinedContent += `\n\n【画风参考图】\n已附 ${refImages.length} 张画风参考图，图片仅作风格参考，不改变剧本内容与技能规定的输出格式。`;
+            if (refAnchorForSend) {
+                /* 参考图的文字画风锚用技能唯一识别的标题注入，并要求逐字复写进每条资产 */
+                combinedContent += `\n\n【技能画风提示词】\n已从用户上传的画风参考图中解析出如下「全剧统一画风锚」，这是本剧美术风格的最高优先级基准（高于从大纲推导的默认风格，也高于下方任何预选画风）：\n${refAnchorForSend}\n\n执行要求（强制）：请把上面这条画风锚整句逐字复写进本剧每一条资产（每张人物定妆立绘、每张四视图、每个场景、每张大远景、每个道具）提示词的 details: 末句；视觉要点融入材质、光影、色彩、取景描述；不得改写、缩写、换词，也不得只在部分资产使用。用户会把每一条提示词复制到画布单独文生图（不会携带参考图），因此画风必须完整写进每一条提示词的文字里，确保全部出图画风统一。若本条与【画风预选】冲突，以本条参考图画风锚为准。`;
+            }
         } else {
             /* 未加载技能时：中性引导，不预设「只回画风」——让用户可自由反整图提示词/内容描述 */
             combinedContent += `\n\n【参考图】\n本次随请求附带 ${refImages.length} 张图片，请仔细识别图中的内容、主体、构图、色彩与风格；用户指令未指定时，可据此反推出完整的画面提示词。`;
@@ -2747,9 +2926,11 @@ async function sendMessage(autoSourceText) {
     /* 画风预选文字指令：有参考图时用"参考图优先"措辞；无图/回退时作为唯一视觉基准 */
     const styleTxt = stylePresetPrompt(useImages);
     if (styleTxt) combinedContent += styleTxt;
-    /* 主动从两个美术技能提取的「对应画风提示词」：有则随请求发送（不重复注入整份技能模板） */
+    /* 主动从两个美术技能提取的「对应画风提示词」（无图/回退时作唯一视觉基准）。
+       有参考图文字锚时跳过：参考图画风已是最高优先级，预选段仅由上面的【画风预选】作文字补充，
+       避免把两套画风锚同时写进同一条提示词造成冲突。 */
     const artStyleTxt = activeStylePromptBlocks();
-    if (artStyleTxt) combinedContent += "\n\n【技能画风提示词】\n" + artStyleTxt;
+    if (artStyleTxt && !refAnchorForSend) combinedContent += "\n\n【技能画风提示词】\n" + artStyleTxt;
     if (!combinedContent.trim() && !useImages) {
         alert(visFallback
             ? "当前模型无法识别参考图，且你未预选画风、未写指令。请先在画风预选里选一种画风，或换用多模态模型。"
