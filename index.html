@@ -167,8 +167,12 @@
         .input-row .stop-btn, .input-row .start-btn { min-height: 64px; font-size: 13px; }
         .plus-upload-btn { width: 32px; height: 32px; font-size: 17px; line-height: 1; padding: 0; background: var(--blue); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; flex-shrink: 0; }
         .plus-upload-btn:hover { background: #1d4ed8; }
-        .ref-upload-btn { padding: 6px 9px; font-size: 11.5px; min-height: 32px; background: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; white-space: nowrap; }
+        .ref-upload-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 10px; min-height: 64px; background: var(--purple); color: #fff; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; cursor: pointer; white-space: nowrap; }
         .ref-upload-btn:hover { background: #8b5cf6; }
+        .ref-upload-plus { font-size: 22px; line-height: 1; font-weight: 300; }
+        .ref-upload-text { font-size: 11.5px; line-height: 1.2; }
+        /* 拖入图片到按钮上时高亮，提示可释放上传 */
+        .ref-upload-btn.drag-over { background: #6d28d9; outline: 2px dashed #fff; outline-offset: 2px; }
         .ref-note { font-size: 10.5px; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
         .vision-mode-lbl { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; white-space: nowrap; }
         .vision-mode-lbl select { background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 10.5px; padding: 2px 4px; outline: none; cursor: pointer; }
@@ -483,7 +487,7 @@
             <div class="file-head-row">
                 <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件">+</button>
                 <span class="card-title">载入剧本文件 <span class="hint-q" data-hint-toggle title="点我看剧本文件说明">?</span></span>
-                <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 3 张）">🖼 上传画风参考图</button>
+                <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 3 张）：点击选择，或直接把电脑里的图片拖到这里"><span class="ref-upload-plus">+</span><span class="ref-upload-text">上传画风参考图</span></button>
                 <input type="file" id="fileInput" accept=".txt">
                 <input type="file" id="refImageInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple>
             </div>
@@ -812,7 +816,7 @@ const HELP_HTML = `
 
 <h2>五、画风参考图（仅美术技能可用）与画风预选</h2>
 <ul>
-<li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持 jpg / jpeg / png / webp，最多 3 张。</li>
+<li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持点击选择，也支持直接把电脑里的图片拖到该按钮上上传；支持 jpg / jpeg / png / webp，最多 3 张。</li>
 <li>浏览器内自动压缩：长边超过 1024px 才等比缩放（小图不放大），统一转为 JPEG、质量 0.8；单张压缩后需 ≤1.5MB，仍超限会提示换图。</li>
 <li>图片以 base64 只存在当前网页内存，刷新或关闭页面即丢弃；不写入本地历史、不上传技能服务，只随你自己的大模型请求发送。</li>
 <li>带图技能：c 美术画风助手V5（通用全剧资产图提示词）、e 美术画风助手V5（Midjourney专用提示词）；a 剧本创作助手V5、b 导演分镜助手V5、d 导演分镜助手V5（MinimaxH3专用提示词）发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>
@@ -3116,6 +3120,32 @@ function initUI(){
         if(files && files.length) await handleRefFiles(files);
         refImageInput.value = "";   // 允许重复选择同一文件
     };
+    /* 画风参考图：支持把电脑里的图片直接拖到按钮上上传（复用点击选择的同一套校验/压缩/上限逻辑）。
+       用计数器抵消 dragenter/dragleave 在子元素上的进出抖动，确保高亮只在真正离开时消失。 */
+    let refDragDepth = 0;
+    const refDragClear = ()=>{ refDragDepth = 0; refUploadBtn.classList.remove("drag-over"); };
+    refUploadBtn.addEventListener("dragenter", (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        refDragDepth++; refUploadBtn.classList.add("drag-over");
+    });
+    refUploadBtn.addEventListener("dragover", (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        if(e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    });
+    refUploadBtn.addEventListener("dragleave", (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        refDragDepth = Math.max(0, refDragDepth - 1);
+        if(refDragDepth === 0) refUploadBtn.classList.remove("drag-over");
+    });
+    refUploadBtn.addEventListener("drop", async (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        refDragClear();
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if(files && files.length) await handleRefFiles(files);
+    });
+    /* 防止把图片拖到页面其它地方时浏览器直接打开图片（丢失当前编辑内容） */
+    window.addEventListener("dragover", (e)=>{ e.preventDefault(); });
+    window.addEventListener("drop", (e)=>{ e.preventDefault(); refDragClear(); });
     /* 画风预选：三类下拉互斥——选任一类即清空其余两类；切换即保存（会话级）并刷新状态 */
     Object.keys(STYLE_PRESETS).forEach(k=>{
         const sel=document.getElementById(presetSelectId(k));
