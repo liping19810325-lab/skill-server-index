@@ -2340,13 +2340,20 @@ async function mfProbeOne(base){
             if(data && Array.isArray(data.data) && data.data.length) model = String(data.data[0].id || "");
             else if(data && Array.isArray(data.models) && data.models.length) model = String(data.models[0].name || data.models[0].model || "");
             const kind = (p === "/api/tags") ? "Ollama" : (p === "/health" ? "llama.cpp / 兼容服务" : "OpenAI 兼容服务");
-            /* 桥接 /health 会如实上报本机模型是否加载了视觉模块(mmproj) */
-            let visionOfDefault = null, visionModels = [];
+            /* 桥接 /health 会如实上报：当前上游真正加载的模型(defaultModel)、
+               本机模型是否加载了视觉模块(mmproj)。用于纠正浏览器残留的旧模型名。 */
+            let visionOfDefault = null, visionModels = [], defaultModel = "";
             if(data && typeof data === "object"){
                 if(typeof data.visionOfDefault === "boolean") visionOfDefault = data.visionOfDefault;
                 if(Array.isArray(data.visionModels)) visionModels = data.visionModels;
+                /* activeModel = 本机 llama 当前真正加载的模型；创作台动态跟随它，不写死默认模型 */
+                const active = (typeof data.activeModel === "string" && data.activeModel.trim())
+                    ? data.activeModel.trim()
+                    : (typeof data.defaultModel === "string" ? data.defaultModel.trim() : "");
+                defaultModel = active;
             }
-            return { base:base, kind:kind, model:model, visionOfDefault:visionOfDefault, visionModels:visionModels };
+            return { base:base, kind:kind, model:model, defaultModel:defaultModel,
+                visionOfDefault:visionOfDefault, visionModels:visionModels };
         }catch(e){ /* 端口没开或跨域被拦，试下一个端点 */ }
         finally { clearTimeout(timer); }
     }
@@ -2375,8 +2382,20 @@ function mfApplyLocalChoice(choice){
     mfSetLocalVision(choice);
     mfSetLocalState("✓ 已接通 " + choice.label + (choice.model ? " · 模型 " + choice.model : "")
         + (localVisionOfDefault === true ? " · 已识别视觉模块" : ""), "ok");
-    // Ollama / LM Studio 要求真实模型名：探测到就自动填，用户已填的不覆盖
-    if(choice.model && inpLocalModel && !inpLocalModel.value.trim()){
+    /* 本地模型名纠正：桥接上报的 defaultModel 是当前上游真正加载的模型；
+       浏览器里残留的旧模型名（如换模型前缓存的 Manflows Q6_K）会导致 400 model not found。
+       规则：
+         · 桥接直连（choice.defaultModel 有值）：一律用 defaultModel 覆盖输入框，彻底避免旧名；
+         · 其它服务（Ollama/LM Studio 等）：探测到模型名且输入框为空才填，用户已填的不覆盖。 */
+    const bridgeDefault = String(choice.defaultModel || "").trim();
+    if(bridgeDefault && inpLocalModel){
+        if(inpLocalModel.value.trim() !== bridgeDefault){
+            inpLocalModel.value = bridgeDefault;
+            localModelName = bridgeDefault;
+            safeStorage.set("manflows_local_model", bridgeDefault);
+            mfSetLocalState("✓ 已接通 · 模型已自动校正为 " + bridgeDefault, "ok");
+        }
+    } else if(choice.model && inpLocalModel && !inpLocalModel.value.trim()){
         inpLocalModel.value = choice.model;
         localModelName = choice.model;
         safeStorage.set("manflows_local_model", choice.model);
@@ -2551,6 +2570,24 @@ async function sendMessage(autoSourceText) {
     if(computeMode === "local"){
         // 还没自动接通就先静默扫一次端口，保证「本机大模型软件开着就能用」
         if(!localConnReady) await mfDetectLocal({ quiet:true });
+        /* 保险：即使本次会话已接通过，也向当前桥接核对一次真实加载的模型名，
+           避免换模型后浏览器残留旧名导致 400 model not found（轻量 GET，失败静默）。 */
+        try{
+            const hr = await fetch(mfCurrentBase() + "/health", { cache:"no-store" });
+            if(hr.ok){
+                const hd = await hr.json();
+                const active = (typeof hd.activeModel === "string" && hd.activeModel.trim())
+                    ? hd.activeModel.trim() : (typeof hd.defaultModel === "string" ? hd.defaultModel.trim() : "");
+                if(active){
+                    const real = active;
+                    if(inpLocalModel && inpLocalModel.value.trim() !== real){
+                        inpLocalModel.value = real; localModelName = real;
+                        safeStorage.set("manflows_local_model", real);
+                    }
+                    mfSetLocalVision({ visionOfDefault: hd.visionOfDefault, visionModels: hd.visionModels });
+                }
+            }
+        }catch(e){}
         fetchUrl = mfChatUrl(mfCurrentBase());
         fetchHeaders = { "Content-Type":"application/json" };
         // 留空时保持原来的 "local"，兼容 llama-server / Ollama 默认行为
@@ -2587,18 +2624,49 @@ async function sendMessage(autoSourceText) {
             }
             if(!response) throw netErr;
         }
-        /* 少数旧服务端 / 自建代理会拒绝未知字段：去掉 thinking 参数按原样重试一次，
-           Windows 上原来能通的接口在这里完全不受影响。 */
-        if(!response.ok && response.status === 400 && bodyObj.chat_template_kwargs){
+        /* 400 分类处理：先读一次错误正文（后面报错复用），区分两种可恢复情况 */
+        let errText = "";
+        if(!response.ok && response.status === 400){
+            try{ errText = await response.text(); }catch(e){}
+        }
+        /* ① model not found：浏览器里残留了已失效的旧模型名（换模型前的缓存）。
+             自动从桥接 /health 取当前真正加载的 defaultModel，纠正后重发一次。 */
+        if(!response.ok && response.status === 400 && computeMode === "local"
+           && /not\s*found|unknown\s*model|model.*not\s*found/i.test(errText)){
+            let fixed = "";
+            try{
+                const hr = await fetch(mfCurrentBase() + "/health", { cache:"no-store" });
+                if(hr.ok){
+                    const hd = await hr.json();
+                    const active = (typeof hd.activeModel === "string" && hd.activeModel.trim())
+                        ? hd.activeModel.trim() : (typeof hd.defaultModel === "string" ? hd.defaultModel.trim() : "");
+                    fixed = active;
+                }
+            }catch(e){}
+            if(fixed){
+                if(inpLocalModel) inpLocalModel.value = fixed;
+                localModelName = fixed;
+                safeStorage.set("manflows_local_model", fixed);
+                const retry = Object.assign({}, bodyObj, { model: fixed });
+                append("ℹ️ 旧模型名已失效，已自动校正为 " + fixed + " 并重试", "tip");
+                response = await mfPost(fetchUrl, retry);
+                errText = "";
+                if(!response.ok && response.status === 400){ try{ errText = await response.text(); }catch(e){} }
+            }
+        }
+        /* ② 少数旧服务端 / 自建代理会拒绝 thinking 这个未知字段：去掉后按原样重试一次 */
+        if(!response.ok && response.status === 400 && bodyObj.chat_template_kwargs
+           && !/not\s*found|unknown\s*model/i.test(errText)){
             const plain = Object.assign({}, bodyObj);
             delete plain.chat_template_kwargs;
             bodyObj = plain;
             append("ℹ️ 本机服务不接受 thinking 参数，已按原方式重试", "tip");
             response = await mfPost(fetchUrl, bodyObj);
+            errText = "";
+            if(!response.ok && response.status === 400){ try{ errText = await response.text(); }catch(e){} }
         }
         if (!response.ok) {
             append(`❌ HTTP 错误：${response.status}`, "err");
-            const errText = await response.text();
             console.error("接口返回错误：", errText);
             append(`错误详情：${errText}`, "err");
             return;
