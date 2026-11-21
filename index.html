@@ -553,8 +553,8 @@
         <div id="chatBox"></div>
         <div class="input-row">
             <button class="ctrl-btn stop-btn" id="stopBtn">停止</button>
-            <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
             <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
+            <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
         </div>
     </main>
 </div>
@@ -2854,6 +2854,80 @@ async function mfDetectLocal({ quiet=false } = {}){
     return found[0];
 }
 
+/* ===== 剧本创作助手V5（技能 a）：集数控制指令 =====
+   技能模板本身已规定「未指定集数→大纲+第1集；指定N集→大纲+N集全文」，但长输出时开头规则易被稀释。
+   这里在创作台这一层按用户指令再下发一段强指令（最高优先级），确保：
+   ①默认只写第1集正文；②用户指定几集就出几集；③大纲设定照常先出；④超过一集额外出「分集小纲（分集简介）」。
+   仅对技能 a 生效，其它技能不受影响。解析保持保守，最终判断权仍交还模型（文案里明确「以用户指令为准」）。 */
+const MF_CN_DIGITS = { 零:0, 〇:0, 一:1, 二:2, 两:2, 三:3, 四:4, 五:5, 六:6, 七:7, 八:8, 九:9 };
+function mfCnNumToInt(str){
+    str = String(str == null ? "" : str).trim();
+    if(/^\d+$/.test(str)) return parseInt(str, 10);
+    if(!str) return 0;
+    if(str.indexOf("十") >= 0){
+        const p = str.split("十");
+        const hi = p[0] ? (MF_CN_DIGITS[p[0]] || 0) : 1;
+        const lo = p[1] ? (MF_CN_DIGITS[p[1]] || 0) : 0;
+        return hi * 10 + lo;
+    }
+    let n = 0;
+    for(const ch of str){ if(Object.prototype.hasOwnProperty.call(MF_CN_DIGITS, ch)) n = n * 10 + MF_CN_DIGITS[ch]; else return 0; }
+    return n;
+}
+function parseScriptEpisodeRequest(cmd){
+    const s = String(cmd || "");
+    const r = { mode:"single", count:1, from:1, to:1, matched:false, raw:"" };
+    if(!s.trim()) return r;
+    const NUM = "(\\d+|[一二两三四五六七八九十]+)";
+    // 续写：从第N集继续 / 接着写 / 继续写第N集
+    if(/继续|接着写|接下去写/.test(s)){
+        r.mode = "continue"; r.matched = true; return r;
+    }
+    // 规划语境（只出大纲、按默认一集）——优先判定，避免「规划30集」被当成写30集正文
+    const hasPlan = /规划|策划|先出大纲|只要大纲|写.{0,6}大纲|大纲.{0,4}(先|即可|就行)/.test(s);
+    const hasExplicitWrite = new RegExp("(?:写|出|做|生成|交付)\\s*" + NUM + "\\s*集\\s*(?:正文|剧本|全文)").test(s);
+    if(hasPlan && !hasExplicitWrite){ r.mode = "plan"; return r; }
+    // 区间：1-3集 / 1~3集 / 1到3集 / 第1—3集
+    let m = s.match(new RegExp("第?\\s*" + NUM + "\\s*[-~—到至]\\s*" + NUM + "\\s*集"));
+    if(m){
+        const a = mfCnNumToInt(m[1]), b = mfCnNumToInt(m[2]);
+        if(a >= 1 && b >= a && b <= 200){ r.mode = (b - a + 1) > 1 ? "multi" : "single"; r.count = b - a + 1; r.from = a; r.to = b; r.matched = true; r.raw = m[0]; return r; }
+    }
+    // 前N集
+    m = s.match(new RegExp("前\\s*" + NUM + "\\s*集"));
+    if(m){
+        const n = mfCnNumToInt(m[1]);
+        if(n >= 1 && n <= 200){ r.mode = n > 1 ? "multi" : "single"; r.count = n; r.from = 1; r.to = n; r.matched = true; r.raw = m[0]; return r; }
+    }
+    // 写/出/做/生成/共/一次 N 集，或「N集剧本/正文/全文」
+    m = s.match(new RegExp("(?:写|出|做|生成|交付|来|要|共|总共|一次|一次性|连续|分别)?\\s*" + NUM + "\\s*集\\s*(?:剧本|正文|全文|完整|内容)?"));
+    if(m){
+        const n = mfCnNumToInt(m[1]);
+        if(n >= 1 && n <= 200){ r.mode = n > 1 ? "multi" : "single"; r.count = n; r.from = 1; r.to = n; r.matched = true; r.raw = m[0]; return r; }
+    }
+    return r;
+}
+function scriptEpisodeDirective(ep){
+    const head = "【本次剧本集数要求｜创作台指令（最高优先级，须覆盖默认参数）】\n";
+    if(ep.mode === "continue"){
+        return head + "本次为续写：按用户在指令中指定的集号只续写该集正文，不重出完整大纲（用户另有要求除外），也不扩写其它集。以用户指令为准，其余遵循技能续写规则。";
+    }
+    if(ep.mode === "multi"){
+        const n = ep.count, from = ep.from, to = ep.to;
+        return head
+            + "本条指令中用户明确要求写 " + n + " 集剧本。严格按以下执行：\n"
+            + "1) 先正常输出完整的《剧名》大纲与设定（世界观与核心规则、人物设定表、主线三幕、分集大纲表等一律照常先出，不得省略）；\n"
+            + "2) 在大纲末尾追加一段「本次分集小纲（分集简介）」，逐集简介本次要交付的第 " + from + "~" + to + " 集，每集 1-2 句写清核心事件与集尾钩子；\n"
+            + "3) 再依次输出第 " + from + "~" + to + " 集完整剧本正文，共 " + n + " 集，每集都要有集标题与【第N集完】；超过 5 集按技能分批规则连续输出、总量不减。\n"
+            + "不得只写 1 集，不得写「待续 / 是否继续写下一集」。若用户指令实际指定的集数与上述不同，以用户指令明确写出的集数为准。其余格式、节奏、时长标注严格遵循技能。";
+    }
+    // single / plan（未指定、规划、或明确只要 1 集）：默认只写一集
+    return head
+        + "本条指令中用户未明确要求多集剧本。严格按以下执行：\n"
+        + "1) 先正常输出完整的《剧名》大纲与设定（世界观与核心规则、人物设定表、主线三幕、分集大纲表、尺度与合规，一律照常先出，不得省略）；\n"
+        + "2) 剧本正文默认只写第 1 集（完整一集，含集标题与【第1集完】）。\n"
+        + "不要自行扩写第 2 集及以后，也不要追问「是否继续写下一集」。只有当用户在本条指令里明确写出具体集数时才按集数出正文（此时才需要分集小纲）；本次只写 1 集，无需分集小纲。其余格式严格遵循技能。";
+}
 async function sendMessage(autoSourceText) {
     stopGenerate();
     /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位。
@@ -2875,6 +2949,12 @@ async function sendMessage(autoSourceText) {
         }
     }
     if (userCmd) combinedContent += "【用户指令】\n" + userCmd;
+    /* 剧本创作助手V5（技能 a）：按用户指令下发集数强指令——默认只写第1集、指定几集出几集、
+       大纲照常先出、超过一集额外出分集小纲。注入在【用户指令】之后，与素材/画风段互不干扰。 */
+    if (currentSkillKey === "a") {
+        const epReq = parseScriptEpisodeRequest(userCmd);
+        combinedContent += (combinedContent ? "\n\n" : "") + scriptEpisodeDirective(epReq);
+    }
     /* 跨页技能任务触发的自动开始：把上一页带过来的已有文字作为待处理素材送进模型，
        窗口里不重复刷一大段原文；普通点「开始」时 autoSourceText 为空，行为完全不变 */
     if(autoSourceText){
