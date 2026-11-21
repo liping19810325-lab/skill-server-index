@@ -543,6 +543,7 @@
             <span class="ref-badge" id="refBadge"></span>
             <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
+            <button class="ctrl-btn clear-btn" id="clearPageBtn" title="清空当前页面的全部操作与生成内容（等同新建对话），保留历史产物与算力配置">清空本页</button>
             <button class="ctrl-btn" id="openHelpBtn" title="查看漫流编导创作台使用帮助">📖 使用帮助</button>
             <div class="spacer"></div>
             <a class="ctrl-btn canvas-nav-btn canvas-nav-btn-alt" id="openCanvasBtnFocus" href="./canvas.html" title="在同一窗口切换到画布页（专注模式下的备用入口）">◈ 打开画布</a>
@@ -658,6 +659,11 @@ const STORAGE_KEY_LOCAL_BASE = "manflows_local_base";
 const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
+/* ===== 当前会话「现场快照」：刷新 / 打开画布再返回时原样恢复，避免用户以为内容丢了。
+   用 sessionStorage（按标签页隔离）：同标签页刷新与同窗口导航都在，新标签页（新建对话）天然干净。
+   文本与参考图分两个 key——图体积大，单独存、超限只丢图不拖累文本恢复。 */
+const STORAGE_KEY_LIVE_SESSION = "manflows_live_session";
+const STORAGE_KEY_LIVE_REFS = "manflows_live_refs";
 
 /* ===== 画风参考图配置：全部仅在浏览器内存中处理，不落地、不传 skill-api ===== */
 const REF_MAX_COUNT = 3;
@@ -776,6 +782,7 @@ const newSessionFromHistoryBtn = document.getElementById("newSessionFromHistoryB
 const sendMsgBtn = document.getElementById("sendMsgBtn");
 const downloadAiBtn = document.getElementById("downloadAiBtn");
 const newSessionBtn = document.getElementById("newSessionBtn");
+const clearPageBtn = document.getElementById("clearPageBtn");
 const stopBtn = document.getElementById("stopBtn");
 const focusBtn = document.getElementById("focusBtn");
 const sidePanel = document.getElementById("sidePanel");
@@ -820,6 +827,7 @@ const HELP_HTML = `
 <h2>三、通用使用流程</h2>
 <ol>
 <li>点击上方按钮加载对应的创作技能模板；<b>吐字窗口里已经有生成的文字时，点任一技能（含导入的本地技能）会先弹出选择框，让你选「用哪个技能处理这段文字」；选定后会新开一个干净的创作台网页，自动带上这段文字、所选技能和你在底部输入框里写的额外要求，在新网页里自动加载技能并直接开始生成，避免剧本、生图提示词、生视频提示词混在同一个窗口。当前页面的吐字窗口完全不变</b>；不想处理点「取消 / 关闭」即可，不会打开新网页、也不会改动窗口内容；</li>
+<li><b>本页内容自动保留</b>：刷新网页、或点【打开画布】去画布里操作再点【返回创作台】，本页的聊天记录、上传的剧本、参考图、画风预选、技能、草稿与生成内容都<b>原样还在</b>（只存在当前浏览器标签页，不会上传）。想要一个全新开始，点顶部红色的【清空本页】——它等同于新建一个对话（只清本页内容与画风预选，保留本机历史产物和算力/API 配置）；也可以点【新建对话】在新标签页里干净开始，互不影响；</li>
 <li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；<b>三个网页的算力档位各自独立</b>：创作台、导演画布、AI 剪辑台可以同时选用不同算力并行工作，在任一网页切档位都不会改动另外两个网页（同一网页的多个标签页仍同步）。导演画布内部仍是<b>两处联动</b>：画布左侧【算力总控】与生成节点里的「生成引擎」任意一处切换，另一处立即跟随；画布切总控时会把当前画布已有生成节点一起切（生成中的节点不打断，跑完后再由用户切换），在生成节点里单独改引擎只改那一个节点、新建生成节点默认跟随画布总控。<b>上下文窗口 token（32K / 64K / 128K / 256K / 1M）只对「本机算力」生效</b>；选「漫流算力」或「第三方API」时该栏自动改为「上下文长度：跟随所选模型（自适应）」，不再发送 max_tokens，由模型与服务商按自身上限决定（这类模型上下文普遍 256K 以上甚至 1M），切回本机算力会恢复并保留你上次设定的数字；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
@@ -1321,6 +1329,7 @@ function onRefImagesChanged(){
         refStyleAnchor = ""; refStyleSig = ""; refStyleParsing = null; refStyleStatus = "idle";
     }
     renderRefStyleState();
+    saveLiveSession();   /* 参考图增删后立刻落盘（图单独 key，超配额只丢图） */
     if(refImages.length) parseRefStyle({ quiet:true });   // 后台静默解析，失败也不打扰
     else renderRefStyleState();
 }
@@ -1710,6 +1719,7 @@ async function loadScriptFile(file){
         const text = await file.text();
         fileStore = [{ name:file.name, content:text, checked:true }];  // 取代旧文档
         renderFileList();
+        saveLiveSession();   /* 剧本现场落盘，刷新/切画布返回后仍在 */
         alert(`✅ 文件 ${file.name} 已载入，可以勾选是否发给模型`);
     }catch(err){
         console.error(err);
@@ -1723,7 +1733,143 @@ function append(text, type = "tip") {
     div.innerText = text;
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
+    scheduleLiveSave();
     return div;
+}
+
+/* ==================================================================
+   当前会话现场快照（sessionStorage，按标签页隔离）
+   · 刷新 / 「打开画布」切走再返回 → 本页打开时自动恢复，用户内容不丢；
+   · 新建对话是 window.open 新标签页，sessionStorage 不继承 → 天然干净；
+   · 「清空本页」主动删两个 key + 重置现场 → 等同新建对话。
+   实现要点：
+   · 文本快照（聊天 DOM/剧本/技能/输出/草稿/参数/自定义技能/画风预选/画风锚）单独存，
+     保证必定存下；参考图 dataUrl 体积大，单独存、超配额只丢图不拖累文本。
+   · 流式输出期间不逐 token 写盘（太频繁）：用 250ms 防抖 + pagehide 兜底全量写。
+   ================================================================== */
+let liveSaveTimer = null;
+function scheduleLiveSave(){
+    if(liveSaveTimer) clearTimeout(liveSaveTimer);
+    liveSaveTimer = setTimeout(()=>{ liveSaveTimer = null; saveLiveSession(); }, 250);
+}
+function snapshotLiveSession(){
+    return {
+        chatHtml: chatBox.innerHTML,
+        fullAiText: fullAiText,
+        currentSkillKey: currentSkillKey,
+        currentSkillName: currentSkillName,
+        currentSystemPrompt: currentSystemPrompt,
+        fileStore: JSON.parse(JSON.stringify(fileStore)),
+        userInput: userInput ? userInput.value : "",
+        temp: tempInput ? tempInput.value : "",
+        topP: topPInput ? topPInput.value : "",
+        customSkillList: JSON.parse(JSON.stringify(customSkillList)),
+        stylePresetSel: JSON.parse(JSON.stringify(stylePresetSel)),
+        refStyleAnchor: refStyleAnchor,
+        refStyleSig: refStyleSig,
+        refStyleStatus: refStyleStatus,
+        refCount: refImages ? refImages.length : 0,   /* 仅用于恢复时判断图是否超配额丢失，不含图数据 */
+        savedAt: Date.now()
+    };
+}
+function saveLiveSession(){
+    try{
+        const text = JSON.stringify(snapshotLiveSession());
+        const okText = safeSession.set(STORAGE_KEY_LIVE_SESSION, text);
+        if(!okText) return;   /* 连文本都存不下（极罕见）：放弃，绝不抛错打断用户操作 */
+        /* 参考图单独存：有图才写，无图则清掉旧 key；超配额不 retry 到卡死，写失败就删掉图快照 */
+        if(refImages && refImages.length){
+            try{
+                if(!safeSession.set(STORAGE_KEY_LIVE_REFS, JSON.stringify(refImages)))
+                    safeSession.remove(STORAGE_KEY_LIVE_REFS);
+            }catch(e){ safeSession.remove(STORAGE_KEY_LIVE_REFS); }
+        }else{
+            safeSession.remove(STORAGE_KEY_LIVE_REFS);
+        }
+    }catch(e){ /* 快照失败不影响任何功能，静默 */ }
+}
+/* 恢复现场快照：只恢复「本对话的操作与生成内容」，不碰算力/API/历史产物等全局配置。
+   画风预选在模块顶层已从 sessionStorage 恢复，这里跳过它避免二次覆盖。
+   参考图超配额丢失时给一条轻提示，用户重新上传即可。 */
+function restoreLiveSession(){
+    let s = null;
+    try{ s = JSON.parse(safeSession.get(STORAGE_KEY_LIVE_SESSION) || "null"); }catch(e){ s = null; }
+    if(!s || typeof s !== "object") return;
+    try{
+        if(typeof s.chatHtml === "string") chatBox.innerHTML = s.chatHtml;
+        fullAiText = typeof s.fullAiText === "string" ? s.fullAiText : "";
+        currentSkillKey = typeof s.currentSkillKey === "string" ? s.currentSkillKey : "";
+        currentSkillName = typeof s.currentSkillName === "string" ? s.currentSkillName : "";
+        currentSystemPrompt = typeof s.currentSystemPrompt === "string" ? s.currentSystemPrompt : "";
+        fileStore = Array.isArray(s.fileStore) ? s.fileStore : [];
+        if(userInput && typeof s.userInput === "string") userInput.value = s.userInput;
+        if(tempInput && s.temp !== "" && s.temp != null) tempInput.value = s.temp;
+        if(topPInput && s.topP !== "" && s.topP != null) topPInput.value = s.topP;
+        customSkillList = Array.isArray(s.customSkillList) ? s.customSkillList : [];
+        /* aiMsgDom / fullAiText 保持一致：指向最后一条 ai 消息，编辑保存才能覆盖正确节点 */
+        aiMsgDom = chatBox.querySelector(".msg.ai:last-of-type") || null;
+        /* 参考图（可能与文本快照分开写、或超配额丢失） */
+        let refs = null;
+        try{ refs = JSON.parse(safeSession.get(STORAGE_KEY_LIVE_REFS) || "null"); }catch(e){ refs = null; }
+        const hadRefs = Number(s.refCount) || 0;
+        if(Array.isArray(refs)) refImages = refs;
+        /* 画风锚：直接恢复。sig 与当前图一致则显示「已完成」，否则于下次上传/生成时按图重解析 */
+        refStyleAnchor = typeof s.refStyleAnchor === "string" ? s.refStyleAnchor : "";
+        refStyleSig = typeof s.refStyleSig === "string" ? s.refStyleSig : "";
+        refStyleStatus = typeof s.refStyleStatus === "string" ? s.refStyleStatus : "idle";
+        if(refImages.length && refStyleSig !== refImagesSig()){
+            refStyleAnchor = ""; refStyleSig = ""; refStyleStatus = "idle";   /* 图变了，锚失效 */
+        }
+        renderFileList();
+        renderCustomSkillButtons();
+        renderRefPreview();
+        updateRefBadge();
+        updateDownloadLabel();
+        try{ renderRefStyleState(); }catch(e){}
+        if(skillStatusEl){
+            skillStatusEl.innerText = currentSkillName
+                ? `✅ 当前已加载技能【${currentSkillName}】（已恢复上次现场）`
+                : "📌 当前：尚未加载任何技能，请点选所需技能按钮";
+        }
+        if(hadRefs && !refImages.length)
+            append("ℹ️ 上次的参考图因本机存储配额未能恢复，请重新上传；其余内容均已恢复。", "tip");
+    }catch(e){ console.warn("恢复现场快照失败：", e); }
+}
+/* 清空本页 = 严格等同「新建对话」：清掉本对话所有操作与生成内容 + 画风预选，
+   保留算力/API/本机地址配置与历史产物（新标签页里这些也都在）。 */
+function clearCurrentPage(){
+    if(!confirm("清空本页会删除当前页面的全部聊天记录、剧本、参考图、技能与生成内容（等同新建一个对话），本机历史产物与算力配置保留。确定清空吗？")) return;
+    try{ stopGenerate(); }catch(e){}
+    abortController = null; pendingText = ""; aiMsgDom = null;
+    fullAiText = ""; chatBox.innerHTML = "";
+    currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
+    fileStore = []; refImages = []; customSkillList = [];
+    userInput.value = "";
+    if(tempInput) tempInput.value = "0.7";
+    if(topPInput) topPInput.value = "0.9";
+    clearRefStyle();
+    stylePresetSel = { twoD:"", threeD:"", real:"" };
+    try{ saveStylePresets(); }catch(e){}
+    safeSession.remove(STORAGE_KEY_LIVE_SESSION);
+    safeSession.remove(STORAGE_KEY_LIVE_REFS);
+    renderFileList();
+    renderCustomSkillButtons();
+    renderRefPreview();
+    updateRefBadge();
+    updateDownloadLabel();
+    try{ renderStylePresets(); }catch(e){}
+    if(skillStatusEl) skillStatusEl.innerText = "📌 当前：尚未加载任何技能，请点选所需技能按钮";
+    /* 清空后的现场与新建对话完全一致：留一个空白页。
+       提示直接写 DOM（不走 append，避免 scheduleLiveSave 把「已清空」写进快照），
+       并取消可能还在排队的保存，确保刷新后是干净空白页。 */
+    if(liveSaveTimer){ clearTimeout(liveSaveTimer); liveSaveTimer = null; }
+    safeSession.remove(STORAGE_KEY_LIVE_SESSION);
+    safeSession.remove(STORAGE_KEY_LIVE_REFS);
+    const tip = document.createElement("div");
+    tip.className = "msg tip";
+    tip.innerText = "🧹 已清空本页，等同于新建对话。可重新开始创作。";
+    chatBox.appendChild(tip);
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function stopGenerate() {
@@ -3328,7 +3474,8 @@ function initUI(){
     renderRefPreview();
     updateRefBadge();
     updateDownloadLabel();
-    consumeNewSessionPayload();   /* 「加入新建对话」带过来的产物正文 */
+    restoreLiveSession();         /* 刷新 / 打开画布返回：恢复本标签页上次的会话现场 */
+    consumeNewSessionPayload();   /* 「加入新建对话」带过来的产物正文（新标签页无现场快照，不受影响） */
     if(!safeStorage.available) console.warn("本地存储不可用（预览沙箱或隐私模式）：API配置与历史记录本次会话内有效，刷新后不保留；其余功能正常。");
 
     // 内置技能按钮
@@ -3435,6 +3582,12 @@ function initUI(){
     // 「打开画布」主入口在左上角标题旁；专注模式时工具条的备用入口一并绑定生成中拦截
     document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
     newSessionBtn.addEventListener("click", ()=> openNewSession());
+    if(clearPageBtn) clearPageBtn.addEventListener("click", clearCurrentPage);
+    /* 离开本页（刷新 / 打开画布 / 关闭标签页）兜底全量保存现场；新标签页的「新建对话」不继承 sessionStorage */
+    window.addEventListener("pagehide", ()=>{ try{ saveLiveSession(); }catch(e){} });
+    document.addEventListener("visibilitychange", ()=>{
+        if(document.visibilityState === "hidden"){ try{ saveLiveSession(); }catch(e){} }
+    });
 
     // 顶部历史产物：前 3 条快捷按钮、更多历史产物下拉、预览弹窗里的本机操作
     document.querySelectorAll("[data-hist-slot]").forEach(btn => {
@@ -3533,6 +3686,7 @@ function initUI(){
         sel.addEventListener("change",e=>{
             setSoleStylePreset(k,e.target.value||"");
             saveStylePresets(); renderStylePresets();
+            scheduleLiveSave();            /* 现场快照里的画风预选同步更新 */
             fetchArtSkillStylePrompts();   /* 主动触发两个美术技能的对应画风提示词 */
         });
     });
