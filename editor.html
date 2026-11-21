@@ -2558,7 +2558,7 @@ Object.assign(FV,{
         descs.forEach((d,idx)=>{
             const fs=FV_FX.state(d,t); if(!fs.visible) return;
             const L=fvLayout(d,W,H,guard,layoutPeers);
-            const anim=fvFxState(d,t);
+            const anim=fvFxState(d,t,H);
             const size=L.size, color=d.color;
             x.save();
             x.globalAlpha=anim.opacity;
@@ -2973,12 +2973,17 @@ function fvTextW(text,size){
 function fvLayout(d,W,H,guard,peers){
     const clamp=FV_FX.clamp;
     guard=guard||state.fvFaceGuard||FV_GUARD_DEFAULT;
-    let size=FV_FX.clamp(Number(d.size)||56,16,Math.round(H*0.20));
+    /* d.size 以固定设计基准高 SUB_DESIGN_H 定义，按当前画幅等比缩放：
+       相对比例 = d.size/SUB_DESIGN_H，与预览舞台像素大小/成片分辨率无关。
+       预览(stage高)、Canvas 通用导出(stage高)、AI包装独立导出(成片高)三处都传入各自的 H，
+       缩放后相对比例恒为 d.size/SUB_DESIGN_H，保证所见即所得。 */
+    const k=subScale(H), minS=16*k;
+    let size=FV_FX.clamp((Number(d.size)||56)*k,minS,Math.round(H*0.20));
     const maxW=W*0.90, maxH=H*0.34;
-    /* ① 防超屏：按文本宽收敛字号，最多缩到 16px；卡片类按模板系数 */
+    /* ① 防超屏：按文本宽收敛字号，最多缩到 minS；卡片类按模板系数 */
     const long=String(d.text||"");
     const need=fvTextW(long,size)*(d.steps?1.1:1);
-    if(need>maxW) size=Math.max(16,Math.floor(size*maxW/need));
+    if(need>maxW) size=Math.max(minS,Math.floor(size*maxW/need));
     if(d.steps && d.steps.length) size=Math.min(size,Math.floor(maxH/(d.steps.length*1.9))||size);
     /* ② 基准锚点：优先用元素自带 x/y（分镜或用户拖动后的值） */
     let cx=FV_FX.clamp(d.x,0.04,0.96)*W, cy=FV_FX.clamp(d.y,0.06,0.94)*H;
@@ -3049,20 +3054,21 @@ function fvLayout(d,W,H,guard,peers){
 }
 /* 动效状态：入场（anim）+ 持续（motion）统一计算，返回 transform 参数与附加视觉量。
    预览用 CSS style、导出用 canvas，两边都读同一个结果。 */
-function fvFxState(d,t){
+function fvFxState(d,t,H){
     const base=FV_FX.state(d,t), amp=FV_FX.clamp(Number(d.motionAmp)||1,0,3);
+    const k=subScale(H), sizePx=(Number(d.size)||56)*k;   /* 位移随画幅等比，跨显示器比例恒定 */
     const dur=Math.max(0.4,Number(d.motionDur)||2.4);
     const phase=(t-d.start)/dur*Math.PI*2;
     let scale=1, dx=0, dy=0, rot=0, opacity=1, glow=0, gradShift=0;
     /* 入场 */
     if(d.anim==="pop") scale=0.4+0.6*base.b;
-    else if(d.anim==="bounce"){ scale=0.7+0.3*base.b; dy=-(1-base.e)*d.size*0.7; }
-    else if(d.anim==="rise") dy=(1-base.e)*d.size*1.1;
+    else if(d.anim==="bounce"){ scale=0.7+0.3*base.b; dy=-(1-base.e)*sizePx*0.7; }
+    else if(d.anim==="rise") dy=(1-base.e)*sizePx*1.1;
     else if(d.anim==="fade") opacity=base.e;
     else scale=0.85+0.15*base.e;
     /* 持续动效 */
     const m=d.motion||"none";
-    if(m==="float"){ dy+=Math.sin(phase)*6*amp; }
+    if(m==="float"){ dy+=Math.sin(phase)*6*amp*k; }
     else if(m==="pulse"){ scale*=1+0.08*amp*Math.sin(phase); }
     else if(m==="rotate"){ rot=Math.sin(phase)*4*amp; }
     else if(m==="glow"){ glow=(0.5+0.5*Math.sin(phase))*amp; }
@@ -3592,16 +3598,38 @@ function applyFxOverlay(){
         el.appendChild(d);
     }
 }
+/* ===== 字幕尺寸分辨率无关化（跨显示器/窗口大小比例恒定）=====
+   #stage 的 CSS 像素尺寸由浏览器窗口所在显示器的分辨率/缩放决定（applyAspect 取 wrap.clientWidth/Height），
+   同一份工程在内建屏(舞台像素小)与外接屏(舞台像素大)上像素尺寸不同。
+   若把 q.size 等"长度"当绝对 px 用，字幕占画面的比例就会随显示器变化（内建屏显得大、外接屏显得小）。
+   约定：所有字幕 px 类参数(size/strokeW/shadow/glow/bgPad/bgRadius/spacing)统一以
+   固定设计基准高度 SUB_DESIGN_H 为参照定义；渲染到任意画幅时先乘 k=画幅高/SUB_DESIGN_H，
+   转成当前画幅像素。位置 x/y 本就按画幅宽高比例算，无需再缩放。
+   预览 CSS / 烧录 ASS / 录制 Canvas 三处共用同一套缩放，保证三处比例一致且跨显示器不变。 */
+const SUB_DESIGN_H=360;
+function subScale(H){ return (Number(H)>0?H:SUB_DESIGN_H)/SUB_DESIGN_H; }
+/* 舞台像素尺寸指纹：并入字幕/花字缓存键，分辨率或窗口尺寸变化时强制重建预览 DOM，
+   让按画幅等比缩放后的字号立即生效。 */
+function stageSizeKey(){ const st=$("stage"); return (st?st.clientWidth:0)+"x"+(st?st.clientHeight:0); }
+function scaledSub(q,H){
+    const k=subScale(H), o=Object.assign({},q||defaultFx().sub);
+    ["size","strokeW","shadow","glow","bgPad","bgRadius","spacing"].forEach(f=>{
+        if(o[f]!=null && o[f]!=="") o[f]=Number(o[f])*k;
+    });
+    return o;
+}
 /* ===== 字幕落点唯一真源：预览 CSS / 录制 Canvas / 烧录 ASS 三处共用 =====
    SW,SH = 预览舞台的 CSS 像素尺寸；返回的 x/y/size 都在这个坐标系里。
    预览 CSS 直接用；Canvas 导出按 W/SW 缩放；ASS 把 PlayResX/Y 设成 SW/SH 后直接写脚本像素。
-   这样三处位置、字号、对齐完全一致，烧录出来就等同于在播放器里看到的样子。 */
+   size/pad 已按 subScale 转成当前画幅像素，因此字幕相对画面的比例不随舞台像素尺寸变化。 */
 function subPlacement(q,SW,SH){
-    q=q||defaultFx().sub;
-    const size=Math.max(8,Number(q.size)||28);
+    const rawQ=q||defaultFx().sub;   /* subLinePx 内部会再缩放，这里必须传未缩放的原始 q */
+    q=scaledSub(q,SH);
+    const k=subScale(SH);
+    const size=Math.max(8*k,Number(q.size)||28);
     const align=q.align||"center";
     const pos=q.pos||"bottom";
-    const pad=24;   /* 预览 .subtitle-overlay 的左右内边距 */
+    const pad=24*k;   /* 预览 .subtitle-overlay 的左右内边距（随画幅等比） */
     const an=align==="left"?1:(align==="right"?3:2);
     const x=align==="left"?pad:(align==="right"?Math.max(pad+1,SW-pad):Math.round(SW/2));
     /* 容器 bottom:7% => 基准底边 0.93H；pos=top/middle 再上移 34%/15%。
@@ -3609,22 +3637,23 @@ function subPlacement(q,SW,SH){
        与烧录 ASS \pos、Canvas 绘制共用同一个 y，三处严格一致。 */
     const baseY=Math.round(SH*0.93);
     const off=pos==="top"?-Math.round(SH*0.34):(pos==="middle"?-Math.round(SH*0.15):0);
-    const y=pos==="center"?clamp(Math.round(SH/2+subLinePx(q)/2),1,SH):clamp(baseY+off,1,SH);
+    const y=pos==="center"?clamp(Math.round(SH/2+subLinePx(rawQ,SH)/2),1,SH):clamp(baseY+off,1,SH);
     return {x:x,y:y,an:an,size:size,align:align,pos:pos,pad:pad,baseY:baseY};
 }
 function subStyleOf(c,stackY){
     const q=fxOf(c).sub||{}, st=$("stage"), W=st?st.clientWidth:640, H=st?st.clientHeight:360;
+    const qs=scaledSub(q,H);   /* px 类参数按当前画幅等比缩放，字号相对画面比例跨显示器恒定 */
     const _sp=subPlacement(q,W,H);
     /* 静态落点：bottom = H - y（y 是距顶端像素）。stackY 由 subStackY 统一算好，
        与烧录 ASS 的 \pos 用同一个 y，因此预览与成片严格一致，且不随其它字幕漂移。 */
     const y=(stackY===undefined)?_sp.y:stackY;
     const bottomFromStage=clamp(H-y,0,H);
     const op=clamp(q.opacity===undefined?100:Number(q.opacity),0,100)/100;
-    const sh=Number(q.shadow)||0, bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
+    const sh=Number(qs.shadow)||0, bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
     /* 未点过颜色选择器时按剪映习惯回退黑底，否则只拖「背景透明」滑块会毫无效果 */
     const bg=(bgA>0)?hexToRgba(q.bg||"#000000",bgA):"transparent";
     /* 发光 + 原有阴影叠加到 text-shadow（剪映「发光」= 无偏移的柔光） */
-    const glow=Number(q.glow)||0;
+    const glow=Number(qs.glow)||0;
     const shadowParts=[];
     if(sh>0) shadowParts.push("0 "+(sh/2).toFixed(0)+"px "+sh.toFixed(0)+"px "+(q.shadowColor||"#000"));
     if(glow>0){ const gc=q.glowColor||"#ffffff";
@@ -3635,7 +3664,7 @@ function subStyleOf(c,stackY){
     const fill=grad?("background:linear-gradient(90deg,"+esc(grad)+");-webkit-background-clip:text;background-clip:text;color:transparent;"):"color:"+(q.color||"#fff")+";";
     const deco=(q.underline?"underline ":"")+(q.strike?"line-through ":"");
     const vertical=q.vertical?"writing-mode:vertical-rl;text-orientation:upright;":"";
-    const bgRadius=Number(q.bgRadius)||0, bgPad=Number(q.bgPad)||0;
+    const bgRadius=Number(qs.bgRadius)||0, bgPad=Number(qs.bgPad)||0;
     /* 水平：与 subPlacement 一致（left→贴24px内边距, right→贴右边, center→居中） */
     const al=q.align||"center";
     let hpos;
@@ -3646,16 +3675,16 @@ function subStyleOf(c,stackY){
        导致 computeFxGeometry 用 offsetLeft 算出的拖动框偏到字幕右侧半个字宽。 */
     else hpos="left:0;right:0;width:max-content;margin-left:auto;margin-right:auto;";
     return "bottom:"+bottomFromStage+"px;"+hpos
-        +"font-size:"+(Number(q.size)||28)+"px;"+fill
+        +"font-size:"+(Number(qs.size)||28)+"px;"+fill
         +";opacity:"+op.toFixed(3)
         +";font-weight:"+(q.bold===false?"400":"700")
         +";font-style:"+(q.italic?"italic":"normal")
-        +";letter-spacing:"+(Number(q.spacing)||0)+"px"
+        +";letter-spacing:"+(Number(qs.spacing)||0)+"px"
         +";line-height:"+(Number(q.lineHeight)||1.2)
         +";text-shadow:"+textShadow
         +";background-color:"+bg
         +(bgA>0?(";border-radius:"+bgRadius+"px;padding:"+bgPad+"px"):"")
-        +";-webkit-text-stroke:"+(Number(q.strokeW)||0)+"px "+(q.stroke||"#000")
+        +";-webkit-text-stroke:"+(Number(qs.strokeW)||0)+"px "+(q.stroke||"#000")
         +(deco?(";text-decoration:"+deco.trim()):"")
         +";text-align:"+(q.align||"center")+";font-family:'"+(q.fontEn||"Arial")+"','"+(q.font||"Microsoft YaHei")+"',sans-serif"
         +";"+vertical;
@@ -4429,7 +4458,27 @@ async function canvasHistory(){
         r.onerror=()=>{db.close();res([]);}; }catch(e){ db.close(); res([]); } });
 }
 
-/* ---------- 可调布局 ---------- */
+/* ---------- 可调布局 ----------
+   跨显示器/窗口缩放时窗口宽度会变：左右栏保存的像素宽若各自都合法(≤620)但相加超过窗口，
+   中间栏会被 flex 压没、右栏被挤出屏幕外，分隔条也够不到（无法再调整布局）。
+   统一约束：左右栏各自 180~620，且两者之和 ≤ 窗口宽 - 中间最小宽 - 分隔条/内边距。
+   所有读写布局的唯一入口都过 fitLayoutToViewport，保证任何窗口尺寸都放得下三栏。 */
+const MIN_CENTER_W=360, SIDE_GUTTER=20;
+function fitLayoutToViewport(L){
+    L=Object.assign({},L||DEF_LAYOUT);
+    let left=clamp(Number(L.left)||DEF_LAYOUT.left,180,620);
+    let right=clamp(Number(L.right)||DEF_LAYOUT.right,180,620);
+    const maxTotal=Math.max(360,window.innerWidth-MIN_CENTER_W-SIDE_GUTTER);
+    if(left+right>maxTotal){
+        const scale=maxTotal/(left+right);
+        left=Math.max(180,Math.floor(left*scale));
+        right=Math.max(180,Math.floor(right*scale));
+        if(left+right>maxTotal) right=Math.max(180,maxTotal-left);
+    }
+    L.left=left; L.right=right;
+    L.tl=clamp(Number(L.tl)||DEF_LAYOUT.tl,150,Math.max(180,window.innerHeight-160));
+    return L;
+}
 function loadLayout(){
     let L=Object.assign({},DEF_LAYOUT);
     try{ const p=JSON.parse(safeStorage.get(LAYOUT_KEY)||"null"); if(p&&typeof p==="object"){
@@ -4437,13 +4486,14 @@ function loadLayout(){
         L.right=clamp(Number(p.right)||DEF_LAYOUT.right,180,620);
         L.tl=clamp(Number(p.tl)||DEF_LAYOUT.tl,150,Math.max(180,window.innerHeight-160));
     } }catch(e){}
-    return L;
+    return fitLayoutToViewport(L);
 }
 function applyLayout(L){
+    L=fitLayoutToViewport(L);
     const r=document.documentElement.style;
     r.setProperty("--leftW",L.left+"px"); r.setProperty("--rightW",L.right+"px"); r.setProperty("--tlH",L.tl+"px");
 }
-function saveLayout(L){ safeStorage.set(LAYOUT_KEY,JSON.stringify(L)); }
+function saveLayout(L){ safeStorage.set(LAYOUT_KEY,JSON.stringify(fitLayoutToViewport(L))); }
 function resetLayout(){
     safeStorage.remove(LAYOUT_KEY);
     applyLayout(Object.assign({},DEF_LAYOUT));
@@ -5383,7 +5433,9 @@ function renderSubtitleOverlay(){
     }
     /* 花字走独立渲染器：与普通字幕彻底解耦，不受 subPlacement/居中/堆叠规则约束 */
     renderFancyOverlay();
-    const key=active.map(c=>c.id+c.text+(c.subKind||"")).join("|")+"#fz"+fancyCacheKey();
+    /* 缓存键纳入舞台像素尺寸：窗口在 different 分辨率显示器间移动/缩放后，
+       字号按比例重算，必须重建 DOM 才能让新比例生效（否则沿用旧像素尺寸）。 */
+    const key=active.map(c=>c.id+c.text+(c.subKind||"")).join("|")+"#fz"+fancyCacheKey()+"#vp"+stageSizeKey();
     if(key===subCache) return;
     subCache=key;
     /* 用整段所有字幕作为静态堆叠基准（assStackIndex 内部按「同位置+时间重叠」过滤），
@@ -5419,7 +5471,8 @@ function fancyCacheKey(){
     const activeIds=activeFancyClips().map(c=>c.id).sort().join(",");
     return fz.map(c=>c.id+c.text+(c.fx&&c.fx.sub&&JSON.stringify(c.fx.sub.fv)||"")+(c.fx&&c.fx.sub&&c.fx.sub.size||"")).join("|")
         +"@"+[g.on,g.x,g.y,g.w,g.h].join(",")+"#"+activeIds+"$"+(baseSubHidden()?"hideBase":"showBase")
-        +"%"+(fvStyleVis().motif||"classic");   /* 切画面模板要重建预览 DOM 才能换上对应外观 */
+        +"%"+(fvStyleVis().motif||"classic")   /* 切画面模板要重建预览 DOM 才能换上对应外观 */
+        +"^vp"+stageSizeKey();   /* 舞台分辨率/窗口尺寸变化时按新比例重算字号 */
 }
 function activeFancyClips(){
     const out=[];
@@ -5467,7 +5520,7 @@ function updateFancyFrame(){
     box.querySelectorAll(".fz-item").forEach(el=>{
         const c=clipById(el.dataset.clip); if(!c) return;
         const d=fvDesc(c), L=fvLayout(d,W,H,state.fvFaceGuard);
-        const s=fvFxState(d,state.playhead);
+        const s=fvFxState(d,state.playhead,H);
         if(!s.visible){ el.style.visibility="hidden"; return; }
         el.style.visibility="visible";
         el.style.transform="translate(-50%,-50%) translate("+s.dx.toFixed(2)+"px,"+s.dy.toFixed(2)+"px) scale("+s.scale.toFixed(3)+") rotate("+s.rot.toFixed(2)+"deg)";
@@ -10442,14 +10495,14 @@ function subAssBottomAlign(q){
      · 水平默认居中；left/right 贴容器 24px 内边距
    这样烧录出来的位置/字号与玩家预览完全一致，不再用 Alignment=8/5/2 那套抽象对齐。 */
 /* 单条字幕元素的像素高度（复刻 .sub-line 的 line-height + padding + 背景内边距 + 换行行数） */
-function subLinePx(q){
-    const size=Number(q.size)||28, lh=Number(q.lineHeight)||1.2;
+function subLinePx(q,H){
+    const k=subScale(H), qs=scaledSub(q,H);
+    const size=Number(qs.size)||28, lh=Number(q.lineHeight)||1.2;
     const lines=Math.max(1,(String(q.text||"").match(/\n/g)||[]).length+1);
     const bgA=clamp(Number(q.bgOpacity)||0,0,100)/100;
     /* 复刻 .sub-line 的实际盒高 = line-height×行数 + 上下 padding。
-       默认 padding 2px/边(共4)，有背景时 bgPad/边(共2×bgPad)。
-       旧公式多算了 4px，导致含背景框字幕的堆叠与文字中心定位偏差。 */
-    const pad=2*(bgA>0?(Number(q.bgPad)||0):2);
+       默认 padding 2px/边(共4)，有背景时 bgPad/边(共2×bgPad)；两者都随画幅等比缩放。 */
+    const pad=2*k*(bgA>0?(Number(qs.bgPad)||0):2);
     return size*lh*lines+pad;
 }
 /* 与预览堆叠一致的层号：返回该字幕在「同位置 + 时间重叠」组内从底往上数是第几层。
@@ -10490,8 +10543,8 @@ function assPosTag(q,stackY){
     /* libass \an(1/2/3 底边锚点) 的文字 ink 中心 ≈ posY - 0.52×字号（经 ffmpeg 实测标定）；
        预览里文字 ink 中心 = 元素盒底 - 元素高/2。两者相等 => posY = bottomY - linePx/2 + 0.52*size。
        这样带背景框(有 padding)与不带框的字幕,烧录文字都与预览逐像素对齐。 */
-    const size=Math.max(8,Number(q.size)||28);
-    const inkCenter=bottomY-subLinePx(q)/2;
+    const size=Math.max(8*subScale(H),Number(scaledSub(q,H).size)||28);
+    const inkCenter=bottomY-subLinePx(q,H)/2;
     const y=Math.round(clamp(inkCenter+0.52*size,1,H));
     return "{\\an"+sp.an+"\\pos("+sp.x+","+y+")}";
 }
@@ -10571,19 +10624,20 @@ function buildBurnAss(arr){
     arr.forEach(c=>{ stackYById[c.id]=subStackY(c,arr,W,H); });
     arr.forEach((c,i)=>{
         const q=(c.fx&&c.fx.sub)||defaultFx().sub, name="MF"+i;
+        const qs=scaledSub(q,H);   /* ASS PlayRes=舞台像素，字号按 k 缩放后相对画幅比例恒定 */
         const op=q.opacity===undefined?100:Number(q.opacity), bgOp=Number(q.bgOpacity)||0;
         const borderStyle=bgOp>0?3:1;
         const back=bgOp>0?assHexA(q.bg||"#000000",bgOp):assHex(q.shadowColor||q.bg||"#000000");
-        styles.push("Style: "+name+","+(q.font||"Microsoft YaHei")+","+(Math.round(Number(q.size)||28))
+        styles.push("Style: "+name+","+(q.font||"Microsoft YaHei")+","+(Math.round(Number(qs.size)||28))
             +","+assHexA(q.color||"#ffffff",op)+","+assHex(q.color||"#ffffff")
             +","+assHex(q.stroke||"#000000")+","+back
             +","+(q.bold===false?0:-1)+","+(q.italic?-1:0)+","+(q.underline?-1:0)+","+(q.strike?-1:0)
-            +",100,100,"+(Number(q.spacing)||0)+",0,"+borderStyle+","+(Number(q.strokeW)||0)+","+(Number(q.shadow)||0)
+            +",100,100,"+(Number(qs.spacing)||0)+",0,"+borderStyle+","+(Number(qs.strokeW)||0)+","+(Number(qs.shadow)||0)
             +","+subAlignAss(q)+",0,0,0,1");
         /* 每行的样式覆盖 + 精确落点：\an\pos 在前（含多条同位置时的堆叠让位），
            随后是逐条字号/颜色等覆盖，最后接纯字幕正文（无类型前缀，与预览一致）。 */
         lines.push("Dialogue: 0,"+assTs(c.start)+","+assTs(c.start+c.duration)+","+name+",,0,0,0,,"
-            +assPosTag(q,stackYById[c.id])+subAssOverride(q)+subTextAssAnim(c,q));
+            +assPosTag(q,stackYById[c.id])+subAssOverride(q,H)+subTextAssAnim(c,q));
     });
     return "[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\nScaledBorderAndShadow: yes\n"
         +"PlayResX: "+W+"\nPlayResY: "+H+"\n"
@@ -10591,15 +10645,16 @@ function buildBurnAss(arr){
         +styles.join("\n")+"\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
         +lines.join("\n")+"\n";
 }
-function subAssOverride(q){
+function subAssOverride(q,H){
+    const qs=scaledSub(q,H);
     const op=q.opacity===undefined?100:Number(q.opacity), bgOp=Number(q.bgOpacity)||0;
     const a=Math.round((1-clamp(op,0,100)/100)*255).toString(16).padStart(2,"0").toUpperCase();
     let s="{";
-    s+="\\fn"+(q.font||"Microsoft YaHei")+"\\fs"+(Math.round(Number(q.size)||28));
+    s+="\\fn"+(q.font||"Microsoft YaHei")+"\\fs"+(Math.round(Number(qs.size)||28));
     s+="\\c"+assHexA(q.color||"#ffffff",op)+"\\3c"+assHex(q.stroke||"#000000");
-    s+="\\bord"+(Number(q.strokeW)||0)+"\\shad"+(Number(q.shadow)||0);
+    s+="\\bord"+(Number(qs.strokeW)||0)+"\\shad"+(Number(qs.shadow)||0);
     s+="\\b"+(q.bold===false?0:1)+"\\i"+(q.italic?1:0)+"\\u"+(q.underline?1:0)+"\\s"+(q.strike?1:0);
-    s+="\\fsp"+(Number(q.spacing)||0)+"\\an"+subAssBottomAlign(q)+"\\alpha&H"+a+"&";
+    s+="\\fsp"+(Number(qs.spacing)||0)+"\\an"+subAssBottomAlign(q)+"\\alpha&H"+a+"&";
     if(bgOp>0) s+="\\4c"+assHexA(q.bg||"#000000",bgOp);
     return s+"}";
 }
@@ -10851,20 +10906,21 @@ function drawStageFrame(x,W,H,opts){
         $("subOverlay").querySelectorAll(".sub-line").forEach(el=>{
         const c=clipById(el.dataset.clip), q=c?fxOf(c).sub:null;
         const st=$("stage"), SW=(st&&st.clientWidth>0)?st.clientWidth:640, SH=(st&&st.clientHeight>0)?st.clientHeight:360;
+        const qs=scaledSub(q,SH);   /* px 类参数随画幅等比缩放，与预览/ASS 三处同一比例 */
         const scale=W/SW, sp=subPlacement(q,SW,SH);
-        const size=Math.max(8,Math.round(sp.size*scale));
+        const size=Math.max(8*subScale(SH),Math.round(sp.size*scale));
         const op=q?(clamp(q.opacity===undefined?100:Number(q.opacity),0,100)/100):1;
         x.save(); x.globalAlpha=op;
         x.font=(q&&q.italic?"italic ":"")+(q&&q.bold===false?"":"bold ")+size+"px '"+(q&&q.fontEn?q.fontEn:"Arial")+"','"+(q?q.font:"Microsoft YaHei")+"',sans-serif";
-        try{ x.letterSpacing=((q?Number(q.spacing)||0:0)*scale)+"px"; }catch(e){}
+        try{ x.letterSpacing=((q?Number(qs.spacing)||0:0)*scale)+"px"; }catch(e){}
         x.textAlign=sp.align; x.textBaseline="bottom";
         const px=sp.x*scale;
         /* 与预览/ASS 同一落点：subStackY 得元素盒底，再换算成文字 ink 中心作为 textBaseline=bottom 的锚点。
            canvas 文字 ink 高 ≈ 0.74*字号，ink中心 = baseline - 0.37*字号 => baseline = inkCenter + 0.37*字号。 */
         const stackY=c?subStackY(c,allText,SW,SH):sp.y;
-        const inkCenter=stackY-subLinePx(q||defaultFx().sub)/2;
-        const py=(inkCenter+0.37*(Number(q&&q.size)||28))*scale;
-        const sh=q?Number(q.shadow)||0:0, glow=q?Number(q.glow)||0:0;
+        const inkCenter=stackY-subLinePx(q||defaultFx().sub,SH)/2;
+        const py=(inkCenter+0.37*(Number(qs.size)||28))*scale;
+        const sh=q?Number(qs.shadow)||0:0, glow=q?Number(qs.glow)||0:0;
         /* 导出画布把「阴影 + 发光」合并成 shadowBlur（取较大者，发光用对应颜色） */
         if(glow>0){ x.shadowColor=q.glowColor||"#ffffff"; x.shadowBlur=glow*scale; }
         else if(sh>0){ x.shadowColor=q.shadowColor||"#000"; x.shadowBlur=sh*scale; x.shadowOffsetY=sh/2*scale; }
@@ -10883,7 +10939,7 @@ function drawStageFrame(x,W,H,opts){
                 fillStyle=gr;
             }
         }
-        x.lineWidth=Math.max(0,(q?Number(q.strokeW)||0:2))*scale; x.strokeStyle=q?(q.stroke||"#000"):"#000";
+        x.lineWidth=Math.max(0,(q?Number(qs.strokeW)||0:2*subScale(SH)))*scale; x.strokeStyle=q?(q.stroke||"#000"):"#000";
         x.fillStyle=fillStyle;
         const vertical=!!(q&&q.vertical);
         if(vertical){
@@ -10893,7 +10949,7 @@ function drawStageFrame(x,W,H,opts){
             if(q&&bgA>0){
                 x.fillStyle=hexToRgba(q.bg||"#000000",bgA);
                 const bx=px-colW/2-8, by=py-boxH-6, bw=colW+16, bh=boxH+12;
-                const r=clamp(Number(q.bgRadius)||0,0,40)*scale;
+                const r=clamp(Number(qs.bgRadius)||0,0,40)*scale;
                 if(r>0&&x.roundRect){ x.beginPath(); x.roundRect(bx,by,bw,bh,r); x.fill(); }
                 else x.fillRect(bx,by,bw,bh);
                 x.fillStyle=fillStyle;
@@ -10909,13 +10965,13 @@ function drawStageFrame(x,W,H,opts){
         }else{
             if(q&&bgA>0){
                 const tw=x.measureText(txt).width;
-                const padX=clamp(Number(q.bgPad)||0,0,40)*scale;
+                const padX=clamp(Number(qs.bgPad)||0,0,40)*scale;
                 const bw=tw+padX*2+16, bh=lineH+padX*0.8+8;
                 const bx=(x.textAlign==="left"?px:x.textAlign==="right"?px-bw:px-bw/2)-4;
                 const by=py-bh+4;
                 x.save(); x.shadowColor="transparent"; x.shadowBlur=0;
                 x.fillStyle=hexToRgba(q.bg||"#000000",bgA);
-                const r=clamp(Number(q.bgRadius)||0,0,40)*scale;
+                const r=clamp(Number(qs.bgRadius)||0,0,40)*scale;
                 if(r>0&&x.roundRect){ x.beginPath(); x.roundRect(bx,by,bw,bh,r); x.fill(); }
                 else x.fillRect(bx,by,bw,bh);
                 x.restore();
@@ -10926,7 +10982,7 @@ function drawStageFrame(x,W,H,opts){
             if(animOn){
                 const words=AIB.wordsFor(c), local=Math.max(0,state.playhead-c.start);
                 const strength=q.animStrength===undefined?1:Number(q.animStrength), adur=q.animDur||0.22;
-                const widths=words.map(w=>x.measureText(w.ch).width+((Number(q&&q.spacing)||0)*scale));
+                const widths=words.map(w=>x.measureText(w.ch).width+((Number(q&&qs.spacing)||0)*scale));
                 tw=widths.reduce((a,b)=>a+b,0);
                 ux=x.textAlign==="left"?px:(x.textAlign==="right"?px-tw:px-tw/2);
                 let cx=ux;
@@ -10942,7 +10998,7 @@ function drawStageFrame(x,W,H,opts){
                     if(a.rotate) x.rotate(a.rotate*Math.PI/180);
                     if(a.blur>0) x.filter="blur("+(a.blur*scale).toFixed(2)+"px)";
                     const by=a.color||fillStyle;
-                    if(a.glow){ x.shadowColor=w.kw?"#ffd23e":(q.glowColor||"#ffffff"); x.shadowBlur=(q.glow||8)*scale; }
+                    if(a.glow){ x.shadowColor=w.kw?"#ffd23e":(q.glowColor||"#ffffff"); x.shadowBlur=(q?Number(qs.glow)||8:8)*scale; }
                     /* 描边闪烁：轮廓微光呼吸，内部文字保持静态 */
                     if(a.blink>0){ x.shadowColor="#ffd23e"; x.shadowBlur=(2+6*a.blink)*scale; }
                     if(x.lineWidth>0){ x.strokeStyle=q.stroke||"#000"; x.strokeText(w.ch,0,0); }
@@ -11473,7 +11529,15 @@ async function init(){
     applyCompute(loadCompute(),true);
     showPropTab("basic");
     wireMarquee(); wireFxBox();
-    window.addEventListener("resize",()=>{ applyAspect(); if(state.zoomAuto) fitZoom(); else syncZoomRange(); });
+    window.addEventListener("resize",()=>{
+        /* 窗口跨显示器/缩小后，重新把左右栏约束进可视范围，避免右栏被挤出屏幕、分隔条够不到。 */
+        applyLayout(loadLayout());
+        applyAspect(); if(state.zoomAuto) fitZoom(); else syncZoomRange();
+        /* 窗口跨不同分辨率显示器 / 拖拽改尺寸后舞台像素会变：清字幕缓存并按新画幅重算字号，
+           保证同一工程在任意显示器上字幕相对视频的比例恒定。缓存键已含舞台尺寸，这里主动触发重绘。 */
+        subCache=""; fancyCache="";
+        try{ renderSubtitleOverlay(); updateFancyFrame(); applyClipTransforms(); }catch(e){}
+    });
     /* 「新建工程」在新标签页带 ?newproj=<时间戳> 打开：用独立的工程日期键建空白工程，
        不加载也不覆盖当前页面正在编辑的当天工程；两个页面各自自动保存、互不干扰。 */
     const newproj=(location.search.match(/[?&]newproj=([0-9]+)/)||[])[1];
