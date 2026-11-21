@@ -3236,7 +3236,9 @@ function showQuickAdd(cx,cy,wx,wy){
     quickAddAt={x:Math.max(0,wx),y:Math.max(0,wy)};
     m.innerHTML="";
     const h=document.createElement("div"); h.className="qa-head"; h.textContent="添加节点"; m.appendChild(h);
-    USER_ADDABLE_TYPES.forEach(type=>{       /* 结果节点自动生成，不在手动菜单里列出 */
+    /* 生成节点常用，双击菜单里排最上方；其余四类相对顺序不变（只影响双击菜单，不改右侧圆点菜单） */
+    const qaOrder=["generate"].concat(USER_ADDABLE_TYPES.filter(t=>t!=="generate"));
+    qaOrder.forEach(type=>{       /* 结果节点自动生成，不在手动菜单里列出 */
         const meta=NODE_META[type];
         const b=document.createElement("button");
         const ico=document.createElement("span"); ico.className="qa-ico"; ico.style.background=meta.color;
@@ -3271,6 +3273,7 @@ function portFreeSpot(src){
 }
 function showPortAddMenu(cx,cy,src){
     const m=el("portAdd"); if(!m||!src) return;
+    window.__mfPortMenuOpenAt=Date.now();
     m.innerHTML="";
     const h=document.createElement("div"); h.className="qa-head";
     h.textContent="从「"+(src.title||(NODE_META[src.type]||{}).label||"节点")+"」连出 · 选择节点";
@@ -3297,10 +3300,61 @@ function showPortAddMenu(cx,cy,src){
     m.style.left=Math.max(6,Math.min(cx,window.innerWidth-r.width-10))+"px";
     m.style.top=Math.max(6,Math.min(cy,window.innerHeight-r.height-10))+"px";
 }
+/* 四类输入节点类型：提示词/参考图/声音参考/视频参考 */
+const INPUT_NODE_TYPES=["prompt","image","audio","video"];
+/* 在目标节点左侧找一个不重叠的空位（用于给「生成」节点补输入节点） */
+function portFreeSpotLeft(dst){
+    let x=dst.x-340, y=dst.y;
+    const others=canvas.nodes.filter(n=>n.id!==dst.id);
+    for(let i=0;i<40 && others.some(n=>Math.abs(n.x-x)<260 && Math.abs(n.y-y)<170);i++) y+=220;
+    return {x:Math.max(0,x),y:Math.max(0,y)};
+}
+/* 从某输入节点「连出」直接新建一个生成节点并自动连好线（pos 给定时用落点坐标，否则用右侧空位） */
+function createLinkedGenerate(src,pos){
+    if(!src) return null;
+    const p=pos||portFreeSpot(src);
+    const g=newNode("generate",p.x,p.y,defaultNodeData("generate"));
+    addEdge(src.id,g.id);
+    renderAll(); selectNode(g.id); commitHistory(); scheduleSave();
+    setStatus("已添加「生成」节点并自动连好线","ok");
+    return g;
+}
+/* 生成节点左侧圆点：弹出四类输入节点菜单，选中即新建并连到该生成节点（方向：输入 → 生成） */
+function showInputAddMenu(cx,cy,gen){
+    const m=el("portAdd"); if(!m||!gen) return;
+    window.__mfPortMenuOpenAt=Date.now();
+    m.innerHTML="";
+    const h=document.createElement("div"); h.className="qa-head";
+    h.textContent="连到「生成」· 选择输入节点";
+    m.appendChild(h);
+    INPUT_NODE_TYPES.forEach(type=>{
+        const meta=NODE_META[type];
+        const b=document.createElement("button");
+        const ico=document.createElement("span"); ico.className="qa-ico"; ico.style.background=meta.color;
+        b.appendChild(ico); b.appendChild(document.createTextNode(meta.label));
+        b.title="新建「"+meta.label+"」节点并自动连到生成节点";
+        b.addEventListener("click",ev=>{
+            ev.stopPropagation();
+            m.classList.remove("show");
+            const p=portFreeSpotLeft(gen);
+            const q=newNode(type,p.x,p.y,defaultNodeData(type));
+            addEdge(q.id,gen.id);
+            renderAll(); selectNode(q.id); commitHistory(); scheduleSave();
+            setStatus("已添加「"+meta.label+"」节点并自动连到生成节点","ok");
+        });
+        m.appendChild(b);
+    });
+    m.classList.add("show");
+    const r=m.getBoundingClientRect();
+    m.style.left=Math.max(6,Math.min(cx,window.innerWidth-r.width-10))+"px";
+    m.style.top=Math.max(6,Math.min(cy,window.innerHeight-r.height-10))+"px";
+}
 document.addEventListener("click",e=>{
     const m=el("portAdd");
-    /* 打开菜单的那一次点击落在 .port-out 上，不能被这个处理器立刻关掉 */
-    if(m&&m.classList.contains("show")&&!e.target.closest("#portAdd")&&!e.target.closest(".port-out")) m.classList.remove("show");
+    /* 打开菜单的那一次 mouseup 会产生一次 click：圆点上的要排除；拉线落空白弹出的菜单
+       用打开时间戳做 400ms 保护窗，避免刚弹出就被同一次 click 关掉 */
+    const justOpened=(window.__mfPortMenuOpenAt && Date.now()-window.__mfPortMenuOpenAt<400);
+    if(m&&m.classList.contains("show")&&!justOpened&&!e.target.closest("#portAdd")&&!e.target.closest(".port-out")&&!e.target.closest(".port-in")) m.classList.remove("show");
 });
 /* ===== 画布右键菜单 ===== */
 function showCtxMenu(x,y){
@@ -3391,7 +3445,17 @@ function onNodeMouseDown(e,n){
     if(e.target.closest(".port-in")){
         e.preventDefault(); e.stopPropagation();
         const edge=canvas.edges.find(x=>x.to===n.id);
-        if(edge){
+        if(n.type==="generate"){
+            /* 生成节点左侧圆点：单点/拉到空白 → 弹四类输入节点菜单；拖动已连的线 → 拔线重接/删除。
+               两者共存：在 mouseup 里按「是否拖动」分流，单点绝不删原线。 */
+            drag={type:"link",from:n.id,portIn:true,
+                  hadEdge:edge?edge.id:null, edgeFrom:edge?edge.from:null,
+                  sx:e.clientX,sy:e.clientY,moved:false};
+            tempPath=svgPath("","#60a5fa"); tempPath.setAttribute("stroke-dasharray","5 4");
+            el("edgeSvg").appendChild(tempPath);
+            updateTempPath(e.clientX,e.clientY);
+        }else if(edge){
+            /* 其它节点保留原「拔线重接」：按住拖走、落到别的节点改接、落空白删除 */
             canvas.edges=canvas.edges.filter(x=>x.id!==edge.id);
             drawEdges();
             drag={type:"link",from:edge.from};
@@ -3404,7 +3468,7 @@ function onNodeMouseDown(e,n){
     }
     if(e.target.closest(".port-out")){
         e.preventDefault(); e.stopPropagation();
-        drag={type:"link",from:n.id,portOut:true,sx:e.clientX,sy:e.clientY,moved:false};
+        drag={type:"link",from:n.id,portOut:true,srcType:n.type,sx:e.clientX,sy:e.clientY,moved:false};
         tempPath=svgPath("","#60a5fa"); tempPath.setAttribute("stroke-dasharray","5 4");
         el("edgeSvg").appendChild(tempPath);
         updateTempPath(e.clientX,e.clientY);
@@ -3427,7 +3491,9 @@ function updateTempPath(cx,cy){
     if(!tempPath) return;
     const a=canvas.nodes.find(n=>n.id===drag.from); if(!a) return;
     const p=toCanvasXY(cx,cy);
-    tempPath.setAttribute("d",bezier(outPoint(a),p));
+    /* 生成节点左侧圆点拉线：橡皮筋从左侧输入点出发；其它情况从右侧输出点出发 */
+    const start=(drag && drag.portIn) ? inPoint(a) : outPoint(a);
+    tempPath.setAttribute("d",bezier(start,p));
 }
 /* ===== 框选 ===== */
 function ensureSelectRect(){
@@ -3486,7 +3552,7 @@ document.addEventListener("mousemove",e=>{
     } else if(drag.type==="select"){
         updateSelectRect(drag,e.clientX,e.clientY);
     } else if(drag.type==="link"){
-        if(drag.portOut && !drag.moved && (Math.abs(e.clientX-drag.sx)>4 || Math.abs(e.clientY-drag.sy)>4)) drag.moved=true;
+        if((drag.portOut||drag.portIn) && !drag.moved && (Math.abs(e.clientX-drag.sx)>4 || Math.abs(e.clientY-drag.sy)>4)) drag.moved=true;
         updateTempPath(e.clientX,e.clientY);
     }
 });
@@ -3498,17 +3564,64 @@ document.addEventListener("mouseup",e=>{
     else if(d.type==="select"){ finishSelect(d,e.clientX,e.clientY); }
     else if(d.type==="link"){
         if(tempPath){ tempPath.remove(); tempPath=null; }
-        /* 轻点右侧圆点（按下后原地松开、没有拖动）＝弹出节点菜单（五类可手动节点），选择后自动建联；
-           按住拖到别的节点＝原来的手动连线，两种操作互不干扰 */
-        if(d.portOut && !d.moved){
-            const src=canvas.nodes.find(x=>x.id===d.from);
-            if(src) showPortAddMenu(d.sx,d.sy,src);
+        const under=document.elementFromPoint(e.clientX,e.clientY);
+        const box=under?under.closest(".node"):null;
+        const targetId=box?box.dataset.id:null;
+
+        /* ① 生成节点左侧圆点（portIn）：单点/拉空白弹四类菜单；拖动原线则拔线重接/删除，两者共存 */
+        if(d.portIn){
+            const gen=canvas.nodes.find(x=>x.id===d.from);
+            if(gen){
+                if(!d.moved){
+                    /* 单点（不拖动）→ 弹四类输入节点菜单，原线一律保留 */
+                    showInputAddMenu(d.sx,d.sy,gen);
+                }else if(d.hadEdge&&targetId&&targetId!==d.from){
+                    /* 拖动已连的线到别的节点 → 改接：删原线，源头接到新目标 */
+                    canvas.edges=canvas.edges.filter(x=>x.id!==d.hadEdge);
+                    addEdge(d.edgeFrom,targetId);
+                    scheduleSave();
+                }else if(d.hadEdge&&!targetId){
+                    /* 拖动已连的线到空白 → 拔断删除 */
+                    canvas.edges=canvas.edges.filter(x=>x.id!==d.hadEdge);
+                    scheduleSave();
+                    setStatus("已拔断连线","ok");
+                }else if(targetId&&targetId!==d.from){
+                    /* 无原线、拉到已有节点 → 该节点作为输入连到生成节点（已有节点 → 生成） */
+                    addEdge(targetId,d.from);
+                }else{
+                    /* 无原线、拉到空白 → 弹四类输入节点菜单，选后新建并连好线 */
+                    showInputAddMenu(e.clientX,e.clientY,gen);
+                }
+            }
             drawEdges();
             return;
         }
-        const under=document.elementFromPoint(e.clientX,e.clientY);
-        const box=under?under.closest(".node"):null;
-        if(box && box.dataset.id!==d.from) addEdge(d.from,box.dataset.id);
+
+        /* ② 右侧圆点——轻点（未拖动） */
+        if(d.portOut && !d.moved){
+            const src=canvas.nodes.find(x=>x.id===d.from);
+            if(src && INPUT_NODE_TYPES.includes(d.srcType)){
+                /* 四类输入节点：单点右侧圆点 → 直接新建「生成」节点并自动连好线（不弹菜单） */
+                createLinkedGenerate(src);
+            }else if(src){
+                /* 其它节点（生成/结果）：保持原五类菜单 */
+                showPortAddMenu(d.sx,d.sy,src);
+            }
+            drawEdges();
+            return;
+        }
+
+        /* ③ 拉线落点 */
+        if(targetId && targetId!==d.from){
+            /* 落到已有节点 → 连到已有节点（所有类型通用，方向：源 → 目标） */
+            addEdge(d.from,targetId);
+        }else if(d.portOut && INPUT_NODE_TYPES.includes(d.srcType) && !targetId){
+            /* 四类输入节点拉到空白 → 在落点新建「生成」节点并自动连好线 */
+            const src=canvas.nodes.find(x=>x.id===d.from);
+            const wp=toCanvasXY(e.clientX,e.clientY);
+            createLinkedGenerate(src,{x:Math.max(0,wp.x),y:Math.max(0,wp.y)});
+        }
+        /* ④ 其余（拔线重接 / 其它节点拉空白）：落空白即删除已拔的线，无需额外操作 */
         drawEdges();
     }
 });
