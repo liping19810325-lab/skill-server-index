@@ -231,6 +231,10 @@
     .h-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
     .h-acts{display:flex;gap:4px;flex-wrap:wrap;}
     .h-acts .mini-btn{padding:2px 6px;font-size:10px;}
+    /* 原生成结果卡片里的内联归类下拉：与操作按钮同一行，选中即写入分类视图 */
+    .h-acts .h-cat-inline{max-width:100%;padding:2px 4px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:10px;cursor:pointer;min-height:0;height:auto;}
+    .h-acts .h-cat-inline:hover{border-color:var(--green,#16a34a);}
+    .h-acts .h-cat-inline option{background:var(--card);color:var(--text);}
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
     .result-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
 
@@ -2709,6 +2713,29 @@ function buildLegacyHistoryItem(h){
     const ref=document.createElement("button"); ref.className="mini-btn purple"; ref.textContent="加载参考";
     ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(Object.assign({},h,{url:src})); });
     acts.appendChild(dl); acts.appendChild(del); acts.appendChild(ref);
+    /* 内联归类：选中后写入 category + 当前画布 docId，切到「分类视图」即在对应栏出现 */
+    const catSel=document.createElement("select"); catSel.className="h-cat-inline";
+    catSel.title="选中后此图会出现在「分类视图」的对应栏（以前生成和以后生成的共用一套分类）";
+    const ph=document.createElement("option"); ph.value=""; ph.textContent="归类到…"; catSel.appendChild(ph);
+    ASSET_CATS.forEach(c=>{
+        const o=document.createElement("option"); o.value=c.key; o.textContent=c.label;
+        if(c.key===histCat(h)) o.selected=true;
+        catSel.appendChild(o);
+    });
+    if(histCat(h)===UNCAT) ph.selected=true;
+    catSel.addEventListener("click",e=>e.stopPropagation());
+    catSel.addEventListener("change",e=>{
+        e.stopPropagation();
+        const k=catSel.value; if(!k) return;
+        h.category=k;
+        /* 老记录无画布归属：归到当前正在看的画布，分类视图默认跟随该画布 */
+        if(!h.docId || h.docId==="__legacy__")
+            h.docId=(historyActiveDoc&&historyActiveDoc!=="__legacy__")?historyActiveDoc:docId;
+        scheduleSave();
+        renderHistoryRaw();   /* 只重绘原生成结果；分类视图在切换/打开时读取最新数据 */
+        setStatus("已归入「"+catMeta(k).label+"」· 切到「分类视图」可查看","ok");
+    });
+    acts.appendChild(catSel);
     meta.appendChild(nm); meta.appendChild(tm); meta.appendChild(acts);
     item.appendChild(meta);
     return item;
