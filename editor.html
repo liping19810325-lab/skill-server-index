@@ -357,7 +357,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .tl-scroll{flex:1 1 auto;min-height:0;overflow:auto;position:relative;background:#181b20;}
 .tl-inner{position:relative;min-width:100%;}
 .ruler{height:28px;position:relative;background:#20242b;border-bottom:1px solid #0b0d12;display:flex;position:sticky;top:0;z-index:6;}
-.ruler-label{width:118px;flex:0 0 118px;position:sticky;left:0;z-index:7;background:#20242b;border-right:1px solid #0b0d12;font-size:10px;color:#8f99a9;display:flex;align-items:center;padding-left:8px;}
+.ruler-label{width:172px;flex:0 0 172px;position:sticky;left:0;z-index:7;background:#20242b;border-right:1px solid #0b0d12;font-size:10px;color:#8f99a9;display:flex;align-items:center;padding-left:8px;}
 .ruler-scale{position:relative;flex:1 1 auto;cursor:ew-resize;}
 .tick{position:absolute;top:0;bottom:0;border-left:1px solid #39414e;}
 .tick.minor{border-left-color:#2a303b;top:60%;}
@@ -365,7 +365,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 /* 时间轴标记（剪映「标记」打点） */
 .ruler-mark{position:absolute;top:0;width:11px;height:11px;background:#fbbf24;clip-path:polygon(0 0,100% 0,50% 100%);transform:translateX(-5px);z-index:7;cursor:pointer;}
 .ruler-mark:hover{background:#fde68a;}
-.ruler-marks{position:absolute;left:118px;right:0;top:0;height:100%;pointer-events:none;z-index:7;}
+.ruler-marks{position:absolute;left:172px;right:0;top:0;height:100%;pointer-events:none;z-index:7;}
 /* 入点 / 出点标记：贯穿标尺的竖线 + 字母标签（入点绿 I、出点红 O） */
 .ruler-io{position:absolute;top:0;bottom:0;width:2px;z-index:9;pointer-events:none;}
 .ruler-io.in{background:#22c55e;box-shadow:0 0 4px rgba(34,197,94,.7);}
@@ -377,20 +377,24 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .io-range-band{position:absolute;top:0;bottom:0;background:rgba(56,189,248,.07);border-left:1px dashed rgba(34,197,94,.5);border-right:1px dashed rgba(239,68,68,.5);pointer-events:none;z-index:2;}
 .track-row{display:flex;height:38px;border-bottom:1px solid #0b0d12;}
 .track-row.compound{height:66px;}
-.track-row.compound .clip{height:60px;top:3px;}
+/* 复合视频片段必须纵向排列「上半缩略图 / 下半波形」两层。
+   .clip 基础是横向 flex + align-items:center；若不改成 column，
+   下面两个 half 的 flex:0 0 30px 会被当成「宽 30px」挤在左端，右侧只剩蓝底、波形完全看不到。 */
+.track-row.compound .clip{height:60px;top:3px;flex-direction:column;align-items:stretch;}
 /* 主视频轨：剪映式高亮，表明无间隙吸附 / 波纹删除只作用在这一轨 */
 .track-row.main-video{background:rgba(37,99,235,.10);box-shadow:inset 3px 0 0 #3b82f6;}
 /* 轨道隐藏 / 锁定状态 */
 .track-row.tk-hidden .lane{opacity:.42;}
 .track-row.tk-locked .clip{cursor:not-allowed;filter:saturate(.45);}
-.clip-video-half{height:30px;display:flex;align-items:center;position:relative;flex:0 0 30px;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 60%);overflow:hidden;}
+.clip-video-half{height:30px;width:100%;display:flex;align-items:center;position:relative;flex:0 0 30px;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 60%);overflow:hidden;}
 /* 视频片段上部：横向铺开的连续缩略图（像剪映/用户截图那样） */
 .clip-thumbs{position:absolute;inset:0;display:flex;gap:1px;overflow:hidden;pointer-events:none;z-index:0;}
 .clip-thumbs img{height:100%;width:auto;flex:0 0 auto;object-fit:cover;display:block;opacity:.95;}
 .clip-video-half .clip-body{position:relative;z-index:2;flex:1 1 auto;min-width:0;align-self:flex-start;line-height:14px;font-size:9.5px;color:#fff;text-shadow:0 1px 3px #000;background:linear-gradient(90deg,rgba(0,0,0,.6),rgba(0,0,0,0));padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .clip-video-half .clip-fx-tag{z-index:3;}
-.clip-audio-half{height:30px;position:relative;flex:0 0 30px;border-top:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.2);}
+.clip-audio-half{height:30px;width:100%;position:relative;flex:0 0 30px;border-top:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.2);overflow:hidden;}
 .canvas.clip-wave,.clip-wave{width:100%;height:100%;display:block;pointer-events:none;}
+.track-row.compound .clip-audio-half .clip-wave{position:absolute;inset:0;width:100%;height:100%;}
 .ctx-menu{position:fixed;z-index:1100;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,.45);min-width:200px;}
 .ctx-menu[hidden]{display:none;}
 .ctx-menu button{display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:7px 9px;border-radius:5px;font-size:11.5px;cursor:pointer;}
@@ -1713,7 +1717,9 @@ function renderSvcDl(escapedText){
 function svcDlRow(asr,label){
     return '<div class="svc-dl-row"><span>'+(label||"下载本机服务（<b>点链接即直接下载</b>，勿用浏览器另存为网页）")+'</span>'+svcDlAnchors(asr)+'</div>';
 }
-const LABEL_W           = 118;
+/* 时间轴左侧轨道标签栏宽度：必须与 .track-label / .ruler-label / .ruler-marks 的 CSS 宽度一致。
+   播放头、刻度尺、内容宽度都以此为零点；若只改 CSS 不改这里，红线与 00:00 会比素材起点左偏。 */
+const LABEL_W           = 172;
 const DEF_LAYOUT        = {left:308, right:300, tl:294};
 
 /* ==================================================================
@@ -2007,7 +2013,16 @@ const clipStripCache=new Map(); /* clipId -> {sig,frames}（视频片段上部�
 /* 缩略图签名：源区间（offset/duration/倍速/倒放）变了就必须重抽，否则分割后的两段会共用旧图 */
 function clipStripSig(c){
     const f=fxOf(c)||{};
-    return [c.offset,c.duration,f.speed||1,f.reverse?1:0,f.speedMode||""].join("|");
+    /* v2：抽帧改为按片段真实源区间均匀取帧（与波形同源）。旧缓存是「固定开头2秒」的错误帧，必须失效重抽。 */
+    return "v2|"+[c.offset,c.duration,f.speed||1,f.reverse?1:0,f.speedMode||""].join("|");
+}
+/* 片段上均匀 N 个位置对应的源时间——与 drawWave 的「时间轴位置→源时间」映射完全一致。
+   过去缩略图固定抽开头 2 秒铺满整段，长片段的画面与下方按真实区间绘制的波形整体错位几秒，
+   表现为「同一个素材里声音比画面早/晚出来」。现在上下两层共用 timelineToSource 同一套映射。 */
+function clipStripFrameTimes(c,N){
+    const dur=Math.max(0.001,Number(c.duration)||0.001), st=Number(c.start)||0, out=[];
+    for(let i=0;i<N;i++) out.push(timelineToSource(c,st+(i+0.5)/N*dur).t);
+    return out;
 }
 let ctxClipId="", ctxTrackId="";
 let assetPreviewId=null, assetAudioEl=null, svcOnline=false, svcInfo=null;
@@ -3414,6 +3429,10 @@ function ensureWave(a, cb){
                 peaks[i]=mx;
             }
             w.peaks=peaks;
+            /* peaks 是把整条音频流均分 N 桶；记录解码出的真实音频时长。
+               录屏/MKV 等文件音频流时长常与视频时长(a.duration)不等，绘制时若用视频时长换算
+               会让整条波形相对画面前后错位几秒——必须用音频流自己的时长。 */
+            w.dur=Number(decoded.duration)||0;
         }catch(e){ w.error=((e&&e.message)||String(e)).slice(0,160); }
         w.ready=true;
         if(cb) cb();
@@ -3444,7 +3463,9 @@ function drawWave(cv, c, a){
        铺满片段宽度。否则分割后左右两段各自都画整段波形，看起来像「没断开 / 只拿到
        剪点左侧一段」。这里用 timelineToSource 做时间轴→源时间映射，自动覆盖
        offset / 剪断 / 变速 / cutRanges AI剪口播 / 倒放。音频轨与视频复合轨共用。 */
-    const srcDur=Math.max(0.001,Number(a&&a.duration)||Number((probeMetaCache.get(a&&a.url)||{}).duration)||0);
+    /* 波形桶按音频流真实时长换算：优先解码得到的 w.dur（音频流时长），
+       其次素材时长。用视频时长会让录屏类文件的波形整体比画面早/晚几秒。 */
+    const srcDur=Math.max(0.001,Number(w&&w.dur)||Number(a&&a.duration)||Number((probeMetaCache.get(a&&a.url)||{}).duration)||0);
     if(!c || srcDur<=0){
         /* 源时长未知时退回整段铺满，至少不崩 */
         x.fillStyle="rgba(255,255,255,.86)";
@@ -5228,9 +5249,12 @@ let stripFlushRender=false;
    把 GPU 纹理/显存吃满（用户实测 Windows 一播放就占满 4GB 显存）。 */
 const stripFramesBySig=new Map();
 function stripSharedSig(c){
-    const a=c.assetId?assetById(c.assetId):null, f=fxOf(c)||{};
-    return String(a?a.id:"noasset")+"|"+Math.floor((Number(c.offset)||0)/2)
-        +"|"+Number(f.speed||1)+(f.reverse?"r":"");
+    const a=c.assetId?assetById(c.assetId):null;
+    /* 按片段真实源区间分组：同一素材、同一源起止/倍速的片段才共用抽帧。
+       旧版按 floor(offset/2) 分桶，不同区间的片段会错用同一批帧，画面与波形对不上。 */
+    const sp=sourceSpan(c);
+    return String(a?a.id:"noasset")+"|"+sp.off.toFixed(3)+"|"+sp.end.toFixed(3)
+        +"|"+sp.sp+((fxOf(c)||{}).reverse?"r":"");
 }
 async function ensureClipStrips(){
     if(stripFillRunning) return;
@@ -5265,10 +5289,13 @@ async function ensureClipStrips(){
                 let frames=stripFramesBySig.get(k);
                 if(!frames){
                     frames=[];
-                    const N=4, off=Math.floor((Number(c0.offset)||0)/2)*2, dur=2;
+                    const N=4;
+                    /* 按片段真实源区间均匀取帧，时间点与 drawWave 用同一套 timelineToSource 映射，
+                       保证时间轴上「上半画面」与「下半波形」严格对齐（旧版固定抽开头2秒会错位几秒）。 */
+                    const times=clipStripFrameTimes(c0,N);
                     for(let i=0;i<N;i++){
                         if(playing || myToken!==stripGenToken) break;
-                        const d=await grabFrame(url,off+dur*(i+0.5)/N,256);  /* 256px 足够时间轴缩略图 */
+                        const d=await grabFrame(url,times[i],256);  /* 256px 足够时间轴缩略图 */
                         if(d) frames.push(d);
                     }
                     if(playing || myToken!==stripGenToken) break;
