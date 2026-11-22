@@ -212,7 +212,7 @@
     .h-col-body{flex:1;min-height:0;overflow:auto;padding:9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px;align-content:start;}
     .h-col-empty{grid-column:1/-1;color:var(--text2);font-size:11px;text-align:center;padding:26px 0;}
     .history-grid{display:none;}
-    /* 历史结果总览库内的「原生成视图」：和旧版历史结果一样的网格 */
+    /* 历史结果总览库内的「原生成结果」：和旧版历史结果一样的网格 */
     .history-raw-grid{display:none;padding:14px;overflow:auto;align-content:start;}
     .history-raw-grid.show{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;}
     .history-raw-grid .h-thumb{height:106px;}
@@ -373,7 +373,6 @@
         <button class="tb-btn" id="exportBtn">导出画布</button>
         <button class="tb-btn" id="importBtn">导入画布</button>
         <button class="tb-btn green-solid" id="historyBtn" title="打开历史结果总览库：按画布与资产类别归档的图片 / 视频（可预览、下载）">🖼 历史结果总览库</button>
-        <button class="tb-btn" id="legacyHistoryBtn" title="打开历史结果总览库并切到「原生成视图」：旧版历史结果的原样网格（可预览、下载、加载参考、删除）">🖼 原ComfyUI生成</button>
         <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
         <a class="tb-btn editor-nav-btn" id="openEditorBtn" href="./editor.html" target="_blank" rel="noopener noreferrer" title="打开漫流 AI 剪辑台（新标签页）">✂ AI剪辑台</a>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
@@ -460,7 +459,7 @@
             <span class="history-count" id="historyCount"></span>
             <span class="history-mode-switch">
                 <button class="mini-btn mode-btn active" id="historyModeAsset">分类视图</button>
-                <button class="mini-btn mode-btn" id="historyModeRaw">原生成视图</button>
+                <button class="mini-btn mode-btn" id="historyModeRaw">原生成结果</button>
             </span>
             <span class="history-spacer"></span>
             <button class="mini-btn" id="historyClearBtn">清空本画布</button>
@@ -836,7 +835,7 @@ let selectedId = null;
 let selectedIds = new Set();          /* 框选 / Shift 多选：选中的节点 id 集合 */
 let resultHistory = [];               /* 素材库历史（跨画布全局存档）：{id,kind,url,name,ts,engine,prompt,docId,category} */
 let historyActiveDoc = null;          /* 素材库当前查看的画布 id；null=跟随当前画布；__legacy__=旧数据（无画布归属） */
-let historyMode = "asset";            /* asset=分类视图；raw=原生成视图（旧版历史结果网格） */
+let historyMode = "asset";            /* asset=分类视图；raw=原生成结果（旧版历史结果网格） */
 let lbSeq=null, lbSeqIndex=-1, lbWheelTs=0;   /* 浮窗「可连续切换序列」：仅从历史结果预览时设置，供方向键/滚轮切换；普通预览为 null */
 let seenSourceIds = new Set();
 let saveTimer = null;
@@ -2383,16 +2382,16 @@ function closeLightbox(){
     lbSeq=null; lbSeqIndex=-1;   /* 关浮窗即退出序列模式，方向键恢复为移动节点 */
 }
 /* ===== 素材库：历史结果按画布 + 资产类别归档（存 IndexedDB） ===== */
-/* 资产分类：四列 + 旧数据专属「未分类」列（仅当存在无 category 的旧记录时显示） */
+/* 资产分类：只保留四列。老记录没有有效类别，不进分类视图，统一在「原生成结果」里查看 */
 const ASSET_CATS = [
     {key:"person", label:"人物图",       color:"#a78bfa"},
     {key:"scene",  label:"场景图",       color:"#38bdf8"},
     {key:"prop",   label:"道具图",       color:"#fbbf24"},
-    {key:"other",  label:"其它音视频",  color:"#34d399"},
-    {key:"legacy", label:"未分类",       color:"#94a3b8"}
+    {key:"other",  label:"其它音视频",  color:"#34d399"}
 ];
+const UNCAT = "__uncat__";   /* 无有效类别：四列都不匹配，只在原生成结果里可见 */
 function histDoc(h){ return (h&&h.docId)?h.docId:"__legacy__"; }
-function histCat(h){ return (h&&ASSET_CATS.some(c=>c.key===h.category))?h.category:"legacy"; }
+function histCat(h){ return (h&&ASSET_CATS.some(c=>c.key===h.category))?h.category:UNCAT; }
 /* 生成成功时智能预填类别：视频一律进「其它音视频」；图片按提示词资产关键词判定 */
 function guessAssetCat(prompt,kind){
     if(kind==="video") return "other";
@@ -2494,27 +2493,26 @@ function repairHistoryMedia(){
     });
     return changed;
 }
-/* 素材库主渲染：顶部画布标签（复用现有画布）+ 四类并排（未分类仅旧数据显示） */
+/* 素材库主渲染：顶部画布标签 + 四类并排（只显示已归类素材；老素材在「原生成结果」） */
 function renderHistory(){
     const box=el("historyCols"), cnt=el("historyCount"), bar=el("historyDocBar");
     if(!box) return;
     if(historyMode==="raw"){ renderHistoryRaw(); return; }
     const cur = historyActiveDoc || docId;
-    /* 打开/刷新素材库时先修复旧记录的文件名地址，优先复用画布结果节点的直链 */
+    /* 打开/刷新素材库时先修复媒体地址（仅在原生成结果视图里用到的旧记录也一并修好） */
     if(repairHistoryMedia()) scheduleSave();
-    /* 顶部画布标签：与画布页签一一对应；有旧数据时追加「旧记录（未归档）」 */
+    /* 顶部画布标签：只统计已归类的新素材；未归类老素材请到「原生成结果」查看 */
     if(bar){
         bar.innerHTML="";
         const lb=document.createElement("span"); lb.className="docbar-label"; lb.textContent="画布："; bar.appendChild(lb);
         const tabs=docList.map(d=>({id:d.id,name:d.name}));
-        /* 画布已删除但仍留有素材：补一个标签，避免素材变成看不见的孤儿 */
+        /* 画布已删除但仍留有已归类素材：补一个标签，避免素材变成看不见的孤儿 */
         resultHistory.forEach(h=>{
             const id=histDoc(h);
-            if(id!=="__legacy__" && !tabs.some(t=>t.id===id)) tabs.push({id:id,name:"已删除的画布（"+id+"）"});
+            if(histCat(h)!==UNCAT && id!=="__legacy__" && !tabs.some(t=>t.id===id)) tabs.push({id:id,name:"已删除的画布（"+id+"）"});
         });
-        if(resultHistory.some(h=>histDoc(h)==="__legacy__")) tabs.push({id:"__legacy__",name:docTabName("__legacy__")});
         tabs.forEach(t=>{
-            const n=resultHistory.filter(h=>histDoc(h)===t.id).length;
+            const n=resultHistory.filter(h=>histDoc(h)===t.id&&histCat(h)!==UNCAT).length;
             const b=document.createElement("button");
             b.className="doc-tab"+(t.id===cur?" active":"");
             const nm=document.createElement("span"); nm.textContent=t.name;
@@ -2524,28 +2522,12 @@ function renderHistory(){
             b.addEventListener("click",()=>{ historyActiveDoc=t.id; renderHistory(); });
             bar.appendChild(b);
         });
-        /* 旧记录专属：给一个明确的归档动作——把无画布归属的记录批量归入当前画布 */
-        if(cur==="__legacy__"){
-            const n=resultHistory.filter(h=>histDoc(h)==="__legacy__").length;
-            const arch=document.createElement("button"); arch.className="mini-btn purple";
-            arch.textContent="全部归入当前画布";
-            arch.title="把 "+n+" 条旧记录归入画布「"+docName(docId)+"」；类别仍保持未分类，之后可逐张改";
-            arch.addEventListener("click",()=>{
-                if(!n) return;
-                if(!confirm("把 "+n+" 条旧记录全部归入画布「"+docName(docId)+"」？\n类别仍为未分类，可在素材卡片右下角逐张修改。")) return;
-                resultHistory.forEach(h=>{ if(histDoc(h)==="__legacy__") h.docId=docId; });
-                historyActiveDoc=docId; renderHistory(); scheduleSave();
-                setStatus("已把 "+n+" 条旧记录归入画布「"+docName(docId)+"」","ok");
-            });
-            bar.appendChild(arch);
-        }
     }
-    const list=resultHistory.filter(h=>histDoc(h)===cur);
+    const list=resultHistory.filter(h=>histDoc(h)===cur&&histCat(h)!==UNCAT);
     if(cnt) cnt.textContent = list.length ? ("「"+docTabName(cur)+"」共 "+list.length+" 条") : "";
     box.innerHTML="";
-    /* 四类固定；「未分类」仅在存在旧数据时显示，不混进「其它音视频」 */
-    const cats=ASSET_CATS.filter(c=>c.key!=="legacy" || list.some(h=>histCat(h)==="legacy"));
-    cats.forEach(c=>{
+    /* 固定四类；未归类老素材不进分类视图，统一去「原生成结果」看 */
+    ASSET_CATS.forEach(c=>{
         const items=list.filter(h=>histCat(h)===c.key);
         const col=document.createElement("div"); col.className="h-col";
         const head=document.createElement("div"); head.className="h-col-head";
@@ -2564,11 +2546,11 @@ function renderHistory(){
     });
     if(!list.length){
         const e=document.createElement("div"); e.className="history-empty";
-        e.textContent="本画布还没有素材：在画布里跑一次生成，结果会自动归档到这里。";
+        e.textContent="本画布还没有已归类的素材：跑一次生成会自动归档到这里；以前生成的图片请切到「原生成结果」查看。";
         box.appendChild(e);
     }
 }
-/* 单张素材卡片的底座：与「原生成视图」完全相同的缩略图/按钮结构，保证旧记录也一定走同一条图片链路 */
+/* 单张素材卡片的底座：与「原生成结果」完全相同的缩略图/按钮结构，保证旧记录也一定走同一条图片链路 */
 function buildHistoryCardBase(h){
     const item=document.createElement("div"); item.className="h-item";
     const thumb=document.createElement("div"); thumb.className="h-thumb";
@@ -2629,17 +2611,6 @@ function buildHistoryCardBase(h){
     ref.title=h.kind==="video"?"在画布上新建视频参考节点并加入此视频":"在画布上新建参考图节点并加入此图";
     ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(h); });
     acts.appendChild(dl); acts.appendChild(del); acts.appendChild(ref);
-    /* 旧记录：缩略图确认能看之后，一键归入当前画布；之后类别下拉照常可用 */
-    if(histDoc(h)==="__legacy__"){
-        const arch=document.createElement("button"); arch.className="mini-btn purple"; arch.textContent="归入本画布";
-        arch.title="归入当前画布「"+docName(docId)+"」，可再改类别";
-        arch.addEventListener("click",e=>{
-            e.stopPropagation(); h.docId=docId;
-            renderHistory(); scheduleSave();
-            setStatus("已把「"+(h.name||"旧素材")+"」归入画布「"+docName(docId)+"」","ok");
-        });
-        acts.appendChild(arch);
-    }
     meta.appendChild(nm); meta.appendChild(tm); meta.appendChild(acts);
     item.appendChild(meta);
     return item;
@@ -2666,7 +2637,7 @@ function buildHistoryItem(h){
     }
     return item;
 }
-/* 视图切换：分类视图（四列归档） / 原生成视图（旧版历史结果网格） */
+/* 视图切换：分类视图（四列归档） / 原生成结果（旧版历史结果网格） */
 function applyHistoryModeVisuals(){
     const asset=el("historyCols"), raw=el("historyRawGrid"), bar=el("historyDocBar"), clr=el("historyClearBtn");
     if(asset) asset.style.display=historyMode==="asset"?"":"none";
@@ -2688,15 +2659,11 @@ function openHistory(){
     renderHistory();
     el("historyPanel").classList.add("show");
 }
-function openHistoryRaw(){
-    historyMode="raw";
-    openHistory();
-}
 function closeHistory(){
     el("historyPanel").classList.remove("show");
 }
-/* ===== 原生成视图：旧版「历史结果」网格，已并入历史结果总览库 ===== */
-function legacyMediaSeq(){
+/* ===== 原生成结果：旧版「历史结果」网格，已并入历史结果总览库 ===== */
+function rawMediaSeq(){
     return resultHistory.filter(h=>(h.kind==="video"||h.kind==="image")&&h.url)
         .map(h=>({id:h.id,kind:h.kind,url:mediaSrcOf(h),name:h.name,
                   title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}));
@@ -2721,7 +2688,7 @@ function buildLegacyHistoryItem(h){
     }
     thumb.addEventListener("click",e=>{
         e.stopPropagation();
-        const seq=legacyMediaSeq(), i=seq.findIndex(s=>s.id===h.id);
+        const seq=rawMediaSeq(), i=seq.findIndex(s=>s.id===h.id);
         if(i<0){ openLightbox({kind:h.kind,url:src,name:h.name,title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}); return; }
         openLightbox(Object.assign({},seq[i],{seq:seq,index:i}));
     });
@@ -2751,7 +2718,7 @@ function renderHistoryRaw(){
     if(!grid) return;
     if(repairHistoryMedia()) scheduleSave();
     grid.innerHTML="";
-    if(cnt) cnt.textContent=resultHistory.length?("全部记录共 "+resultHistory.length+" 条 · 原生成视图"):"";
+    if(cnt) cnt.textContent=resultHistory.length?("全部记录共 "+resultHistory.length+" 条 · 原生成结果"):"";
     if(!resultHistory.length){
         const t=document.createElement("div"); t.className="history-empty";
         t.textContent="还没有生成记录：在画布里跑一次生成，成功后图片 / 视频会自动记到这里。";
@@ -6070,17 +6037,19 @@ function bindToolbar(){
     el("historyCloseBtn").addEventListener("click",closeHistory);
     el("historyClearBtn").addEventListener("click",()=>{
         const d=historyActiveDoc||docId;
-        const n=resultHistory.filter(h=>histDoc(h)===d).length;
+        /* 分类视图只显示已归类素材；未归类老素材仍在「原生成结果」，不能被这里误删 */
+        const inDoc=h=>histDoc(h)===d;
+        const classified=h=>inDoc(h)&&histCat(h)!==UNCAT;
+        const n=resultHistory.filter(classified).length;
         if(!n) return;
-        if(!confirm("确定清空「"+docTabName(d)+"」的全部素材？其它画布不受影响，此操作不可恢复。")) return;
-        resultHistory=resultHistory.filter(h=>histDoc(h)!==d);
-        renderHistory(); scheduleSave(); setStatus("已清空「"+docTabName(d)+"」的素材","ok");
+        if(!confirm("确定清空「"+docTabName(d)+"」的 "+n+" 条已归类素材？\n未归类老素材不受影响，仍可在「原生成结果」里查看；此操作不可恢复。")) return;
+        resultHistory=resultHistory.filter(h=>!classified(h));
+        renderHistory(); scheduleSave(); setStatus("已清空「"+docTabName(d)+"」的 "+n+" 条已归类素材","ok");
     });
     el("historyPanel").addEventListener("click",e=>{ if(e.target===el("historyPanel")) closeHistory(); });
-    /* 历史结果总览库：视图切换；顶部「原Comfyui生成」是原生成视图的快捷入口 */
+    /* 历史结果总览库：分类视图 / 原生成结果 切换 */
     el("historyModeAsset").addEventListener("click",()=>setHistoryMode("asset"));
     el("historyModeRaw").addEventListener("click",()=>setHistoryMode("raw"));
-    el("legacyHistoryBtn").addEventListener("click",openHistoryRaw);
     /* 左侧栏可折叠面板：点标题展开 / 收起 */
     document.querySelectorAll(".card.collapsible h2.card-toggle").forEach(h=>{
         h.addEventListener("click",()=>h.parentElement.classList.toggle("collapsed"));
