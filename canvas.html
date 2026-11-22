@@ -216,6 +216,9 @@
     .h-item{border:1px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;position:relative;}
     .h-thumb{height:92px;background:#000;cursor:zoom-in;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;}
     .h-thumb img,.h-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
+    .h-thumb-fail{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9aa4b2;pointer-events:none;}
+    .h-thumb-fail span{font-size:11px;}
+    .h-thumb-fail small{font-size:9px;color:#6b7280;text-align:center;padding:0 6px;}
     .h-cat-sel{position:absolute;right:4px;bottom:4px;z-index:3;max-width:calc(100% - 8px);padding:2px 4px;border:1px solid rgba(255,255,255,.28);border-radius:5px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;cursor:pointer;opacity:.9;}
     .h-cat-sel:hover{opacity:1;border-color:var(--green,#16a34a);}
     .h-cat-sel option{background:var(--card);color:var(--text);}
@@ -451,6 +454,7 @@
             <span class="history-count" id="historyCount"></span>
             <span class="history-count" style="color:var(--muted);font-size:10.5px">浮窗内 ← → 或滚轮连续切换（仅当前画布）</span>
             <span class="history-spacer"></span>
+            <button class="mini-btn" id="historyRetryBtn" title="启动了 ComfyUI 后，点此重新抓取失效的本机图片">重试失效图片</button>
             <button class="mini-btn" id="historyClearBtn">清空本画布</button>
             <button class="mini-btn" id="historyCloseBtn">关闭</button>
         </div>
@@ -2415,6 +2419,69 @@ function fmtTime(ts){
     const d=new Date(ts||0), p=n=>String(n).padStart(2,"0");
     return (d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
 }
+/* ===== 素材库图片本地持久化 =====
+   本机 ComfyUI 返回的 url 形如 http://127.0.0.1:8188/view?filename=... —— 这是「临时链接」：
+   依赖 ComfyUI 服务常开 + 输出文件还在 output 目录，一旦关服务 / 重启 / 清目录就永久失效，
+   历史库只剩文件名。故生成成功后立即把图片抓下来转 dataURL 存进本地库，彻底摆脱服务依赖。
+   第三方 API 的 http(s) 直链同样处理；data:/blob: 原样保留。 */
+const PERSIST_DATAURL_MAX = 20*1024*1024;   /* 单张图转 dataURL 上限 20MB，超过就保留原链接（避免撑爆 IndexedDB） */
+function isHttpUrl(u){ return /^https?:\/\//i.test(String(u||"")); }
+/* 把 http(s) 图片 URL 抓成 dataURL；失败/超限返回 null（调用方决定是否回退原 URL） */
+async function urlToDataUrl(url,timeoutMs){
+    if(!isHttpUrl(url)) return null;
+    try{
+        const ctl=new AbortController();
+        const t=setTimeout(()=>ctl.abort(),timeoutMs||15000);
+        let resp;
+        try{ resp=await fetch(url,{signal:ctl.signal}); }
+        finally{ clearTimeout(t); }
+        if(!resp||!resp.ok) return null;
+        const blob=await resp.blob();
+        if(!blob.size||blob.size>PERSIST_DATAURL_MAX) return null;
+        return await new Promise((res)=>{
+            const fr=new FileReader();
+            fr.onload=()=>res(typeof fr.result==="string"?fr.result:null);
+            fr.onerror=()=>res(null);
+            fr.readAsDataURL(blob);
+        });
+    }catch(e){ return null; }
+}
+const HIST_IMG_RETRY_MS = 30000;   /* 失效图片两次重试的最小间隔，避免 ComfyUI 关着时每次开面板都空等 */
+/* 判断某条历史是否需要持久化修复：仅本机 ComfyUI + 图片 + http(s) 直链。
+   第三方 API 的图片一律不碰（它们的直链本来就正常，用户已确认好用）。
+   已失效(persistFail)的也保留——启动 ComfyUI 后再打开素材库会给一次重试机会，但受重试间隔节流。 */
+function histNeedsPersist(h,force){
+    if(!h||h.engine!=="comfyui"||h.kind!=="image"||!isHttpUrl(h.url)) return false;
+    if(force) return true;
+    if(h.persistFail&&h.persistTryTs&&(Date.now()-h.persistTryTs)<HIST_IMG_RETRY_MS) return false;
+    return true;
+}
+/* 修复单条历史：抓图转 dataURL 写回；成功 true（数据已就地更新），失败打标记+时间戳 */
+async function persistHistoryItem(h){
+    if(!histNeedsPersist(h)) return false;
+    const du=await urlToDataUrl(h.url,5000);
+    if(du){ h.url=du; delete h.persistFail; delete h.persistTryTs; return true; }
+    h.persistFail=true; h.persistTryTs=Date.now();
+    return false;
+}
+/* 打开素材库时自动把本机 ComfyUI 的临时图片链接抓回本地（服务开着且文件在就能救回来）。
+   并发 4、超时短、失败有节流，不阻塞面板；第三方图片不参与。force=true 供「重试失效图片」按钮手动触发。 */
+let historyRepairRunning=false;
+async function repairHistoryLinks(force){
+    if(historyRepairRunning) return;
+    const targets=resultHistory.filter(h=>histNeedsPersist(h,force));
+    if(!targets.length) return;
+    historyRepairRunning=true;
+    let ok=0,fail=0;
+    for(let i=0;i<targets.length;i+=4){
+        const batch=targets.slice(i,i+4);
+        const rs=await Promise.all(batch.map(persistHistoryItem));
+        rs.forEach(r=>r?ok++:fail++);
+        if(ok||fail){ scheduleSave(true); renderHistory(); }
+    }
+    historyRepairRunning=false;
+    if(force||ok) setStatus("素材库：已转存 "+ok+" 张图片到本地"+(fail?("，"+fail+" 张仍取不到（请启动 ComfyUI 后重试）"):""),"ok");
+}
 /* 素材库主渲染：顶部画布标签（复用现有画布）+ 四类并排（未分类仅旧数据显示） */
 function renderHistory(){
     const box=el("historyCols"), cnt=el("historyCount"), bar=el("historyDocBar");
@@ -2479,7 +2546,16 @@ function buildHistoryItem(h){
         const v=document.createElement("video"); v.preload="metadata"; v.muted=true; v.src=h.url; thumb.appendChild(v);
         thumb.title="点击预览（视频）";
     }else{
-        const img=document.createElement("img"); img.loading="lazy"; img.src=h.url; img.alt="素材"; thumb.appendChild(img);
+        const img=document.createElement("img"); img.loading="lazy"; img.src=h.url; img.alt="素材";
+        /* 图片链接失效（ComfyUI 关了 / 清了 output）时，显示明确提示而不是破图只剩文件名 */
+        img.addEventListener("error",()=>{
+            img.style.display="none";
+            if(thumb.querySelector(".h-thumb-fail")) return;
+            const tip=document.createElement("div"); tip.className="h-thumb-fail";
+            tip.innerHTML="<span>🖼 图片已失效</span><small>"+(h.persistFail?"原图已不在本机，无法找回":"ComfyUI 临时链接已过期")+"</small>";
+            thumb.appendChild(tip);
+        });
+        thumb.appendChild(img);
         thumb.title="点击预览（图片）";
     }
     thumb.addEventListener("click",e=>{
@@ -2529,6 +2605,8 @@ function openHistory(){
     historyActiveDoc=docId;   /* 每次打开默认跟随当前画布 */
     renderHistory();
     el("historyPanel").classList.add("show");
+    /* 旧数据的 ComfyUI 临时链接：ComfyUI 开着就自动抓回本地，关着则保留失效提示 */
+    repairHistoryLinks();
 }
 function closeHistory(){
     el("historyPanel").classList.remove("show");
@@ -5598,14 +5676,22 @@ async function cvRunGenerateNow(n){
         else out=await genThirdParty(n,input);
         const r=resultNodeFor(n);
         r.data=Object.assign({},out);
-        /* 记入素材库：按生成时画布 + 资产类别归档，不设条数上限；blob: 链接刷新即失效，不入档 */
+        /* 记入素材库：按生成时画布 + 资产类别归档，不设条数上限；blob: 链接刷新即失效，不入档。
+           关键：本机 ComfyUI 的 http 图片是临时链接（关服务/清 output 即失效），先抓下来转 dataURL
+           存进本地库；只有转换失败时才退回原链接并打 persistFail 标记，素材库随后会自动重试修复。 */
         if(out&&out.url&&/^(https?:|data:)/i.test(out.url)){
             const outKind=out.kind||"image";
-            resultHistory.unshift({
-                id:uid(), kind:outKind, url:out.url, name:out.name||"", ts:Date.now(),
+            let savedUrl=out.url, persistFail=false;
+            /* 只对「本机 ComfyUI」的图片做本地持久化；第三方 API 的直链/dataURL 一律原样保留， behavior 不变 */
+            if(n.data.engine==="comfyui"&&outKind==="image"&&isHttpUrl(out.url)){
+                const du=await urlToDataUrl(out.url,15000);
+                if(du) savedUrl=du; else persistFail=true;
+            }
+            const rec={ id:uid(), kind:outKind, url:savedUrl, name:out.name||"", ts:Date.now(),
                 engine:n.data.engine, prompt:(input.prompt||"").slice(0,120),
-                docId:docId, category:guessAssetCat(input.prompt,outKind)
-            });
+                docId:docId, category:guessAssetCat(input.prompt,outKind) };
+            if(persistFail) rec.persistFail=true;
+            resultHistory.unshift(rec);
         }
         const parts=[];
         if(input.images.length) parts.push("参考图 "+input.images.length+" 张");
@@ -5846,6 +5932,12 @@ function bindToolbar(){
         if(!confirm("确定清空「"+docTabName(d)+"」的全部素材？其它画布不受影响，此操作不可恢复。")) return;
         resultHistory=resultHistory.filter(h=>histDoc(h)!==d);
         renderHistory(); scheduleSave(); setStatus("已清空「"+docTabName(d)+"」的素材","ok");
+    });
+    el("historyRetryBtn").addEventListener("click",()=>{
+        const n=resultHistory.filter(h=>histNeedsPersist(h,true)).length;
+        if(!n){ setStatus("没有需要重新抓取的本机图片","ok"); return; }
+        setStatus("正在重新抓取 "+n+" 张本机图片…","busy");
+        repairHistoryLinks(true);
     });
     el("historyPanel").addEventListener("click",e=>{ if(e.target===el("historyPanel")) closeHistory(); });
     /* 左侧栏可折叠面板：点标题展开 / 收起 */
