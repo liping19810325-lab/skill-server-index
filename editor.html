@@ -9566,6 +9566,19 @@ function wire(){
         const cutSrc=mergedCutRanges(c).reduce((a,r)=>a+(r.end-r.start),0);
         const maxDur=Math.max(0.2,(srcDur-offset0-cutSrc)/sp);      // 右裁剪：时长上限
         const minLeftD=-Math.min(start0,offset0/sp);                 // 左裁剪：偏移下限（不越时间轴 0 / 源起点）
+        /* 非主轨裁剪「墙」：同轨上紧挨本片段前后的其它素材边缘。有墙时只能缩短、不能拉长越过墙。
+           主轨(视频1)不加墙——它走剪映式波纹让位/补位（见 up 收尾），这里只约束其它所有轨道。 */
+        const trimMain=isMainTrack(c.track);
+        let rightWall=null, leftWall=null;
+        if(!trimMain){
+            const others=state.clips.filter(x=>x.id!==c.id&&x.track===c.track);
+            /* 右墙：右端(start0+dur0)之后的素材里起点最小者；左墙：左端(start0)之前的素材里终点最大者 */
+            others.forEach(x=>{
+                if(x.start>=start0+dur0-0.001 && (rightWall==null||x.start<rightWall)) rightWall=x.start;
+                const xe=x.start+x.duration;
+                if(xe<=start0+0.001 && (leftWall==null||xe>leftWall)) leftWall=xe;
+            });
+        }
         let hint=null, dropTrackId="", dragSnap=false;
         /* 跨轨拖移：鼠标上下移动到其它轨道时，记录落点轨道并在 mouseup 时换轨 / 新建同类轨 */
         const laneAtY=y=>{
@@ -9603,13 +9616,20 @@ function wire(){
                 pushHistory(); dragSnap=true;
             }
             if(resize){
+                /* 裁结尾：右端=start0+duration。有右墙时右端不能超过墙（<=rightWall），
+                   即 duration 上限 = rightWall-start0；缩短方向(下限0.2)不受墙影响。 */
                 let ne=clamp(dur0+dx,0.2,maxDur);
                 ne=clamp(snapPos(start0+ne,c.id,zoom)-start0,0.2,maxDur);
+                if(!trimMain && rightWall!=null) ne=Math.min(ne,rightWall-start0);
+                ne=Math.max(0.2,ne);   /* 墙若贴得比最短片段还近，至少保留 0.2s */
                 c.duration=+ne.toFixed(4);
             }else if(resizeL){
+                /* 裁开头：左端=start0+d。有左墙时左端不能越过墙（>=leftWall），
+                   即 d>=leftWall-start0；缩短方向(d 变正)不受墙影响。 */
                 const minD=minLeftD, maxD=dur0-0.2;
                 let d=clamp(dx,minD,maxD);
                 d=clamp(snapPos(start0+d,c.id,zoom)-start0,minD,maxD);
+                if(!trimMain && leftWall!=null) d=Math.max(d,leftWall-start0);
                 c.start=Math.max(0,+(start0+d).toFixed(4));
                 c.duration=+(dur0-d).toFixed(4);
                 c.offset=+(offset0+d*sp).toFixed(4);
