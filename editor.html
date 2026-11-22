@@ -5949,6 +5949,7 @@ function commitHistory(s){
     if(!s) return;
     if(historyStack.length && historyStack[historyStack.length-1]===s) return;   /* 同一手势不重复占位 */
     historyStack.push(s); if(historyStack.length>50) historyStack.shift(); redoStack=[];
+    autoSave();   /* 历史一变就落盘，保证强制刷新后仍能撤销/重做（700ms 防抖合并） */
 }
 function pushHistory(){
     const s=gestureSnap||snapshot();
@@ -8058,11 +8059,27 @@ function projectPayload(){
         assets:state.assets.map(a=>{ const o=Object.assign({},a); delete o.blob; delete o.url;
             delete o.previewUrl; delete o.mkvNote;   /* 转封装副本是一次性 blob，重开工程后重新生成 */
             o.remoteUrl=(a.urlKind==="blob")?"":(a.url||""); return o; }),
-        clips:state.clips, savedAt:Date.now()};
+        clips:state.clips, savedAt:Date.now(),
+        /* 撤销/重做历史随工程一起持久化：强制刷新后恢复工程时一并还原历史栈，
+           否则刷新一次就丢光所有可撤销/重做的操作记忆。 */
+        hist:historyStack, redo:redoStack};
 }
 function saveProject(silent){
-    const p=projectPayload();
-    const ok=safeStorage.set(PROJECT_PREFIX+state.date,JSON.stringify(p));
+    if(!state.date) return false;
+    const key=PROJECT_PREFIX+state.date;
+    let p=projectPayload();
+    let ok=safeStorage.set(key,JSON.stringify(p));
+    /* 历史过大撑爆 localStorage 时逐级裁剪历史再存，优先保住工程本体（片段/轨道/素材引用），
+       历史尽量多留——最坏情况退回一份"无历史记忆"的工程，但绝不因历史把整个工程存丢。 */
+    let guard=0;
+    const shrink=()=>{
+        if(p.hist&&p.hist.length>1){ p.hist=p.hist.slice(Math.ceil(p.hist.length/2)); return true; }
+        if(p.hist&&p.hist.length===1){ p.hist=[]; return true; }
+        if(p.redo&&p.redo.length>1){ p.redo=p.redo.slice(Math.ceil(p.redo.length/2)); return true; }
+        if(p.redo&&p.redo.length===1){ p.redo=[]; return true; }
+        return false;
+    };
+    while(!ok && guard<24 && shrink()){ ok=safeStorage.set(key,JSON.stringify(p)); guard++; }
     if(ok) setActiveProject(state.date);   /* 记住当前正在编辑的工程，供刷新恢复；切换工作区时 flushSave 会跳过，不会写错 */
     $("saveState").textContent=ok?("已保存「"+projectName()+"」· "+new Date().toLocaleTimeString("zh-CN")):"保存失败（本机存储不可用）";
     if(!silent) toast(ok?("项目「"+projectName()+"」已保存"):"保存失败","ok");
@@ -8207,7 +8224,11 @@ async function loadProject(date){
             prepareMkvPreview(a,a.blob).then(()=>{ renderAssets(); syncMedia(); }).catch(()=>{});
         }
         state.selected=null; state.multi=[]; state.selectedAsset=null; state.playhead=0;
-        historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key="";
+        /* 恢复撤销/重做历史：刷新后重开工程不该把操作记忆清空。
+           只接收字符串快照并限长 50，非法/旧数据一律丢弃；restore 内对缺失素材已有兜底。 */
+        historyStack=(Array.isArray(p.hist)?p.hist:[]).filter(s=>typeof s==="string").slice(-50);
+        redoStack=(Array.isArray(p.redo)?p.redo:[]).filter(s=>typeof s==="string").slice(-50);
+        subCache=""; pipLayer.dataset.key="";
         pause(); renderAll(); applyAspect(); toast("已打开 "+date+" 的工程","ok");
         setActiveProject(date);   /* 记住刚打开的工程，强制刷新后仍回到这一份 */
         return true;
@@ -9644,7 +9665,7 @@ function wire(){
             /* ② 落点让位后移：只有实际落点是主视频轨（视频1）时才让位，且只后移主轨上的其它素材；
                其它轨道上的素材单独拖移时不让位，也不会带着别的轨道一起后移。
                同轨水平移动需确有位移；跨轨换轨成功即视为落位。裁剪手柄 / 原地点击不触发。 */
-            let didInsert=false;
+            let didInsert=false, shifted=0;
             if(!resize && !resizeL && isMainTrack(landedTrack)){
                 let newLeft=groupDrag
                     ? Math.min.apply(null,dragIds.map(id=>{const o=clipById(id);return o?o.start:Infinity;}))
@@ -9663,15 +9684,24 @@ function wire(){
                 const needPlace=crossMoved || Math.abs(newLeft-groupStart)>0.06;
                 if(needPlace){
                     const span=groupDrag?groupSpan:dur0;
-                    const shifted=rippleInsertAt(newLeft,span,dragIds);
+                    shifted=rippleInsertAt(newLeft,span,dragIds);
                     didInsert=shifted>0;
-                    if(didInsert) toast((groupDrag?"整组落位":"片段落位")+"，"+shifted+" 个素材已让位后移","ok");
                 }
             }
-            /* ③ 主轨空档合拢：让位产生的空档要保留；仅在没让位时合拢已有空档。
-               只要源轨或落点是主轨（素材从主轨移走 / 落到主轨）才合拢，
+            /* ③ 主轨空档合拢——始终做一次"检测"，但不破坏 ② 的让位原则：
+               跨轨插入场景里 ② 的让位后移是为新素材预留位置，紧接着素材会落到该空档，
+               此时主轨本身是连续的，closeMainGaps() 检测不到空档、什么都不会做，让位结果完整保留；
+               而同轨反复互换位置后，被拖素材原来的位置会留下"净空档"（没有任何新素材填入），
+               这时才需要把后面的素材波纹前移贴上来——正是用户说的"自动磁吸、消除空位"。
+               closeMainGaps() 内部只在确有空档时才 rippleMainTrack()，且受磁吸开关/锁定约束。
+               只要源轨或落点是主轨（素材从主轨移走 / 落到主轨）就检测；
                拖非主轨素材在其它轨间移动时完全不碰主轨。 */
-            if(!didInsert && (isMainTrack(landedTrack)||isMainTrack(srcTrack))) closeMainGaps();
+            let didClose=false;
+            if(isMainTrack(landedTrack)||isMainTrack(srcTrack)) didClose=closeMainGaps();
+            /* 提示优先级：合拢消除了空位 > 让位后移 > 无动作。同轨互换产生空位又合拢时，
+               最终效果是"素材已重排贴紧"，不该再提示"已让位后移"误导用户。 */
+            if(didClose) toast("主轨空位已自动消除，后续素材已前移贴紧","ok");
+            else if(didInsert) toast((groupDrag?"整组落位":"片段落位")+"，"+shifted+" 个素材已让位后移","ok");
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
         };
