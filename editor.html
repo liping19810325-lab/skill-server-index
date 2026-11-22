@@ -6184,20 +6184,20 @@ function rippleMainTrack(){
         cursor=c.start+c.duration;
     });
 }
-/* 落点让位后移（波纹插入）：把落点 dropAt 及其之后的视频 / 音频轨片段
-   （不在 excludeIds 里、且轨道未锁定）整体后移 span 秒，为拖入的片段 / 片段组腾出连续空位。
-   字幕轨 / 图片轨 / LUT 轨的素材不参与让位，位置保持不动。
+/* 落点让位后移（波纹插入）：仅在主视频轨（视频1）上生效——把落点 dropAt 及其之后的主轨片段
+   （不在 excludeIds 里、且主轨未锁定）整体后移 span 秒，为插入的片段 / 片段组腾出连续空位。
+   其它轨道（视频2+、音频、字幕、图片、LUT）一律不参与让位、不会被后移：
+   用户单独拖移非主轨素材时，其它轨道位置保持不动；只有把素材插入主视频轨才让主轨素材后移。
    返回被后移的片段数。原位置留空由调用方决定，不在这里合拢。 */
 function rippleInsertAt(dropAt, span, excludeIds){
     if(!(span>0)) return 0;
+    const mid=mainVideoTrackId(); if(!mid) return 0;
+    const mt=trackById(mid); if(mt&&mt.locked) return 0;   /* 主轨锁定：不让位 */
     const ex=excludeIds||[];
     let n=0;
     state.clips.forEach(o=>{
+        if(o.track!==mid) return;       /* 只让位主视频轨上的素材，其它轨道一律不动 */
         if(ex.indexOf(o.id)>=0) return;
-        const ot=trackById(o.track);
-        if(ot&&ot.locked) return;   /* 锁定轨素材不参与让位后移，位置保持不动 */
-        /* 字幕 / 图片 / LUT 轨不参与让位：这些是叠层轨，视频 / 音频才需要腾位后移 */
-        if(ot&&(ot.kind==="text"||ot.kind==="image"||ot.kind==="lut")) return;
         if(o.start>=dropAt-0.0005){ o.start=+(o.start+span).toFixed(4); n++; }
     });
     return n;
@@ -9565,47 +9565,49 @@ function wire(){
             fresh.classList.remove("dragging");
             if(hint){ hint.remove(); hint=null; }
             document.querySelectorAll("#tracks .lane.drop-target").forEach(x=>x.classList.remove("drop-target"));
-            /* 落位：单个 / 整组拖到新时间点后，落点及其之后的其它轨道素材整体让位后移，
-               腾出的空位正好容纳被拖片段（组）；原位置保留空档，不合拢。
-               仅水平移动且确有位移时触发，裁剪手柄、跨轨换轨、原地点击都不触发。 */
+            /* ① 跨轨换轨：同类轨直接换、异类轨新建同类轨移入；记录片段实际落到的轨道。
+               只有真正落到主视频轨（视频1）时后面才可能触发让位，落到其它轨一律不让位。 */
+            let landedTrack=c.track, crossMoved=false;
+            if(!resize && !resizeL && dropTrackId && dropTrackId!==c.track){
+                const tgt=trackById(dropTrackId);
+                const movers=(groupDrag?dragIds:[c.id]).map(id=>clipById(id)).filter(Boolean);
+                if(tgt && !tgt.locked){
+                    let sameCnt=0, newCnt=0, madeTrack=null;
+                    movers.forEach(o=>{
+                        const srcKind=trackKind(o.track);
+                        if(tgt.kind===srcKind){ o.track=tgt.id; sameCnt++; }
+                        else{
+                            /* 落点是其它类型轨道：新建一条该片段同类轨（编号自动 +1）后移入 */
+                            if(!madeTrack) madeTrack=newTrack(srcKind);
+                            o.track=madeTrack.id; newCnt++;
+                        }
+                    });
+                    landedTrack=movers.length?movers[0].track:c.track;
+                    crossMoved=true;
+                    if(newCnt) toast("同类 "+sameCnt+" 段已移到「"+tgt.label+"」；"+newCnt+" 段异类素材已新建同类轨移入","ok");
+                    else toast((movers.length>1?"整组 "+movers.length+" 段":"片段")+"已移到「"+tgt.label+"」","ok");
+                }
+            }
+            /* ② 落点让位后移：只有实际落点是主视频轨（视频1）时才让位，且只后移主轨上的其它素材；
+               其它轨道上的素材单独拖移时不让位，也不会带着别的轨道一起后移。
+               同轨水平移动需确有位移；跨轨换轨成功即视为落位。裁剪手柄 / 原地点击不触发。 */
             let didInsert=false;
-            if(!resize && !resizeL && !dropTrackId){
+            if(!resize && !resizeL && isMainTrack(landedTrack)){
                 const newLeft=groupDrag
                     ? Math.min.apply(null,dragIds.map(id=>{const o=clipById(id);return o?o.start:Infinity;}))
                     : c.start;
-                if(Math.abs(newLeft-groupStart)>0.06){
+                const needPlace=crossMoved || Math.abs(newLeft-groupStart)>0.06;
+                if(needPlace){
                     const span=groupDrag?groupSpan:dur0;
                     const shifted=rippleInsertAt(newLeft,span,dragIds);
                     didInsert=shifted>0;
                     if(didInsert) toast((groupDrag?"整组落位":"片段落位")+"，"+shifted+" 个素材已让位后移","ok");
                 }
             }
-            if(!didInsert){
-                if(dropTrackId && dropTrackId!==c.track){
-                    /* 同类素材跨同类轨道移动：整组 / 单片段都支持。
-                       逐个片段按自己的类型决定落点——目标轨与自身同类就直接换过去，
-                       异类则新建一条自身同类轨并移入（保证视频永远落在视频轨、音频落在音频轨）。 */
-                    const tgt=trackById(dropTrackId);
-                    const movers=(groupDrag?dragIds:[c.id]).map(id=>clipById(id)).filter(Boolean);
-                    if(tgt && !tgt.locked){
-                        let sameCnt=0, newCnt=0, madeTrack=null;
-                        movers.forEach(o=>{
-                            const srcKind=trackKind(o.track);
-                            if(tgt.kind===srcKind){ o.track=tgt.id; sameCnt++; }
-                            else{
-                                /* 落点是其它类型轨道：新建一条该片段同类轨（编号自动 +1）后移入 */
-                                if(!madeTrack) madeTrack=newTrack(srcKind);
-                                o.track=madeTrack.id; newCnt++;
-                            }
-                        });
-                        if(newCnt) toast("同类 "+sameCnt+" 段已移到「"+tgt.label+"」；"+newCnt+" 段异类素材已新建同类轨移入","ok");
-                        else toast((movers.length>1?"整组 "+movers.length+" 段":"片段")+"已移到「"+tgt.label+"」","ok");
-                    }
-                    closeMainGaps();
-                }else if(isMainTrack(c.track)){
-                    closeMainGaps();
-                }
-            }
+            /* ③ 主轨空档合拢：让位产生的空档要保留；仅在没让位时合拢已有空档。
+               只要源轨或落点是主轨（素材从主轨移走 / 落到主轨）才合拢，
+               拖非主轨素材在其它轨间移动时完全不碰主轨。 */
+            if(!didInsert && (isMainTrack(landedTrack)||isMainTrack(c.track))) closeMainGaps();
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
         };
