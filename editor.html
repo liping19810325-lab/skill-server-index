@@ -9619,6 +9619,7 @@ function wire(){
             document.querySelectorAll("#tracks .lane.drop-target").forEach(x=>x.classList.remove("drop-target"));
             /* ① 跨轨换轨：同类轨直接换、异类轨新建同类轨移入；记录片段实际落到的轨道。
                只有真正落到主视频轨（视频1）时后面才可能触发让位，落到其它轨一律不让位。 */
+            const srcTrack=c.track;   /* 换轨前的源轨道：跨轨拖出主轨后 c.track 会变，用它判断是否动过主轨 */
             let landedTrack=c.track, crossMoved=false;
             if(!resize && !resizeL && dropTrackId && dropTrackId!==c.track){
                 const tgt=trackById(dropTrackId);
@@ -9670,7 +9671,7 @@ function wire(){
             /* ③ 主轨空档合拢：让位产生的空档要保留；仅在没让位时合拢已有空档。
                只要源轨或落点是主轨（素材从主轨移走 / 落到主轨）才合拢，
                拖非主轨素材在其它轨间移动时完全不碰主轨。 */
-            if(!didInsert && (isMainTrack(landedTrack)||isMainTrack(c.track))) closeMainGaps();
+            if(!didInsert && (isMainTrack(landedTrack)||isMainTrack(srcTrack))) closeMainGaps();
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
         };
