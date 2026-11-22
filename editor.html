@@ -3427,6 +3427,14 @@ function drawWave(cv, c, a){
     x.clearRect(0,0,W,H);
     const w=waveCache.get(a&&a.id);
     if(!w||!w.ready||!w.peaks){
+        /* 视频轨下半始终是波形区：无音轨 / 解码不到音频时画一条居中平线（没有高低），
+           而不是留一块空白灰底，保证「有结构但没声音」的观感，与用户截图一致。 */
+        const silent=!!(w&&w.error) || !!(a&&a.type==="video"&&!clipHasAudio(c));
+        if(silent){
+            x.fillStyle="rgba(255,255,255,.55)";
+            x.fillRect(0,Math.max(0,Math.floor(H/2)-0.5),W,1);
+            return;
+        }
         x.fillStyle="rgba(255,255,255,.14)"; x.fillRect(0,0,W,H);
         if(a&&!w) ensureWave(a,()=>drawWave(cv,c,a));
         return;
@@ -3464,7 +3472,7 @@ function drawWave(cv, c, a){
 function drawAllWaves(){
     document.querySelectorAll("canvas.clip-wave").forEach(cv=>{
         const c=clipById(cv.dataset.wave), a=c&&c.assetId?assetById(c.assetId):null;
-        if(a) drawWave(cv,c,a);
+        drawWave(cv,c,a);   /* 无素材 / 无音轨片段也照常画（平线），结构不缺席 */
     });
 }
 /* 时间轴 ↔ 源时间映射。
@@ -5139,7 +5147,7 @@ function renderTracks(){
     box.innerHTML=list.map(t=>{
         const clips=state.clips.filter(c=>c.track===t.id);
         const inner=clips.map(c=>clipHtml(c,t)).join("");
-        const compound=t.kind==="video" && clips.some(c=>clipHasAudio(c));
+        const compound=t.kind==="video";   /* 视频轨统一「上半缩略图 + 下半整条波形」结构，无声音也保留波形区 */
         const cls="track-row"+(compound?" compound":"")+(t.id===mainVid?" main-video":"")
                  +(t.hidden?" tk-hidden":"")+(t.locked?" tk-locked":"");
         const isMain=t.id===mainVid;
@@ -5170,7 +5178,7 @@ function clipHtml(c,t){
     const left=Math.round(c.start*state.zoom), width=Math.max(14,Math.round(c.duration*state.zoom));
     const sel=state.selected===c.id || state.multi.indexOf(c.id)>=0;
     const f=c.fx||{}, tag=(f.mirror?"⇋":"")+(f.reverse?"◀":"");
-    const compound=t.kind==="video"&&clipHasAudio(c);
+    const compound=t.kind==="video";   /* 所有视频片段都显示「上半缩略图 + 下半音频波形」；无声音只是波形高低为平线，结构始终在 */
     const wave=t.kind==="audio"||compound;
     const ce=clipStripCache.get(c.id);
     const strip=(ce&&ce.sig===clipStripSig(c))?ce.frames:null;   /* 源区间变了就当未缓存 */
