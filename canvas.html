@@ -221,15 +221,21 @@
     .mode-btn{padding:3px 9px;font-size:10.5px;}
     .mode-btn.active{background:var(--green,#16a34a);border-color:var(--green,#16a34a);color:#fff;font-weight:600;}
     .history-empty{grid-column:1/-1;color:var(--text2);font-size:12px;text-align:center;padding:40px 0;}
-    .h-item{border:1px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;position:relative;}
-    .h-thumb{flex:0 0 auto;height:168px;background:#000;cursor:zoom-in;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;}
-    .h-thumb img,.h-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
-    .h-meta{padding:3px 6px 5px;font-size:6px;line-height:1.25;color:var(--text2);display:flex;flex-direction:column;gap:2px;}
+    /* 卡片高度完全由内容撑开：align-self:start + 不伸缩，避免 grid 行高在不同平台压缩卡片
+       （Windows 上曾导致下面的 h-meta 连同按钮被 overflow:hidden 裁掉、只剩图片）。 */
+    .h-item{border:1px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;position:relative;flex:0 0 auto;align-self:start;height:auto;}
+    /* 缩略图：图片用绝对定位铺满容器，脱离 flex 流——避免 flex item 的 height:100% 在部分浏览器
+       被解析成 auto、横图按固有比例缩成矮图而在上方留出大块黑边。object-fit:contain 居中显示，
+       留白用与面板一致的深色（而非纯黑），跨平台一致。 */
+    .h-thumb{flex:0 0 auto;height:168px;background:var(--panel,#0f1420);cursor:zoom-in;overflow:hidden;position:relative;}
+    .h-thumb img,.h-thumb video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;display:block;}
+    /* meta 固定不被压缩；字号从 6px 提到 8px —— 6px 在 Windows 默认字体渲染下几乎不可读，看起来像整体消失。 */
+    .h-meta{flex:0 0 auto;padding:5px 7px 6px;font-size:8px;line-height:1.4;color:var(--text2);display:flex;flex-direction:column;gap:3px;}
     .h-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
     .h-acts{display:flex;gap:3px;flex-wrap:nowrap;align-items:center;}
-    .h-acts .mini-btn{padding:2px 5px;font-size:9px;white-space:nowrap;}
+    .h-acts .mini-btn{padding:3px 6px;font-size:9px;white-space:nowrap;}
     /* 原生成结果卡片里的内联归类下拉：与操作按钮同一行，选中即写入分类视图 */
-    .h-acts .h-cat-inline{flex:1 1 auto;min-width:0;width:100%;padding:2px 3px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:9px;cursor:pointer;min-height:0;height:auto;}
+    .h-acts .h-cat-inline{flex:1 1 auto;min-width:0;width:100%;padding:3px 4px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:9px;cursor:pointer;min-height:0;height:auto;}
     .h-acts .h-cat-inline:hover{border-color:var(--green,#16a34a);}
     .h-acts .h-cat-inline option{background:var(--card);color:var(--text);}
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
