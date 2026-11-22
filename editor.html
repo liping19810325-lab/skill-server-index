@@ -6220,16 +6220,19 @@ function selectSide(dir){
     renderProps(); renderTimeline();
     toast("已选中播放头"+(dir<0?"左":"右")+"侧 "+list.length+" 个片段","ok");
 }
-/* 主视频轨：删除后波纹前移，片段按原顺序紧密排列（剪映式无间隙主轨） */
+/* 主视频轨：删除 / 裁剪后波纹重排，片段按原顺序紧密排列（剪映式无间隙主轨）。
+   既处理缩短留空（后面前移补位），也处理延长造成的重叠（后面后移让位）。
+   返回是否真的有片段被移动，供调用方决定是否提示。 */
 function rippleMainTrack(){
-    const mid=mainVideoTrackId(); if(!mid) return;
-    const mt=trackById(mid); if(mt&&mt.locked) return;   /* 主轨锁定：片段不前移 */
+    const mid=mainVideoTrackId(); if(!mid) return false;
+    const mt=trackById(mid); if(mt&&mt.locked) return false;   /* 主轨锁定：片段不重排 */
     const list=state.clips.filter(c=>c.track===mid).sort((a,b)=>a.start-b.start);
-    let cursor=0;
+    let cursor=0, moved=false;
     list.forEach(c=>{
-        if(Math.abs(c.start-cursor)>0.0005) c.start=+cursor.toFixed(4);
+        if(Math.abs(c.start-cursor)>0.0005){ c.start=+cursor.toFixed(4); moved=true; }
         cursor=c.start+c.duration;
     });
+    return moved;
 }
 /* 跨轨道入主轨时，把落点吸附到主轨已有素材的「端点（两端之间）」——素材的起点或末尾。
    这样插入点一定落在素材之间的边界，而不是某段素材的内部；否则新片段会与该素材的后段
@@ -9707,11 +9710,24 @@ function wire(){
                closeMainGaps() 内部只在确有空档时才 rippleMainTrack()，且受磁吸开关/锁定约束。
                只要源轨或落点是主轨（素材从主轨移走 / 落到主轨）就检测；
                拖非主轨素材在其它轨间移动时完全不碰主轨。 */
-            let didClose=false;
-            if(isMainTrack(landedTrack)||isMainTrack(srcTrack)) didClose=closeMainGaps();
-            /* 提示优先级：合拢消除了空位 > 让位后移 > 无动作。同轨互换产生空位又合拢时，
-               最终效果是"素材已重排贴紧"，不该再提示"已让位后移"误导用户。 */
-            if(didClose) toast("主轨空位已自动消除，后续素材已前移贴紧","ok");
+            let didClose=false, didTrimRipple=false, trimGrew=false;
+            if(!resize && !resizeL){
+                /* 非裁剪的拖动/换轨：空档检测合拢（保留 ② 的让位原则，见上方注释）。 */
+                if(isMainTrack(landedTrack)||isMainTrack(srcTrack)) didClose=closeMainGaps();
+            }else if(isMainTrack(srcTrack)){
+                /* 裁剪本段结尾/开头，且时长确实变化（源素材确有内容可增减、未被源边界 clamp 卡住）：
+                   主轨后续素材波纹重排——变长则后移让位、变短则前移补位，始终贴紧无间隙。
+                   closeMainGaps() 只能检测"空档"，延长造成的重叠它看不到，所以裁剪必须走这里。
+                   仅动主轨；其它轨道裁剪不联动。时长没变（拖到源边界）则不重排。 */
+                const dDelta=+(c.duration-dur0).toFixed(4);
+                if(Math.abs(dDelta)>0.001){
+                    trimGrew=dDelta>0;
+                    didTrimRipple=rippleMainTrack();
+                }
+            }
+            /* 提示优先级：裁剪波纹 > 合拢空位 > 让位后移 > 无动作。 */
+            if(didTrimRipple) toast(trimGrew?"本段已加长，后续素材已后移让位":"本段已缩短，后续素材已前移补位","ok");
+            else if(didClose) toast("主轨空位已自动消除，后续素材已前移贴紧","ok");
             else if(didInsert) toast((groupDrag?"整组落位":"片段落位")+"，"+shifted+" 个素材已让位后移","ok");
             document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
             renderAll(); autoSave();
