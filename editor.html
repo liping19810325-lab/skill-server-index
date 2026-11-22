@@ -5523,13 +5523,12 @@ function syncAudioPool(){
     }
 }
 function renderSubtitleOverlay(){
-    /* AI包装模式下花字4本身就是完整字幕：默认隐藏「字幕1」的普通白色字幕，避免与花字重复叠字。
-       关闭该开关（state.fvHideBaseSub=false）即恢复普通字幕，二者不会同时出现。 */
-    const hideBase=baseSubHidden();
+    /* 普通白色字幕逐轨受各自轨道左侧「眼」(t.hidden) 控制：字幕1眼关就隐藏字幕1，
+       字幕2/3 各自独立，互不影响。花字(c.fv)由独立 overlay 渲染，不进这里。 */
     const active=[];
     for(const t of orderedTracks()){
         if(t.kind!=="text" || t.hidden) continue;
-        for(const c of state.clips) if(c.track===t.id && !c.fv && !hideBase && state.playhead>=c.start && state.playhead<c.start+c.duration && c.text) active.push(c);
+        for(const c of state.clips) if(c.track===t.id && !c.fv && state.playhead>=c.start && state.playhead<c.start+c.duration && c.text) active.push(c);
     }
     /* 花字走独立渲染器：与普通字幕彻底解耦，不受 subPlacement/居中/堆叠规则约束 */
     renderFancyOverlay();
@@ -5634,14 +5633,36 @@ function updateFancyFrame(){
    避让逻辑仍读取 state.fvFaceGuard 数据——花字布局 fvLayout 只避开面部五官区(眉眼鼻口)，
    脖子与头发区域允许放花字；“不挡五官”的效果保留，只是不再画出那个橙色辅助框。 */
 function hasFancy(){ return state.clips.some(c=>c.fv&&trackKind(c.track)==="text"); }
-/* AI包装模式（时间轴已有花字片段）下是否隐藏普通白色字幕：默认开，花字4=完整字幕不再重复叠字。
-   仅影响预览与普通字幕烧录；花字始终由独立 overlay 渲染，不受此开关影响。 */
-function baseSubHidden(){ return !!(state.fvHideBaseSub && hasFancy()); }
-/* 「显示原字幕1」复选框正向同步：勾选=显示=state.fvHideBaseSub=false。
-   工程载入/重置后 state 变化，renderAll 调此函数让复选框跟随之前的保存值。 */
+/* 「字幕1」基础字幕所在轨道：默认 tk_text1（label「字幕 1」），用户改名后用 label 兜底。 */
+function baseSubTrack(){
+    return state.tracks.find(t=>t.id==="tk_text1")
+        || state.tracks.find(t=>t.kind==="text"&&/字幕\s*0*1/.test(t.label))
+        || null;
+}
+/* 字幕1基础字幕是否隐藏：完全由该轨道左侧的「眼」(t.hidden) 控制，和所有普通轨道一样——
+   眼开=显示、眼关=隐藏。预览、花字避让、字幕烧录统一读这里，所见即所得。
+   早期版本靠全局 fvHideBaseSub 硬隐藏导致「眼」两种状态都不显示；现仅在没有字幕1轨时
+   （极旧工程缺轨）才回退到旧开关，避免完全无轨时行为突变。 */
+function baseSubHidden(){
+    const t=baseSubTrack();
+    if(t) return !!t.hidden;
+    return !!(state.fvHideBaseSub && hasFancy());
+}
+/* 「显示原字幕1」复选框正向同步：勾选=显示=字幕1轨道眼开(hidden=false)。
+   它和轨道上的「眼」操作的是同一个轨道状态，二者始终一致。 */
 function syncFvShowBaseSub(){
-    const cb=$("fvShowBaseSub"); if(cb) cb.checked=(state.fvHideBaseSub===false);
+    const cb=$("fvShowBaseSub"); if(cb) cb.checked=!baseSubHidden();
     const fit=$("fvMediaFitOn"); if(fit) fit.checked=(state.fvMediaFitOn===true);
+}
+/* AI包装面板「显示原字幕1」复选框：与轨道「眼」联动，改的是同一个 t.hidden。
+   由 renderAll 统一重建轨道行与字幕，故眼按钮的高亮状态也会同步。 */
+function setBaseSubVisible(show){
+    const t=baseSubTrack();
+    pushHistory();
+    if(t) t.hidden=!show;
+    else state.fvHideBaseSub=!show;   /* 无字幕1轨的极旧工程：回退旧开关 */
+    subCache=""; fancyCache="";
+    renderAll(); autoSave();
 }
 function syncFaceGuard(){
     const el=$("faceGuard"); if(!el) return;
@@ -9080,7 +9101,7 @@ function wire(){
     if($("fvTplAll")) $("fvTplAll").onchange=e=>FV.toggleTplAll(e.target.checked);
     if($("fvShowBaseSub")){
         syncFvShowBaseSub();
-        $("fvShowBaseSub").onchange=e=>{ pushHistory(); state.fvHideBaseSub=!e.target.checked; subCache=""; fancyCache=""; renderSubtitleOverlay(); autoSave();
+        $("fvShowBaseSub").onchange=e=>{ setBaseSubVisible(e.target.checked);
             toast(e.target.checked?"已显示原「字幕1」白色字幕，花字自动避让":"已隐藏原「字幕1」白色字幕","ok"); };
     }
     if($("fvMediaFitOn")){
@@ -10888,8 +10909,12 @@ function buildBurnSrt(arr){
 function burnSubtitleClips(){
     /* 烧录字幕也遵循入点 / 出点：只取区间内字幕，时间码平移到成片相对时间。
        花字(c.fv)由 AI包装成片路径自带烧录，不进普通 SRT/ASS，避免重复。
-       AI包装模式下基础白色字幕按 fvHideBaseSub 隐藏，预览与烧录一致。 */
-    return clipsInRange(state.clips.filter(c=>trackKind(c.track)==="text"&&c.text&&!c.fv&&!baseSubHidden()));
+       普通字幕逐轨受「眼」控制：轨道 hidden 的不烧录，预览与烧录一致。 */
+    return clipsInRange(state.clips.filter(c=>{
+        if(trackKind(c.track)!=="text"||!c.text||c.fv) return false;
+        const t=trackById(c.track);
+        return !(t&&t.hidden);
+    }));
 }
 async function exportSubtitleFile(){
     const fmt=$("expSubFmt").value, r=buildSubtitleText(fmt);
