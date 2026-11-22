@@ -212,11 +212,14 @@
     .h-col-body{flex:1;min-height:0;overflow:auto;padding:9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px;align-content:start;}
     .h-col-empty{grid-column:1/-1;color:var(--text2);font-size:11px;text-align:center;padding:26px 0;}
     .history-grid{display:none;}
-    /* 「原ComfyUI生成」旧版历史视图：单独把网格打开，不干扰素材库四列布局 */
-    .legacy-history-panel .history-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;align-content:start;}
-    .legacy-history-panel .h-thumb{height:106px;}
-    .legacy-history-panel .h-item{background:var(--panel);}
-    .legacy-hint{padding:7px 14px;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;line-height:1.6;background:rgba(255,255,255,.02);}
+    /* 历史结果总览库内的「原生成视图」：和旧版历史结果一样的网格 */
+    .history-raw-grid{display:none;padding:14px;overflow:auto;align-content:start;}
+    .history-raw-grid.show{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;}
+    .history-raw-grid .h-thumb{height:106px;}
+    .history-raw-grid .h-item{background:var(--panel);}
+    .history-mode-switch{display:inline-flex;gap:4px;margin-left:6px;}
+    .mode-btn{padding:3px 9px;font-size:10.5px;}
+    .mode-btn.active{background:var(--green,#16a34a);border-color:var(--green,#16a34a);color:#fff;font-weight:600;}
     .history-empty{grid-column:1/-1;color:var(--text2);font-size:12px;text-align:center;padding:40px 0;}
     .h-item{border:1px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;position:relative;}
     .h-thumb{height:92px;background:#000;cursor:zoom-in;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;}
@@ -370,7 +373,7 @@
         <button class="tb-btn" id="exportBtn">导出画布</button>
         <button class="tb-btn" id="importBtn">导入画布</button>
         <button class="tb-btn green-solid" id="historyBtn" title="打开历史结果总览库：按画布与资产类别归档的图片 / 视频（可预览、下载）">🖼 历史结果总览库</button>
-        <button class="tb-btn" id="legacyHistoryBtn" title="打开旧版历史结果原样视图：直接显示本机 ComfyUI / 第三方 API 生成过的图片视频（可预览、下载、加载参考、删除）">🖼 原ComfyUI生成</button>
+        <button class="tb-btn" id="legacyHistoryBtn" title="打开历史结果总览库并切到「原生成视图」：旧版历史结果的原样网格（可预览、下载、加载参考、删除）">🖼 原ComfyUI生成</button>
         <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
         <a class="tb-btn editor-nav-btn" id="openEditorBtn" href="./editor.html" target="_blank" rel="noopener noreferrer" title="打开漫流 AI 剪辑台（新标签页）">✂ AI剪辑台</a>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
@@ -453,30 +456,19 @@
 <div class="history-panel" id="historyPanel">
     <div class="history-box">
         <div class="history-head">
-            <b>🖼 素材库（按画布 · 资产类别归档）</b>
+            <b>🖼 历史结果总览库（按画布 · 资产类别归档）</b>
             <span class="history-count" id="historyCount"></span>
-            <span class="history-count" style="color:var(--muted);font-size:10.5px">浮窗内 ← → 或滚轮连续切换（仅当前画布）</span>
+            <span class="history-mode-switch">
+                <button class="mini-btn mode-btn active" id="historyModeAsset">分类视图</button>
+                <button class="mini-btn mode-btn" id="historyModeRaw">原生成视图</button>
+            </span>
             <span class="history-spacer"></span>
             <button class="mini-btn" id="historyClearBtn">清空本画布</button>
             <button class="mini-btn" id="historyCloseBtn">关闭</button>
         </div>
         <div class="history-docbar" id="historyDocBar"></div>
         <div class="history-cols" id="historyCols"></div>
-    </div>
-</div>
-
-<!-- 原ComfyUI生成：完全沿用改造前「历史结果」的网格视图，作为旧记录的可看可用兜底入口 -->
-<div class="history-panel legacy-history-panel" id="legacyHistoryPanel">
-    <div class="history-box">
-        <div class="history-head">
-            <b>🖼 原ComfyUI生成（历史结果原样视图）</b>
-            <span class="history-count" id="legacyHistoryCount"></span>
-            <span class="history-count" style="color:var(--muted);font-size:10.5px">点开预览后，← → 方向键或滚轮可连续切换全部结果</span>
-            <span class="history-spacer"></span>
-            <button class="mini-btn" id="legacyHistoryCloseBtn">关闭</button>
-        </div>
-        <div class="legacy-hint">这里直接按原「历史结果」方式显示所有生成记录；旧记录若只剩文件名，会自动复用画布「生成结果」节点的图片地址或从文件名重建本机 ComfyUI 直链。</div>
-        <div class="history-grid" id="legacyHistoryGrid"></div>
+        <div class="history-grid history-raw-grid" id="historyRawGrid"></div>
     </div>
 </div>
 
@@ -844,6 +836,7 @@ let selectedId = null;
 let selectedIds = new Set();          /* 框选 / Shift 多选：选中的节点 id 集合 */
 let resultHistory = [];               /* 素材库历史（跨画布全局存档）：{id,kind,url,name,ts,engine,prompt,docId,category} */
 let historyActiveDoc = null;          /* 素材库当前查看的画布 id；null=跟随当前画布；__legacy__=旧数据（无画布归属） */
+let historyMode = "asset";            /* asset=分类视图；raw=原生成视图（旧版历史结果网格） */
 let lbSeq=null, lbSeqIndex=-1, lbWheelTs=0;   /* 浮窗「可连续切换序列」：仅从历史结果预览时设置，供方向键/滚轮切换；普通预览为 null */
 let seenSourceIds = new Set();
 let saveTimer = null;
@@ -2472,7 +2465,19 @@ function resultUrlForHistory(h){
 }
 function mediaSrcOf(h){
     if(!h) return "";
-    if(isAbsMediaUrl(h.url)) return h.url;
+    if(isAbsMediaUrl(h.url)){
+        /* 旧记录在 Windows 上生成时可能存成 127.0.0.1:8188/view?...；
+           若在 Mac 上打开，127.0.0.1 指向 Mac 自己 → 只剩文件名。
+           只重写 ComfyUI 的 /view 直链到当前 comfyBase，第三方 API 一律原样返回。 */
+        if(h.engine==="comfyui"&&/\/view\?/i.test(h.url)){
+            try{
+                const old=new URL(h.url), base=new URL(cvComfyBaseUrl());
+                if(/^(127\.0\.0\.1|localhost)$/i.test(old.hostname)&&old.host!==base.host)
+                    return base.origin+old.pathname+old.search;
+            }catch(e){}
+        }
+        return h.url;
+    }
     const fromResult=resultUrlForHistory(h);
     if(fromResult) return fromResult;
     const fn=mediaFileName(h.url||h.name||"");
@@ -2483,7 +2488,7 @@ function mediaSrcOf(h){
 function repairHistoryMedia(){
     let changed=false;
     resultHistory.forEach(h=>{
-        if(!h||!h.url||isAbsMediaUrl(h.url)) return;
+        if(!h||!h.url) return;
         const src=mediaSrcOf(h);
         if(src&&src!==h.url){ h.url=src; changed=true; }
     });
@@ -2493,6 +2498,7 @@ function repairHistoryMedia(){
 function renderHistory(){
     const box=el("historyCols"), cnt=el("historyCount"), bar=el("historyDocBar");
     if(!box) return;
+    if(historyMode==="raw"){ renderHistoryRaw(); return; }
     const cur = historyActiveDoc || docId;
     /* 打开/刷新素材库时先修复旧记录的文件名地址，优先复用画布结果节点的直链 */
     if(repairHistoryMedia()) scheduleSave();
@@ -2562,8 +2568,8 @@ function renderHistory(){
         box.appendChild(e);
     }
 }
-/* 单张素材卡片：缩略图右下角类别下拉（可随时改）+ 预览 / 下载 / 删除 / 加载参考 */
-function buildHistoryItem(h){
+/* 单张素材卡片的底座：与「原生成视图」完全相同的缩略图/按钮结构，保证旧记录也一定走同一条图片链路 */
+function buildHistoryCardBase(h){
     const item=document.createElement("div"); item.className="h-item";
     const thumb=document.createElement("div"); thumb.className="h-thumb";
     const src=mediaSrcOf(h);   /* 旧记录只存文件名时，这里会复用结果节点直链 / 重建 ComfyUI 直链 */
@@ -2638,16 +2644,58 @@ function buildHistoryItem(h){
     item.appendChild(meta);
     return item;
 }
+/* 分类视图的卡片 = 已验证可显示图片的底座 + 右下角类别下拉（可随时改） */
+function buildHistoryItem(h){
+    const item=buildHistoryCardBase(h);
+    const thumb=item.querySelector(".h-thumb");
+    if(thumb){
+        const sel=document.createElement("select"); sel.className="h-cat-sel"; sel.title="更改此素材的资产类别";
+        ASSET_CATS.forEach(c=>{
+            const o=document.createElement("option"); o.value=c.key; o.textContent=c.label;
+            if(c.key===histCat(h)) o.selected=true;
+            sel.appendChild(o);
+        });
+        sel.addEventListener("click",e=>e.stopPropagation());
+        sel.addEventListener("change",e=>{
+            e.stopPropagation();
+            h.category=sel.value;
+            scheduleSave(); renderHistory();
+            setStatus("已把该素材归入「"+catMeta(h.category).label+"」","ok");
+        });
+        thumb.appendChild(sel);
+    }
+    return item;
+}
+/* 视图切换：分类视图（四列归档） / 原生成视图（旧版历史结果网格） */
+function applyHistoryModeVisuals(){
+    const asset=el("historyCols"), raw=el("historyRawGrid"), bar=el("historyDocBar"), clr=el("historyClearBtn");
+    if(asset) asset.style.display=historyMode==="asset"?"":"none";
+    if(bar) bar.style.display=historyMode==="asset"?"":"none";
+    if(clr) clr.style.display=historyMode==="asset"?"":"none";
+    if(raw) raw.classList.toggle("show",historyMode==="raw");
+    const ba=el("historyModeAsset"), br=el("historyModeRaw");
+    if(ba) ba.classList.toggle("active",historyMode==="asset");
+    if(br) br.classList.toggle("active",historyMode==="raw");
+}
+function setHistoryMode(mode){
+    historyMode=(mode==="raw")?"raw":"asset";
+    applyHistoryModeVisuals();
+    renderHistory();
+}
 function openHistory(){
     historyActiveDoc=docId;   /* 每次打开默认跟随当前画布 */
+    applyHistoryModeVisuals();
     renderHistory();
     el("historyPanel").classList.add("show");
+}
+function openHistoryRaw(){
+    historyMode="raw";
+    openHistory();
 }
 function closeHistory(){
     el("historyPanel").classList.remove("show");
 }
-/* ===== 原ComfyUI生成：旧版「历史结果」原样视图（兜底入口） =====
-   与素材库并存，不改动素材库的分类 / 画布隔离逻辑；只把旧记录按原来的网格方式显示出来。 */
+/* ===== 原生成视图：旧版「历史结果」网格，已并入历史结果总览库 ===== */
 function legacyMediaSeq(){
     return resultHistory.filter(h=>(h.kind==="video"||h.kind==="image")&&h.url)
         .map(h=>({id:h.id,kind:h.kind,url:mediaSrcOf(h),name:h.name,
@@ -2689,7 +2737,7 @@ function buildLegacyHistoryItem(h){
     del.addEventListener("click",e=>{
         e.stopPropagation();
         resultHistory=resultHistory.filter(x=>x.id!==h.id);
-        renderLegacyHistory(); scheduleSave();
+        renderHistoryRaw(); scheduleSave();
     });
     const ref=document.createElement("button"); ref.className="mini-btn purple"; ref.textContent="加载参考";
     ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(Object.assign({},h,{url:src})); });
@@ -2698,25 +2746,18 @@ function buildLegacyHistoryItem(h){
     item.appendChild(meta);
     return item;
 }
-function renderLegacyHistory(){
-    const grid=el("legacyHistoryGrid"), cnt=el("legacyHistoryCount");
+function renderHistoryRaw(){
+    const grid=el("historyRawGrid"), cnt=el("historyCount");
     if(!grid) return;
     if(repairHistoryMedia()) scheduleSave();
     grid.innerHTML="";
-    if(cnt) cnt.textContent=resultHistory.length?("共 "+resultHistory.length+" 条 · 原样视图"):"";
+    if(cnt) cnt.textContent=resultHistory.length?("全部记录共 "+resultHistory.length+" 条 · 原生成视图"):"";
     if(!resultHistory.length){
         const t=document.createElement("div"); t.className="history-empty";
         t.textContent="还没有生成记录：在画布里跑一次生成，成功后图片 / 视频会自动记到这里。";
         grid.appendChild(t); return;
     }
     resultHistory.forEach(h=>grid.appendChild(buildLegacyHistoryItem(h)));
-}
-function openLegacyHistory(){
-    renderLegacyHistory();
-    el("legacyHistoryPanel").classList.add("show");
-}
-function closeLegacyHistory(){
-    el("legacyHistoryPanel").classList.remove("show");
 }
 function paintSelection(){
     document.querySelectorAll(".node").forEach(x=>x.classList.toggle("selected",selectedIds.has(x.dataset.id)));
@@ -5802,7 +5843,7 @@ async function cvRunGenerateNow(n){
         setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):"")+inj,"ok");
         /* 只重建本次的结果节点：其它结果节点的视频/图片保持原样，不重新加载播放 */
         refreshNodeDom(r.id); scheduleSave();
-        if(el("legacyHistoryPanel").classList.contains("show")) renderLegacyHistory();
+        if(el("historyPanel").classList.contains("show")&&historyMode==="raw") renderHistoryRaw();
     }catch(e){
         console.error(e);
         const r=resultNodeFor(n);
@@ -6036,10 +6077,10 @@ function bindToolbar(){
         renderHistory(); scheduleSave(); setStatus("已清空「"+docTabName(d)+"」的素材","ok");
     });
     el("historyPanel").addEventListener("click",e=>{ if(e.target===el("historyPanel")) closeHistory(); });
-    /* 原ComfyUI生成：旧版历史结果原样视图 */
-    el("legacyHistoryBtn").addEventListener("click",openLegacyHistory);
-    el("legacyHistoryCloseBtn").addEventListener("click",closeLegacyHistory);
-    el("legacyHistoryPanel").addEventListener("click",e=>{ if(e.target===el("legacyHistoryPanel")) closeLegacyHistory(); });
+    /* 历史结果总览库：视图切换；顶部「原Comfyui生成」是原生成视图的快捷入口 */
+    el("historyModeAsset").addEventListener("click",()=>setHistoryMode("asset"));
+    el("historyModeRaw").addEventListener("click",()=>setHistoryMode("raw"));
+    el("legacyHistoryBtn").addEventListener("click",openHistoryRaw);
     /* 左侧栏可折叠面板：点标题展开 / 收起 */
     document.querySelectorAll(".card.collapsible h2.card-toggle").forEach(h=>{
         h.addEventListener("click",()=>h.parentElement.classList.toggle("collapsed"));
