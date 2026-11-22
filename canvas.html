@@ -212,6 +212,11 @@
     .h-col-body{flex:1;min-height:0;overflow:auto;padding:9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px;align-content:start;}
     .h-col-empty{grid-column:1/-1;color:var(--text2);font-size:11px;text-align:center;padding:26px 0;}
     .history-grid{display:none;}
+    /* 「原ComfyUI生成」旧版历史视图：单独把网格打开，不干扰素材库四列布局 */
+    .legacy-history-panel .history-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;align-content:start;}
+    .legacy-history-panel .h-thumb{height:106px;}
+    .legacy-history-panel .h-item{background:var(--panel);}
+    .legacy-hint{padding:7px 14px;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;line-height:1.6;background:rgba(255,255,255,.02);}
     .history-empty{grid-column:1/-1;color:var(--text2);font-size:12px;text-align:center;padding:40px 0;}
     .h-item{border:1px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;position:relative;}
     .h-thumb{height:92px;background:#000;cursor:zoom-in;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;}
@@ -365,6 +370,7 @@
         <button class="tb-btn" id="exportBtn">导出画布</button>
         <button class="tb-btn" id="importBtn">导入画布</button>
         <button class="tb-btn green-solid" id="historyBtn" title="打开历史结果总览库：按画布与资产类别归档的图片 / 视频（可预览、下载）">🖼 历史结果总览库</button>
+        <button class="tb-btn" id="legacyHistoryBtn" title="打开旧版历史结果原样视图：直接显示本机 ComfyUI / 第三方 API 生成过的图片视频（可预览、下载、加载参考、删除）">🖼 原ComfyUI生成</button>
         <button class="tb-btn" id="helpBtn">📖 使用帮助</button>
         <a class="tb-btn editor-nav-btn" id="openEditorBtn" href="./editor.html" target="_blank" rel="noopener noreferrer" title="打开漫流 AI 剪辑台（新标签页）">✂ AI剪辑台</a>
         <a class="tb-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
@@ -456,6 +462,21 @@
         </div>
         <div class="history-docbar" id="historyDocBar"></div>
         <div class="history-cols" id="historyCols"></div>
+    </div>
+</div>
+
+<!-- 原ComfyUI生成：完全沿用改造前「历史结果」的网格视图，作为旧记录的可看可用兜底入口 -->
+<div class="history-panel legacy-history-panel" id="legacyHistoryPanel">
+    <div class="history-box">
+        <div class="history-head">
+            <b>🖼 原ComfyUI生成（历史结果原样视图）</b>
+            <span class="history-count" id="legacyHistoryCount"></span>
+            <span class="history-count" style="color:var(--muted);font-size:10.5px">点开预览后，← → 方向键或滚轮可连续切换全部结果</span>
+            <span class="history-spacer"></span>
+            <button class="mini-btn" id="legacyHistoryCloseBtn">关闭</button>
+        </div>
+        <div class="legacy-hint">这里直接按原「历史结果」方式显示所有生成记录；旧记录若只剩文件名，会自动复用画布「生成结果」节点的图片地址或从文件名重建本机 ComfyUI 直链。</div>
+        <div class="history-grid" id="legacyHistoryGrid"></div>
     </div>
 </div>
 
@@ -2394,7 +2415,7 @@ function docTabName(id){ return id==="__legacy__" ? "旧记录（未归档）" :
 function historyMediaSeq(){
     const d = historyActiveDoc || docId;
     return resultHistory.filter(h=>histDoc(h)===d && (h.kind==="video"||h.kind==="image") && h.url)
-        .map(h=>({id:h.id,kind:h.kind,url:h.url,name:h.name,
+        .map(h=>({id:h.id,kind:h.kind,url:mediaSrcOf(h),name:h.name,
                   title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}));
 }
 /* 显示序列第 i 条（首尾循环），复用 openLightbox 共享同一套浮窗渲染 */
@@ -2415,11 +2436,66 @@ function fmtTime(ts){
     const d=new Date(ts||0), p=n=>String(n).padStart(2,"0");
     return (d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
 }
+/* ===== 旧记录媒体地址修复（只补旧数据，不碰第三方 API 的可用直链） =====
+   背景：旧记录里可能有 h.url 只存了文件名（如 Qwen Image 2.1 00059.png），
+   素材库把它当 <img src> 用时浏览器会去找 canvas.html 同目录下的同名文件 → 只剩文件名。
+   画布「生成结果」节点里存的是运行时生成的完整地址（http://127.0.0.1:8188/view?filename=...），
+   所以那里总能显示。这里优先复用结果节点的地址；没有结果节点时再按文件名重建 ComfyUI 直链。 */
+function cvComfyBaseUrl(){
+    const s=String((canvas.settings&&canvas.settings.comfyBase)||"").trim().replace(/\/+$/,"");
+    return s||"http://127.0.0.1:8188";
+}
+function isAbsMediaUrl(u){ return /^(https?:|data:|blob:|file:)/i.test(String(u||"")); }
+function mediaFileName(u){
+    const s=String(u||"");
+    let m=s.match(/[?&]filename=([^&]+)/i);
+    if(m){ try{ return decodeURIComponent(m[1]); }catch(e){ return m[1]; } }
+    m=s.match(/\/([^/?#]+\.(?:png|jpe?g|gif|webp|bmp|mp4|webm|mov|m4v))(?:[?#]|$)/i);
+    return m?m[1]:s;
+}
+function comfyViewUrl(name){
+    const fn=String(name||"").trim();
+    if(!fn||isAbsMediaUrl(fn)) return fn;
+    return cvComfyBaseUrl()+"/view?filename="+encodeURIComponent(fn)+"&subfolder=&type=output";
+}
+/* 按文件名 / 原地址，在画布所有「生成结果」节点里找一条直链，直接复用它 */
+function resultUrlForHistory(h){
+    if(!h) return "";
+    if(isAbsMediaUrl(h.url)) return h.url;   /* 第三方 API 等本来就能用，原样返回 */
+    const fn=mediaFileName(h.url||h.name||"");
+    if(!fn) return "";
+    const results=canvas.nodes.filter(n=>n.type==="result"&&n.data&&n.data.url);
+    let hit=results.find(n=>n.data.url===h.url||n.data.name===h.name||mediaFileName(n.data.url)===fn||mediaFileName(n.data.name||"")===fn);
+    if(hit) return hit.data.url;
+    hit=results.find(n=>{ const a=String(n.data.name||""); return a&&(a.indexOf(fn)>=0||fn.indexOf(a)>=0); });
+    return hit?hit.data.url:"";
+}
+function mediaSrcOf(h){
+    if(!h) return "";
+    if(isAbsMediaUrl(h.url)) return h.url;
+    const fromResult=resultUrlForHistory(h);
+    if(fromResult) return fromResult;
+    const fn=mediaFileName(h.url||h.name||"");
+    if(fn&&/\.(png|jpe?g|gif|webp|bmp|mp4|webm|mov|m4v)$/i.test(fn)) return comfyViewUrl(fn);
+    return h.url||"";
+}
+/* 打开面板时把旧记录的地址就地补齐并持久化；返回是否有修改 */
+function repairHistoryMedia(){
+    let changed=false;
+    resultHistory.forEach(h=>{
+        if(!h||!h.url||isAbsMediaUrl(h.url)) return;
+        const src=mediaSrcOf(h);
+        if(src&&src!==h.url){ h.url=src; changed=true; }
+    });
+    return changed;
+}
 /* 素材库主渲染：顶部画布标签（复用现有画布）+ 四类并排（未分类仅旧数据显示） */
 function renderHistory(){
     const box=el("historyCols"), cnt=el("historyCount"), bar=el("historyDocBar");
     if(!box) return;
     const cur = historyActiveDoc || docId;
+    /* 打开/刷新素材库时先修复旧记录的文件名地址，优先复用画布结果节点的直链 */
+    if(repairHistoryMedia()) scheduleSave();
     /* 顶部画布标签：与画布页签一一对应；有旧数据时追加「旧记录（未归档）」 */
     if(bar){
         bar.innerHTML="";
@@ -2442,6 +2518,21 @@ function renderHistory(){
             b.addEventListener("click",()=>{ historyActiveDoc=t.id; renderHistory(); });
             bar.appendChild(b);
         });
+        /* 旧记录专属：给一个明确的归档动作——把无画布归属的记录批量归入当前画布 */
+        if(cur==="__legacy__"){
+            const n=resultHistory.filter(h=>histDoc(h)==="__legacy__").length;
+            const arch=document.createElement("button"); arch.className="mini-btn purple";
+            arch.textContent="全部归入当前画布";
+            arch.title="把 "+n+" 条旧记录归入画布「"+docName(docId)+"」；类别仍保持未分类，之后可逐张改";
+            arch.addEventListener("click",()=>{
+                if(!n) return;
+                if(!confirm("把 "+n+" 条旧记录全部归入画布「"+docName(docId)+"」？\n类别仍为未分类，可在素材卡片右下角逐张修改。")) return;
+                resultHistory.forEach(h=>{ if(histDoc(h)==="__legacy__") h.docId=docId; });
+                historyActiveDoc=docId; renderHistory(); scheduleSave();
+                setStatus("已把 "+n+" 条旧记录归入画布「"+docName(docId)+"」","ok");
+            });
+            bar.appendChild(arch);
+        }
     }
     const list=resultHistory.filter(h=>histDoc(h)===cur);
     if(cnt) cnt.textContent = list.length ? ("「"+docTabName(cur)+"」共 "+list.length+" 条") : "";
@@ -2475,19 +2566,29 @@ function renderHistory(){
 function buildHistoryItem(h){
     const item=document.createElement("div"); item.className="h-item";
     const thumb=document.createElement("div"); thumb.className="h-thumb";
+    const src=mediaSrcOf(h);   /* 旧记录只存文件名时，这里会复用结果节点直链 / 重建 ComfyUI 直链 */
     if(h.kind==="video"){
-        const v=document.createElement("video"); v.preload="metadata"; v.muted=true; v.src=h.url; thumb.appendChild(v);
+        const v=document.createElement("video"); v.preload="metadata"; v.muted=true; v.src=src; thumb.appendChild(v);
         thumb.title="点击预览（视频）";
     }else{
-        /* 与画布结果节点 / 原「历史结果」完全一致：<img src=url> 直连浏览器取图，不经过 fetch，不受 CORS 限制 */
-        const img=document.createElement("img"); img.loading="lazy"; img.src=h.url; img.alt="素材"; thumb.appendChild(img);
+        /* 与画布结果节点 / 原「历史结果」完全一致：<img src> 直连浏览器取图，不经过 fetch，不受 CORS 限制 */
+        const img=document.createElement("img"); img.loading="lazy"; img.src=src; img.alt=h.name||"素材"; thumb.appendChild(img);
+        img.addEventListener("error",()=>{
+            if(img.dataset.retry) return;
+            img.dataset.retry="1";
+            const better=resultUrlForHistory(h);
+            const fn=mediaFileName(h.url||h.name||"");
+            const rebuilt=(fn&&/\.(png|jpe?g|gif|webp|bmp|mp4|webm|mov|m4v)$/i.test(fn))?comfyViewUrl(fn):"";
+            const next=better||rebuilt;
+            if(next && next!==img.src){ h.url=next; img.src=next; scheduleSave(); }
+        });
         thumb.title="点击预览（图片）";
     }
     thumb.addEventListener("click",e=>{
         if(e.target.closest && e.target.closest(".h-cat-sel")) return;
         e.stopPropagation();
         const seq=historyMediaSeq(), i=seq.findIndex(s=>s.id===h.id);
-        if(i<0){ openLightbox({kind:h.kind,url:h.url,name:h.name,title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}); return; }
+        if(i<0){ openLightbox({kind:h.kind,url:src,name:h.name,title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}); return; }
         openLightbox(Object.assign({},seq[i],{seq:seq,index:i}));   /* 带序列打开：浮窗内方向键/滚轮只切换当前画布 */
     });
     const sel=document.createElement("select"); sel.className="h-cat-sel"; sel.title="更改此素材的资产类别";
@@ -2522,6 +2623,17 @@ function buildHistoryItem(h){
     ref.title=h.kind==="video"?"在画布上新建视频参考节点并加入此视频":"在画布上新建参考图节点并加入此图";
     ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(h); });
     acts.appendChild(dl); acts.appendChild(del); acts.appendChild(ref);
+    /* 旧记录：缩略图确认能看之后，一键归入当前画布；之后类别下拉照常可用 */
+    if(histDoc(h)==="__legacy__"){
+        const arch=document.createElement("button"); arch.className="mini-btn purple"; arch.textContent="归入本画布";
+        arch.title="归入当前画布「"+docName(docId)+"」，可再改类别";
+        arch.addEventListener("click",e=>{
+            e.stopPropagation(); h.docId=docId;
+            renderHistory(); scheduleSave();
+            setStatus("已把「"+(h.name||"旧素材")+"」归入画布「"+docName(docId)+"」","ok");
+        });
+        acts.appendChild(arch);
+    }
     meta.appendChild(nm); meta.appendChild(tm); meta.appendChild(acts);
     item.appendChild(meta);
     return item;
@@ -2533,6 +2645,78 @@ function openHistory(){
 }
 function closeHistory(){
     el("historyPanel").classList.remove("show");
+}
+/* ===== 原ComfyUI生成：旧版「历史结果」原样视图（兜底入口） =====
+   与素材库并存，不改动素材库的分类 / 画布隔离逻辑；只把旧记录按原来的网格方式显示出来。 */
+function legacyMediaSeq(){
+    return resultHistory.filter(h=>(h.kind==="video"||h.kind==="image")&&h.url)
+        .map(h=>({id:h.id,kind:h.kind,url:mediaSrcOf(h),name:h.name,
+                  title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}));
+}
+function buildLegacyHistoryItem(h){
+    const item=document.createElement("div"); item.className="h-item";
+    const thumb=document.createElement("div"); thumb.className="h-thumb";
+    const src=mediaSrcOf(h);
+    if(h.kind==="video"){
+        const v=document.createElement("video"); v.preload="metadata"; v.muted=true; v.src=src; thumb.appendChild(v);
+        thumb.title="点击预览（视频）";
+    }else{
+        const img=document.createElement("img"); img.loading="lazy"; img.src=src; img.alt=h.name||"历史结果"; thumb.appendChild(img);
+        img.addEventListener("error",()=>{
+            if(img.dataset.retry) return;
+            img.dataset.retry="1";
+            const better=resultUrlForHistory(h);
+            const next=better||comfyViewUrl(mediaFileName(h.url||h.name||""));
+            if(next&&next!==img.src){ h.url=next; img.src=next; scheduleSave(); }
+        });
+        thumb.title="点击预览（图片）";
+    }
+    thumb.addEventListener("click",e=>{
+        e.stopPropagation();
+        const seq=legacyMediaSeq(), i=seq.findIndex(s=>s.id===h.id);
+        if(i<0){ openLightbox({kind:h.kind,url:src,name:h.name,title:(h.kind==="video"?"历史视频 · ":"历史图片 · ")+fmtTime(h.ts)}); return; }
+        openLightbox(Object.assign({},seq[i],{seq:seq,index:i}));
+    });
+    item.appendChild(thumb);
+    const meta=document.createElement("div"); meta.className="h-meta";
+    const nm=document.createElement("div"); nm.className="h-name"; nm.textContent=h.name||(h.kind==="video"?"视频":"图片"); nm.title=nm.textContent;
+    const tm=document.createElement("div"); tm.textContent=fmtTime(h.ts)+" · "+(h.engine==="comfyui"?"ComfyUI":"API")+(h.prompt?(" · "+h.prompt.slice(0,26)):"");
+    tm.title=h.prompt||"";
+    const acts=document.createElement("div"); acts.className="h-acts";
+    const dl=document.createElement("button"); dl.className="mini-btn cyan"; dl.textContent="下载";
+    dl.addEventListener("click",e=>{ e.stopPropagation(); downloadUrl(src,h.name||("manflows_"+(h.kind==="video"?"video.mp4":"image.png")),{userClick:true}); });
+    const del=document.createElement("button"); del.className="mini-btn"; del.textContent="删除";
+    del.addEventListener("click",e=>{
+        e.stopPropagation();
+        resultHistory=resultHistory.filter(x=>x.id!==h.id);
+        renderLegacyHistory(); scheduleSave();
+    });
+    const ref=document.createElement("button"); ref.className="mini-btn purple"; ref.textContent="加载参考";
+    ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(Object.assign({},h,{url:src})); });
+    acts.appendChild(dl); acts.appendChild(del); acts.appendChild(ref);
+    meta.appendChild(nm); meta.appendChild(tm); meta.appendChild(acts);
+    item.appendChild(meta);
+    return item;
+}
+function renderLegacyHistory(){
+    const grid=el("legacyHistoryGrid"), cnt=el("legacyHistoryCount");
+    if(!grid) return;
+    if(repairHistoryMedia()) scheduleSave();
+    grid.innerHTML="";
+    if(cnt) cnt.textContent=resultHistory.length?("共 "+resultHistory.length+" 条 · 原样视图"):"";
+    if(!resultHistory.length){
+        const t=document.createElement("div"); t.className="history-empty";
+        t.textContent="还没有生成记录：在画布里跑一次生成，成功后图片 / 视频会自动记到这里。";
+        grid.appendChild(t); return;
+    }
+    resultHistory.forEach(h=>grid.appendChild(buildLegacyHistoryItem(h)));
+}
+function openLegacyHistory(){
+    renderLegacyHistory();
+    el("legacyHistoryPanel").classList.add("show");
+}
+function closeLegacyHistory(){
+    el("legacyHistoryPanel").classList.remove("show");
 }
 function paintSelection(){
     document.querySelectorAll(".node").forEach(x=>x.classList.toggle("selected",selectedIds.has(x.dataset.id)));
@@ -5618,6 +5802,7 @@ async function cvRunGenerateNow(n){
         setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):"")+inj,"ok");
         /* 只重建本次的结果节点：其它结果节点的视频/图片保持原样，不重新加载播放 */
         refreshNodeDom(r.id); scheduleSave();
+        if(el("legacyHistoryPanel").classList.contains("show")) renderLegacyHistory();
     }catch(e){
         console.error(e);
         const r=resultNodeFor(n);
@@ -5851,6 +6036,10 @@ function bindToolbar(){
         renderHistory(); scheduleSave(); setStatus("已清空「"+docTabName(d)+"」的素材","ok");
     });
     el("historyPanel").addEventListener("click",e=>{ if(e.target===el("historyPanel")) closeHistory(); });
+    /* 原ComfyUI生成：旧版历史结果原样视图 */
+    el("legacyHistoryBtn").addEventListener("click",openLegacyHistory);
+    el("legacyHistoryCloseBtn").addEventListener("click",closeLegacyHistory);
+    el("legacyHistoryPanel").addEventListener("click",e=>{ if(e.target===el("legacyHistoryPanel")) closeLegacyHistory(); });
     /* 左侧栏可折叠面板：点标题展开 / 收起 */
     document.querySelectorAll(".card.collapsible h2.card-toggle").forEach(h=>{
         h.addEventListener("click",()=>h.parentElement.classList.toggle("collapsed"));
