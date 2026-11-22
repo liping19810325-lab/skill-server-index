@@ -64,6 +64,8 @@
         .param-token-row > label { width: 100%; }
         .token-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .token-row input[type="number"] { flex: 0 0 auto; }
+        .token-row select { flex: 1 1 220px; min-width: 0; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; }
+        .token-row select:focus { border-color: var(--blue); }
         .token-quick-group { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
         .token-quick-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
         .token-quick-btn.active:hover { background: #1d4ed8; }
@@ -485,6 +487,17 @@
                 <div class="param-item param-token-auto" id="tokenAutoRow" style="display:none">
                     <label>上下文长度：跟随所选模型（自适应）</label>
                     <div class="token-auto-hint">已选「漫流算力 / 第三方API」：这类模型的上下文普遍 256K 以上、甚至 1M（如 deepseek v4pro、gml5.3 等）。本站不再用本地显卡的 32K / 64K / 128K / 256K / 1M 档位去限制它，也<b>不向接口发送 max_tokens</b>，由所选模型与服务商按自身上限自适应；切回「本机算力」会恢复并保留你上次设定的数字。</div>
+                </div>
+                <div class="param-item param-token-row" id="thinkingRow">
+                    <label>推理思考（thinking，仅「本机算力」生效；Qwen3 / DeepSeek-R1 等推理模型可开启）：</label>
+                    <div class="token-row">
+                        <select id="thinkingSel" title="控制请求里的 chat_template_kwargs.enable_thinking 字段；不支持该字段的服务端会自动去掉后重试">
+                            <option value="off">关闭思考（默认，直接拿正文）</option>
+                            <option value="on">开启思考（模型先推理再回答）</option>
+                            <option value="omit">不发送该字段（完全按服务端默认）</option>
+                        </select>
+                    </div>
+                    <div class="token-auto-hint">推理模型开启思考会先输出一段「思维链」再给正文，占用更多上下文 token；模型上下文较小时建议保持「关闭思考」，否则更容易触发上下文超限。</div>
                 </div>
                 <div class="param-note fold-hint">
                     提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
@@ -987,8 +1000,10 @@ function applyTokenModeUI(){
     const isLocal = computeMode === "local";
     const row = document.getElementById("tokenRow");
     const auto = document.getElementById("tokenAutoRow");
+    const think = document.getElementById("thinkingRow");
     if(row) row.style.display = isLocal ? "flex" : "none";
     if(auto) auto.style.display = isLocal ? "none" : "flex";
+    if(think) think.style.display = isLocal ? "flex" : "none";   /* thinking 参数仅本机算力发送 */
 }
 function initComputeModeUI(){
     if(computeMode === "api") radioApi.checked = true;
@@ -2649,6 +2664,19 @@ let localDetectRunning = false;
    reasoning_content、把 content 留空。请求里关掉 thinking 才能拿到正文；
    不支持该字段的服务端会直接忽略它，行为与原来完全一致（400 时另有回退）。 */
 const MF_NO_THINK = { chat_template_kwargs: { enable_thinking: false } };
+/* 推理思考模式（仅本机算力）：off=关闭（默认，等价 MF_NO_THINK）；on=开启推理；omit=不发该字段。
+   默认关闭，保证原有非推理模型行为完全不变；用户可按模型能力自由切换。 */
+const STORAGE_KEY_THINKING = "manflows_thinking_mode";
+function mfThinkingMode(){
+    const v = (typeof safeStorage!=="undefined" && safeStorage.get(STORAGE_KEY_THINKING)) || "off";
+    return (v==="on" || v==="omit") ? v : "off";
+}
+function mfThinkingFields(){
+    const m = mfThinkingMode();
+    if(m==="on") return { chat_template_kwargs: { enable_thinking: true } };
+    if(m==="omit") return {};
+    return MF_NO_THINK;   /* off：默认关闭思考，直接拿正文 */
+}
 /* 视觉实测用图：一张 240x160 的图，上方蓝天+红色圆日、下方绿地。
    模型若能正确识图，描述里通常会出现「蓝/红/绿/天空/太阳/草/旗」等词；
    以此作为端到端识图是否真正可用的判据（比只读配置更可靠）。 */
@@ -3324,8 +3352,8 @@ async function sendMessage(autoSourceText) {
         fetchUrl = mfChatUrl(mfCurrentBase());
         fetchHeaders = { "Content-Type":"application/json" };
         // 留空时保持原来的 "local"，兼容 llama-server / Ollama 默认行为
-        // 关闭 thinking：推理型模型否则只吐思维链、content 恒为空（Windows 上不支持该字段的服务端会忽略它）
-        bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true, ...MF_NO_THINK };
+        // thinking 模式由「推理思考」开关决定（默认关闭=MF_NO_THINK；可被服务端拒绝后自动降级重试）
+        bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true, ...mfThinkingFields() };
     } else {
         fetchUrl = inpEndpoint.value.trim();
         fetchHeaders = { "Content-Type":"application/json", "Authorization":`Bearer ${inpKey.value.trim()}` };
@@ -3357,10 +3385,22 @@ async function sendMessage(autoSourceText) {
             }
             if(!response) throw netErr;
         }
-        /* 400 分类处理：先读一次错误正文（后面报错复用），区分两种可恢复情况 */
+        /* 400 分类处理：先读一次错误正文（后面报错复用），区分几种可恢复情况 */
         let errText = "";
         if(!response.ok && response.status === 400){
             try{ errText = await response.text(); }catch(e){}
+        }
+        /* ⓪ 上下文超限（换小上下文模型时最常见）：必须优先识别，并直接给出可操作提示。
+             关键：这段要放在 thinking 降级之前——否则任何 400（含 context 超限）都会被
+             误判成"不接受 thinking 参数"，误导用户（换 MoE 模型后真实原因是 n_ctx 太小）。 */
+        const isCtxOverflow = !!errText && /exceed_context_size_error|exceeds\s+the\s+available\s+context|context\s+(?:size|length|window)|n_ctx|too\s+long|maximum\s+context/i.test(errText);
+        if(!response.ok && response.status === 400 && isCtxOverflow){
+            const pt  = (errText.match(/n_prompt_tokens"\s*:\s*(\d+)/)||[])[1];
+            const nc  = (errText.match(/n_ctx"\s*:\s*(\d+)/)||[])[1];
+            const req = (errText.match(/request\s*\((\d+)\s*tokens\)/i)||[])[1] || pt;
+            append("❌ 上下文超限：本次请求约 " + (req||"?") + " tokens，超过模型上下文 " + (nc||"?") + " tokens。", "err");
+            append("ℹ️ 这通常是新换的模型上下文比旧模型小导致的，不是 thinking 参数的问题。可任选其一解决：① 在模型软件里把上下文窗口（ctx-size / n_ctx）调大到 32768 或以上，重新加载模型；② 减少「附加剧本素材」勾选的文件、缩短指令；③ 把本页「上下文窗口 token」调大后重试（部分本机服务据此分配 n_ctx）；④ 关闭模型的推理思考模式以减少 token 占用。", "tip");
+            return;
         }
         /* ① model not found：浏览器里残留了已失效的旧模型名（换模型前的缓存）。
              自动从桥接 /health 取当前真正加载的 defaultModel，纠正后重发一次。 */
@@ -3385,7 +3425,7 @@ async function sendMessage(autoSourceText) {
             const plain = Object.assign({}, bodyObj);
             delete plain.chat_template_kwargs;
             bodyObj = plain;
-            append("ℹ️ 本机服务不接受 thinking 参数，已按原方式重试", "tip");
+            append("ℹ️ 本机服务不接受 thinking 参数，已去掉该字段重试；若仍失败，可在上方「推理思考」改选「不发送该字段」以固定避开", "tip");
             response = await mfPost(fetchUrl, bodyObj);
             errText = "";
             if(!response.ok && response.status === 400){ try{ errText = await response.text(); }catch(e){} }
@@ -3522,6 +3562,20 @@ function initUI(){
     highlightTokenBtn(maxTokenInput.value);
     maxTokenInput.addEventListener("input", ()=> highlightTokenBtn(maxTokenInput.value));
     maxTokenInput.addEventListener("change", ()=> highlightTokenBtn(maxTokenInput.value));
+
+    // 推理思考（thinking）开关：仅本机算力，三态持久化
+    const thinkingSel = document.getElementById("thinkingSel");
+    if(thinkingSel){
+        thinkingSel.value = mfThinkingMode();
+        thinkingSel.addEventListener("change", ()=>{
+            const v = thinkingSel.value;
+            try{ safeStorage.set(STORAGE_KEY_THINKING, v); }catch(e){}
+            const tips = { off:"已设为「关闭思考」：请求带 enable_thinking:false，直接拿正文（推荐，最省上下文）",
+                           on:"已设为「开启思考」：推理模型会先输出思维链再答，占更多上下文；如服务端不支持会自动重试",
+                           omit:"已设为「不发送该字段」：完全按服务端默认的思考模式" };
+            append("ℹ️ " + (tips[v]||""), "tip");
+        });
+    }
 
     // 推理参数展开收起（原有功能，保留）
     const toggleParamBtn = document.querySelector('.toggle-param-btn');
