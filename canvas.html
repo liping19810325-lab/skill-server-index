@@ -209,12 +209,16 @@
     .h-col-head{display:flex;align-items:center;gap:7px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12.5px;font-weight:600;}
     .h-col-head .dot{width:8px;height:8px;border-radius:50%;flex:none;}
     .h-col-head .col-count{margin-left:auto;color:var(--text2);font-weight:400;font-size:11px;}
-    .h-col-body{flex:1;min-height:0;overflow:auto;padding:9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px;align-content:start;}
+    .h-col-body{flex:1;min-height:0;overflow:auto;padding:9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));grid-auto-rows:max-content;gap:9px;align-content:start;}
     .h-col-empty{grid-column:1/-1;color:var(--text2);font-size:11px;text-align:center;padding:26px 0;}
     .history-grid{display:none;}
     /* 历史结果总览库内的「原生成结果」：和旧版历史结果一样的网格 */
     .history-raw-grid{display:none;padding:14px;overflow:auto;align-content:start;}
-    .history-raw-grid.show{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;}
+    /* grid-auto-rows:max-content 关键：容器在 flex 列里高度受限时，grid 默认会把行高均分压缩
+       （曾出现行高仅 59px、卡片实际 261px，行与行重叠 190px，较晚绘制的卡片盖住前面卡片的
+       meta，表现为"按时间分层、只有最后一行显示信息和按钮"）。max-content 让行高由卡片内容
+       撑开，配合卡片 align-self:start / flex:0 0 auto，滚动容器正常滚动而非重叠。 */
+    .history-raw-grid.show{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));grid-auto-rows:max-content;gap:12px;}
     .history-raw-grid .h-thumb{height:190px;}
     .history-raw-grid .h-item{background:var(--panel);}
     .history-mode-switch{display:inline-flex;gap:4px;margin-left:6px;}
@@ -224,13 +228,16 @@
     /* 卡片高度完全由内容撑开：align-self:start + 不伸缩，避免 grid 行高在不同平台压缩卡片
        （Windows 上曾导致下面的 h-meta 连同按钮被 overflow:hidden 裁掉、只剩图片）。 */
     .h-item{border:1px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;position:relative;flex:0 0 auto;align-self:start;height:auto;}
-    /* 缩略图：图片用绝对定位铺满容器，脱离 flex 流——避免 flex item 的 height:100% 在部分浏览器
-       被解析成 auto、横图按固有比例缩成矮图而在上方留出大块黑边。object-fit:contain 居中显示，
-       留白用与面板一致的深色（而非纯黑），跨平台一致。 */
-    .h-thumb{flex:0 0 auto;height:168px;background:var(--panel,#0f1420);cursor:zoom-in;overflow:hidden;position:relative;}
-    .h-thumb img,.h-thumb video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;display:block;}
-    /* meta 固定不被压缩；字号从 6px 提到 8px —— 6px 在 Windows 默认字体渲染下几乎不可读，看起来像整体消失。 */
-    .h-meta{flex:0 0 auto;padding:5px 7px 6px;font-size:8px;line-height:1.4;color:var(--text2);display:flex;flex-direction:column;gap:3px;}
+    /* 缩略图：普通 block 容器 + 图片 width/height:100% + object-fit:contain 居中。
+       关键：容器用 block（不是 flex/grid），因为 flex/grid item 的 height:100% 在部分浏览器
+       （尤其 Windows 上的 Chromium）会被解析成 auto，导致横图缩成矮图留黑边、或绝对定位图片
+       溢出容器盖住相邻卡片。block 容器里 height:100% 相对固定高度父元素稳定解析，图片被
+       overflow:hidden 严格限制在缩略图内，绝不外溢遮挡其它卡片或 meta。留白用面板深色而非纯黑。 */
+    .h-thumb{flex:0 0 auto;height:168px;background:var(--panel,#0f1420);cursor:zoom-in;overflow:hidden;position:relative;display:block;}
+    .h-thumb img,.h-thumb video{display:block;width:100%;height:100%;object-fit:contain;object-position:center;}
+    /* meta 固定不被压缩；层级保底：即使图片因极端渲染差异意外溢出，meta 也始终盖在图片之上不被遮挡。
+       字号从 6px 提到 8px —— 6px 在 Windows 默认字体渲染下几乎不可读，看起来像整体消失。 */
+    .h-meta{flex:0 0 auto;position:relative;z-index:2;padding:5px 7px 6px;font-size:8px;line-height:1.4;color:var(--text2);display:flex;flex-direction:column;gap:3px;}
     .h-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
     .h-acts{display:flex;gap:3px;flex-wrap:nowrap;align-items:center;}
     .h-acts .mini-btn{padding:3px 6px;font-size:9px;white-space:nowrap;}
