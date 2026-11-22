@@ -6219,6 +6219,23 @@ function rippleMainTrack(){
         cursor=c.start+c.duration;
     });
 }
+/* 跨轨道入主轨时，把落点吸附到主轨已有素材的「端点（两端之间）」——素材的起点或末尾。
+   这样插入点一定落在素材之间的边界，而不是某段素材的内部；否则新片段会与该素材的后段
+   在时间轴上重叠：DOM 里新片段盖住旧片段（看着像"旧素材被吃掉"），但旧片段数据没变、
+   播放仍照常按它自己的区间播——这就是"覆盖假象"。吸附后再让后面的素材整体后移即可。
+   excludeIds 是正在被拖入的片段，不参与吸附参照。 */
+function snapToMainBoundary(pos, excludeIds){
+    const mid=mainVideoTrackId(); if(!mid) return pos;
+    const ex=excludeIds||[];
+    const pts=[0];   /* 时间轴 0 也是一个合法边界 */
+    state.clips.forEach(o=>{
+        if(o.track!==mid || ex.indexOf(o.id)>=0) return;
+        pts.push(o.start, o.start+o.duration);
+    });
+    let best=pos, bd=Infinity;
+    pts.forEach(p=>{ const d=Math.abs(p-pos); if(d<bd){ bd=d; best=p; } });
+    return +best.toFixed(4);
+}
 /* 落点让位后移（波纹插入）：仅在主视频轨（视频1）上生效——把落点 dropAt 及其之后的主轨片段
    （不在 excludeIds 里、且主轨未锁定）整体后移 span 秒，为插入的片段 / 片段组腾出连续空位。
    其它轨道（视频2+、音频、字幕、图片、LUT）一律不参与让位、不会被后移：
@@ -9628,9 +9645,20 @@ function wire(){
                同轨水平移动需确有位移；跨轨换轨成功即视为落位。裁剪手柄 / 原地点击不触发。 */
             let didInsert=false;
             if(!resize && !resizeL && isMainTrack(landedTrack)){
-                const newLeft=groupDrag
+                let newLeft=groupDrag
                     ? Math.min.apply(null,dragIds.map(id=>{const o=clipById(id);return o?o.start:Infinity;}))
                     : c.start;
+                /* 跨轨落到主轨：先把落点吸附到主轨已有素材的端点（两端之间），保证插入不覆盖任何
+                   原素材；再把被拖片段（组）整体平移到吸附点，让位以此处为准。
+                   同轨水平拖动不吸附——保留原来的自由落点 + 磁吸行为。 */
+                if(crossMoved){
+                    const snapAt=snapToMainBoundary(newLeft,dragIds);
+                    const delta=+(snapAt-newLeft).toFixed(4);
+                    if(Math.abs(delta)>0.0005){
+                        dragIds.forEach(id=>{ const o=clipById(id); if(o) o.start=+Math.max(0,o.start+delta).toFixed(4); });
+                        newLeft=snapAt;
+                    }
+                }
                 const needPlace=crossMoved || Math.abs(newLeft-groupStart)>0.06;
                 if(needPlace){
                     const span=groupDrag?groupSpan:dur0;
