@@ -34,7 +34,8 @@ button{cursor:pointer;}
 .brand{display:flex;align-items:center;gap:8px;margin-right:6px;}
 .brand-text h1{font-size:15px;font-weight:600;color:#fff;line-height:1.3;white-space:nowrap;}
 .brand-text p{font-size:10px;color:var(--muted);line-height:1.5;}
-.date-chip{font-size:11px;color:#a7f3d0;background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:5px 9px;white-space:nowrap;}
+.date-chip{font-size:11px;color:#a7f3d0;background:var(--panel);border:1px solid var(--border2);border-radius:8px;padding:5px 9px;white-space:nowrap;cursor:pointer;max-width:260px;overflow:hidden;text-overflow:ellipsis;}
+.date-chip:hover{border-color:#34d399;color:#fff;}
 .tb-btn,.nav-btn{padding:4px 8px;border:1px solid var(--border2);border-radius:8px;font-size:11px;min-height:32px;line-height:1.35;background:var(--panel);color:var(--text);white-space:nowrap;}
 .tb-btn:hover{background:var(--hover);}
 .nav-btn{background:var(--purple);border-color:transparent;color:#fff;}
@@ -399,9 +400,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .lut-manager .hint{line-height:1.55;}
 .lut-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
 .lut-canvas[hidden]{display:none;}
-.track-label{width:118px;flex:0 0 118px;position:sticky;left:0;z-index:5;background:#22262d;border-right:1px solid #0b0d12;display:flex;flex-direction:column;justify-content:center;padding:0 5px;gap:2px;}
+.track-label{width:172px;flex:0 0 172px;position:sticky;left:0;z-index:5;background:#22262d;border-right:1px solid #0b0d12;display:flex;flex-direction:column;justify-content:center;padding:0 6px;gap:2px;}
 .tl-head{display:flex;align-items:center;gap:2px;min-width:0;}
-.track-label .tl-name{font-size:10.5px;color:#d5dbe5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;}
+.track-label .tl-name{font-size:10.5px;color:#d5dbe5;white-space:nowrap;flex:1 1 auto;min-width:0;overflow:visible;}
 .tl-ops{display:flex;gap:1px;flex-shrink:0;}
 .tl-ops button{border:none;background:#303641;color:#aab4c2;border-radius:3px;width:15px;height:15px;font-size:10px;line-height:1;padding:0;cursor:pointer;}
 .tl-ops button:hover{background:#4b5563;color:#fff;}
@@ -409,7 +410,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .tl-ops button.tk-eye.on{background:#d97706;color:#fff;}
 .tl-ops button.tk-vol.on{background:#dc2626;color:#fff;}
 .tl-ops button.tkdel:hover{background:var(--red);}
-.track-label .tl-sub{font-size:9px;color:#7f8a9b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px;}
+.track-label .tl-sub{font-size:9px;color:#7f8a9b;white-space:nowrap;display:flex;align-items:center;gap:3px;overflow:visible;}
 .track-label .tl-sub .tl-ops{margin-left:auto;}
 .track-label .tl-bar{height:3px;width:26px;border-radius:2px;}
 /* 视觉轨名称可按住上下拖动调整层级（字幕恒顶/音频恒底不参与） */
@@ -761,7 +762,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             </a>
             <div class="brand-text"><h1>漫流 AI 剪辑台</h1><p>Manflows · AI Auto Editing</p></div>
         </div>
-        <span class="date-chip" id="dateChip">当天工程</span>
+        <span class="date-chip" id="dateChip">📁 项目</span>
         <div class="tb-sep"></div>
         <button class="nav-btn" id="navIndex" title="打开漫流编导创作台">← 编导创作台</button>
         <button class="nav-btn" id="navCanvas" title="返回漫流导演画布">← 返回画布</button>
@@ -968,7 +969,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div id="subStyleBox"></div>
             </div>
             <div class="card" hidden>
-                <h2>当天工程</h2>
+                <h2>当前项目</h2>
                 <div class="kv" id="projInfo"></div>
                 <div class="row"><button class="mini-btn gray" id="exportProject" style="flex:1">⬇ 导出工程 JSON</button></div>
             </div>
@@ -1116,7 +1117,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <p>剪辑台同时监听 <code>BroadcastChannel("manflows_ai_editor")</code>、<code>storage</code> 收件箱与 <code>postMessage</code>，也暴露了 <code>window.ManflowsAIEditor.receiveFromCanvas(payload)</code> 供直接调用。本地单文件预览与线上站点不同源，读不到线上画布数据时可用「模拟转入」查看效果；部署到 www.manflows.com 同目录后即自动读得到。</p>
             <h2>⑧ 本轮新增：工作区 / 导出成片 / 调整栏 / 素材预览 / 缩放 / URL 解析</h2>
             <ul>
-                <li><b>新建工程 / 工作区（合并）</b>：顶栏「➕ 新建工程」点开即是一个弹窗，上半部分「新建空白工程」在新标签页开一个全新空白剪辑台，下半部分「工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「历史工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。静态站点没有账号体系，工作区是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
+                <li><b>新建项目 / 工作区（合并）</b>：顶栏「➕ 新建工程」点开即是一个弹窗，上半部分填<b>项目名称</b>后「新建项目」在新标签页开一个全新空白剪辑台（同一天可建多个、各自独立保存），下半部分「工作区」可新建 / 切换 / 重命名 / 删除工作区。每个工作区的<b>工程、素材、布局</b>完全独立，切换后「历史工程」只列本工作区的工程；首次打开自动落在「我的工作区」，旧工程原样保留不会丢。静态站点没有账号体系，工作区是分目录级隔离而非加密，敏感内容请勿共用浏览器配置文件。</li>
                 <li><b>⬆ 导出成片</b>：顶栏「漫流主站」左侧。弹窗按剪映导出窗口布局：标题、导出至、封面，以及「视频导出 / 音频导出 / GIF 导出 / 字幕导出」四个可勾选区块。左侧封面按<b>工程实际画幅比例</b>自适应（与导出分辨率取自同一个预览画幅，横版 / 竖版都不再被压成 3:4 竖图）。视频区块只保留真实生效的参数：分辨率、格式、帧率、视频码率、视频编码、网络播放优化、色彩空间；原先的「一键超清」「补分辨率」两个开关没有任何前后端实现，属于无效装饰，已移除。底部有时长与大小估计、进度条。原「⬇ 导出字幕 SRT」按钮已移除，字幕改为在弹窗里单独勾选导出 SRT / VTT（UTF-8）。<b>能生效的参数真实生效</b>：分辨率 / 帧率 / 格式 / 字幕始终可用；MOV、HEVC、Apple ProRes、AV1、MP3 / M4A、GIF 需要本机 ffmpeg，未启用时会在状态和提示里如实标注并自动降级为浏览器 MP4 / WAV。<br><b>倒放 / 变速是真渲染</b>：预览可临时模拟（反向播放头 / playbackRate），导出前会由本机 FFmpeg 对每个相关片段分段重新解码、重排帧顺序、重算 PTS、对音频做时间拉伸保音调，再重编码成中间片参与合成；支持 0.25x～5x，倒放与变速可叠加，长视频按 2 秒分段处理避免内存溢出，进度条会显示每一段。<br><b>字幕烧录</b>：视频区块的「烧录字幕」默认开启，导出时把字幕轨交给本机 FFmpeg 的 libass 滤镜真正写进画面像素（硬字幕，支持中文），不依赖播放器外挂；关闭则只输出画面，可另在「字幕导出」里单独拿 SRT / VTT。<b>防爆音</b>：导出真渲染时每个片段首尾各加 30ms 淡入淡出，消除AI剪口播切段拼接处的爆音，预览逻辑不受影响。</li>
                 <li><b>本机小服务（Mac / Windows 通用，可选）</b>：点此直接下载（<b>点链接即直接下载，勿用另存为网页</b>）—— <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('all_mac',event)" title="一键启动8788+9000，Mac">⬇ 一键启动全部·Mac（推荐）</a> · <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8%E5%85%A8%E9%83%A8%E6%9C%8D%E5%8A%A1.bat" onclick="svcDownload('all_win',event)" title="一键启动8788+9000，Windows">⬇ 一键启动全部·Win（推荐）</a>；仅需单个服务：<a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.command" onclick="svcDownload('mac',event)">Mac</a> / <a class="svc-dl" href="https://raw.githubusercontent.com/liping19810325-lab/skill-server-index/main/%E5%90%AF%E5%8A%A8%E6%9C%AC%E6%9C%BA%E6%9C%8D%E5%8A%A1.bat" onclick="svcDownload('win',event)">Win</a>。下载后双击即可在本机 <code>127.0.0.1:8788</code> 起一个纯 Python 标准库服务，零 pip 依赖、只监听本机、不上传任何素材。它负责两件事：① 把抖音 / B站等分享链接解析成可播放直链并代理视频流（带 CORS 与 Referer 处理）；② 调用本机 ffmpeg（Mac 走 VideoToolbox 硬件编码）输出 MP4 / MOV 与 H.264 / HEVC / ProRes / AV1。服务没启动时网页自动降级：链接给出明确原因、导出用浏览器自带编码。<b>ffmpeg 官方下载</b>：Mac <code>https://brew.sh/</code> 后 <code>brew install ffmpeg</code>，或静态版 <code>https://evermeet.cx/ffmpeg/</code>；Windows <code>https://www.gyan.dev/ffmpeg/builds/</code>。服务启动时会检测并给出对应链接。<br><b>每位用户用自己电脑上的 FFmpeg</b>：Windows 可 <code>winget install --id Gyan.FFmpeg</code> 或下载 <code>https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip</code>，Mac 用 <code>brew install ffmpeg</code>，Linux 用 <code>sudo apt install ffmpeg</code>；服务也会按需自动下载静态版到 <code>~/.manflows/bin/</code>。仓库里的 <code>render_verify.py</code> 是 10 秒短视频验证用例，可直接跑出倒放与各档变速的实测结果。</li>
                 <li><b>粘贴在线 URL 不再黑屏</b>：现在会区分「媒体直链 / 网页分享链接 / 纯文字」。网页链接交给本机服务解析，解析失败明确提示是防盗链、跨域、需要直链或服务未启动，<b>不会再生成一个全黑无声的视频素材</b>；媒体直链正常播放；纯文字仍存成文本素材。</li>
@@ -1128,13 +1129,13 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     · <b>变速</b>＝常规变速 0.25x–4x（自动重算片段时长）、<b>曲线变速</b> 6 组预设（蒙太奇 / 英雄时刻 / 子弹时间 / 跳接 / 闪进 / 闪出）、<b>声音变调开关</b>；曲线变速按片段内进度分段调速，预览与导出同步。<br>
                     · <b>调色LUT</b>＝亮度 / 对比度 / 饱和度 / 曝光 / 光感 / 高光 / 阴影 / 色温 / 色调 / 锐化 / 褪色 / 模糊 / 暗角 / 颗粒，共 14 项滑块 + 12 组滤镜预设；前 12 项走浏览器 CSS/canvas 滤镜链，<b>暗角与颗粒</b>用预览叠加层与导出画布同步绘制。说明：浏览器滤镜是<b>视觉近似模拟</b>，与剪映的自研调色算法不等价；锐化为对比度微增近似。<br>
                     · <b>字幕</b>＝文字 / 字号 / 颜色 / 描边 / 位置 / 对齐 / 字体 / 加粗，另补<b>不透明度、斜体、文字阴影、字幕背景色与背景不透明度、字间距、行高</b>，并保留整条字幕轨的列表管理。所有参数可 <code>Ctrl+Z</code> 撤销、导出时一并生效。</li>
-                <li><b>🕘 历史工程</b>：原「打开工程」与「历史工作区」已合并为一个，就放在原「打开工程」位置（快捷键 Ctrl/⌘ + O 同样打开它）。点开按保存时间倒序列出<b>本工作区跨所有日期做过的剪辑工程</b>，显示片段数、素材数与保存时间，点「打开」直接切回去继续剪（切换前自动保存当前工程），点「备份」导出单份 JSON。底部还能新建空白工程。严格只列本工作区，不会串到别人那里。</li>
-                <li><b>首次打开是空白工程</b>：素材库与所有轨道都不再自动塞入演示图片、演示音频和演示字幕，导入你自己的文件再开始剪；已有自动保存的工程完全不受影响，仍会自动恢复。</li>
+                <li><b>🕘 历史工程</b>：原「打开工程」与「历史工作区」已合并为一个，就放在原「打开工程」位置（快捷键 Ctrl/⌘ + O 同样打开它）。点开按保存时间倒序列出<b>本工作区做过的全部项目</b>（按项目名，不再按天），显示片段数、素材数与保存时间，点「打开」直接切回去继续剪（切换前自动保存当前工程），点「备份」导出单份 JSON。严格只列本工作区，不会串到别人那里。</li>
+                <li><b>首次打开是空白项目</b>：素材库与所有轨道都不自动塞入演示素材，导入你自己的文件再开始剪；已有自动保存的项目完全不受影响，重开会自动恢复。</li>
                 <li><b>对照剪映 6.0.1 补齐基础参数</b>：解析剪映绿色版安装包里的 <code>zh-Hans.po</code>（11,071 条中文 UI 文案）与 <code>DefaultAdjustBundle</code>（33 个调色模块），只借鉴普通功能面板，排除全部需登录 / 火山云的 VIP 项。调整栏五个面板补到：基础调整加不透明度 / 画布背景 / 90° 快捷旋转；动画加组合动画 / 8 向方向 / 缓动快慢；变速加常规-曲线切换与 6 组曲线预设 / 声音变调；调色 LUT 加到 16 项滑块与 12 组预设；字幕加不透明度 / 斜体 / 阴影 / 背景 / 字间距 / 行高。全部真实生效、写进工程存档、可撤销、导出同步。</li>
                 <li><b>AI 字幕改走本机服务</b>：解决了浏览器直连第三方接口被 CORS 拦截的 <code>Failed to fetch</code>、以及大视频无法整体塞给多模态模型的问题；详见第 ④ 节。</li>
             </ul>
-            <h2>⑨ 当天工程与自动保存</h2>
-            <p>工程按日期自动命名（如 <code>2026-11-16</code>），轨道、字幕与素材自动存在本机。<b>「💾 保存工程」</b>（Ctrl/⌘ + S）会弹出窗口，让你<b>输入自定义文件名</b>并选保存方式：①「📁 选择保存位置」弹出系统窗口，可挑任意文件夹并改名（Chrome / Edge 支持）；②「⬇ 下载到默认文件夹」按输入的文件名存到浏览器下载目录。两种方式都会先把工程存进本机存档，历史工程里随时能切回；自定义名字会作为工程名显示在历史列表里。<b>「🕘 历史工程」</b>（Ctrl/⌘ + O，原「打开工程」位置）合并了原「打开工程」与「历史工作区」，按保存时间倒序列出本工作区做过的全部工程，显示片段数、素材数与保存时间，点「打开」切回、点「备份」导出单份 JSON、底部还能新建空白工程。<b>没点保存直接关网页也不会丢</b>：关页 / 切到后台 / 刷新都会立即自动写盘一次，配合编辑后 0.7 秒自动保存。</p>
+            <h2>⑨ 项目与自动保存</h2>
+            <p>工程<b>按项目</b>管理，不再按天：点顶栏「➕ 新建工程」给项目起名，同一天可以建<b>几十上百个独立项目</b>，各自保存、互不覆盖；顶栏的<b>项目名称可点击改名</b>。轨道、字幕与素材自动存在本机，<b>强制刷新 / 关页 / 切后台都会立即落盘，重开自动回到上次正在编辑的项目</b>。<b>「💾 保存工程」</b>（Ctrl/⌘ + S）会弹出窗口，让你<b>输入自定义文件名</b>并选保存方式：①「📁 选择保存位置」弹出系统窗口，可挑任意文件夹并改名（Chrome / Edge 支持）；②「⬇ 下载到默认文件夹」按输入的文件名存到浏览器下载目录。两种方式都会先把工程存进本机存档，历史工程里随时能切回；自定义名字会作为工程名显示在历史列表里。<b>「🕘 历史工程」</b>（Ctrl/⌘ + O，原「打开工程」位置）合并了原「打开工程」与「历史工作区」，按保存时间倒序列出本工作区做过的全部工程，显示片段数、素材数与保存时间，点「打开」切回、点「备份」导出单份 JSON、底部还能新建空白工程。<b>没点保存直接关网页也不会丢</b>：关页 / 切到后台 / 刷新都会立即自动写盘一次，配合编辑后 0.7 秒自动保存。</p>
             <h2>⑩ 之前一轮的功能（仍在）</h2>
             <ul>
                 <li><b>算力总控（素材库上方）</b>：跟导演画布同款的三档单选「漫流算力 / 本机算力 / 第三方API」，点一下即切换；原来的「AI 剪辑·模型配置」「AI 字幕·语音识别」两栏已全部合并进来，只剩这三个选项。档位<b>本页独立</b>，配置数据仍与创作台 / 画布共用。漫流算力目前是占位档。</li>
@@ -1243,8 +1244,9 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="modal-box" style="width:min(560px,100%)">
         <div class="modal-head">➕ 新建工程 / 工作区<button class="mh-close" data-close="wsModal">×</button></div>
         <div class="modal-body">
-            <div class="ws-hint">点「新建空白工程」会在<b>新标签页</b>打开一个全新的空白剪辑台，不影响当前工程；当前工程照旧自动保存，可在「🕘 历史工程」里随时切回。</div>
-            <div class="row" style="margin:9px 0 14px"><button class="mini-btn green" id="newBlankProj" style="flex:1">➕ 新建空白工程（新标签页）</button></div>
+            <div class="ws-hint">给项目起个名字，点「新建项目」在<b>新标签页</b>打开一个全新的空白剪辑台；每个项目独立保存，<b>一天可以建任意多个、互不覆盖</b>，不影响当前工程，可在「🕘 历史工程」里随时切回。名字也可留空，之后点顶栏项目名随时改。</div>
+            <div class="row" style="margin:9px 0 8px"><input type="text" id="newProjName" placeholder="项目名称，例如：产品宣传片_01" style="flex:1"></div>
+            <div class="row" style="margin:0 0 14px"><button class="mini-btn green" id="newBlankProj" style="flex:1">➕ 新建项目（新标签页）</button></div>
             <div class="ws-hint">工作区：每个工作区拥有<b>独立的工程、素材与布局</b>，切换后只能看到本工作区的工程，不会看到别人的（当前：<b id="wsName">我的工作区</b>）。不同电脑、不同浏览器配置文件本来就天然互不相通。<br>说明：本站是静态网页、没有账号体系，工作区是「分目录」级隔离而不是加密；高度敏感内容请不要多人共用同一个浏览器配置文件。</div>
             <div id="wsList"></div>
             <div class="row" style="margin-top:10px"><input type="text" id="wsNewName" placeholder="新工作区名称，例如：小张的剪辑" style="flex:1"><button class="mini-btn green" id="wsCreate">＋ 新建独立工作区</button></div>
@@ -1258,7 +1260,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     <div class="modal-box" style="width:min(620px,100%)">
         <div class="modal-head">🕘 历史工程 · <span id="histWsName" style="color:var(--muted);font-size:12px"></span><button class="mh-close" data-close="histModal">×</button></div>
         <div class="modal-body">
-            <div class="ws-hint">这里按<b>保存时间倒序</b>列出<b>当前工作区做过的全部剪辑工程</b>——<b>不管是当天工程、"新建工程"还是以前的老工程，只要保存过都会自动收进这里</b>，点「打开」就能切回那一份继续剪。切换前会自动保存当前工程。<br><b>只显示本工作区</b>，不会看到其它工作区或别人的工程；要换工作区请点顶栏「➕ 新建工程」。</div>
+            <div class="ws-hint">这里按<b>保存时间倒序</b>列出<b>当前工作区做过的全部项目</b>——<b>每个项目各自独立，只要保存过都会自动收进这里</b>，点「打开」就能切回那一份继续剪。切换前会自动保存当前项目。<br><b>只显示本工作区</b>，不会看到其它工作区或别人的工程；要换工作区请点顶栏「➕ 新建工程」。</div>
             <div id="histList"></div>
             <div class="row" style="margin-top:10px"><button class="mini-btn gray" id="histRefresh">↻ 刷新列表</button><span class="hint" style="margin:0 0 0 8px">首次打开是<b>空白工程</b>：素材库与时间轴都不带任何自带素材，导入你自己的文件即可开始。</span></div>
         </div>
@@ -1636,6 +1638,12 @@ const MF_EDITOR_INBOX   = "manflows_ai_editor_inbox";
 const MF_CANVAS_DB      = "manflows_canvas_db";
 const MF_EDITOR_DB      = "manflows_ai_editor_db";
 const PROJECT_PREFIX    = "manflows_ai_editor_project_";
+/* 当前标签页正在编辑的工程 date：存 sessionStorage（每标签页独立、刷新保留、新标签页不继承），
+   用于强制刷新后原样恢复——避免「新建工程」页被重建空白、或历史老工程被冲成当天工程。
+   只存一个键名，实际存档仍按当前工作区用 safeStorage 读取，工作区之间不会串。 */
+const ACTIVE_PROJ_KEY   = "manflows_ai_editor_active_project";
+function setActiveProject(d){ try{ sessionStorage.setItem(ACTIVE_PROJ_KEY,String(d||"")); }catch(e){} }
+function getActiveProject(){ try{ return sessionStorage.getItem(ACTIVE_PROJ_KEY)||""; }catch(e){ return ""; } }
 const LAYOUT_KEY        = "manflows_ai_editor_layout";
 const AI_CFG_KEY        = "manflows_ai_editor_ai_cfg";
 const ED_COMPUTE_KEY    = "computeMode_editor";
@@ -4318,6 +4326,10 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function nz(v,d){ const n=Number(v); return Number.isFinite(n)?n:(d===undefined?0:d); }
 function round3(x){ return Math.round((Number(x)||0)*1000)/1000; }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+/* 新项目键：按项目而非按天，同一天可建任意多个互不覆盖的项目（P + 毫秒时间戳 + 随机尾） */
+function newProjectKey(){ return "P"+Date.now()+"_"+Math.random().toString(36).slice(2,6); }
+/* 项目显示名：优先用户自定义名称，旧工程回退到日期标签 */
+function projectName(){ return String(state.projName||"").trim()||projLabel(state.date); }
 function fmt(t){ t=Math.max(0,Number(t)||0); const m=Math.floor(t/60), s=t-m*60; return String(m).padStart(2,"0")+":"+s.toFixed(1).padStart(4,"0"); }
 function fmtSize(n){ n=Number(n)||0; return n>1048576 ? (n/1048576).toFixed(1)+" MB" : (n>1024 ? Math.round(n/1024)+" KB" : n+" B"); }
 function toast(msg, kind){ const el=$("toast"); el.textContent=msg; el.className="show"+(kind?" "+kind:""); clearTimeout(toastTimer); toastTimer=setTimeout(()=>{el.className="";},2800); }
@@ -4902,11 +4914,10 @@ function textToSegments(txt, name){
 }
 function newTrack(kind,opt){
     const same=state.tracks.filter(t=>t.kind===kind);
-    /* 视频轨按「视频1、视频2、视频3…」顺序在已有视频轨下面新增：始终保持向下插（order 更大），
-       已有视频轨（含视频1）的 order 不变、位置不动。
-       LUT / 图片 / 字幕轨仍默认插到同类轨最上面；音频轨沿用向下新增。跨轨拖动落点新建同类轨时同规则。
-       层级：字幕恒顶 / 音频恒底，中间视觉轨按 z 排序（默认 LUT→图片→视频），可用 ▲▼ 移动；LUT 只影响下方视觉层。 */
-    const insertAbove = kind!=="audio" && kind!=="video" && !(opt&&opt.below);
+    /* 新轨插到同类最上面（z 更小 = 显示更靠上）：视频轨也向上插，新建的视频轨出现在原视频轨上方。
+       只有音频轨沿用向下新增（恒底）；opt.below 可强制向下。
+       层级：字幕恒顶 / 音频恒底，中间视觉轨按 z 排序（越小越靠上），可用 ▲▼ 移动；LUT 只影响下方视觉层。 */
+    const insertAbove = kind!=="audio" && !(opt&&opt.below);
     const minOrder=same.length?Math.min.apply(null,same.map(x=>Number(x.order)||0)):0;
     const maxOrder=same.length?Math.max.apply(null,same.map(x=>Number(x.order)||0)):0;
     if(insertAbove && same.length) same.forEach(x=>{ x.order=(Number(x.order)||0)+1; });
@@ -5879,8 +5890,10 @@ function renderAIStat(){
 }
 function renderProjInfo(){
     const media=state.clips.filter(c=>c.assetId).length, subs=state.clips.filter(c=>trackKind(c.track)==="text").length;
-    $("projInfo").innerHTML='日期：<b>'+esc(state.date)+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
-    $("dateChip").textContent="当天工程 "+state.date;
+    $("projInfo").innerHTML='项目：<b>'+esc(projectName())+'</b><br>素材：<b>'+state.assets.length+'</b> 个 · 轨道 <b>'+state.tracks.length+'</b> 条<br>媒体片段 <b>'+media+'</b> · 字幕 <b>'+subs+'</b><br>总时长：<b>'+fmt(totalDuration())+'</b><br>存储：本机 IndexedDB + localStorage';
+    const chip=$("dateChip");
+    chip.textContent="📁 "+projectName();
+    chip.title="当前项目："+projectName()+"（点此改名；项目键 "+state.date+"）";
 }
 function renderAll(){ updateSmartCutAvailability(); renderAssets(); renderTimeline(); renderProps(); renderSubList(); renderAIStat(); renderProjInfo(); subCache=""; fancyCache=""; renderSubtitleOverlay(); renderBasicBox(); renderAdjustPanels(); applyClipTransforms(); drawLutFrame(); syncFaceGuard(); syncFvShowBaseSub(); }
 
@@ -7998,8 +8011,9 @@ function projectPayload(){
 function saveProject(silent){
     const p=projectPayload();
     const ok=safeStorage.set(PROJECT_PREFIX+state.date,JSON.stringify(p));
-    $("saveState").textContent=ok?("已保存 "+state.date+" · "+new Date().toLocaleTimeString("zh-CN")):"保存失败（本机存储不可用）";
-    if(!silent) toast(ok?"当天工程已保存":"保存失败","ok");
+    if(ok) setActiveProject(state.date);   /* 记住当前正在编辑的工程，供刷新恢复；切换工作区时 flushSave 会跳过，不会写错 */
+    $("saveState").textContent=ok?("已保存「"+projectName()+"」· "+new Date().toLocaleTimeString("zh-CN")):"保存失败（本机存储不可用）";
+    if(!silent) toast(ok?("项目「"+projectName()+"」已保存"):"保存失败","ok");
     return ok;
 }
 function autoSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>saveProject(true),700); }
@@ -8143,14 +8157,23 @@ async function loadProject(date){
         state.selected=null; state.multi=[]; state.selectedAsset=null; state.playhead=0;
         historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key="";
         pause(); renderAll(); applyAspect(); toast("已打开 "+date+" 的工程","ok");
+        setActiveProject(date);   /* 记住刚打开的工程，强制刷新后仍回到这一份 */
         return true;
     }catch(e){ toast("工程读取失败："+e.message,"err"); return false; }
 }
-/* 工程显示名：当天日期键显示「当天工程」；「新建工程」用 todayStr()+"-"+时间戳，
-   可读成一个简短的「新建工程 HHMMSS」。所有键都原样保留在历史工作区里，随时可打开。 */
+/* 工程默认显示名（仅在用户没起项目名时回退用）：
+   新项目键 P<时间戳>_<随机> → 「项目 HHMMSS」；旧的当天日期键 → 「当天工程（日期）」；
+   旧的 todayStr()-时间戳 → 「新建工程 MM-DD HH:MM」。用户自定义名优先，不走这里。 */
 function projLabel(d){
+    d=String(d);
+    const pm=d.match(/^P(\d{10,})_/);
+    if(pm){
+        const t=new Date(Number(pm[1]));
+        if(Number.isFinite(t.getTime())) return "项目 "+t.toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
+        return "项目";
+    }
     if(d===todayStr()) return "当天工程（"+d+"）";
-    const m=String(d).match(/^(\d{4}-\d{2}-\d{2})-(\d{10,})$/);
+    const m=d.match(/^(\d{4}-\d{2}-\d{2})-(\d{10,})$/);
     if(m){
         const ms=Number(m[2]);
         if(Number.isFinite(ms)&&ms>1e12){
@@ -8206,15 +8229,16 @@ function setEmptyHint(){
     $("aiState").className="ai-state";
     $("aiState").textContent="空白工程已就绪：点左侧「＋ 导入素材」或「🔗 粘贴在线 URL」添加你自己的文件，再拖到下方轨道开始剪辑。想回到以前做过的工程，点顶栏「🕘 历史工程」。";
 }
-async function loadEmptyProject(newDate){
+async function loadEmptyProject(newDate, projName){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
     state.inPoint=null; state.outPoint=null;   /* 新工程清空入点 / 出点 */
     state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
     state.subStyle=defaultFx().sub;   /* 新工程重置“新建字幕的默认模板” */
-    state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=newDate||todayStr();
-    state.projName="";   /* 新工程清空自定义文件名 */
+    state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=newDate||newProjectKey();
+    state.projName=String(projName||"");   /* 新建时用户设置的项目名；空则由显示层回退到默认标签 */
     historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key=""; fxOverlayKey="";
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
+    setActiveProject(state.date);   /* 新建空白工程也立即记住，700ms 内刷新也不丢 */
     renderAll(); autoSave(); syncMedia(); applyAspect();
     setEmptyHint();
 }
@@ -8252,9 +8276,8 @@ function renderHistList(){
     box.innerHTML=arr.map(p=>{
         const dt=p.savedAt?new Date(p.savedAt).toLocaleString("zh-CN",{hour12:false}):"时间未知";
         return '<div class="hist-item'+(p.date===cur?" cur":"")+'">'
-          +'<div class="hi-main"><div class="hi-name">📅 '+esc(p.name||projLabel(p.date))
-            +(p.date===cur?' <span style="color:#67e8f9;font-size:10.5px">（正在编辑）</span>':"")
-            +(p.date===todayStr()?' <span style="color:#86efac;font-size:10.5px">今天</span>':"")+'</div>'
+          +'<div class="hi-main"><div class="hi-name">📁 '+esc(p.name||projLabel(p.date))
+            +(p.date===cur?' <span style="color:#67e8f9;font-size:10.5px">（正在编辑）</span>':"")+'</div>'
           +'<div class="hi-meta">'+p.clips+' 个片段 · '+p.assets+' 个素材 · 保存于 '+esc(dt)+'</div></div>'
           +(p.date===cur?'<button disabled style="opacity:.55">当前</button>':'<button data-hist="open" data-date="'+esc(p.date)+'">打开</button>')
           +'<button data-hist="export" data-date="'+esc(p.date)+'" title="把这份工程导出成 JSON 备份">备份</button>'
@@ -8667,20 +8690,28 @@ function wire(){
     wireClipContextMenu();
     wireStageContextMenu();
     /* 顶栏 */
+    $("dateChip").onclick=()=>{
+        const next=String(window.prompt("项目名称（同一天可建多个项目，各自独立保存）：",state.projName||projectName())||"").trim();
+        if(!next) return;                       /* 取消或留空不改名 */
+        state.projName=next; autoSave(); renderProjInfo(); toast("项目已改名为「"+next+"」","ok");
+    };
     $("topSave").onclick=openSaveModal;
     $("topOpen").onclick=openHistModal;              /* 原「打开工程」位置现为合并后的「历史工程」 */
     $("topNew").onclick=openWsModal;                 /* 新建工程 / 工作区 合并弹窗 */
     $("savePick").onclick=saveProjectPick;
     $("saveDownload").onclick=saveProjectDownload;
     $("newBlankProj").onclick=()=>{
-        /* 先保存当前工程，避免用户以为新建会丢；再在新标签打开全新空白工程 */
-        try{ saveProject(true); }catch(e){}
+        /* 先让用户给项目命名（可留空=稍后在顶栏改），按项目而非按天建立独立工程 */
+        const inp=$("newProjName");
+        const name=String(inp&&inp.value||"").trim();
+        try{ saveProject(true); }catch(e){}   /* 先保存当前工程，避免用户以为新建会丢 */
+        const key=newProjectKey();
         const u=new URL(location.href);
-        u.search="?newproj="+Date.now();
+        u.search="?newproj="+encodeURIComponent(key)+"&pname="+encodeURIComponent(name);
         u.hash="";
         const w=window.open(u.toString(),"_blank");
         if(!w) toast("浏览器拦截了弹窗，请允许本站打开新标签页后重试","err");
-        else toast("已在新标签页打开新的空白工程","ok");
+        else{ toast("已新建项目「"+(name||projLabel(key))+"」","ok"); if(inp) inp.value=""; }
     };
     $("topExport").onclick=()=>openExport();
     $("histRefresh").onclick=()=>{ renderHistList(); toast("历史工程列表已刷新","ok"); };
@@ -11598,19 +11629,35 @@ async function init(){
         subCache=""; fancyCache="";
         try{ renderSubtitleOverlay(); updateFancyFrame(); applyClipTransforms(); }catch(e){}
     });
-    /* 「新建工程」在新标签页带 ?newproj=<时间戳> 打开：用独立的工程日期键建空白工程，
-       不加载也不覆盖当前页面正在编辑的当天工程；两个页面各自自动保存、互不干扰。 */
-    const newproj=(location.search.match(/[?&]newproj=([0-9]+)/)||[])[1];
+    /* 「新建工程」在新标签页带 ?newproj=<项目键> 打开：用独立的项目键建空白工程，
+       不加载也不覆盖当前页面正在编辑的工程；两个页面各自自动保存、互不干扰。 */
+    const newproj=(location.search.match(/[?&]newproj=([^&]+)/)||[])[1];
+    const pnameParam=(location.search.match(/[?&]pname=([^&]*)/)||[])[1];
+    let newName=""; try{ newName=decodeURIComponent(pnameParam||""); }catch(e){}
     if(newproj){
-        await loadEmptyProject(todayStr()+"-"+newproj);
-        toast("已创建新的空白工程","ok");
+        /* 新建工程页刷新：若这份工程已经自动保存过，就恢复它，绝不重建空白覆盖用户正在做的东西 */
+        const key=decodeURIComponent(newproj);
+        if(safeStorage.get(PROJECT_PREFIX+key)){
+            try{ await loadProject(key); toast("已恢复项目「"+projectName()+"」","ok"); }
+            catch(e){ await loadEmptyProject(key,newName); }
+        }else{
+            await loadEmptyProject(key,newName);
+            toast("已创建项目「"+projectName()+"」","ok");
+        }
     }else{
-        const saved=safeStorage.get(PROJECT_PREFIX+todayStr());
-        if(saved){
-            try{ await loadProject(todayStr()); }
+        /* 恢复优先级：当前标签页记住的「正在编辑的项目」 > 最近保存的项目 > 新建空白项目。
+           按项目而非按天；sessionStorage 按标签页隔离，多开页面各回各的工程，互不串。 */
+        const active=getActiveProject();
+        if(active && safeStorage.get(PROJECT_PREFIX+active)){
+            try{ await loadProject(active); toast("已恢复项目「"+projectName()+"」","ok"); }
             catch(e){ await loadEmptyProject(); }
-            toast("已自动恢复今天的剪辑工程","ok");
-        }else await loadEmptyProject();
+        }else{
+            const arr=histProjects();
+            if(arr.length){
+                try{ await loadProject(arr[0].date); toast("已恢复项目「"+projectName()+"」","ok"); }
+                catch(e){ await loadEmptyProject(); }
+            }else await loadEmptyProject();
+        }
     }
     await drainInbox();
     scanCanvasHistory();
