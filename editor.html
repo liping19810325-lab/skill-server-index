@@ -381,6 +381,17 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
    .clip 基础是横向 flex + align-items:center；若不改成 column，
    下面两个 half 的 flex:0 0 30px 会被当成「宽 30px」挤在左端，右侧只剩蓝底、波形完全看不到。 */
 .track-row.compound .clip{height:60px;top:3px;flex-direction:column;align-items:stretch;}
+/* 复合视频片段改成纵向 flex 后，裁剪手柄若仍参与 flex 流会被纵向堆叠：
+   clip-fill(flex:1)垂直撑高、手柄(flex:0 0 8px)变成高8px的细块堆在左侧，
+   右裁剪手柄甚至溢出到片段底边之外，"按住拖右缘裁掉片尾"就失效了。
+   这里让 compound 的两个手柄脱离 flex 流、绝对定位贴住左右边缘并覆盖整段高度，
+   与非复合轨（横向 flex 下 flex:0 0 8px 天然贴右缘）表现一致。 */
+.track-row.compound .clip-handle{position:absolute;top:0;bottom:0;height:auto;width:8px;}
+.track-row.compound .clip-handle::after{top:50%;margin-top:-6px;}
+.track-row.compound .clip-handle-l{left:0;}
+.track-row.compound .clip-handle:not(.clip-handle-l){right:0;left:auto;}
+/* 手柄改为绝对定位后不再占 flex 空间，clip-fill 也不必再为顶开手柄而伸缩 */
+.track-row.compound .clip-fill{display:none;}
 /* 主视频轨：剪映式高亮，表明无间隙吸附 / 波纹删除只作用在这一轨 */
 .track-row.main-video{background:rgba(37,99,235,.10);box-shadow:inset 3px 0 0 #3b82f6;}
 /* 轨道隐藏 / 锁定状态 */
