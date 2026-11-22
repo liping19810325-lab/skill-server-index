@@ -215,24 +215,24 @@
     /* 历史结果总览库内的「原生成结果」：和旧版历史结果一样的网格 */
     .history-raw-grid{display:none;padding:14px;overflow:auto;align-content:start;}
     .history-raw-grid.show{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;}
-    .history-raw-grid .h-thumb{height:106px;}
+    .history-raw-grid .h-thumb{height:190px;}
     .history-raw-grid .h-item{background:var(--panel);}
     .history-mode-switch{display:inline-flex;gap:4px;margin-left:6px;}
     .mode-btn{padding:3px 9px;font-size:10.5px;}
     .mode-btn.active{background:var(--green,#16a34a);border-color:var(--green,#16a34a);color:#fff;font-weight:600;}
     .history-empty{grid-column:1/-1;color:var(--text2);font-size:12px;text-align:center;padding:40px 0;}
     .h-item{border:1px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;position:relative;}
-    .h-thumb{height:92px;background:#000;cursor:zoom-in;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;}
+    .h-thumb{flex:0 0 auto;height:168px;background:#000;cursor:zoom-in;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;}
     .h-thumb img,.h-thumb video{width:100%;height:100%;object-fit:contain;display:block;}
     .h-cat-sel{position:absolute;right:4px;bottom:4px;z-index:3;max-width:calc(100% - 8px);padding:2px 4px;border:1px solid rgba(255,255,255,.28);border-radius:5px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;cursor:pointer;opacity:.9;}
     .h-cat-sel:hover{opacity:1;border-color:var(--green,#16a34a);}
     .h-cat-sel option{background:var(--card);color:var(--text);}
-    .h-meta{padding:5px 7px 6px;font-size:10px;color:var(--text2);display:flex;flex-direction:column;gap:4px;}
+    .h-meta{padding:3px 6px 5px;font-size:6px;line-height:1.25;color:var(--text2);display:flex;flex-direction:column;gap:2px;}
     .h-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
-    .h-acts{display:flex;gap:4px;flex-wrap:wrap;}
-    .h-acts .mini-btn{padding:2px 6px;font-size:10px;}
+    .h-acts{display:flex;gap:3px;flex-wrap:nowrap;align-items:center;}
+    .h-acts .mini-btn{padding:2px 5px;font-size:9px;white-space:nowrap;}
     /* 原生成结果卡片里的内联归类下拉：与操作按钮同一行，选中即写入分类视图 */
-    .h-acts .h-cat-inline{max-width:100%;padding:2px 4px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:10px;cursor:pointer;min-height:0;height:auto;}
+    .h-acts .h-cat-inline{flex:1 1 auto;min-width:0;width:100%;padding:2px 3px;border:1px solid var(--border2);border-radius:6px;background:var(--card);color:var(--text);font-size:9px;cursor:pointer;min-height:0;height:auto;}
     .h-acts .h-cat-inline:hover{border-color:var(--green,#16a34a);}
     .h-acts .h-cat-inline option{background:var(--card);color:var(--text);}
     .result-text{font-size:10.5px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:var(--panel);border-radius:8px;padding:8px;}
@@ -2603,8 +2603,6 @@ function buildHistoryCardBase(h){
     const tm=document.createElement("div"); tm.textContent=fmtTime(h.ts)+" · "+(h.engine==="comfyui"?"ComfyUI":"API")+(h.prompt?(" · "+h.prompt.slice(0,20)):"");
     tm.title=h.prompt||"";
     const acts=document.createElement("div"); acts.className="h-acts";
-    const dl=document.createElement("button"); dl.className="mini-btn cyan"; dl.textContent="下载";
-    dl.addEventListener("click",e=>{ e.stopPropagation(); downloadUrl(h.url,h.name||("manflows_"+(h.kind==="video"?"video.mp4":"image.png")),{userClick:true}); });
     const del=document.createElement("button"); del.className="mini-btn"; del.textContent="删除";
     del.addEventListener("click",e=>{
         e.stopPropagation();
@@ -2614,7 +2612,7 @@ function buildHistoryCardBase(h){
     const ref=document.createElement("button"); ref.className="mini-btn purple"; ref.textContent="加载参考";
     ref.title=h.kind==="video"?"在画布上新建视频参考节点并加入此视频":"在画布上新建参考图节点并加入此图";
     ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(h); });
-    acts.appendChild(dl); acts.appendChild(del); acts.appendChild(ref);
+    acts.appendChild(del); acts.appendChild(ref);
     meta.appendChild(nm); meta.appendChild(tm); meta.appendChild(acts);
     item.appendChild(meta);
     return item;
@@ -2702,8 +2700,6 @@ function buildLegacyHistoryItem(h){
     const tm=document.createElement("div"); tm.textContent=fmtTime(h.ts)+" · "+(h.engine==="comfyui"?"ComfyUI":"API")+(h.prompt?(" · "+h.prompt.slice(0,26)):"");
     tm.title=h.prompt||"";
     const acts=document.createElement("div"); acts.className="h-acts";
-    const dl=document.createElement("button"); dl.className="mini-btn cyan"; dl.textContent="下载";
-    dl.addEventListener("click",e=>{ e.stopPropagation(); downloadUrl(src,h.name||("manflows_"+(h.kind==="video"?"video.mp4":"image.png")),{userClick:true}); });
     const del=document.createElement("button"); del.className="mini-btn"; del.textContent="删除";
     del.addEventListener("click",e=>{
         e.stopPropagation();
@@ -2712,7 +2708,7 @@ function buildLegacyHistoryItem(h){
     });
     const ref=document.createElement("button"); ref.className="mini-btn purple"; ref.textContent="加载参考";
     ref.addEventListener("click",e=>{ e.stopPropagation(); loadHistoryAsReference(Object.assign({},h,{url:src})); });
-    acts.appendChild(dl); acts.appendChild(del); acts.appendChild(ref);
+    acts.appendChild(del); acts.appendChild(ref);
     /* 内联归类：选中后写入 category + 当前画布 docId，切到「分类视图」即在对应栏出现 */
     const catSel=document.createElement("select"); catSel.className="h-cat-inline";
     catSel.title="选中后此图会出现在「分类视图」的对应栏（以前生成和以后生成的共用一套分类）";
