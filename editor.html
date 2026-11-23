@@ -531,16 +531,16 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ed-private-row input{width:100%;min-width:0;padding:5px 7px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;outline:none;}
 .ed-private-row input:focus{border-color:var(--blue);}
 .ed-private-actions{display:flex;gap:6px;flex-wrap:wrap;}
-.ed-conn{margin:7px 0 3px;padding:7px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;}
-.ed-conn-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
-.ed-conn-row:last-child{margin-bottom:0;}
-.ed-conn-row input{flex:1 1 auto;min-width:0;width:100%;padding:5px 7px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;outline:none;}
-.ed-conn-row input:focus{border-color:var(--blue);}
-.ed-conn-row label{flex:0 0 auto;font-size:10.5px;color:var(--muted);white-space:nowrap;}
-.ed-conn-state{font-size:10.5px;color:var(--muted);line-height:1.6;word-break:break-word;margin-top:6px;}
-.ed-conn-pick{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
-.ed-conn-pick select{flex:1 1 auto;min-width:0;padding:5px 6px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;outline:none;}
-.ed-conn-pick .mini-btn{flex:0 0 auto;}
+.ed-conn{margin:7px 0 3px;padding:8px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;display:flex;flex-direction:column;gap:7px;}
+.ed-conn-line{display:flex;align-items:center;gap:6px;min-width:0;}
+.ed-conn-line input,.ed-conn-line select{flex:1 1 auto;min-width:0;width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;outline:none;}
+.ed-conn-line input:focus,.ed-conn-line select:focus{border-color:var(--blue);}
+.ed-conn-line label{flex:0 0 auto;font-size:10.5px;color:var(--muted);white-space:nowrap;}
+/* 右侧按钮固定 84px、右端对齐成一列；无按钮的行用等宽占位让输入框右边界一致 */
+.ed-conn-line .mini-btn,.ed-conn-line .ed-btn-spacer{flex:0 0 84px;}
+.ed-conn-line .mini-btn{white-space:nowrap;padding-left:0;padding-right:0;line-height:1.2;}
+.ed-conn-line .ed-btn-spacer{display:block;}
+.ed-conn-state{font-size:10.5px;color:var(--muted);line-height:1.6;word-break:break-word;}
 /* 通用进度条与阶段列表（AI 剪辑 / AI 字幕共用） */
 .ai-progress{height:8px;border-radius:5px;background:var(--panel);border:1px solid var(--border2);overflow:hidden;margin:9px 0 6px;}
 .ai-progress[hidden]{display:none;}
@@ -852,27 +852,26 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                         </div>
                     </details>
                     <div class="ed-conn" id="edConnBox">
-                        <div class="ed-conn-row">
+                        <div class="ed-conn-line">
                             <input type="text" id="edLocalBaseInput" spellcheck="false" placeholder="手动填写模型网址，如 http://127.0.0.1:8080 或 https://xxx/v1；填好点「自动接通」即保存">
+                            <button type="button" class="mini-btn green" id="edAutoBtn" title="保存上方手填网址，并扫描常见端口自动接通本机正在运行的大模型服务">⚡ 自动接通</button>
                         </div>
-                        <div class="ed-conn-row ed-llama-row">
+                        <div class="ed-conn-line">
                             <label for="edLlamaKey">API Key（选填）</label>
                             <input type="password" id="edLlamaKey" spellcheck="false" placeholder="留空则不携带 Bearer 鉴权头">
-                        </div>
-                        <div class="ed-conn-row">
-                            <label for="edLocalModel">模型名</label>
-                            <input type="text" id="edLocalModel" spellcheck="false" placeholder="留空 = 服务默认；部分服务需填真实模型名">
-                        </div>
-                        <div class="ed-conn-row">
-                            <button type="button" class="mini-btn green" id="edAutoBtn" title="保存上方手填网址，并扫描常见端口自动接通本机正在运行的大模型服务">⚡ 自动接通</button>
                             <button type="button" class="mini-btn gray" id="edClearLocalBtn" title="清空上方服务网址、API Key 与模型名（不影响已保存的本机地址清单）">清空配置</button>
                         </div>
-                        <div class="ed-conn-pick" id="edPickRow" style="display:none">
+                        <div class="ed-conn-line">
+                            <label for="edLocalModel">模型名</label>
+                            <input type="text" id="edLocalModel" spellcheck="false" placeholder="留空 = 服务默认；部分服务需填真实模型名">
+                            <span class="ed-btn-spacer" aria-hidden="true"></span>
+                        </div>
+                        <div class="ed-conn-line" id="edPickRow" style="display:none">
                             <select id="edBaseSelect" title="已保存的本机地址，选中即切换使用"></select>
                             <button type="button" class="mini-btn red" id="edDelBaseBtn" title="从清单里删除当前选中的地址">🗑 删除</button>
                         </div>
                         <div class="ed-conn-state" id="edLocalState">○ 尚未检测本机大模型服务</div>
-                        <div style="display:none;font-size:10px;color:var(--muted);line-height:1.6;margin-top:5px">API Key 选填：留空则不发送任何鉴权头；有值则自动带 <code>Authorization: Bearer</code>。支持局域网 http://192.168.x.x 与 Cloudflare HTTPS 隧道。剪辑台会把你的剪辑思路与轨道信息发给所选模型，密钥只在本机不上传源码。</div>
+                        <div style="display:none;font-size:10px;color:var(--muted);line-height:1.6">API Key 选填：留空则不发送任何鉴权头；有值则自动带 <code>Authorization: Bearer</code>。支持局域网 http://192.168.x.x 与 Cloudflare HTTPS 隧道。剪辑台会把你的剪辑思路与轨道信息发给所选模型，密钥只在本机不上传源码。</div>
                     </div>
                 </div>
                 <div class="hint" id="edComputeHint" style="display:none"></div>
@@ -2392,7 +2391,7 @@ function edApplyPrivateUI(){
     const cfg=edLoadPrivateCfg(), priv=cfg.mode==="private";
     if(row) row.style.display="flex";
     if(box) box.style.display=priv?"block":"none";
-    if(conn) conn.style.display=priv?"none":"block";
+    if(conn) conn.style.display=priv?"none":"flex";
     document.querySelectorAll('input[name="edConnectMode"]').forEach(r=>{ r.checked=(r.value===cfg.mode); });
     const fields={edStrataBase:cfg.strataBase,edStrataKey:cfg.strataKey,edComfyBase:cfg.comfyBase,edComfyToken:cfg.comfyToken};
     Object.keys(fields).forEach(id=>{ const n=$(id); if(!n) return; n.value=fields[id]; n.disabled=!priv; });
