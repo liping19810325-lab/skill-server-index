@@ -159,6 +159,11 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 /* 图片素材默认保持比例居中铺满画幅（cover），不留黑边 */
 #previewImage{object-fit:contain;}
 #previewVideo.show,#previewImage.show{display:block;}
+/* 预览防闪黑覆盖层：视频解码空帧时显示上一有效帧，正常帧隐藏让原生 video 显示。
+   不设 z-index，靠 DOM 顺序（紧跟 video、在 img/pip/LUT/字幕之前）即可只盖住 video，
+   同时让画中画/图片/LUT(4)/字幕(5) 等层继续叠在守卫之上，避免空帧瞬间盖掉这些元素。 */
+.preview-guard{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;pointer-events:none;background:transparent;transform-origin:center center;}
+.preview-guard.show{display:block;}
 #pipLayer{position:absolute;inset:0;pointer-events:none;}
 .pip-item{position:absolute;right:14px;width:20%;max-height:20%;object-fit:contain;border:2px solid rgba(255,255,255,.7);border-radius:8px;background:#000;box-shadow:0 6px 20px rgba(0,0,0,.6);transform-origin:center center;}
 .stage-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#6b7280;font-size:12px;line-height:1.8;text-align:center;pointer-events:none;}
@@ -875,6 +880,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <div class="stage-wrap">
                 <div class="stage" id="stage">
                     <video id="previewVideo" playsinline preload="auto"></video>
+                    <canvas id="previewGuard" class="preview-guard" aria-hidden="true"></canvas>
                     <img id="previewImage" alt="画面">
                     <div id="pipLayer"></div>
                     <div class="fx-color-overlay" id="fxColorOverlay"></div>
@@ -3822,6 +3828,7 @@ function applyClipTransforms(){
     vEl.style.transform=fitTr+(fitTr&&tr?" ":"")+tr; imgEl.style.transform=vEl.style.transform;
     vEl.style.filter=fl; imgEl.style.filter=fl;
     vEl.style.opacity=op; imgEl.style.opacity=op;
+    if(typeof pvGuardSyncTransform==="function") pvGuardSyncTransform();  /* 防闪黑覆盖层跟随同一变换 */
     const bg=vc?String(fxOf(vc).bg||"#000000"):"#000000", st=$("stage");
     if(st && st.style.background!==bg) st.style.background=bg;
     const pitch=!!(vc&&fxOf(vc).pitchShift);
@@ -5502,6 +5509,85 @@ function copyTrack(tr){
 
 /* ---------- 多层预览 ---------- */
 const vEl=$("previewVideo"), imgEl=$("previewImage"), pipLayer=$("pipLayer");
+/* 预览防闪黑守卫：
+   根因：部分 H.264 素材在解码/seek 后偶发呈现"空帧"——readyState=4、seeking=false，
+   但浏览器这一帧 drawImage 出来是全黑（rVFC 回调里也黑），下一帧又恢复。素材本身无黑帧。
+   纯 <video> 预览无法拦截空帧，故叠加一个 canvas：用 requestVideoFrameCallback 在每帧
+   真正呈现时检测亮度，一旦发现"上一帧正常、当前帧突然全黑"的突变，就用缓存的上一帧
+   覆盖显示；正常帧隐藏覆盖、刷新缓存。这样既能消除解码空帧闪黑，又不会把素材自身的
+   暗场（亮度渐变的真实画面）误判成故障。
+   仅在视频为主画面且正在播放/seek 时检测；暂停逐帧、图片、导出录制均不受影响。 */
+const pvGuard={cv:$("previewGuard"), cvx:null, sample:null, sx:null,
+               lastLum:-1, lastAid:"", cbId:0, armed:false, lastMediaTime:-1};
+(function initPreviewGuard(){
+    const g=pvGuard;
+    if(!g.cv||typeof vEl.requestVideoFrameCallback!=="function") return;
+    g.cvx=g.cv.getContext("2d");
+    g.sample=document.createElement("canvas"); g.sample.width=24; g.sample.height=14;
+    g.sx=g.sample.getContext("2d",{willReadFrequently:true});
+})();
+function pvGuardLum(){
+    const g=pvGuard; if(!g.sx) return -1;
+    try{
+        g.sx.drawImage(vEl,0,0,g.sample.width,g.sample.height);
+        const d=g.sx.getImageData(0,0,g.sample.width,g.sample.height).data;
+        let s=0,n=0;
+        for(let i=0;i<d.length;i+=4){ s+=(d[i]+d[i+1]+d[i+2])/3; n++; }
+        return n?s/n:-1;
+    }catch(e){ return -1; }
+}
+function pvGuardSyncTransform(){
+    const g=pvGuard; if(!g.cv) return;
+    g.cv.style.transform=vEl.style.transform||"";
+    g.cv.style.filter=vEl.style.filter||"none";
+    g.cv.style.opacity=vEl.style.opacity||"1";
+    /* 覆盖层用 contain 与 video 一致；guard canvas 尺寸对齐显示像素，绘制时按 contain 布局 */
+}
+function pvGuardFrame(now,meta){
+    const g=pvGuard;
+    /* 导出录制期间跳过亮度采样：录制自己已有帧缓存兜底，这里不重复 drawImage 抢占解码资源 */
+    if(exportRecording){ g.cv.classList.remove("show"); g.lastLum=-1;
+        try{ g.cbId=vEl.requestVideoFrameCallback(pvGuardFrame); }catch(e){} return; }
+    try{
+        const aid=vEl.dataset.aid||"";
+        if(aid!==g.lastAid){ g.lastAid=aid; g.lastLum=-1; g.lastMediaTime=-1; g.cv.classList.remove("show"); }
+        const active=vEl.classList.contains("show") && !exportRecording;
+        if(active && !!(vEl.videoWidth>0)){
+            const mt=Number(meta&&meta.mediaTime)||0;
+            const L=pvGuardLum();
+            /* 突变判据：上一帧是正常画面(>20)，当前帧几乎全黑(<6)，且媒体时间在推进——
+               这是解码空帧；真实暗场不会从正常亮度一帧内跳到近黑且下一帧又恢复。 */
+            const blank=(g.lastLum>20 && L>=0 && L<6);
+            if(blank){
+                /* 空帧时当前 vEl 也是黑，直接用正常帧缓存的上一帧好画面覆盖 */
+                if(g.lastGood && g.lastGoodValid){
+                    if(g.cv.width!==g.lastGood.width||g.cv.height!==g.lastGood.height){
+                        g.cv.width=g.lastGood.width; g.cv.height=g.lastGood.height;
+                    }
+                    g.cvx.clearRect(0,0,g.cv.width,g.cv.height);
+                    g.cvx.drawImage(g.lastGood,0,0,g.cv.width,g.cv.height);
+                    g.cv.classList.add("show"); pvGuardSyncTransform();
+                }
+            }else{
+                if(L>=0){
+                    /* 正常帧：把当前好画面写入 lastGood，供下次空帧兜底 */
+                    if(!g.lastGood){ g.lastGood=document.createElement("canvas"); }
+                    if(g.lastGood.width!==vEl.videoWidth||g.lastGood.height!==vEl.videoHeight){
+                        g.lastGood.width=vEl.videoWidth||640; g.lastGood.height=vEl.videoHeight||360;
+                    }
+                    try{ const gg=g.lastGood.getContext("2d"); gg.clearRect(0,0,g.lastGood.width,g.lastGood.height);
+                         gg.drawImage(vEl,0,0,g.lastGood.width,g.lastGood.height); g.lastGoodValid=true; }catch(e){}
+                    if(L>6) g.cv.classList.remove("show");
+                }
+            }
+            g.lastLum=L; g.lastMediaTime=mt;
+        }else{
+            g.cv.classList.remove("show"); g.lastLum=-1;
+        }
+    }catch(e){ try{g.cv.classList.remove("show");}catch(_){} }
+    try{ g.cbId=vEl.requestVideoFrameCallback(pvGuardFrame); }catch(e){}
+}
+setTimeout(()=>{ if(pvGuard.cv && pvGuard.cvx){ try{ pvGuard.cbId=vEl.requestVideoFrameCallback(pvGuardFrame); }catch(e){} } },0);
 const audioPool=new Map();
 function activeClipOn(tid, bridge){
     const p=Number(state.playhead)||0;
@@ -5793,6 +5879,7 @@ function syncMedia(){
         showImage=true;
     }
     vEl.classList.toggle("show",showVideo); imgEl.classList.toggle("show",showImage);
+    if(!showVideo && typeof pvGuard!=="undefined" && pvGuard.cv) pvGuard.cv.classList.remove("show");
     /* 关键修复：播放头走到视频片段之外（含被裁剪掉的片尾/片头空白区）时，主画面 video
        元素必须立即暂停。否则它自带的音频会继续播到原片结尾——时间轴上明明没画面没片段，
        却还有声音。音频轨的声音由 syncAudioPool 独立管理，不受此处影响。 */
@@ -5857,6 +5944,7 @@ function play(){
 }
 function pause(){
     playing=false; cancelAnimationFrame(rafId);
+    if(typeof pvGuard!=="undefined"&&pvGuard.cv){ pvGuard.cv.classList.remove("show"); pvGuard.lastLum=-1; }
     if(!vEl.paused) vEl.pause();
     audioPool.forEach(o=>{ try{ if(!o.el.paused) o.el.pause(); }catch(e){} });
     renderPlayhead();
