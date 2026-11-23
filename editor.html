@@ -515,6 +515,32 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
 .ed-mode-row label{display:flex;align-items:center;gap:4px;padding:6px 7px;border:1px solid var(--border2);border-radius:7px;background:var(--panel);font-size:11px;color:var(--text);cursor:pointer;flex:1 1 auto;white-space:nowrap;}
 .ed-mode-row label.active{background:var(--blue);border-color:transparent;color:#fff;}
 .ed-mode-row input{accent-color:var(--blue);margin:0;}
+/* ===== 本机算力：手动填写模型网址 + API Key（与创作台 / 导演画布共用同一份配置） ===== */
+.ed-submode-row{display:flex;gap:6px 12px;flex-wrap:wrap;margin:7px 0 2px;}
+.ed-submode-row label{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;}
+.ed-submode-row label:first-child{flex:1 1 100%;}
+.ed-submode-row input[type=radio]{width:auto;margin:0;accent-color:var(--blue);cursor:pointer;}
+.ed-private-tools{margin:7px 0 3px;border-top:1px solid var(--border2);padding-top:6px;}
+.ed-private-tools summary{cursor:pointer;font-size:11px;color:#93c5fd;list-style:none;user-select:none;padding:2px 0;}
+.ed-private-tools summary::-webkit-details-marker{display:none;}
+.ed-private-tools summary::before{content:"▸ ";color:var(--muted);}
+.ed-private-tools[open] summary::before{content:"▾ ";}
+.ed-private-body{padding-top:6px;display:grid;gap:6px;}
+.ed-private-row{display:grid;grid-template-columns:1fr;gap:2px;}
+.ed-private-row label{font-size:10.5px;color:var(--muted);}
+.ed-private-row input{width:100%;min-width:0;padding:5px 7px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;outline:none;}
+.ed-private-row input:focus{border-color:var(--blue);}
+.ed-private-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.ed-conn{margin:7px 0 3px;padding:7px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;}
+.ed-conn-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.ed-conn-row:last-child{margin-bottom:0;}
+.ed-conn-row input{flex:1 1 auto;min-width:0;width:100%;padding:5px 7px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;outline:none;}
+.ed-conn-row input:focus{border-color:var(--blue);}
+.ed-conn-row label{flex:0 0 auto;font-size:10.5px;color:var(--muted);white-space:nowrap;}
+.ed-conn-state{font-size:10.5px;color:var(--muted);line-height:1.6;word-break:break-word;margin-top:6px;}
+.ed-conn-pick{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.ed-conn-pick select{flex:1 1 auto;min-width:0;padding:5px 6px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;outline:none;}
+.ed-conn-pick .mini-btn{flex:0 0 auto;}
 /* 通用进度条与阶段列表（AI 剪辑 / AI 字幕共用） */
 .ai-progress{height:8px;border-radius:5px;background:var(--panel);border:1px solid var(--border2);overflow:hidden;margin:9px 0 6px;}
 .ai-progress[hidden]{display:none;}
@@ -806,6 +832,48 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                     <label data-mode="manflow"><input type="radio" name="edComputeMode" value="manflow"> 漫流算力</label>
                     <label data-mode="local"><input type="radio" name="edComputeMode" value="local"> 本机算力</label>
                     <label data-mode="third_party"><input type="radio" name="edComputeMode" value="third_party"> 第三方API</label>
+                </div>
+                <!-- 本机算力：手动填写模型网址 + API Key（配置与创作台 / 导演画布共用，只存本机浏览器） -->
+                <div id="edLocalCfg" style="display:none">
+                    <div class="ed-submode-row" id="edSubModeRow">
+                        <label>本机接入方式：</label>
+                        <label><input type="radio" name="edConnectMode" value="local" checked> 本机/局域网</label>
+                        <label><input type="radio" name="edConnectMode" value="private"> 私有算力通外网</label>
+                    </div>
+                    <details class="ed-private-tools" id="edPrivateTools" style="display:none">
+                        <summary>🔐 私有算力配置（HTTPS 域名优先 · 可收起）</summary>
+                        <div class="ed-private-body">
+                            <div class="ed-private-row"><label for="edStrataBase">Strata BaseURL（必填 · 大模型接口）</label><input type="text" id="edStrataBase" spellcheck="false" placeholder="https://your-domain.example/strata"></div>
+                            <div class="ed-private-row"><label for="edStrataKey">Strata API Key（选填）</label><input type="password" id="edStrataKey" spellcheck="false" placeholder="留空则不发送 Authorization 头"></div>
+                            <div class="ed-private-row"><label for="edComfyBase">ComfyUI BaseURL（选填 · 剪辑台不涉及生图）</label><input type="text" id="edComfyBase" spellcheck="false" placeholder="https://your-domain.example/comfyui"></div>
+                            <div class="ed-private-row"><label for="edComfyToken">ComfyUI Access Token（选填）</label><input type="password" id="edComfyToken" spellcheck="false" placeholder="留空则不发送 Authorization 头"></div>
+                            <div class="ed-private-actions"><button type="button" class="mini-btn red" id="edClearPrivateBtn" title="清空四项配置并回到本机/局域网模式；不影响下方本机地址清单">清空配置</button>
+                                <span style="font-size:10px;color:var(--muted);line-height:1.6;align-self:center">密钥只存本机；切换模式立即生效，两种模式互不影响。</span></div>
+                        </div>
+                    </details>
+                    <div class="ed-conn" id="edConnBox">
+                        <div class="ed-conn-row">
+                            <input type="text" id="edLocalBaseInput" spellcheck="false" placeholder="手动填写模型网址，如 http://127.0.0.1:8080 或 https://xxx/v1；填好点「自动接通」即保存">
+                        </div>
+                        <div class="ed-conn-row ed-llama-row">
+                            <label for="edLlamaKey">API Key（选填）</label>
+                            <input type="password" id="edLlamaKey" spellcheck="false" placeholder="留空则不携带 Bearer 鉴权头">
+                        </div>
+                        <div class="ed-conn-row">
+                            <label for="edLocalModel">模型名</label>
+                            <input type="text" id="edLocalModel" spellcheck="false" placeholder="留空 = 服务默认；部分服务需填真实模型名">
+                        </div>
+                        <div class="ed-conn-row">
+                            <button type="button" class="mini-btn green" id="edAutoBtn" title="保存上方手填网址，并扫描常见端口自动接通本机正在运行的大模型服务">⚡ 自动接通</button>
+                            <button type="button" class="mini-btn gray" id="edClearLocalBtn" title="清空上方服务网址、API Key 与模型名（不影响已保存的本机地址清单）">清空配置</button>
+                        </div>
+                        <div class="ed-conn-pick" id="edPickRow" style="display:none">
+                            <select id="edBaseSelect" title="已保存的本机地址，选中即切换使用"></select>
+                            <button type="button" class="mini-btn red" id="edDelBaseBtn" title="从清单里删除当前选中的地址">🗑 删除</button>
+                        </div>
+                        <div class="ed-conn-state" id="edLocalState">○ 尚未检测本机大模型服务</div>
+                        <div style="font-size:10px;color:var(--muted);line-height:1.6;margin-top:5px">API Key 选填：留空则不发送任何鉴权头；有值则自动带 <code>Authorization: Bearer</code>。支持局域网 http://192.168.x.x 与 Cloudflare HTTPS 隧道。剪辑台会把你的剪辑思路与轨道信息发给所选模型，密钥只在本机不上传源码。</div>
+                    </div>
                 </div>
                 <div class="hint" id="edComputeHint" style="display:none"></div>
                 <div class="svc-dl-row" id="edComputeDlRow"><span>⬇ 下载本机服务（<b>点链接即直接下载</b>，勿用浏览器「另存为网页」；下载后文件名以 .command / .bat 结尾即正确，双击启动）：</span>
@@ -1160,6 +1228,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
             <h2>⑩ 之前一轮的功能（仍在）</h2>
             <ul>
                 <li><b>算力总控（素材库上方）</b>：跟导演画布同款的三档单选「漫流算力 / 本机算力 / 第三方API」，点一下即切换；原来的「AI 剪辑·模型配置」「AI 字幕·语音识别」两栏已全部合并进来，只剩这三个选项。档位<b>本页独立</b>，配置数据仍与创作台 / 画布共用。漫流算力目前是占位档。</li>
+                <li><b>本机算力 · 手填模型网址与 API Key</b>：切到「本机算力」后，卡片下方出现配置窗。默认「本机/局域网」：填模型网址（如 <code>http://127.0.0.1:8080</code> 或 Cloudflare HTTPS 隧道域名），<b>API Key 选填</b>——你的本机模型没设密钥就留空，请求不会带鉴权头；填了则自动加 <code>Authorization: Bearer</code>，解决 401「missing or wrong API key」。可填模型名、点「⚡ 自动接通」扫描本机端口、从下拉切换已存地址。「私有算力通外网」模式填 Strata BaseURL / API Key（密钥同样选填），配置与创作台 / 画布共用一份，切档即时生效。</li>
                 <li><b>预览画幅</b>：「自适应（默认）/ 16:9 / 9:16」，自适应按导入的第一条视频或图片的画幅自动决定。<b>框选素材</b>：时间轴空白处拖矩形可多选。<b>⇋ 镜像 / ◀ 倒放</b>：快捷键 <code>M</code> / <code>R</code>，片段上有 ⇋ / ◀ 标记；倒放是预览级反向映射，不重编码、不改素材文件，音轨不支持倒放会提示。</li>
             </ul>
         </div>
@@ -2113,8 +2182,289 @@ function computeProfile(){
     return list.find(x=>x&&String(x.id||"")===cur)||list[0]||null;
 }
 function computeLocal(){
-    return {base:String(safeStorage.get("manflows_local_base")||"").trim(),
-            model:String(safeStorage.get("manflows_local_model")||"").trim()};
+    return {base:edCurrentBase(), model:edLocalModelName()};
+}
+/* ===== 本机算力：手动填写模型网址 + API Key（与创作台 / 画布共用同一份 localStorage 配置） =====
+   本地模式：本机地址 + 选填的 Llama-server API Key；私有模式：Strata BaseURL + 选填的 Strata Key。
+   两种模式的 Key 互不串用，留空一律不带 Authorization 头。源码不内置任何域名与密钥。 */
+const ED_KEY_LOCAL_BASE="manflows_local_base", ED_KEY_LOCAL_MODEL="manflows_local_model",
+      ED_KEY_LOCAL_BASES="manflows_local_bases", ED_KEY_LLAMA="manflows_llama_api_key",
+      ED_KEY_PRIVATE="manflows_private_compute";
+function edFreshPrivateCfg(){ return {mode:"local",strataBase:"",strataKey:"",comfyBase:"",comfyToken:""}; }
+function edNormBase(v){
+    let s=String(v||"").trim().replace(/\/+$/,"");
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) s="http://"+s;
+    return s.replace(/\/v1\/chat\/completions$/i,"").replace(/\/chat\/completions$/i,"").replace(/\/v1$/i,"").replace(/\/+$/,"");
+}
+function edNormPrivateBase(v){
+    let s=String(v||"").trim().replace(/\/+$/,"");
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) s="https://"+s;
+    return s.replace(/\/v1\/chat\/completions$/i,"").replace(/\/chat\/completions$/i,"").replace(/\/v1$/i,"").replace(/\/+$/,"");
+}
+function edLoadPrivateCfg(){
+    const out=edFreshPrivateCfg();
+    try{
+        const raw=safeStorage.get(ED_KEY_PRIVATE);
+        if(raw){ const p=JSON.parse(raw); if(p&&typeof p==="object"){
+            out.mode=(p.mode==="private")?"private":"local";
+            out.strataBase=edNormPrivateBase(p.strataBase||p.strataBaseUrl||"");
+            out.comfyBase=edNormPrivateBase(p.comfyBase||p.comfyUiBase||"");
+            out.strataKey=String(p.strataKey||p.strataApiKey||"");
+            out.comfyToken=String(p.comfyToken||p.comfyUiAccessToken||"");
+        } }
+    }catch(e){}
+    return out;
+}
+function edSavePrivateCfg(cfg){
+    const c=edFreshPrivateCfg();
+    c.mode=(cfg&&cfg.mode==="private")?"private":"local";
+    c.strataBase=edNormPrivateBase(cfg&&cfg.strataBase);
+    c.comfyBase=edNormPrivateBase(cfg&&cfg.comfyBase);
+    c.strataKey=String((cfg&&cfg.strataKey)||"");
+    c.comfyToken=String((cfg&&cfg.comfyToken)||"");
+    try{ safeStorage.set(ED_KEY_PRIVATE,JSON.stringify(c)); }catch(e){}
+    return c;
+}
+function edPrivateMode(){ return edLoadPrivateCfg().mode==="private"; }
+/* Key 输入框是实时真相，storage 仅用于刷新后回填；留空不带头 */
+function edLlamaKey(){
+    const n=$("edLlamaKey"); if(n) return n.value.trim();
+    return String(safeStorage.get(ED_KEY_LLAMA)||"").trim();
+}
+function edPrivateField(kind){
+    /* 私有配置输入框是实时真相（用户改完立即点 AI剪辑，change 可能还没落库） */
+    const id=kind==="comfy"?"edComfyToken":"edStrataKey";
+    const n=$(id); if(n&&!n.disabled) return n.value.trim();
+    const c=edLoadPrivateCfg();
+    return String((kind==="comfy"?c.comfyToken:c.strataKey)||"").trim();
+}
+function edPrivateAuth(kind){
+    if(!edPrivateMode()) return {};
+    const k=edPrivateField(kind);
+    return k?{"Authorization":"Bearer "+k}:{};
+}
+function edLocalModelAuth(){
+    if(edPrivateMode()) return edPrivateAuth("strata");
+    const k=edLlamaKey();
+    return k?{"Authorization":"Bearer "+k}:{};
+}
+/* 当前本机算力真正使用的模型 BaseURL：私有模式用 Strata，本地模式用手填 / 已存地址 */
+function edCurrentBase(){
+    if(edPrivateMode()){
+        const n=$("edStrataBase");
+        const raw=(n&&!n.disabled)?n.value:edLoadPrivateCfg().strataBase;
+        return edNormPrivateBase(raw);
+    }
+    const typed=edNormBase($("edLocalBaseInput")?$("edLocalBaseInput").value:"");
+    return typed||edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE))||"";
+}
+/* 供 cfg.key 使用的纯字符串（保持既有 aiChat / serviceLlmChat 链路不变） */
+function edLocalKey(){
+    if(edPrivateMode()) return edPrivateField("strata");
+    return edLlamaKey();
+}
+/* 模型名同样以输入框为实时真相 */
+function edLocalModelName(){
+    const n=$("edLocalModel"); if(n&&!n.disabled) return n.value.trim();
+    return String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"").trim();
+}
+function edSetLocalState(msg,ok){
+    const box=$("edLocalState"); if(!box) return;
+    box.textContent=msg; box.style.color=ok===true?"#a7f3d0":(ok===false?"#fca5a5":"");
+}
+/* 地址清单：与创作台 / 画布共用 manflows_local_bases，新加的排最前、按地址去重 */
+function edLoadBaseList(){
+    let arr=[]; try{ const raw=safeStorage.get(ED_KEY_LOCAL_BASES); const p=raw?JSON.parse(raw):[]; if(Array.isArray(p)) arr=p; }catch(e){}
+    const seen=new Set(), out=[];
+    arr.forEach(x=>{
+        const b=edNormBase(x&&(x.base||x.url||(typeof x==="string"?x:"")));
+        if(!b||seen.has(b)) return;
+        seen.add(b); out.push({base:b,label:String((x&&x.label)||"")});
+    });
+    const single=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
+    if(single&&!seen.has(single)) out.push({base:single,label:""});
+    return out;
+}
+function edSaveBaseList(arr){
+    const seen=new Set(), out=[];
+    (arr||[]).forEach(x=>{ const b=edNormBase(x&&(x.base||x)); if(b&&!seen.has(b)){ seen.add(b); out.push({base:b,label:String((x&&x.label)||"")}); } });
+    try{ safeStorage.set(ED_KEY_LOCAL_BASES,JSON.stringify(out)); }catch(e){}
+    return out;
+}
+function edUpsertBases(bases){
+    let list=edLoadBaseList(); const inc=[];
+    (bases||[]).forEach(b=>{
+        const norm=edNormBase(b&&(b.base||b)||(typeof b==="string"?b:""));
+        if(!norm||inc.some(x=>x.base===norm)) return;
+        inc.push({base:norm,label:(b&&b.label)?String(b.label):""});
+    });
+    if(!inc.length) return list;
+    list=inc.concat(list.filter(x=>!inc.some(n=>n.base===x.base)));
+    return edSaveBaseList(list);
+}
+function edRenderBaseList(selectBase){
+    const sel=$("edBaseSelect"), row=$("edPickRow"); if(!sel||!row) return;
+    const list=edLoadBaseList();
+    sel.innerHTML=list.map(x=>'<option value="'+esc(x.base)+'">'+esc(x.label||x.base.replace(/^https?:\/\//i,""))+'</option>').join("");
+    const cur=selectBase||edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
+    if(cur) sel.value=cur;
+    row.style.display=list.length?"flex":"none";
+}
+function edRemoveBase(base){
+    const list=edLoadBaseList().filter(x=>x.base!==base);
+    edSaveBaseList(list);
+    if(edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE))===base){
+        const next=list.length?list[0].base:"";
+        if(next) safeStorage.set(ED_KEY_LOCAL_BASE,next); else try{ safeStorage.remove(ED_KEY_LOCAL_BASE); }catch(e){}
+        const inp=$("edLocalBaseInput"); if(inp) inp.value=next;
+    }
+    edRenderBaseList(edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE)));
+}
+/* 探测单个本机地址：依次试 /v1/models、/api/tags、/health，带本地模式鉴权头 */
+async function edProbeLlm(base){
+    for(const p of ["/v1/models","/api/tags","/health"]){
+        const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),1400);
+        try{
+            const res=await fetch(base+p,{method:"GET",signal:ctrl.signal,cache:"no-store",headers:edLocalModelAuth()});
+            if(!res.ok) continue;
+            let data=null; try{ data=await res.json(); }catch(e){}
+            let model="";
+            if(data&&Array.isArray(data.data)&&data.data.length) model=String(data.data[0].id||"");
+            else if(data&&Array.isArray(data.models)&&data.models.length) model=String(data.models[0].name||data.models[0].model||"");
+            return {base:base,model:model};
+        }catch(e){} finally{ clearTimeout(timer); }
+    }
+    return null;
+}
+const ED_LLM_PORTS=[9931,8080,11434,1234,8000,5000,1337,4891,5001,8081,3000];
+async function edScanLocal(){
+    const bases=[];
+    const typed=edNormBase($("edLocalBaseInput")?$("edLocalBaseInput").value:"")||edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
+    if(typed) bases.push(typed);
+    ED_LLM_PORTS.forEach(p=>["127.0.0.1","localhost"].forEach(h=>{ const b="http://"+h+":"+p; if(!bases.includes(b)) bases.push(b); }));
+    const settled=await Promise.allSettled(bases.map(edProbeLlm));
+    const found=settled.filter(r=>r.status==="fulfilled"&&r.value).map(r=>r.value);
+    const seen=new Set();
+    return found.filter(f=>{ const port=(f.base.match(/:(\d+)$/)||[])[1]||f.base; if(seen.has(port)) return false; seen.add(port); return true; });
+}
+async function edAutoConnectLlm(){
+    if(edPrivateMode()){
+        const c=edLoadPrivateCfg(), b=c.strataBase;
+        edRenderBaseList(edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE)));
+        edSetLocalState(b?("✓ 私有算力通外网 · "+b.replace(/^https?:\/\//i,"")):"⚠ 私有模式 Strata BaseURL 未填写，请先在上方私有算力配置里填写",!!b);
+        return;
+    }
+    const inp=$("edLocalBaseInput");
+    const typed=edNormBase(inp?inp.value:"");
+    if(typed) edUpsertBases([{base:typed}]);
+    const saved=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
+    if(!typed) edSetLocalState("⏳ 正在扫描本机大模型端口…");
+    const found=await edScanLocal();
+    if(found.length) edUpsertBases(found.map(f=>({base:f.base})));
+    const cur=typed||saved;
+    edRenderBaseList(cur);
+    if(!found.length){
+        if(typed){
+            safeStorage.set(ED_KEY_LOCAL_BASE,typed);
+            edSetLocalState("⚠ 已保存手填地址 "+typed.replace(/^https?:\/\//i,"")+"，但没扫到服务；若地址正确请直接点「✨ AI剪辑」使用",false);
+        }else edSetLocalState("✗ 没发现本机大模型服务：请启动 llama / Ollama 等软件，或手动填写含端口的模型网址",false);
+        return;
+    }
+    let keep=found[0];
+    if(typed&&found.some(f=>f.base===typed)) keep=found.find(f=>f.base===typed);
+    else if(saved&&found.some(f=>f.base===saved)) keep=found.find(f=>f.base===saved);
+    else if(typed) keep={base:typed,model:""};
+    safeStorage.set(ED_KEY_LOCAL_BASE,keep.base);
+    const model=keep.model||String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"").trim();
+    if(keep.model && !String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"").trim()) safeStorage.set(ED_KEY_LOCAL_MODEL,keep.model);
+    const mi=$("edLocalModel"); if(mi) mi.value=model;
+    if(inp) inp.value=keep.base;
+    edSetLocalState("✓ 已接通 "+keep.base.replace(/^https?:\/\//i,"")+(model?" · "+model:"")+(found.length>1?"（共 "+found.length+" 个服务）":""),true);
+}
+/* 显隐与表单联动：只在「本机算力」档位显示整个配置块 */
+function edApplyPrivateUI(){
+    const wrap=$("edLocalCfg"); if(!wrap) return;
+    wrap.style.display=(state.compute==="local")?"block":"none";
+    if(state.compute!=="local") return;
+    const row=$("edSubModeRow"), box=$("edPrivateTools"), conn=$("edConnBox");
+    const cfg=edLoadPrivateCfg(), priv=cfg.mode==="private";
+    if(row) row.style.display="flex";
+    if(box) box.style.display=priv?"block":"none";
+    if(conn) conn.style.display=priv?"none":"flex";
+    document.querySelectorAll('input[name="edConnectMode"]').forEach(r=>{ r.checked=(r.value===cfg.mode); });
+    const fields={edStrataBase:cfg.strataBase,edStrataKey:cfg.strataKey,edComfyBase:cfg.comfyBase,edComfyToken:cfg.comfyToken};
+    Object.keys(fields).forEach(id=>{ const n=$(id); if(!n) return; n.value=fields[id]; n.disabled=!priv; });
+    const key=$("edLlamaKey"), base=$("edLocalBaseInput"), model=$("edLocalModel");
+    if(key && key.value!==String(safeStorage.get(ED_KEY_LLAMA)||"")) key.value=String(safeStorage.get(ED_KEY_LLAMA)||"");
+    if(base && base.value!==edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE))) base.value=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
+    if(model && model.value!==String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"")) model.value=String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"");
+    edRenderBaseList();
+}
+function edBindLocalUI(){
+    const inpBase=$("edLocalBaseInput"), inpKey=$("edLlamaKey"), inpModel=$("edLocalModel");
+    if(inpBase){
+        inpBase.value=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
+        const save=()=>{ const v=edNormBase(inpBase.value); if(!v) return; inpBase.value=v; safeStorage.set(ED_KEY_LOCAL_BASE,v); edRenderBaseList(v); edSetLocalState("✓ 已手动指定 "+v.replace(/^https?:\/\//i,"")+"（可点「自动接通」保存到清单）",true); };
+        inpBase.addEventListener("change",save);
+        inpBase.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); inpBase.blur(); } });
+    }
+    if(inpKey){
+        inpKey.value=String(safeStorage.get(ED_KEY_LLAMA)||"");
+        const save=()=>{ try{ safeStorage.set(ED_KEY_LLAMA,inpKey.value.trim()); }catch(e){} };
+        inpKey.addEventListener("input",save); inpKey.addEventListener("change",save);
+    }
+    if(inpModel){
+        inpModel.value=String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"");
+        const save=()=>{ try{ safeStorage.set(ED_KEY_LOCAL_MODEL,inpModel.value.trim()); }catch(e){} };
+        inpModel.addEventListener("input",save); inpModel.addEventListener("change",save);
+    }
+    const autoBtn=$("edAutoBtn"); if(autoBtn) autoBtn.addEventListener("click",async()=>{ autoBtn.disabled=true; try{ await edAutoConnectLlm(); }finally{ autoBtn.disabled=false; } });
+    const clearBtn=$("edClearLocalBtn"); if(clearBtn) clearBtn.addEventListener("click",()=>{
+        try{ safeStorage.remove(ED_KEY_LLAMA); safeStorage.remove(ED_KEY_LOCAL_BASE); safeStorage.remove(ED_KEY_LOCAL_MODEL); }catch(e){}
+        if(inpBase) inpBase.value=""; if(inpKey) inpKey.value=""; if(inpModel) inpModel.value="";
+        edSetLocalState("✓ 已清空服务网址 / API Key / 模型名（本机地址清单不受影响）",true);
+        edRenderBaseList("");
+    });
+    const delBtn=$("edDelBaseBtn"); if(delBtn) delBtn.addEventListener("click",()=>{ const sel=$("edBaseSelect"); if(sel&&sel.value) edRemoveBase(sel.value); });
+    const sel=$("edBaseSelect"); if(sel) sel.addEventListener("change",()=>{
+        if(!sel.value) return; safeStorage.set(ED_KEY_LOCAL_BASE,sel.value);
+        if(inpBase) inpBase.value=sel.value; edSetLocalState("✓ 已切换到 "+sel.value.replace(/^https?:\/\//i,""),true);
+    });
+    document.querySelectorAll('input[name="edConnectMode"]').forEach(r=>r.addEventListener("change",()=>{
+        if(!r.checked) return;
+        const cfg=edLoadPrivateCfg(); cfg.mode=r.value; edSavePrivateCfg(cfg); edApplyPrivateUI();
+        const box=$("edPrivateTools"); if(box) box.open=(r.value==="private");
+        toast("本机接入方式已切换为「"+(r.value==="private"?"私有算力通外网":"本机/局域网")+"」","ok");
+    }));
+    const pf={edStrataBase:"strataBase",edStrataKey:"strataKey",edComfyBase:"comfyBase",edComfyToken:"comfyToken"};
+    Object.keys(pf).forEach(id=>{
+        const n=$(id); if(!n) return;
+        const save=()=>{ const c=edLoadPrivateCfg(); c[pf[id]]=n.value; edSavePrivateCfg(c); };
+        n.addEventListener("input",save);
+        n.addEventListener("change",()=>{
+            save();
+            if(id==="edStrataBase"||id==="edComfyBase"){ const norm=edNormPrivateBase(n.value); if(norm&&norm!==n.value) n.value=norm; save(); }
+        });
+    });
+    const cp=$("edClearPrivateBtn"); if(cp) cp.addEventListener("click",()=>{
+        edSavePrivateCfg(edFreshPrivateCfg()); edApplyPrivateUI();
+        const box=$("edPrivateTools"); if(box) box.open=false;
+        toast("私有算力配置已清空，已回到本机/局域网模式","ok");
+    });
+    window.addEventListener("storage",e=>{
+        if(!e||!e.key||!/^manflows_(local_base|local_model|llama_api_key|private_compute)$/.test(e.key)) return;
+        if(e.key===ED_KEY_LLAMA && inpKey) inpKey.value=String(safeStorage.get(ED_KEY_LLAMA)||"");
+        if(e.key===ED_KEY_LOCAL_MODEL && inpModel) inpModel.value=String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"");
+        if(state.compute==="local") edApplyPrivateUI();
+    });
+    edRenderBaseList();
+    const saved0=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
+    if(saved0){
+        const m0=String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"").trim();
+        edSetLocalState("✓ 已同步本机配置 "+saved0.replace(/^https?:\/\//i,"")+(m0?" · "+m0:""),true);
+    }
 }
 function asrEndpointFromBase(base){
     let t=String(base||"").trim().replace(/\/+$/,"");
@@ -2204,6 +2554,7 @@ function applyCompute(mode,silent,skipSave){
         : "";
     setEdState("当前："+ED_COMPUTE_LABEL[m]+(m==="manflow"?" · 占位暂未开放":" · "+ac.label),m==="manflow"?"err":"");
     const im=$("aiIdeaMode"); if(im) im.textContent=ED_COMPUTE_LABEL[m];
+    edApplyPrivateUI();   /* 本机算力档位显示手填网址 + API Key 配置块，其它档位隐藏 */
     if(!skipSave) saveCompute(m);
     if(!silent) toast("算力总控已切换为「"+ED_COMPUTE_LABEL[m]+"」","ok");
 }
@@ -7229,8 +7580,10 @@ function aiConfig(overrideModel){
     const src=$("aiSrc").value;
     if(src==="custom") return {endpoint:$("aiEndpoint").value.trim(),key:$("aiKey").value.trim(),model:$("aiModel").value.trim(),label:"自定义接口"};
     if(src==="local"){
-        const base=String(safeStorage.get("manflows_local_base")||"").trim();
-        return {endpoint:llmUrlFromBase(base),key:"",model:String(safeStorage.get("manflows_local_model")||"").trim(),label:"本机算力（已接通的大语言模型）"};
+        const base=edCurrentBase();
+        if(edPrivateMode()&&!base) return {endpoint:"",key:"",model:"",label:"本机算力 · 私有算力通外网（未填写 Strata BaseURL）"};
+        return {endpoint:llmUrlFromBase(base),key:edLocalKey(),model:edLocalModelName(),
+            label:edPrivateMode()?"本机算力 · 私有算力通外网（Strata）":"本机算力（手填 / 已接通的大语言模型）"};
     }
     let list=[]; try{ list=JSON.parse(safeStorage.get("manflows_api_profiles")||"[]")||[]; }catch(e){}
     if(!Array.isArray(list)) list=[];
@@ -8857,7 +9210,7 @@ const AIB=(function(){
         const cs=textClips();
         if(!cs.length){ toast("字幕轨为空，先生成字幕","err"); return; }
         let cfg;
-        if(state.compute==="local"){ const L=computeLocal(); cfg={endpoint:llmUrlFromBase(L.base),key:"",model:L.model||"",label:"本机算力"}; }
+        if(state.compute==="local"){ const L=computeLocal(); cfg={endpoint:llmUrlFromBase(L.base),key:edLocalKey(),model:L.model||"",label:"本机算力"}; }
         else cfg=aiConfig();
         if(!cfg.endpoint||!cfg.model){ $("abState").className="ai-state err"; $("abState").textContent="模型未配置好：请到创作台/画布填好第三方API，或本机算力接通模型。"; return; }
         const btn=$("abCutAi"); btn.disabled=true;
@@ -9234,6 +9587,7 @@ function wire(){
         const r=e.target.closest('input[name="edComputeMode"]');
         if(r) applyCompute(r.value);
     });
+    edBindLocalUI();   /* 本机算力：手填模型网址 / API Key / 模型名、双模式、地址清单、自动接通 */
     /* 同一网页的多个标签页：靠 storage 事件同步档位（storage 不会回送给写入方自己） */
     window.addEventListener("storage",e=>{
         if(e.key===ED_COMPUTE_KEY && e.newValue && ED_COMPUTE_LABEL[e.newValue] && e.newValue!==state.compute) applyCompute(e.newValue,true,true);
