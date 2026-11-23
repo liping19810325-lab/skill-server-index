@@ -407,8 +407,10 @@
                     <div class="cv-tools-body">
                         <div class="api-box" id="apiInfo">读取中…</div>
                         <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点自动拆分遇到识别困难时的兜底用）</label></div>
+                        <div class="row"><input type="text" id="cvLocalBaseInput" spellcheck="false" placeholder="手动填写本机地址，如 http://127.0.0.1:8080；填好点「自动接通」即保存"></div>
                         <div class="row"><button class="mini-btn green" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
-                        <div class="hint" style="margin:4px 0 0">与创作台共用同一份本机地址：创作台【算力总控 → ⚡ 自动接通】扫到的 llama / Ollama / LM Studio 等，画布页直接复用；也可以在这里再点一次，独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
+                        <div class="row" id="cvLocalPickRow" style="display:none"><select id="cvLocalBaseSelect" style="flex:1;min-width:0" title="已保存的本机地址，选中即切换使用"></select><button class="mini-btn red" id="cvDelLocalBaseBtn" title="从清单里删除当前选中的地址">🗑 删除</button></div>
+                        <div class="hint" style="margin:4px 0 0">手填地址后点「⚡ 自动接通」即保存到下方清单（与创作台共用同一份），可在下拉里切换或删除；也会独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
                         <div class="row" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:8px"><label>补充模型清单（可选 · 创作台模型已自动并入下拉）</label></div>
                         <div class="row"><input type="text" id="modelLibInput" placeholder="填服务商模型名，如 xxx-image / xxx-video / xxx-llm"></div>
                         <div class="row"><select id="modelLibKind"><option value="image">生图</option><option value="video">生视频</option><option value="llm">大语言（写作）</option></select><button class="mini-btn" id="modelLibAddBtn">＋ 添加</button></div>
@@ -2989,6 +2991,77 @@ async function smartSplitLLM(n){
    ================================================================== */
 const CV_KEY_LOCAL_BASE  = "manflows_local_base";
 const CV_KEY_LOCAL_MODEL = "manflows_local_model";
+/* 本机地址清单：与创作台共用同一键 manflows_local_bases（手填 + 扫描到的服务统一存这里）。
+   点「⚡ 自动接通」即把手填地址并入清单；下拉框列出全部，可选、可删。 */
+const CV_KEY_LOCAL_BASES = "manflows_local_bases";
+function cvLoadBaseList(){
+    let arr=[];
+    try{ const raw=safeStorage.get(CV_KEY_LOCAL_BASES); const p=raw?JSON.parse(raw):[]; if(Array.isArray(p)) arr=p; }catch(e){}
+    const seen=new Set(), out=[];
+    arr.forEach(x=>{
+        const b=cvNormBase(x&&(x.base||x.url||(typeof x==="string"?x:"")));
+        if(!b||seen.has(b))return;
+        seen.add(b); out.push({base:b,label:String((x&&x.label)||"")});
+    });
+    const single=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(single&&!seen.has(single)) out.push({base:single,label:""});
+    return out;
+}
+function cvSaveBaseList(arr){
+    const seen=new Set(), clean=[];
+    (arr||[]).forEach(x=>{
+        const b=cvNormBase(x&&x.base);
+        if(!b||seen.has(b))return;
+        seen.add(b); clean.push({base:b,label:String((x&&x.label)||"")});
+    });
+    try{ safeStorage.set(CV_KEY_LOCAL_BASES,JSON.stringify(clean)); }catch(e){}
+    return clean;
+}
+function cvBaseDefaultLabel(base){
+    const port=(String(base).match(/:(\d+)$/)||[])[1];
+    const preset=CV_LLM_PORT_PRESETS.find(p=>String(p.port)===String(port));
+    return (preset?preset.name:"本机服务")+" · "+String(base).replace(/^https?:\/\//i,"");
+}
+function cvUpsertBases(bases){
+    let list=cvLoadBaseList(); const incoming=[];
+    (bases||[]).forEach(b=>{
+        const norm=cvNormBase(b&&(b.base||b)||(typeof b==="string"?b:""));
+        if(!norm||incoming.some(x=>x.base===norm))return;
+        incoming.push({base:norm,label:(b&&b.label)?String(b.label):cvBaseDefaultLabel(norm)});
+    });
+    if(!incoming.length) return list;
+    list=incoming.concat(list.filter(x=>!incoming.some(n=>n.base===x.base)));
+    return cvSaveBaseList(list);
+}
+function cvRemoveBase(base){
+    base=cvNormBase(base);
+    const list=cvLoadBaseList().filter(x=>x.base!==base);
+    cvSaveBaseList(list);
+    const cur=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(cur===base){
+        const next=list.length?list[0].base:"";
+        const inp=el("cvLocalBaseInput"); if(inp) inp.value=next;
+        if(next){ safeStorage.set(CV_KEY_LOCAL_BASE,next); }
+        else{ safeStorage.remove(CV_KEY_LOCAL_BASE); }
+    }
+    cvRenderBaseList(cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE)));
+    return list;
+}
+function cvRenderBaseList(selectBase){
+    const sel=el("cvLocalBaseSelect"), row=el("cvLocalPickRow");
+    const list=cvLoadBaseList();
+    if(!sel) return;
+    sel.innerHTML="";
+    list.forEach(x=>{
+        const o=document.createElement("option");
+        o.value=x.base; o.textContent=x.label||cvBaseDefaultLabel(x.base);
+        sel.appendChild(o);
+    });
+    const cur=cvNormBase(selectBase||safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(cur&&list.some(x=>x.base===cur)) sel.value=cur;
+    if(row) row.style.display=list.length?"flex":"none";
+    return list;
+}
 /* ===== 生成节点「模型 / 工作流」里的本机大语言模型（与 ComfyUI 工作流同栏可选） =====
    · 特殊 workflowId 只作选中标记，不新增存档字段，旧画布里普通工作流 id 一律原样保留；
    · 标签按「自动接通」写下的真实模型名显示，端口能对应到明确软件时补软件名；
@@ -3091,23 +3164,40 @@ async function cvScanLocal(force){
 /* 接通后把地址 / 模型名写回创作台的共用键，两个页面双向受益 */
 async function cvAutoConnectLlm(opts){
     const o=opts||{};
+    /* 手填地址：点「自动接通」即并入清单保存（即使本次没扫到也保留） */
+    const inp=el("cvLocalBaseInput");
+    const typed=cvNormBase(inp?inp.value:"");
+    if(typed) cvUpsertBases([{base:typed}]);
     /* 创作台已经接通时，页面一打开就先显示同步状态，不等后台扫描跑完 */
     const saved0=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
-    if(o.silent && saved0){
+    if(o.silent && saved0 && !typed){
         const m0=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
         cvSetLlmState("✓ 已同步创作台接通的 "+saved0.replace(/^https?:\/\//i,"")+(m0?" · "+m0:""),true);
     }else if(!o.silent){
         cvSetLlmState("⏳ 正在扫描本机大模型端口…");
     }
     const found=await cvScanLocal(true);
+    /* 扫到的服务全部并入清单（带默认标签），下拉框从清单渲染 */
+    if(found.length) cvUpsertBases(found.map(f=>({base:f.base})));
+    const curBase=typed||saved0;
+    cvRenderBaseList(curBase);
     if(!found.length){
+        if(typed){
+            safeStorage.set(CV_KEY_LOCAL_BASE,typed);
+            cvSetLlmState("⚠ 已保存手填地址 "+typed.replace(/^https?:\/\//i,"")+"，但没扫到服务；请先启动 llama / Ollama 等软件",false);
+            if(!o.silent) setStatus("已保存本机地址 "+typed+"，但暂未接通服务","err");
+            refreshOpenWfSelects();
+            return {base:typed,model:""};
+        }
         cvSetLlmState("✗ 没发现本机大模型服务：请先启动 llama / Ollama 等软件",false);
-        if(!o.silent) setStatus("本机大模型未接通：请先在电脑上启动 llama / Ollama，或到创作台手动填写地址","err");
+        if(!o.silent) setStatus("本机大模型未接通：请先在电脑上启动 llama / Ollama，或手动填写地址","err");
         return null;
     }
-    const saved=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
-    /* 创作台存的地址仍可用就保持不动，避免覆盖用户手填值 */
-    const keep=(saved&&found.some(f=>f.base===saved)) ? found.find(f=>f.base===saved) : found[0];
+    /* 手填地址优先（用户明确填的就是想用的），否则沿用创作台已存地址，再否则扫到的第一个 */
+    let keep=found[0];
+    if(typed && found.some(f=>f.base===typed)) keep=found.find(f=>f.base===typed);
+    else if(saved0 && found.some(f=>f.base===saved0)) keep=found.find(f=>f.base===saved0);
+    else if(typed) keep={base:typed,model:""};   /* 手填地址即使没扫到也作为当前地址 */
     safeStorage.set(CV_KEY_LOCAL_BASE,keep.base);
     if(keep.model && !String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim())
         safeStorage.set(CV_KEY_LOCAL_MODEL,keep.model);
@@ -6210,6 +6300,37 @@ async function initUI(){
         initModelLib();
         const llmBtn=el("localLlmAutoBtn");
         if(llmBtn) llmBtn.addEventListener("click",()=>cvAutoConnectLlm({}));
+        /* 本机地址清单：手填输入框 + 下拉切换 + 删除（与创作台共用同一份） */
+        const cvBaseInp=el("cvLocalBaseInput"), cvBaseSel=el("cvLocalBaseSelect"), cvDelBtn=el("cvDelLocalBaseBtn");
+        const cvSaved=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+        if(cvBaseInp){
+            if(cvSaved) cvBaseInp.value=cvSaved;
+            cvBaseInp.addEventListener("change",()=>{
+                const v=cvNormBase(cvBaseInp.value);
+                if(!v) return;
+                cvBaseInp.value=v;
+                safeStorage.set(CV_KEY_LOCAL_BASE,v);
+                cvSetLlmState("✓ 已手动指定 "+v.replace(/^https?:\/\//i,"")+"（点「⚡ 自动接通」可保存到下拉清单）",true);
+            });
+        }
+        if(cvBaseSel) cvBaseSel.addEventListener("change",()=>{
+            const v=cvNormBase(cvBaseSel.value); if(!v) return;
+            safeStorage.set(CV_KEY_LOCAL_BASE,v);
+            if(cvBaseInp) cvBaseInp.value=v;
+            cvSetLlmState("✓ 已切换到已保存地址 "+v.replace(/^https?:\/\//i,""),true);
+            refreshOpenWfSelects();
+        });
+        if(cvDelBtn) cvDelBtn.addEventListener("click",()=>{
+            const v=cvNormBase(cvBaseSel?cvBaseSel.value:(cvBaseInp?cvBaseInp.value:""));
+            if(!v){ setStatus("没有可删除的地址","err"); return; }
+            cvRemoveBase(v);
+            const now=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+            if(cvBaseInp) cvBaseInp.value=now;
+            cvSetLlmState(now?("✓ 已删除 "+v.replace(/^https?:\/\//i,"")+"，当前使用 "+now.replace(/^https?:\/\//i,"")):("✓ 已删除 "+v.replace(/^https?:\/\//i,"")+"，清单已清空"),!!now);
+            refreshOpenWfSelects();
+            setStatus("已删除本机地址 "+v,"ok");
+        });
+        cvRenderBaseList(cvSaved);
         if(!safeStorage.available) console.warn("本地存储不可用：仅本次会话有效，其余功能正常。");
         await loadCanvas();
         renderDocTabs();
@@ -6221,10 +6342,12 @@ async function initUI(){
         window.addEventListener("storage",e=>{
             if(e.key===KEY_API||e.key===KEY_CURR){ renderApiInfo(); refreshOpenModelSelects(); }
             if(e.key===KEY_MODELS){ renderModelLib(); refreshOpenModelSelects(); }
+            if(e.key===CV_KEY_LOCAL_BASES){ cvRenderBaseList(cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE))); }
             if(e.key===CV_KEY_LOCAL_BASE||e.key===CV_KEY_LOCAL_MODEL){
                 cvScanLocal(false);
                 renderApiInfo();
                 refreshOpenWfSelects();
+                cvRenderBaseList(cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE)));
                 const b=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
                 if(b) cvSetLlmState("✓ 已同步创作台的接通地址 "+b.replace(/^https?:\/\//i,""),true);
             }

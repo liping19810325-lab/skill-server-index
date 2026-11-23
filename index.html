@@ -97,8 +97,13 @@
         .local-conn-state { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.6; word-break: break-word; }
         .local-conn-state.ok { color: #a7f3d0; }
         .local-conn-state.err { color: #fca5a5; }
-        .local-conn-select { display: none; width: 100%; margin-top: 6px; padding: 5px 6px; background: var(--bg);
-                             border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 11.5px; }
+        .local-conn-pick { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+        .local-conn-select { flex: 1 1 auto; min-width: 0; padding: 5px 6px; background: var(--bg);
+                             border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 11.5px; outline: none; }
+        .local-conn-del { flex: 0 0 auto; padding: 5px 8px; min-height: 30px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px;
+                          background: var(--red); color: #fff; font-size: 11px; cursor: pointer; white-space: nowrap; }
+        .local-conn-del:hover:not(:disabled) { filter: brightness(1.15); }
+        .local-conn-del:disabled { opacity: .5; cursor: not-allowed; }
         /* 本机算力：只留一行提示，具体部署与启动方式见「使用帮助」 */
         .local-hint { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0; padding: 7px 9px;
                       background: var(--panel); border: 1px solid var(--border2); border-radius: 8px;
@@ -427,11 +432,14 @@
                 </div>
                 <div class="local-conn" id="localConnBox">
                     <div class="local-conn-row">
-                        <input type="text" id="localBaseInput" spellcheck="false" placeholder="本机地址，留空自动检测">
-                        <button type="button" class="local-conn-btn" id="autoDetectBtn" title="扫描常见端口，自动接通本机正在运行的大模型服务">⚡ 自动接通</button>
+                        <input type="text" id="localBaseInput" spellcheck="false" placeholder="手动填写本机地址，如 http://127.0.0.1:8080；填好点右侧「自动接通」即保存">
+                        <button type="button" class="local-conn-btn" id="autoDetectBtn" title="保存上方手填地址，并扫描常见端口自动接通本机正在运行的大模型服务">⚡ 自动接通</button>
                     </div>
                     <div class="local-conn-state fold-hint" id="localConnState">○ 尚未检测本机大模型服务</div>
-                    <select class="local-conn-select" id="localServiceSelect" title="检测到多个服务时可在这里切换"></select>
+                    <div class="local-conn-pick" id="localPickRow" style="display:none">
+                        <select class="local-conn-select" id="localServiceSelect" title="已保存的本机地址，选中即切换使用"></select>
+                        <button type="button" class="local-conn-del" id="delLocalBaseBtn" title="从清单里删除当前选中的地址">🗑 删除</button>
+                    </div>
                 </div>
                 <div class="api-config-block" id="apiConfigBlock">
                     <div class="api-row">
@@ -669,6 +677,9 @@ const SKILL_TOKEN = "CU001-ABC123";
 const LOCAL_DEFAULT_BASE = "http://127.0.0.1:8080";
 const LOCAL_LLAMA_URL = LOCAL_DEFAULT_BASE + "/v1/chat/completions";
 const STORAGE_KEY_LOCAL_BASE = "manflows_local_base";
+/* 本机地址清单：手填地址 + 自动接通扫到的服务统一存这里，两页（创作台 / 画布）共用同一份。
+   每项 {base, label}；点「⚡ 自动接通」即把手填地址并入清单；下拉框列出全部，可选、可删。 */
+const STORAGE_KEY_LOCAL_BASES = "manflows_local_bases";
 const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
@@ -2712,6 +2723,88 @@ function mfChatUrl(base){
     if(/\/api\/chat$/i.test(s)) return s.replace(/\/api\/chat$/i, "/v1/chat/completions");
     return s + "/v1/chat/completions";
 }
+/* ===== 本机地址清单（手填保存 / 下拉选择 / 删除）=====
+   · 清单存 localStorage，创作台与画布共用同一键 STORAGE_KEY_LOCAL_BASES；
+   · 兼容旧用户：仅有单个 manflows_local_base 时自动把它作为首条纳入清单；
+   · 顺序：新加入的排在最前（最近保存的在上），按 base 去重。 */
+function mfLoadBaseList(){
+    let arr = [];
+    try { const raw = safeStorage.get(STORAGE_KEY_LOCAL_BASES); const p = raw ? JSON.parse(raw) : []; if(Array.isArray(p)) arr = p; } catch(e){}
+    const seen = new Set(), out = [];
+    arr.forEach(x => {
+        const b = mfNormalizeBase(x && (x.base || x.url || (typeof x === "string" ? x : "")));
+        if(!b || seen.has(b)) return;
+        seen.add(b);
+        out.push({ base:b, label:String((x && x.label) || "") });
+    });
+    /* 老的单一地址键若在清单里没有，补一条（不覆盖已有顺序） */
+    const single = mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
+    if(single && !seen.has(single)) out.push({ base:single, label:"" });
+    return out;
+}
+function mfSaveBaseList(arr){
+    const seen = new Set(), clean = [];
+    (arr || []).forEach(x => {
+        const b = mfNormalizeBase(x && x.base);
+        if(!b || seen.has(b)) return;
+        seen.add(b); clean.push({ base:b, label:String((x && x.label) || "") });
+    });
+    try { safeStorage.set(STORAGE_KEY_LOCAL_BASES, JSON.stringify(clean)); } catch(e){}
+    return clean;
+}
+/* 把若干地址并入清单（去重、放最前），返回清单；未给 label 的地址按端口生成默认标签。 */
+function mfUpsertBases(bases){
+    let list = mfLoadBaseList();
+    const incoming = [];
+    (bases || []).forEach(b => {
+        const norm = mfNormalizeBase(b && (b.base || b) || (typeof b === "string" ? b : ""));
+        if(!norm || incoming.some(x => x.base === norm)) return;
+        const label = (b && b.label) ? String(b.label) : mfBaseDefaultLabel(norm);
+        incoming.push({ base:norm, label });
+    });
+    if(!incoming.length) return list;
+    list = incoming.concat(list.filter(x => !incoming.some(n => n.base === x.base)));
+    return mfSaveBaseList(list);
+}
+function mfBaseDefaultLabel(base){
+    const port = (String(base).match(/:(\d+)$/) || [])[1];
+    const preset = MF_LOCAL_PORT_PRESETS.find(p => String(p.port) === String(port));
+    const host = String(base).replace(/^https?:\/\//i, "");
+    return (preset ? preset.name : "本机服务") + " · " + host;
+}
+/* 渲染下拉框：列出清单，选中 selectBase（默认当前地址）。rowVisible 控制整行显隐。 */
+function mfRenderBaseList(selectBase){
+    const sel = mfEl("localServiceSelect");
+    const row = mfEl("localPickRow");
+    const list = mfLoadBaseList();
+    if(!sel) return;
+    sel.innerHTML = "";
+    list.forEach(x => {
+        const o = document.createElement("option");
+        o.value = x.base; o.textContent = x.label || mfBaseDefaultLabel(x.base);
+        sel.appendChild(o);
+    });
+    const cur = mfNormalizeBase(selectBase || mfCurrentBase());
+    if(cur && list.some(x => x.base === cur)) sel.value = cur;
+    if(row) row.style.display = list.length ? "flex" : "none";
+    return list;
+}
+/* 从清单里删除某个地址；若删的是当前地址，切到剩余第一个（或清空输入框）。 */
+function mfRemoveBase(base){
+    base = mfNormalizeBase(base);
+    const list = mfLoadBaseList().filter(x => x.base !== base);
+    mfSaveBaseList(list);
+    const input = mfEl("localBaseInput");
+    const cur = mfCurrentBase();
+    if(cur === base){
+        const next = list.length ? list[0].base : "";
+        if(input) input.value = next;
+        if(next){ safeStorage.set(STORAGE_KEY_LOCAL_BASE, next); localConnReady = true; }
+        else { safeStorage.remove(STORAGE_KEY_LOCAL_BASE); localConnReady = false; }
+    }
+    mfRenderBaseList(mfCurrentBase());
+    return list;
+}
 /* 从「当前本地地址」解析它真正加载的模型名。
    关键：本机地址可能是桥接(8080，/health 带 activeModel)，也可能是用户直连的上游
    (llama-server 9931 等，只有 /v1/models)。只认 /health 的话，直连场景拿不到模型名，
@@ -2949,6 +3042,9 @@ function mfApplyLocalChoice(choice){
     if(input) input.value = choice.base;
     safeStorage.set(STORAGE_KEY_LOCAL_BASE, choice.base);
     localConnReady = true;
+    /* 并入清单并刷新下拉（接通/选择都走这里，保证下拉框始终反映当前地址） */
+    mfUpsertBases([{ base:choice.base, label:choice.label || mfBaseDefaultLabel(choice.base) }]);
+    mfRenderBaseList(choice.base);
     mfSetLocalVision(choice);
     mfSetLocalState("✓ 已接通 " + choice.label + (choice.model ? " · 模型 " + choice.model : "")
         + (localVisionOfDefault === true ? " · 已识别视觉模块" : ""), "ok");
@@ -2980,6 +3076,8 @@ async function mfDetectLocal({ quiet=false } = {}){
     const bases = [];
     const custom = mfNormalizeBase(mfEl("localBaseInput") ? mfEl("localBaseInput").value : "")
                    || mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
+    /* 手填地址先并入清单——即使本次没扫到服务也要保存（用户点「自动接通」即保存的语义） */
+    if(custom) mfUpsertBases([{ base:custom }]);
     if(custom) bases.push(custom);
     MF_LOCAL_PORT_PRESETS.forEach(p => MF_LOCAL_HOSTS.forEach(h => {
         const b = "http://" + h + ":" + p.port;
@@ -3001,10 +3099,15 @@ async function mfDetectLocal({ quiet=false } = {}){
     localDetectRunning = false;
     if(btn && !quiet) btn.disabled = false;
     if(!found.length){
-        localConnReady = false;
-        if(!quiet) mfSetLocalState("✗ 没发现本机大模型服务。请先启动 llama / Ollama 等软件，或手动填写含端口的地址。", "err");
-        const sel0 = mfEl("localServiceSelect");
-        if(sel0) sel0.style.display = "none";
+        /* 手填地址即便没扫到也已保存进清单：仍把它设为当前地址，保证清单与输入框可用 */
+        mfRenderBaseList(custom || mfCurrentBase());
+        if(custom){
+            localConnReady = true;
+            if(!quiet) mfSetLocalState("⚠ 已保存手填地址 " + custom + "，但没扫到本机服务；请先启动 llama / Ollama 等软件。", "err");
+        }else{
+            localConnReady = false;
+            if(!quiet) mfSetLocalState("✗ 没发现本机大模型服务。请先启动 llama / Ollama 等软件，或手动填写含端口的地址。", "err");
+        }
         return null;
     }
     found.forEach(f => {
@@ -3012,20 +3115,12 @@ async function mfDetectLocal({ quiet=false } = {}){
         const preset = MF_LOCAL_PORT_PRESETS.find(p => String(p.port) === String(port));
         f.label = (preset ? preset.name : f.kind) + " · " + f.base.replace(/^https?:\/\//i, "");
     });
-    const sel = mfEl("localServiceSelect");
-    if(sel){
-        sel.innerHTML = "";
-        found.forEach(f => {
-            const o = document.createElement("option");
-            o.value = f.base; o.textContent = f.label;
-            sel.appendChild(o);
-        });
-        sel.style.display = found.length > 1 ? "block" : "none";
-        sel.value = found[0].base;
-        sel.onchange = () => mfApplyLocalChoice(found.find(x => x.base === sel.value));
-    }
-    mfApplyLocalChoice(found[0]);
-    return found[0];
+    /* 扫到的服务全部并入清单（带标签），手填地址排最前；下拉框统一从清单渲染 */
+    mfUpsertBases(found.map(f => ({ base:f.base, label:f.label })));
+    /* 当前地址优先用手填的那条（用户明确填的就是想用的），否则用扫到的第一个 */
+    const pick = found.find(f => f.base === custom) || found[0];
+    mfApplyLocalChoice(pick);
+    return pick;
 }
 
 /* ===== 剧本创作助手V5（技能 a）：集数控制指令 =====
@@ -3524,27 +3619,51 @@ function initUI(){
         btn.addEventListener("click", ()=>{ onSkillButtonClick({type:"builtin", key:key}); });
     });
 
-    // 本机大模型服务：自动扫描常见端口 / 手填任意地址，地址只存本机浏览器
+    // 本机大模型服务：手填地址 + 自动扫描，地址清单只存本机浏览器（两页共用）
     const localBaseInput = document.getElementById("localBaseInput");
     const autoDetectBtn = document.getElementById("autoDetectBtn");
     const savedBase = mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
     if(localBaseInput){
         if(savedBase) localBaseInput.value = savedBase;
+        /* 手动改地址：设为当前地址用于生成；点「自动接通」才会正式并入清单保存。
+           若清单已有该地址，顺手让下拉框选中它，保持一致。 */
         localBaseInput.addEventListener("change", ()=>{
             const v = mfNormalizeBase(localBaseInput.value);
             if(!v) return;
             localBaseInput.value = v;
             safeStorage.set(STORAGE_KEY_LOCAL_BASE, v);
             localConnReady = true;
-            mfSetLocalState("✓ 已手动指定 " + v + "（生成时直接请求该地址）", "ok");
+            mfRenderBaseList(v);
+            mfSetLocalState("✓ 已手动指定 " + v + "（点「⚡ 自动接通」可保存到下拉清单）", "ok");
         });
         localBaseInput.addEventListener("keydown", (e)=>{
             if(e.key === "Enter"){ e.preventDefault(); localBaseInput.blur(); }
         });
     }
+    /* 下拉选择：切到清单里已保存的某个地址 */
+    const baseSel = document.getElementById("localServiceSelect");
+    if(baseSel) baseSel.addEventListener("change", ()=>{
+        const hit = mfLoadBaseList().find(x => x.base === baseSel.value);
+        mfApplyLocalChoice(hit || { base:baseSel.value });
+        mfSetLocalState("✓ 已切换到已保存地址 " + baseSel.value, "ok");
+    });
+    /* 删除当前选中的地址 */
+    const delBaseBtn = document.getElementById("delLocalBaseBtn");
+    if(delBaseBtn) delBaseBtn.addEventListener("click", ()=>{
+        const target = mfNormalizeBase(baseSel ? baseSel.value : (localBaseInput ? localBaseInput.value : ""));
+        if(!target){ toast("没有可删除的地址", "err"); return; }
+        mfRemoveBase(target);
+        const now = mfCurrentBase();
+        if(localBaseInput) localBaseInput.value = now;
+        if(now) mfSetLocalState("✓ 已删除 " + target + "，当前使用 " + now, "ok");
+        else mfSetLocalState("✓ 已删除 " + target + "，清单已清空", "ok");
+        toast("已删除地址 " + target, "ok");
+    });
     if(autoDetectBtn) autoDetectBtn.addEventListener("click", ()=> mfDetectLocal());
     const visionTestBtn = document.getElementById("visionTestBtn");
     if(visionTestBtn) visionTestBtn.addEventListener("click", ()=> mfTestVision());
+    /* 页面加载即渲染已保存的清单下拉（不触发扫描），刷新后用户仍能选/删历史地址 */
+    mfRenderBaseList(savedBase || mfCurrentBase());
     if(computeMode === "local") setTimeout(()=> mfDetectLocal({ quiet:true }), 350);
 
     // 上下文窗口快捷值：统一事件绑定、恢复上次档位、当前档位高亮
