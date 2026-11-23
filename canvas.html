@@ -91,6 +91,8 @@
     /* 本机算力双模式：本地 / 自定义私有算力；私有配置可整体收起，保持左栏简洁 */
     .cv-submode-row{gap:8px 12px;}
     .cv-submode-row label{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:#d1d5db;cursor:pointer;white-space:nowrap;}
+    /* 「本机/局域网」紧跟「本机接入方式：」，「私有算力通外网」单独换行靠左 */
+    .cv-submode-row label:nth-of-type(3){flex:1 1 100%;}
     .cv-submode-row input[type=radio]{width:auto;margin:0;accent-color:var(--blue);cursor:pointer;}
     .cv-private-tools{margin:8px 0 4px;border-top:1px solid var(--border2);padding-top:7px;}
     .cv-private-tools summary{cursor:pointer;font-size:11.5px;color:#93c5fd;list-style:none;user-select:none;padding:3px 0;}
