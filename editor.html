@@ -5545,45 +5545,35 @@ function pvGuardSyncTransform(){
 }
 function pvGuardFrame(now,meta){
     const g=pvGuard;
-    /* 导出录制期间跳过亮度采样：录制自己已有帧缓存兜底，这里不重复 drawImage 抢占解码资源 */
-    if(exportRecording){ g.cv.classList.remove("show"); g.lastLum=-1;
+    /* 导出录制期间守卫完全休眠：导出用自己的 exportFrameLumSync 同步采样当前帧
+       （rVFC 信号滞后一帧不能用于导出）。这里若还采样会形成双份 getImageData + 全尺寸
+       drawImage，与导出循环抢占解码资源，是导出变慢的主因。每帧仅重注册回调，零采样。 */
+    if(exportRecording){ g.cv.classList.remove("show");
         try{ g.cbId=vEl.requestVideoFrameCallback(pvGuardFrame); }catch(e){} return; }
+    const mt=Number(meta&&meta.mediaTime)||0;
+    const active=vEl.classList.contains("show") && !!(vEl.videoWidth>0);
     try{
         const aid=vEl.dataset.aid||"";
-        if(aid!==g.lastAid){ g.lastAid=aid; g.lastLum=-1; g.lastMediaTime=-1; g.cv.classList.remove("show"); }
-        const active=vEl.classList.contains("show") && !exportRecording;
-        if(active && !!(vEl.videoWidth>0)){
-            const mt=Number(meta&&meta.mediaTime)||0;
+        if(aid!==g.lastAid){ g.lastAid=aid; g.lastLum=-1; g.lastMediaTime=-1; }
+        if(active){
             const L=pvGuardLum();
-            /* 突变判据：上一帧是正常画面(>20)，当前帧几乎全黑(<6)，且媒体时间在推进——
-               这是解码空帧；真实暗场不会从正常亮度一帧内跳到近黑且下一帧又恢复。 */
-            const blank=(g.lastLum>20 && L>=0 && L<6);
-            if(blank){
-                /* 空帧时当前 vEl 也是黑，直接用正常帧缓存的上一帧好画面覆盖 */
-                if(g.lastGood && g.lastGoodValid){
-                    if(g.cv.width!==g.lastGood.width||g.cv.height!==g.lastGood.height){
-                        g.cv.width=g.lastGood.width; g.cv.height=g.lastGood.height;
-                    }
-                    g.cvx.clearRect(0,0,g.cv.width,g.cv.height);
-                    g.cvx.drawImage(g.lastGood,0,0,g.cv.width,g.cv.height);
-                    g.cv.classList.add("show"); pvGuardSyncTransform();
+            /* 突变判据：上一帧正常(>20)，当前帧突然接近全黑或明显变暗。用采样前基线判断。 */
+            const wasBlank=(g.lastLum>20 && L>=0 && L<Math.max(9,g.lastLum*0.42));
+            if(!wasBlank && L>=0) g.lastLum=L;   /* 只有正常帧才更新基线 */
+            /* guard canvas 始终接管主画面：正常帧画当前帧，空帧什么都不画(canvas 保留上一帧)，
+               坏帧永不呈现。rVFC 回调在帧呈现后触发，故必须靠 canvas 接管而非事后覆盖。 */
+            if(!wasBlank && L>=0){
+                if(g.cv.width!==vEl.videoWidth||g.cv.height!==vEl.videoHeight){
+                    g.cv.width=vEl.videoWidth||640; g.cv.height=vEl.videoHeight||360;
                 }
-            }else{
-                if(L>=0){
-                    /* 正常帧：把当前好画面写入 lastGood，供下次空帧兜底 */
-                    if(!g.lastGood){ g.lastGood=document.createElement("canvas"); }
-                    if(g.lastGood.width!==vEl.videoWidth||g.lastGood.height!==vEl.videoHeight){
-                        g.lastGood.width=vEl.videoWidth||640; g.lastGood.height=vEl.videoHeight||360;
-                    }
-                    try{ const gg=g.lastGood.getContext("2d"); gg.clearRect(0,0,g.lastGood.width,g.lastGood.height);
-                         gg.drawImage(vEl,0,0,g.lastGood.width,g.lastGood.height); g.lastGoodValid=true; }catch(e){}
-                    if(L>6) g.cv.classList.remove("show");
-                }
+                g.cvx.clearRect(0,0,g.cv.width,g.cv.height);
+                g.cvx.drawImage(vEl,0,0,g.cv.width,g.cv.height);
             }
-            g.lastLum=L; g.lastMediaTime=mt;
+            g.cv.classList.add("show"); pvGuardSyncTransform();
         }else{
             g.cv.classList.remove("show"); g.lastLum=-1;
         }
+        g.lastMediaTime=mt;
     }catch(e){ try{g.cv.classList.remove("show");}catch(_){} }
     try{ g.cbId=vEl.requestVideoFrameCallback(pvGuardFrame); }catch(e){}
 }
@@ -5944,7 +5934,8 @@ function play(){
 }
 function pause(){
     playing=false; cancelAnimationFrame(rafId);
-    if(typeof pvGuard!=="undefined"&&pvGuard.cv){ pvGuard.cv.classList.remove("show"); pvGuard.lastLum=-1; }
+    /* 不隐藏 guard：canvas 接管主画面后，暂停/逐帧时它保留最后一帧有效画面，
+       避免露出底层 <video> 恰好停在解码空帧上的黑画面。仅切到图片/空画面时由 syncMedia 隐藏。 */
     if(!vEl.paused) vEl.pause();
     audioPool.forEach(o=>{ try{ if(!o.el.paused) o.el.pause(); }catch(e){} });
     renderPlayhead();
@@ -11226,17 +11217,43 @@ function releaseRecordAudio(){ mfRecordAudio=false; }
    录制画布每帧都取当前 <video>，解码未完成时旧版 src=null 直接铺黑，于是每个切口都闪黑。
    这里缓存最近一帧"已成功解码并合成"的成片画面；解码空窗期复用该帧，宁可停一帧也不闪黑。 */
 let exportFrameCache={cv:null,w:0,h:0,valid:false};
-function exportFrameCacheReset(){ exportFrameCache.valid=false; }
-/* 视频帧"真正可画"判定：跨段 seek 期间 readyState 可能仍是 2~4、videoWidth 也 >0，
-   但画面是空/旧/黑的中间态，必须排除 seeking。
-   这是衔接点闪黑的核心：旧版只判 readyState>1，把 seek 空窗当有效帧画进成片。 */
+function exportFrameCacheReset(){ exportFrameCache.valid=false; exportLumLast=-1; exportLumAid=""; exportLumFrameCt=-1; }
+/* 解码空帧实时检测：浏览器 H.264 解码器会在某些关键帧吐出"全黑/变暗"空帧，
+   此刻 seeking=false、readyState=4、videoWidth>0——所有同步属性都"正常"，只判属性
+   会把空帧当有效帧画进成片（"烧录成片夹黑帧"）。唯一可靠信号是当前帧真实亮度。
+   不能读 rVFC 缓存：它的呈现信号比导出取帧滞后约 1 帧（实测导出取到黑帧时缓存仍是上一
+   好帧），会完全判反。故这里同步采样当前 <video> 帧。
+   性能：用 12×7 小画布 + willReadFrequently（CPU 光栅，避开 GPU→CPU 同步的偶发百毫秒尖峰），
+   且按 currentTime 做帧级缓存——同一帧 drawStageFrame 内被问 2 次只读 1 次。 */
+let exportLumCtx=null, exportLumCv=null, exportLumLast=-1, exportLumAid="";
+let exportLumFrameCt=-1, exportLumFrameVal=-1, exportLumFrameBlank=false;
+function exportFrameLumSync(){
+    if(!exportLumCv){
+        exportLumCv=document.createElement("canvas"); exportLumCv.width=12; exportLumCv.height=7;
+        exportLumCtx=exportLumCv.getContext("2d",{willReadFrequently:true});
+    }
+    try{
+        exportLumCtx.drawImage(vEl,0,0,12,7);
+        const d=exportLumCtx.getImageData(0,0,12,7).data;
+        let s=0; for(let i=0;i<d.length;i+=4) s+=(d[i]+d[i+1]+d[i+2])/3;
+        return s/(d.length/4);
+    }catch(e){ return -1; }
+}
 function exportVideoFrameReady(vc){
     if(!vEl.classList.contains("show") || vEl.readyState<2 || !(vEl.videoWidth>0)) return false;
-    /* seek 进行中即解码空窗，绝不可画。注意：这里刻意不校验 currentTime 与目标时间差——
-       播放中 syncMedia 容许 currentTime 落后播放头达 0.32s 才 seek，若按半帧校验会把
-       正常播放帧全判成未就绪，导致成片持续停帧。seeking 已可靠覆盖跨段空窗。 */
+    /* seek 进行中即解码空窗，绝不可画（seeking 可靠覆盖跨段空窗）。 */
     if(vEl.seeking) return false;
-    return true;
+    const aid=vEl.dataset.aid||"";
+    if(aid!==exportLumAid){ exportLumAid=aid; exportLumLast=-1; exportLumFrameCt=-1; }
+    const ct=vEl.currentTime;
+    /* 帧级缓存：同一 currentTime 只采样一次。drawStageFrame 单次调用会问 2 次。 */
+    if(ct!==exportLumFrameCt){
+        const L=exportFrameLumSync();
+        exportLumFrameBlank=(exportLumLast>20 && L>=0 && L<Math.max(9,exportLumLast*0.42));
+        if(L>=0 && !exportLumFrameBlank) exportLumLast=L;   /* 只有好帧才更新基线 */
+        exportLumFrameVal=L; exportLumFrameCt=ct;
+    }
+    return !exportLumFrameBlank;
 }
 function exportFrameCachePut(x,W,H){
     let cv=exportFrameCache.cv;
