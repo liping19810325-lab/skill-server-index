@@ -88,6 +88,24 @@
     .cv-tools summary::before{content:"▸ ";color:var(--muted);}
     .cv-tools[open] summary::before{content:"▾ ";}
     .cv-tools-body{padding-top:6px;}
+    /* 本机算力双模式：本地 / 自定义私有算力；私有配置可整体收起，保持左栏简洁 */
+    .cv-submode-row{gap:8px 12px;}
+    .cv-submode-row label{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:#d1d5db;cursor:pointer;white-space:nowrap;}
+    .cv-submode-row input[type=radio]{width:auto;margin:0;accent-color:var(--blue);cursor:pointer;}
+    .cv-private-tools{margin:8px 0 4px;border-top:1px solid var(--border2);padding-top:7px;}
+    .cv-private-tools summary{cursor:pointer;font-size:11.5px;color:#93c5fd;list-style:none;user-select:none;padding:3px 0;}
+    .cv-private-tools summary::-webkit-details-marker{display:none;}
+    .cv-private-tools summary::before{content:"▸ ";color:var(--muted);}
+    .cv-private-tools[open] summary::before{content:"▾ ";}
+    .cv-private-body{padding-top:6px;display:grid;gap:7px;}
+    .cv-private-row{display:grid;grid-template-columns:1fr;gap:3px;}
+    .cv-private-row label{font-size:11px;color:var(--muted);}
+    .cv-private-row input{width:100%;min-width:0;padding:5px 7px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:#e5e7eb;font-size:11px;outline:none;}
+    .cv-private-row input:focus{border-color:var(--blue);}
+    .cv-private-actions{display:flex;gap:6px;flex-wrap:wrap;}
+    .cv-llama-key-row label{flex:0 0 auto;white-space:nowrap;font-size:11px;color:var(--muted);}
+    .cv-llama-key-row input{flex:1;min-width:0;}
+    .cv-llama-key-hint{font-size:10.5px;color:var(--muted);line-height:1.6;margin:4px 0 0;}
 
     .stage{flex:1;min-width:0;position:relative;overflow:hidden;background-color:#0c0e14;
            background-image:radial-gradient(#252a36 1px,transparent 1px);background-size:22px 22px;}
@@ -402,12 +420,30 @@
                     <label><input type="radio" name="cvComputeMode" value="third_party"> 第三方API</label>
                 </div>
                 <div class="hint" id="cvComputeHint">三页算力档位各自独立：本页切档不会改动创作台 / AI 剪辑台，可同时用不同算力并行工作（同一网页的多个标签页仍同步）。本页内部两处联动：本栏 ↔ 生成节点「生成引擎」任意一处切换，另一处立即跟随。切本栏会把当前画布所有生成节点一起改（生成中的不打断）；在生成节点里单独改引擎只改那一个节点，其它节点仍可各自保留，新建生成节点默认跟随本栏。</div>
+                <div class="row cv-submode-row" id="cvSubModeRow" style="display:none">
+                    <label>本机接入方式：</label>
+                    <label><input type="radio" name="cvConnectMode" value="local" checked> 本地模式</label>
+                    <label><input type="radio" name="cvConnectMode" value="private"> 自定义私有算力模式</label>
+                </div>
+                <details class="cv-private-tools" id="cvPrivateTools" style="display:none">
+                    <summary>🔐 私有算力配置（HTTPS 域名优先 · 可收起）</summary>
+                    <div class="cv-private-body">
+                        <div class="cv-private-row"><label for="cvStrataBase">Strata BaseURL（必填 · 大模型拆分）</label><input type="text" id="cvStrataBase" spellcheck="false" placeholder="https://your-domain.example/strata"></div>
+                        <div class="cv-private-row"><label for="cvStrataKey">Strata API Key（选填）</label><input type="password" id="cvStrataKey" spellcheck="false" placeholder="留空则不发送 Authorization 头"></div>
+                        <div class="cv-private-row"><label for="cvComfyBase">ComfyUI BaseURL（必填）</label><input type="text" id="cvComfyBase" spellcheck="false" placeholder="https://your-domain.example/comfyui"></div>
+                        <div class="cv-private-row"><label for="cvComfyToken">ComfyUI Access Token（选填）</label><input type="password" id="cvComfyToken" spellcheck="false" placeholder="留空则不发送 Authorization 头"></div>
+                        <div class="cv-private-actions"><button class="mini-btn red" id="cvClearPrivateBtn">清空配置</button></div>
+                        <div style="font-size:10.5px;color:var(--muted);line-height:1.6">配置与创作台共用，只存本机浏览器 localStorage，源码不内置域名与密钥。留空的 Key / Token 不会带鉴权头；切换模式立即生效，不影响本地 127.0.0.1 通路。</div>
+                    </div>
+                </details>
                 <details class="cv-tools" id="cvTools">
                     <summary>⚙ 接入工具：本机大模型 / 补充模型清单 / API 配置</summary>
                     <div class="cv-tools-body">
                         <div class="api-box" id="apiInfo">读取中…</div>
                         <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点自动拆分遇到识别困难时的兜底用）</label></div>
                         <div class="row"><input type="text" id="cvLocalBaseInput" spellcheck="false" placeholder="手动填写本机地址，如 http://127.0.0.1:8080；填好点「自动接通」即保存"></div>
+                        <div class="row cv-llama-key-row"><label for="cvLlamaKey">Llama-server API Key（选填）</label><input type="password" id="cvLlamaKey" spellcheck="false" placeholder="留空则不携带 Bearer 鉴权头"><button class="mini-btn gray" id="cvClearLlamaBtn" title="清空地址与密钥（不影响已保存的本机地址清单）">清空配置</button></div>
+                        <div class="cv-llama-key-hint">服务地址必填；支持局域网 http://192.168.x.x:8080 与 Cloudflare HTTPS 隧道 https://xxx.manflows.com。填入密钥后，本机大模型接口与自动接通检测自动带 Authorization: Bearer 密钥。</div>
                         <div class="row"><button class="mini-btn green" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
                         <div class="row" id="cvLocalPickRow" style="display:none"><select id="cvLocalBaseSelect" style="flex:1;min-width:0" title="已保存的本机地址，选中即切换使用"></select><button class="mini-btn red" id="cvDelLocalBaseBtn" title="从清单里删除当前选中的地址">🗑 删除</button></div>
                         <div class="hint" style="margin:4px 0 0">手填地址后点「⚡ 自动接通」即保存到下方清单（与创作台共用同一份），可在下拉里切换或删除；也会独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
@@ -756,6 +792,7 @@ function cvSyncComputeUI(){
     if(r) r.checked = true;
     const st = el("cvComputeState");
     if(st) st.textContent = "当前全局：" + (CV_ENGINE_LABEL[e] || e);
+    cvApplyPrivateUI();
 }
 function cvBroadcastMode(mode){
     try{
@@ -793,6 +830,7 @@ function cvApplyExternalMode(mode){
     cvApplyGlobalEngine(e, true, true);
 }
 function cvInitCompute(){
+    cvBindPrivateUI();
     cvSyncComputeUI();
     document.querySelectorAll('input[name="cvComputeMode"]').forEach(r=>{
         r.addEventListener("change", ()=>{
@@ -2219,7 +2257,7 @@ async function downloadUrl(url,name,opts){
         document.body.appendChild(a); a.click(); a.remove(); return;
     }
     try{
-        const r=await fetch(url,{mode:"cors"});
+        const r=await fetch(url,{mode:"cors",headers:cvComfyHeadersFor(url)});
         if(!r.ok) throw new Error("HTTP "+r.status);
         const blob=await r.blob(), u=URL.createObjectURL(blob);
         const a=document.createElement("a"); a.href=u; a.download=name;
@@ -2261,7 +2299,7 @@ function ensurePlayableVideo(v,url,name){
     fallback=async()=>{
         if(retried) return; retried=true;
         try{
-            const r=await fetch(url,{mode:"cors"});
+            const r=await fetch(url,{mode:"cors",headers:cvComfyHeadersFor(url)});
             if(!r.ok) throw new Error("HTTP "+r.status);
             const raw=await r.blob();
             const blob=(raw.type&&/^video\//i.test(raw.type))?raw:new Blob([raw],{type:"video/mp4"});
@@ -2450,6 +2488,8 @@ function fmtTime(ts){
    画布「生成结果」节点里存的是运行时生成的完整地址（http://127.0.0.1:8188/view?filename=...），
    所以那里总能显示。这里优先复用结果节点的地址；没有结果节点时再按文件名重建 ComfyUI 直链。 */
 function cvComfyBaseUrl(){
+    /* 私有模式：ComfyUI 一律走用户填写的 BaseURL；本地模式：原样沿用画布里保存的 127 地址 */
+    if(cvPrivateMode()) return cvNormPrivateBase(cvLoadPrivateCfg().comfyBase);
     const s=String((canvas.settings&&canvas.settings.comfyBase)||"").trim().replace(/\/+$/,"");
     return s||"http://127.0.0.1:8188";
 }
@@ -2464,7 +2504,9 @@ function mediaFileName(u){
 function comfyViewUrl(name){
     const fn=String(name||"").trim();
     if(!fn||isAbsMediaUrl(fn)) return fn;
-    return cvComfyBaseUrl()+"/view?filename="+encodeURIComponent(fn)+"&subfolder=&type=output";
+    const base=cvComfyBaseUrl();
+    if(!base) return fn;   /* 私有模式未填 ComfyUI BaseURL：不拼出错误的相对直链 */
+    return base+"/view?filename="+encodeURIComponent(fn)+"&subfolder=&type=output";
 }
 /* 按文件名 / 原地址，在画布所有「生成结果」节点里找一条直链，直接复用它 */
 function resultUrlForHistory(h){
@@ -2994,6 +3036,145 @@ const CV_KEY_LOCAL_MODEL = "manflows_local_model";
 /* 本机地址清单：与创作台共用同一键 manflows_local_bases（手填 + 扫描到的服务统一存这里）。
    点「⚡ 自动接通」即把手填地址并入清单；下拉框列出全部，可选、可删。 */
 const CV_KEY_LOCAL_BASES = "manflows_local_bases";
+/* ===== 本机算力双模式：内置本地 / 自定义私有算力（与创作台共用同一份 localStorage 配置） =====
+   本地模式的 127.0.0.1 / localhost 扫描与直连代码全部保留不动；
+   私有模式只使用用户手填的 Strata / ComfyUI BaseURL，无协议默认补 https://，
+   所有 Key / Token 只从 localStorage 读取，源码不内置任何域名或密钥。 */
+const CV_KEY_PRIVATE_COMPUTE = "manflows_private_compute";
+function cvFreshPrivateCfg(){ return {mode:"local",strataBase:"",strataKey:"",comfyBase:"",comfyToken:""}; }
+function cvNormPrivateBase(v){
+    let s=String(v||"").trim().replace(/\/+$/,"");
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) s="https://"+s;
+    return s.replace(/\/v1\/chat\/completions$/i,"").replace(/\/v1$/i,"").replace(/\/+$/,"");
+}
+function cvLoadPrivateCfg(){
+    const out=cvFreshPrivateCfg();
+    try{
+        const raw=safeStorage.get(CV_KEY_PRIVATE_COMPUTE);
+        if(raw){
+            const p=JSON.parse(raw);
+            if(p&&typeof p==="object"){
+                out.mode=(p.mode==="private")?"private":"local";
+                out.strataBase=cvNormPrivateBase(p.strataBase||p.strataBaseUrl||"");
+                out.comfyBase=cvNormPrivateBase(p.comfyBase||p.comfyUiBase||"");
+                out.strataKey=String(p.strataKey||p.strataApiKey||"");
+                out.comfyToken=String(p.comfyToken||p.comfyUiAccessToken||"");
+            }
+        }
+    }catch(e){}
+    return out;
+}
+function cvSavePrivateCfg(cfg){
+    const c=cvFreshPrivateCfg();
+    c.mode=(cfg&&cfg.mode==="private")?"private":"local";
+    c.strataBase=cvNormPrivateBase(cfg&&cfg.strataBase);
+    c.comfyBase=cvNormPrivateBase(cfg&&cfg.comfyBase);
+    c.strataKey=String((cfg&&cfg.strataKey)||"");
+    c.comfyToken=String((cfg&&cfg.comfyToken)||"");
+    try{ safeStorage.set(CV_KEY_PRIVATE_COMPUTE,JSON.stringify(c)); }catch(e){}
+    return c;
+}
+function cvPrivateMode(){ return cvLoadPrivateCfg().mode==="private"; }
+/* 鉴权头：Strata Key 与 ComfyUI Token 互不串用；留空则完全不追加 Authorization */
+function cvPrivateAuth(kind){
+    if(!cvPrivateMode()) return {};
+    const c=cvLoadPrivateCfg();
+    const k=String((kind==="comfy"?c.comfyToken:c.strataKey)||"").trim();
+    return k?{"Authorization":"Bearer "+k}:{};
+}
+/* Llama-server API Key（选填）：与创作台共用同一键；本地模式本机大模型请求携带，
+   私有模式仍使用 Strata Key。局域网与 Cloudflare HTTPS 隧道共用同一个地址输入框。 */
+const CV_KEY_LLAMA_KEY = "manflows_llama_api_key";
+function cvLlamaKey(){
+    const n=el("cvLlamaKey");
+    if(n) return n.value.trim();
+    return String(safeStorage.get(CV_KEY_LLAMA_KEY)||"").trim();
+}
+function cvLocalModelAuth(){
+    if(cvPrivateMode()) return cvPrivateAuth("strata");
+    const k=cvLlamaKey();
+    return k?{"Authorization":"Bearer "+k}:{};
+}
+function cvBindLlamaKeyUI(){
+    const inp=el("cvLlamaKey");
+    if(inp){
+        inp.value=String(safeStorage.get(CV_KEY_LLAMA_KEY)||"");
+        const save=()=>{ try{ safeStorage.set(CV_KEY_LLAMA_KEY,inp.value.trim()); }catch(e){} };
+        inp.addEventListener("input",save);
+        inp.addEventListener("change",save);
+    }
+    const clearBtn=el("cvClearLlamaBtn");
+    if(clearBtn) clearBtn.addEventListener("click",()=>{
+        try{ safeStorage.remove(CV_KEY_LLAMA_KEY); safeStorage.remove(CV_KEY_LOCAL_BASE); }catch(e){}
+        const base=el("cvLocalBaseInput"); if(base) base.value="";
+        const key=el("cvLlamaKey"); if(key) key.value="";
+        cvSetLlmState("✓ 已清空服务地址与 API Key（本机地址清单不受影响）",true);
+        cvRenderBaseList("");
+    });
+    window.addEventListener("storage",e=>{
+        if(e.key===CV_KEY_LLAMA_KEY && inp) inp.value=String(safeStorage.get(CV_KEY_LLAMA_KEY)||"");
+    });
+}
+function cvComfyHeadersFor(u){
+    if(!cvPrivateMode()) return {};
+    const b=cvNormPrivateBase(cvLoadPrivateCfg().comfyBase);
+    return (b&&String(u||"").indexOf(b)===0)?cvPrivateAuth("comfy"):{};
+}
+function cvEnsurePrivateReady(kind){
+    if(!cvPrivateMode()) return true;
+    const c=cvLoadPrivateCfg();
+    const label=(kind==="comfy")?"ComfyUI BaseURL":"Strata BaseURL";
+    const base=(kind==="comfy")?c.comfyBase:c.strataBase;
+    if(base) return true;
+    const msg="【自定义私有算力模式】"+label+"为空，已阻止本次请求。请在左栏【算力总控 → 本机算力 → 🔐 私有算力配置】填写"+label+"后重试。";
+    try{ alert(msg); }catch(e){}
+    try{ setStatus(label+"为空，请求已阻止","err"); }catch(e){}
+    return false;
+}
+function cvApplyPrivateUI(){
+    const row=el("cvSubModeRow"), box=el("cvPrivateTools");
+    const visible=(cvGlobalEngine()==="comfyui");
+    if(row) row.style.display=visible?"flex":"none";
+    if(box) box.style.display=visible?"block":"none";
+    const cfg=cvLoadPrivateCfg();
+    document.querySelectorAll('input[name="cvConnectMode"]').forEach(r=>{ r.checked=(r.value===cfg.mode); });
+    const fields={cvStrataBase:cfg.strataBase,cvStrataKey:cfg.strataKey,cvComfyBase:cfg.comfyBase,cvComfyToken:cfg.comfyToken};
+    const unlocked=(cfg.mode==="private");   /* 仅私有模式解锁四个输入框 */
+    Object.keys(fields).forEach(id=>{ const n=el(id); if(!n) return; n.disabled=!unlocked; if(n.value!==fields[id]) n.value=fields[id]; });
+}
+function cvBindPrivateUI(){
+    document.querySelectorAll('input[name="cvConnectMode"]').forEach(r=>{
+        r.addEventListener("change",()=>{
+            if(!r.checked) return;
+            const cfg=cvLoadPrivateCfg(); cfg.mode=r.value; cvSavePrivateCfg(cfg);
+            cvApplyPrivateUI();
+            const box=el("cvPrivateTools"); if(box) box.open=(r.value==="private");
+            setStatus("本机接入方式已切换为「"+(r.value==="private"?"自定义私有算力模式":"本地模式")+"」，立即生效","ok");
+        });
+    });
+    const fieldMap={cvStrataBase:"strataBase",cvStrataKey:"strataKey",cvComfyBase:"comfyBase",cvComfyToken:"comfyToken"};
+    Object.keys(fieldMap).forEach(id=>{
+        const node=el(id); if(!node) return;
+        const save=()=>{ const cfg=cvLoadPrivateCfg(); cfg[fieldMap[id]]=node.value; cvSavePrivateCfg(cfg); };
+        node.addEventListener("input",save);
+        node.addEventListener("change",()=>{
+            save();
+            if(id==="cvStrataBase"||id==="cvComfyBase"){
+                const norm=cvNormPrivateBase(node.value);
+                if(norm&&norm!==node.value) node.value=norm;
+                save();
+            }
+        });
+    });
+    const clearBtn=el("cvClearPrivateBtn");
+    if(clearBtn) clearBtn.addEventListener("click",()=>{
+        cvSavePrivateCfg(cvFreshPrivateCfg()); cvApplyPrivateUI();
+        const box=el("cvPrivateTools"); if(box) box.open=false;
+        setStatus("私有算力配置已清空，已回到内置本地模式","ok");
+    });
+    window.addEventListener("storage",e=>{ if(e.key===CV_KEY_PRIVATE_COMPUTE) cvApplyPrivateUI(); });
+}
 function cvLoadBaseList(){
     let arr=[];
     try{ const raw=safeStorage.get(CV_KEY_LOCAL_BASES); const p=raw?JSON.parse(raw):[]; if(Array.isArray(p)) arr=p; }catch(e){}
@@ -3072,8 +3253,8 @@ const CV_LLM_SOFT_BY_PORT = {
     5000:"text-generation-webui", 1337:"Jan", 4891:"GPT4All", 5001:"KoboldCpp"
 };
 function cvLocalLlmLabel(){
-    const base=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
-    if(!base) return "[大语言模型] 大语言模型（未接通）";
+    const base=cvPrivateMode()?cvNormPrivateBase(cvLoadPrivateCfg().strataBase):cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(!base) return "[大语言模型] 大语言模型（"+(cvPrivateMode()?"私有地址未填写":"未接通")+"）";
     const model=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
     const port=(base.match(/:(\d+)(?:\/|$)/)||[])[1]||"";
     const soft=CV_LLM_SOFT_BY_PORT[port]||"";
@@ -3120,7 +3301,7 @@ async function cvProbeLlm(base){
         const ctrl=new AbortController();
         const timer=setTimeout(()=>ctrl.abort(),1400);
         try{
-            const res=await fetch(base+p,{method:"GET",signal:ctrl.signal,cache:"no-store"});
+            const res=await fetch(base+p,{method:"GET",signal:ctrl.signal,cache:"no-store",headers:cvLocalModelAuth()});
             if(!res.ok) continue;
             let data=null; try{ data=await res.json(); }catch(e){}
             let model="";
@@ -3134,6 +3315,7 @@ async function cvProbeLlm(base){
 }
 /* 并发扫描本机常用端口，会话内缓存；空结果 30 秒内不重复扫，方便「先开页面后启服务」 */
 async function cvScanLocal(force){
+    if(cvPrivateMode()) return [];   /* 私有模式不扫描本机 127 端口，两套模式互不干扰 */
     const fresh = cvLocalScanCache && cvLocalScanCache.length;
     if(!force && cvLocalScanCache!==null && (fresh || Date.now()-cvLocalScanAt<30000)) return cvLocalScanCache;
     if(cvLocalScanRunning) return cvLocalScanRunning;
@@ -3164,6 +3346,15 @@ async function cvScanLocal(force){
 /* 接通后把地址 / 模型名写回创作台的共用键，两个页面双向受益 */
 async function cvAutoConnectLlm(opts){
     const o=opts||{};
+    if(cvPrivateMode()){
+        /* 私有模式：不做局域网扫描，也不写回本机地址清单；状态只反映 Strata BaseURL */
+        const cfg=cvLoadPrivateCfg(), b=cvNormPrivateBase(cfg.strataBase);
+        cvRenderBaseList(cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE)));
+        cvSetLlmState(b?("✓ 自定义私有算力 · "+b.replace(/^https?:\/\//i,"")):"⚠ 私有模式 Strata BaseURL 未填写",!!b);
+        refreshOpenWfSelects();
+        if(!o.silent&&!b) setStatus("私有算力 Strata BaseURL 未填写","err");
+        return b?{base:b,model:String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim()}:null;
+    }
     /* 手填地址：点「自动接通」即并入清单保存（即使本次没扫到也保留） */
     const inp=el("cvLocalBaseInput");
     const typed=cvNormBase(inp?inp.value:"");
@@ -3215,6 +3406,12 @@ async function llmCandidates(){
     const cur=safeStorage.get(KEY_CURR);
     const out=[];
     const push=c=>{ if(c&&c.endpoint&&!out.some(x=>x.endpoint===c.endpoint&&x.model===c.model&&x.key===c.key)) out.push(c); };
+    /* ⓪ 自定义私有算力模式：Strata BaseURL 置顶，Key 有内容才随请求带 Bearer */
+    if(cvPrivateMode()){
+        const pc=cvLoadPrivateCfg(), pb=cvNormPrivateBase(pc.strataBase);
+        if(pb) push({name:"自定义私有算力 · Strata",endpoint:pb,key:pc.strataKey,
+                     model:String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim(),local:true});
+    }
     /* ① 创作台已自动接通的本机地址（9931 等任意端口）＋ 探测到的真实模型名 */
     const saved=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
     const savedModel=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
@@ -3297,7 +3494,7 @@ async function cvCallOnce(c,sys,text){
     const t=setTimeout(()=>ctrl.abort(),c.local?120000:120000);
     /* 本地模型首次加载可能很慢，8 秒还没返回就明确提示，避免看起来像按钮卡死 */
     const prog=setTimeout(()=>{ try{ setStatus("本地大模型正在生成（首次加载模型可能较慢，请稍候）…","busy"); }catch(e){} },8000);
-    const headers={"Content-Type":"application/json"};
+    const headers=Object.assign({"Content-Type":"application/json"},cvLocalModelAuth());
     if(c.key) headers["Authorization"]="Bearer "+c.key;
     try{
         const post=()=>fetch(llmChatUrl(c.endpoint),{method:"POST",headers,body:JSON.stringify(body),signal:ctrl.signal});
@@ -4453,9 +4650,10 @@ function renderApiInfo(){
         const masked=key?key.slice(0,4)+"••••"+key.slice(-4):'<span style="color:#fcd34d">（空）</span>';
         html='<b>名称：</b>'+esc(p.name||"未命名")+'<br><b>接口：</b>'+esc(p.endpoint||"（空）")+'<br><b>模型：</b>'+esc(p.model||"（空）")+'<br><b>Key：</b>'+masked;
     }
-    const base=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    const privateMode=cvPrivateMode();
+    const base=privateMode?cvNormPrivateBase(cvLoadPrivateCfg().strataBase):cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
     const model=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
-    html+='<br><b>本机大模型：</b>'+(base?esc(base)+(model?' · '+esc(model):' · 模型名留空按 local'):'<span style="color:#fcd34d">未接通（点下方「⚡ 自动接通」）</span>');
+    html+='<br><b>'+(privateMode?'私有算力 Strata':'本机大模型')+'：</b>'+(base?esc(base)+(model?' · '+esc(model):' · 模型名留空按 local'):'<span style="color:#fcd34d">'+(privateMode?'未填写 BaseURL':'未接通（点下方「⚡ 自动接通」）')+'</span>');
     const pm=profileModelEntries();
     html+='<br><b>创作台模型：</b>'+(pm.length?('已自动并入 '+pm.length+' 个，生成节点「选择模型」里直接选'):'<span style="color:#fcd34d">暂无，请到创作台「第三方API」里配置</span>');
     box.innerHTML=html;
@@ -5056,8 +5254,12 @@ async function genDashscope(n,input){
    非流式；兼容只回 reasoning_content 的思考模型，带 enable_thinking:false，
    服务商不认该参数返回 HTTP 400 时自动去掉再试一次。 */
 async function genLocalLlm(n,input){
-    const base=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
-    if(!base) throw new Error("本机大语言模型还没接通：请先启动 llama / Ollama / LM Studio 等软件，再到左侧【算力总控 → ⚙ 接入工具】点「⚡ 自动接通」（或到创作台【算力总控】接通）。若已启动仍失败，多半是跨域没放行：llama.cpp 加 --cors-origins * / Ollama 设 OLLAMA_ORIGINS=*；HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面。");
+    const privateMode=cvPrivateMode();
+    const base=privateMode?cvNormPrivateBase(cvLoadPrivateCfg().strataBase):cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
+    if(!base){
+        if(privateMode&&!cvEnsurePrivateReady("strata")) throw new Error("私有算力 Strata BaseURL 为空，请求已阻止");
+        throw new Error("本机大语言模型还没接通：请先启动 llama / Ollama / LM Studio 等软件，再到左侧【算力总控 → ⚙ 接入工具】点「⚡ 自动接通」（或到创作台【算力总控】接通）。若已启动仍失败，多半是跨域没放行：llama.cpp 加 --cors-origins * / Ollama 设 OLLAMA_ORIGINS=*；HTTPS 主站直连本机可能被浏览器私有网络策略拦截，可改用本机 http 地址打开页面。");
+    }
     let model=String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim();
     if(!model){
         try{
@@ -5070,12 +5272,13 @@ async function genLocalLlm(n,input){
     const url=llmChatUrl(base);
     const body={model:model,messages:[{role:"user",content:input.prompt}],stream:false};
     body.chat_template_kwargs={enable_thinking:false};
+    const auth=cvLocalModelAuth();   /* 本地模式 Llama Key / 私有模式 Strata Key；留空则不带 Authorization */
     let j;
-    try{ j=await postJson(url,"",body,120000,{}); }
+    try{ j=await postJson(url,"",body,120000,auth); }
     catch(e){
         if(!/^HTTP 400/.test(String((e&&e.message)||""))) throw e;
         const retry=Object.assign({},body); delete retry.chat_template_kwargs;
-        j=await postJson(url,"",retry,120000,{});
+        j=await postJson(url,"",retry,120000,auth);
     }
     const pickText=(v)=>{
         if(v==null) return "";
@@ -5402,7 +5605,7 @@ async function comfyUploadFile(base,dataUrl,filename){
     const fd=new FormData();
     fd.append("image",blob,filename);
     fd.append("overwrite","true");
-    const res=await fetch(base.replace(/\/+$/,"")+"/upload/image",{method:"POST",body:fd});
+    const res=await fetch(base.replace(/\/+$/,"")+"/upload/image",{method:"POST",body:fd,headers:cvComfyHeadersFor(base)});
     if(!res.ok) throw new Error("上传文件失败 HTTP "+res.status+"："+(await res.text()).slice(0,300));
     const d=await res.json();
     return d.name||d.filename;
@@ -5649,7 +5852,9 @@ function cvStripComfyReferences(work,m,input){
 }
 async function genComfy(n,input){
     if(cvIsLocalLlm(n)) throw new Error("当前在「模型 / 工作流」里选的是本机大语言模型，不会走 ComfyUI；要出图 / 出视频请改选一份 ComfyUI 工作流。");
-    const base=(canvas.settings.comfyBase||"").trim().replace(/\/+$/,"")||COMFY_DEFAULT;
+    const base=cvComfyBaseUrl()||COMFY_DEFAULT;
+    if(cvPrivateMode()&&!cvEnsurePrivateReady("comfy")) throw new Error("私有算力 ComfyUI BaseURL 为空，请求已阻止");
+    const auth=cvPrivateAuth("comfy");   /* ComfyUI Token 有内容才带 Bearer，留空不追加 */
     const alive=await probeComfy(base,4000);
     if(!alive) throw new Error("连不上 ComfyUI（"+base+"）。请先启动 ComfyUI；若已启动仍失败，多半是跨域没放行：启动参数要带 --enable-cors-header *（改过参数需重启一次 ComfyUI），画布请用 http:// 本机打开。");
     const tpl=workflowById(n.data.workflowId)||activeWorkflow();
@@ -5759,7 +5964,7 @@ async function genComfy(n,input){
     n.data.lastInject=injectMsg+(specMsg?(" · "+specMsg):"");   /* 轮询状态会覆盖中途提示，摘要并入完成消息 */
     setGenStatus(n,"["+tpl.name+"] "+n.data.lastInject,"busy");
     const clientId="manflows_"+Math.random().toString(36).slice(2,10);
-    const submit=await postJson(base+"/prompt","",{prompt:work,client_id:clientId},30000);
+    const submit=await postJson(base+"/prompt","",{prompt:work,client_id:clientId},30000,auth);
     if(submit.error) throw new Error("ComfyUI 拒绝工作流："+JSON.stringify(submit.error).slice(0,500));
     const pid=submit.prompt_id;
     if(!pid) throw new Error("ComfyUI 未返回 prompt_id："+JSON.stringify(submit).slice(0,300));
@@ -5771,7 +5976,7 @@ async function genComfy(n,input){
         setGenStatus(n,"["+tpl.name+"] 排队/生成中… "+(i+1)+"/"+MAX_COMFY_POLL);
         let h;
         try{
-            const res=await fetch(base+"/history/"+encodeURIComponent(pid));
+            const res=await fetch(base+"/history/"+encodeURIComponent(pid),{headers:auth});
             h=await res.json();
         }catch(e){ continue; }
         const rec=h&&h[pid];
@@ -6047,7 +6252,7 @@ function comfyCandidates(){
 async function probeComfy(base,ms){
     const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),ms||2500);
     try{
-        const res=await fetch(base.replace(/\/+$/,"")+"/system_stats",{method:"GET",signal:ctl.signal});
+        const res=await fetch(base.replace(/\/+$/,"")+"/system_stats",{method:"GET",signal:ctl.signal,headers:cvComfyHeadersFor(base)});
         if(!res.ok) return null;
         const d=await res.json();
         return (d&&d.system)?d:null;
@@ -6068,6 +6273,24 @@ function applyComfyBase(url,d,label){
 }
 async function autoDetectComfy(opts){
     const o=opts||{};
+    if(cvPrivateMode()){
+        const cfg=cvLoadPrivateCfg(), b=cvNormPrivateBase(cfg.comfyBase);
+        if(!b){
+            cvEnsurePrivateReady("comfy");
+            showComfyLink("err","✗ 私有模式 ComfyUI BaseURL 为空，请在【本机算力 → 🔐 私有算力配置】填写");
+            return false;
+        }
+        if(!o.silent) showComfyLink("busy","正在连接私有 ComfyUI… "+b);
+        const d=await probeComfy(b,o.silent?1800:4000);
+        if(d){
+            showComfyLink("ok","✓ 已接通自定义私有算力 · "+comfyVersion(d)+" · "+b);
+            if(!o.silent) setStatus("私有 ComfyUI 已接通 "+b,"ok");
+            return true;
+        }
+        showComfyLink("err","✗ 连不上私有 ComfyUI "+b+"：请检查 BaseURL / Token / CORS（需放行本站域名）");
+        if(!o.silent) setStatus("连不上私有 ComfyUI","err");
+        return false;
+    }
     if(!o.silent) showComfyLink("busy","正在探测本机 ComfyUI…");
     const rs=await Promise.all(comfyCandidates().map(async c=>({c:c,d:await probeComfy(c.url,o.silent?1800:4000)})));
     const hit=rs.find(r=>r.d);
@@ -6082,6 +6305,16 @@ async function autoDetectComfy(opts){
     return false;
 }
 async function testComfy(){
+    if(cvPrivateMode()){
+        const b=cvNormPrivateBase(cvLoadPrivateCfg().comfyBase);
+        if(!b){ cvEnsurePrivateReady("comfy"); return; }
+        showComfyLink("busy","测试连接中… "+b);
+        const d=await probeComfy(b,5000);
+        if(d){ showComfyLink("ok","✓ 私有 ComfyUI 已接通 · "+comfyVersion(d)+" · "+b); setStatus("私有 ComfyUI 已接通","ok"); return; }
+        showComfyLink("err","✗ 连不上私有 ComfyUI "+b+"：检查 BaseURL / Token / 跨域放行");
+        setStatus("连不上私有 ComfyUI","err");
+        return;
+    }
     const base=(el("comfyBase").value||"").trim().replace(/\/+$/,"")||COMFY_DEFAULT;
     showComfyLink("busy","测试连接中… "+base);
     const d=await probeComfy(base,5000);
@@ -6295,6 +6528,7 @@ function bindToolbar(){
 async function initUI(){
     try{
         bindToolbar();
+        cvBindLlamaKeyUI();
         cvInitCompute();
         renderApiInfo();
         initModelLib();

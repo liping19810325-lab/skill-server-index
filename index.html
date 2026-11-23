@@ -104,6 +104,30 @@
                           background: var(--red); color: #fff; font-size: 11px; cursor: pointer; white-space: nowrap; }
         .local-conn-del:hover:not(:disabled) { filter: brightness(1.15); }
         .local-conn-del:disabled { opacity: .5; cursor: not-allowed; }
+        /* Llama-server API Key（选填）：局域网 / Cloudflare HTTPS 隧道都走同一个地址输入框 */
+        .mf-llama-key-row { margin-top: 6px; }
+        .mf-llama-key-row label { flex: 0 0 auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
+        .mf-llama-key-row .local-conn-btn { background: var(--panel); color: var(--text); }
+        .mf-llama-key-hint { font-size: 10.5px; color: var(--muted); line-height: 1.6; margin-top: 4px; word-break: break-word; }
+        /* 本机算力双模式：本地模式 / 自定义私有算力模式（配置可整体收起，保持面板简洁） */
+        .mf-submode-row { flex-wrap: wrap; gap: 6px 10px; }
+        .mf-submode-row label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+        .mf-submode-row input[type=radio] { width: auto; margin: 0; accent-color: var(--blue); cursor: pointer; }
+        .mf-private-tools { margin: 8px 0 4px; padding: 7px 9px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; }
+        .mf-private-tools summary { cursor: pointer; list-style: none; user-select: none; font-size: 11.5px; color: var(--blue); }
+        .mf-private-tools summary::-webkit-details-marker { display: none; }
+        .mf-private-tools summary::before { content: "▸ "; color: var(--muted); }
+        .mf-private-tools[open] summary::before { content: "▾ "; }
+        .mf-private-body { padding-top: 8px; display: grid; gap: 7px; }
+        .mf-private-row { display: grid; grid-template-columns: 122px 1fr; align-items: center; gap: 6px; }
+        .mf-private-row label { font-size: 11px; color: var(--muted); line-height: 1.4; }
+        .mf-private-row input { min-width: 0; width: 100%; padding: 5px 7px; background: var(--bg); border: 1px solid var(--border2);
+                                border-radius: 6px; color: var(--text); font-size: 11px; outline: none; }
+        .mf-private-row input:focus { border-color: var(--blue); }
+        .mf-private-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .mf-private-actions button { padding: 4px 9px; min-height: 26px; border: 1px solid var(--border2); border-radius: 6px;
+                                     background: var(--panel); color: var(--text); font-size: 11px; cursor: pointer; }
+        .mf-private-actions button:hover { border-color: var(--blue); }
         /* 本机算力：只留一行提示，具体部署与启动方式见「使用帮助」 */
         .local-hint { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0; padding: 7px 9px;
                       background: var(--panel); border: 1px solid var(--border2); border-radius: 8px;
@@ -430,11 +454,35 @@
                 <div class="local-hint fold-hint" id="localComputeHint">
                     <span>ℹ️ <b>先启动本机大模型软件</b>（llama-server / llama / Ollama / LM Studio 等），网页会自动发现它的端口；连接方式见左栏【📖 使用帮助】→「二、打通本机软件与第三方API」。</span>
                 </div>
+                <div class="param-item mf-submode-row" id="mfSubModeRow" style="display:none">
+                    <label>本机接入方式：</label>
+                    <label><input type="radio" name="mfComputeSubMode" value="local" checked> 本地模式</label>
+                    <label><input type="radio" name="mfComputeSubMode" value="private"> 自定义私有算力模式</label>
+                </div>
+                <details class="mf-private-tools" id="mfPrivateTools" style="display:none">
+                    <summary>🔐 私有算力配置（HTTPS 域名优先 · 可收起）</summary>
+                    <div class="mf-private-body">
+                        <div class="mf-private-row"><label for="mfStrataBase">Strata BaseURL（必填）</label><input type="text" id="mfStrataBase" spellcheck="false" placeholder="https://your-domain.example/strata"></div>
+                        <div class="mf-private-row"><label for="mfStrataKey">Strata API Key（选填）</label><input type="password" id="mfStrataKey" spellcheck="false" placeholder="留空则不发送 Authorization 头"></div>
+                        <div class="mf-private-row"><label for="mfComfyBase">ComfyUI BaseURL（必填）</label><input type="text" id="mfComfyBase" spellcheck="false" placeholder="https://your-domain.example/comfyui"></div>
+                        <div class="mf-private-row"><label for="mfComfyToken">ComfyUI Access Token（选填）</label><input type="password" id="mfComfyToken" spellcheck="false" placeholder="留空则不发送 Authorization 头"></div>
+                        <div class="mf-private-actions">
+                            <button type="button" id="mfClearPrivateBtn" title="清空四项配置并回到内置本地模式；不影响下方本机地址清单">清空配置</button>
+                            <span class="fold-hint" style="font-size:11px;color:var(--muted)">配置只存本机浏览器 localStorage；域名 / 密钥不写入网页源码。切换模式立即生效，两种模式互不影响。</span>
+                        </div>
+                    </div>
+                </details>
                 <div class="local-conn" id="localConnBox">
                     <div class="local-conn-row">
                         <input type="text" id="localBaseInput" spellcheck="false" placeholder="手动填写本机地址，如 http://127.0.0.1:8080；填好点右侧「自动接通」即保存">
                         <button type="button" class="local-conn-btn" id="autoDetectBtn" title="保存上方手填地址，并扫描常见端口自动接通本机正在运行的大模型服务">⚡ 自动接通</button>
                     </div>
+                    <div class="local-conn-row mf-llama-key-row">
+                        <label for="mfLlamaKey">Llama-server API Key（选填）</label>
+                        <input type="password" id="mfLlamaKey" spellcheck="false" placeholder="留空则不携带 Bearer 鉴权头">
+                        <button type="button" class="local-conn-btn" id="mfClearLlamaBtn" title="清空上方服务地址与 Llama-server API Key（不影响已保存的本机地址清单）">清空配置</button>
+                    </div>
+                    <div class="mf-llama-key-hint" id="mfLlamaKeyHint">服务地址必填；支持局域网 http://192.168.x.x:8080 与 Cloudflare 外网隧道 https://xxx.manflows.com。填入密钥后，调用 llama-server / 视觉接口会自动带 Authorization: Bearer 密钥；留空则完全不带该请求头。</div>
                     <div class="local-conn-state fold-hint" id="localConnState">○ 尚未检测本机大模型服务</div>
                     <div class="local-conn-pick" id="localPickRow" style="display:none">
                         <select class="local-conn-select" id="localServiceSelect" title="已保存的本机地址，选中即切换使用"></select>
@@ -1002,6 +1050,7 @@ function applyComputeModePanels(){
     if(connBox) connBox.style.display = isLocal ? "block" : "none";
     if(manflowHint) manflowHint.style.display = isManflow ? "flex" : "none";
     apiConfigBlock.style.display = isApi ? "block" : "none";
+    mfApplyPrivateUI();
     applyTokenModeUI();
 }
 /* 上下文窗口 token：只对「本机算力」生效。
@@ -1381,11 +1430,12 @@ async function doParseRefStyle(){
     let url, headers, model, bodyBase;
     try{
         if(computeMode === "local"){
+            if(!mfEnsureLocalReady("strata")) return "";
             if(!localConnReady) await mfDetectLocal({ quiet:true });
             const real = await mfResolveActiveModel(mfCurrentBase());
             model = real || (inpLocalModel && inpLocalModel.value.trim()) || "local";
             url = mfChatUrl(mfCurrentBase());
-            headers = { "Content-Type":"application/json" };
+            headers = mfLocalHeaders();
             bodyBase = Object.assign({}, MF_NO_THINK);
         } else if(computeMode === "api"){
             url = inpEndpoint.value.trim();
@@ -2688,6 +2738,162 @@ function mfThinkingFields(){
     if(m==="omit") return {};
     return MF_NO_THINK;   /* off：默认关闭思考，直接拿正文 */
 }
+/* ===== 本机算力双模式：内置本地模式 / 自定义私有算力模式 =====
+   两套模式互不干扰：本地模式完全沿用原来的 localhost / 127.0.0.1 扫描与直连代码；
+   私有模式只用用户填写的 Strata / ComfyUI BaseURL（存浏览器 localStorage，源码无任何域名与密钥）。
+   私有地址没写协议时默认补 https://（优先 HTTPS 域名，避免 HTTPS 主站混合内容 / CORS 问题）。 */
+const STORAGE_KEY_PRIVATE_COMPUTE = "manflows_private_compute";
+function mfFreshPrivateCfg(){
+    return { mode:"local", strataBase:"", strataKey:"", comfyBase:"", comfyToken:"" };
+}
+function mfNormPrivateBase(v){
+    let s = String(v || "").trim().replace(/\/+$/, "");
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) s = "https://" + s;   /* 私有域名默认 HTTPS；明确写了 http:// 则尊重用户 */
+    return s.replace(/\/v1\/chat\/completions$/i,"").replace(/\/v1$/i,"").replace(/\/+$/,"");
+}
+function mfLoadPrivateCfg(){
+    const out = mfFreshPrivateCfg();
+    try{
+        const raw = safeStorage.get(STORAGE_KEY_PRIVATE_COMPUTE);
+        if(raw){
+            const p = JSON.parse(raw);
+            if(p && typeof p === "object"){
+                out.mode       = (p.mode === "private") ? "private" : "local";
+                out.strataBase = mfNormPrivateBase(p.strataBase || p.strataBaseUrl || "");
+                out.comfyBase  = mfNormPrivateBase(p.comfyBase || p.comfyUiBase || "");
+                out.strataKey  = String(p.strataKey || p.strataApiKey || "");
+                out.comfyToken = String(p.comfyToken || p.comfyUiAccessToken || "");
+            }
+        }
+    }catch(e){}
+    return out;
+}
+function mfSavePrivateCfg(cfg){
+    const c = mfFreshPrivateCfg();
+    c.mode       = (cfg && cfg.mode === "private") ? "private" : "local";
+    c.strataBase = mfNormPrivateBase(cfg && cfg.strataBase);
+    c.comfyBase  = mfNormPrivateBase(cfg && cfg.comfyBase);
+    c.strataKey  = String((cfg && cfg.strataKey) || "");
+    c.comfyToken = String((cfg && cfg.comfyToken) || "");
+    try{ safeStorage.set(STORAGE_KEY_PRIVATE_COMPUTE, JSON.stringify(c)); }catch(e){}
+    return c;
+}
+function mfPrivateMode(){ return mfLoadPrivateCfg().mode === "private"; }
+/* 鉴权头：Key / Token 有内容才带 Bearer，留空绝不追加对应头；两种服务互不串用。 */
+function mfPrivateAuth(kind){
+    if(!mfPrivateMode()) return {};
+    const c = mfLoadPrivateCfg();
+    const k = String(kind === "comfy" ? c.comfyToken : c.strataKey || "").trim();
+    return k ? { "Authorization":"Bearer " + k } : {};
+}
+/* ===== Llama-server API Key（选填）：原地保留原地址输入框，仅在它下方新增本项 =====
+   局域网 http://192.168.x.x:8080 与 Cloudflare 隧道 https://xxx.manflows.com 共用同一个地址框；
+   Key 留空则所有本机 / 视觉请求都不带 Authorization，填入后统一带 Bearer。
+   私有算力模式仍使用 Strata Key，两套密钥互不混用。 */
+const STORAGE_KEY_LLAMA_KEY = "manflows_llama_api_key";
+function mfLlamaKey(){
+    const n = mfEl("mfLlamaKey");
+    if(n) return n.value.trim();   /* 输入框是实时真相；storage 只负责刷新后回填 */
+    return String(safeStorage.get(STORAGE_KEY_LLAMA_KEY) || "").trim();
+}
+function mfLocalModelAuth(){
+    if(mfPrivateMode()) return mfPrivateAuth("strata");
+    const k = mfLlamaKey();
+    return k ? { "Authorization":"Bearer " + k } : {};
+}
+function mfLocalHeaders(){ return Object.assign({ "Content-Type":"application/json" }, mfLocalModelAuth()); }
+function mfBindLlamaKeyUI(){
+    const inp = mfEl("mfLlamaKey");
+    if(inp){
+        inp.value = String(safeStorage.get(STORAGE_KEY_LLAMA_KEY) || "");
+        const save = ()=>{
+            try{ safeStorage.set(STORAGE_KEY_LLAMA_KEY, inp.value.trim()); }catch(e){}
+            mfSetLocalState(inp.value.trim()
+                ? "✓ 已填写 Llama-server API Key：本机与视觉接口请求将携带 Bearer 鉴权头"
+                : "✓ 已清空 Llama-server API Key：请求不再携带 Authorization 头", "ok");
+        };
+        inp.addEventListener("input", save);
+        inp.addEventListener("change", save);
+    }
+    const clearBtn = mfEl("mfClearLlamaBtn");
+    if(clearBtn) clearBtn.addEventListener("click", ()=>{
+        try{ safeStorage.remove(STORAGE_KEY_LLAMA_KEY); safeStorage.remove(STORAGE_KEY_LOCAL_BASE); }catch(e){}
+        const base = mfEl("localBaseInput"); if(base) base.value = "";
+        const key = mfEl("mfLlamaKey"); if(key) key.value = "";
+        localConnReady = false;
+        mfRenderBaseList("");
+        mfSetLocalState("✓ 已清空服务地址与 API Key（本机地址清单不受影响）", "ok");
+    });
+    window.addEventListener("storage", e=>{
+        if(e.key === STORAGE_KEY_LLAMA_KEY && inp) inp.value = String(safeStorage.get(STORAGE_KEY_LLAMA_KEY) || "");
+    });
+}
+function mfPrivateAlert(kind){
+    const label = (kind === "comfy") ? "ComfyUI BaseURL" : "Strata BaseURL";
+    const msg = "【自定义私有算力模式】" + label + "为空，已阻止本次请求。请在左栏【算力总控 → 本机算力 → 🔐 私有算力配置】填写" + label + "后重试。";
+    try{ alert(msg); }catch(e){}
+    try{ append("⚠️ " + msg, "err"); }catch(e){}
+    try{ mfSetLocalState("⚠ " + label + "为空，请求已阻止", "err"); }catch(e){}
+    return false;
+}
+function mfEnsureLocalReady(kind){
+    if(!mfPrivateMode()) return true;   /* 本地模式：原有逻辑，零改动 */
+    const c = mfLoadPrivateCfg();
+    const base = (kind === "comfy") ? c.comfyBase : c.strataBase;
+    return !!base || mfPrivateAlert(kind);
+}
+/* UI：私有配置块只在本机算力档位显示；收起状态由 details 元素自身保留 */
+function mfApplyPrivateUI(){
+    const row = mfEl("mfSubModeRow"), box = mfEl("mfPrivateTools");
+    const visible = (computeMode === "local");
+    if(row) row.style.display = visible ? "flex" : "none";
+    if(box) box.style.display = visible ? "block" : "none";
+    const cfg = mfLoadPrivateCfg();
+    document.querySelectorAll('input[name="mfComputeSubMode"]').forEach(r=>{ r.checked = (r.value === cfg.mode); });
+    const fields = { mfStrataBase:cfg.strataBase, mfStrataKey:cfg.strataKey, mfComfyBase:cfg.comfyBase, mfComfyToken:cfg.comfyToken };
+    const unlocked = (cfg.mode === "private");   /* 仅私有模式解锁四个输入框 */
+    Object.keys(fields).forEach(id=>{
+        const node = mfEl(id);
+        if(!node) return;
+        node.disabled = !unlocked;
+        if(node.value !== fields[id]) node.value = fields[id];
+    });
+}
+function mfBindPrivateUI(){
+    document.querySelectorAll('input[name="mfComputeSubMode"]').forEach(r=>{
+        r.addEventListener("change", ()=>{
+            if(!r.checked) return;
+            const cfg = mfLoadPrivateCfg(); cfg.mode = r.value; mfSavePrivateCfg(cfg);
+            mfApplyPrivateUI();
+            const box = mfEl("mfPrivateTools");
+            if(box) box.open = (r.value === "private");
+            append("ℹ️ 本机接入方式已切换为「" + (r.value === "private" ? "自定义私有算力模式" : "本地模式") + "」，立即生效", "tip");
+        });
+    });
+    const fieldMap = { mfStrataBase:"strataBase", mfStrataKey:"strataKey", mfComfyBase:"comfyBase", mfComfyToken:"comfyToken" };
+    Object.keys(fieldMap).forEach(id=>{
+        const node = mfEl(id); if(!node) return;
+        const save = ()=>{ const cfg = mfLoadPrivateCfg(); cfg[fieldMap[id]] = node.value; mfSavePrivateCfg(cfg); };
+        node.addEventListener("input", save);
+        node.addEventListener("change", ()=>{
+            save();
+            if(id === "mfStrataBase" || id === "mfComfyBase"){
+                const norm = mfNormPrivateBase(node.value);
+                if(norm && norm !== node.value) node.value = norm;
+                save();
+            }
+        });
+    });
+    const clearBtn = mfEl("mfClearPrivateBtn");
+    if(clearBtn) clearBtn.addEventListener("click", ()=>{
+        mfSavePrivateCfg(mfFreshPrivateCfg());
+        mfApplyPrivateUI();
+        const box = mfEl("mfPrivateTools"); if(box) box.open = false;
+        append("ℹ️ 私有算力配置已清空，已回到内置本地模式（本机地址清单不受影响）", "tip");
+    });
+    window.addEventListener("storage", e=>{ if(e.key === STORAGE_KEY_PRIVATE_COMPUTE) mfApplyPrivateUI(); });
+}
 /* 视觉实测用图：一张 240x160 的图，上方蓝天+红色圆日、下方绿地。
    模型若能正确识图，描述里通常会出现「蓝/红/绿/天空/太阳/草/旗」等词；
    以此作为端到端识图是否真正可用的判据（比只读配置更可靠）。 */
@@ -2714,8 +2920,10 @@ function mfSetLocalState(msg, cls){
     el._mfStateFlashTimer = setTimeout(()=>el.classList.remove("state-flash"), 5000);
 }
 function mfCurrentBase(){
-    const typed = mfNormalizeBase(mfEl("localBaseInput") ? mfEl("localBaseInput").value : "");
-    return typed || mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE)) || LOCAL_DEFAULT_BASE;
+    /* 私有模式：只用用户填写的 Strata BaseURL，内置 127 地址与地址清单一概不参与 */
+    if(mfPrivateMode()) return mfNormPrivateBase(mfLoadPrivateCfg().strataBase);
+    const typed = mfEl("localBaseInput") ? mfEl("localBaseInput").value : "";
+    return mfNormalizeBase(typed) || mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE)) || LOCAL_DEFAULT_BASE;
 }
 function mfChatUrl(base){
     const s = mfNormalizeBase(base) || LOCAL_DEFAULT_BASE;
@@ -2814,8 +3022,10 @@ async function mfResolveActiveModel(base){
     base = mfNormalizeBase(base);
     if(!base) return "";
     // ① 桥接 /health：优先 activeModel，其次 defaultModel
+    /* 鉴权：本地模式带 Llama-server API Key，私有模式带 Strata Key；留空则完全不带 Authorization */
+    const hdr = mfLocalModelAuth();
     try{
-        const hr = await fetch(base + "/health", { cache:"no-store" });
+        const hr = await fetch(base + "/health", { cache:"no-store", headers:hdr });
         if(hr.ok){
             const hd = await hr.json();
             const active = (typeof hd.activeModel === "string" && hd.activeModel.trim())
@@ -2826,7 +3036,7 @@ async function mfResolveActiveModel(base){
     }catch(e){}
     // ② 直连上游 /v1/models：取第一个加载的模型 id
     try{
-        const mr = await fetch(base + "/v1/models", { cache:"no-store" });
+        const mr = await fetch(base + "/v1/models", { cache:"no-store", headers:hdr });
         if(mr.ok){
             const md = await mr.json();
             if(md && Array.isArray(md.data) && md.data.length){
@@ -2841,6 +3051,7 @@ async function mfResolveActiveModel(base){
    按已探测到的其它本机服务 + 常见端口依次补试，选中能正常返回的那个。
    首选地址能通时一次都不会走这里，Windows 原有通路不变。 */
 function mfFallbackBases(currentUrl){
+    if(mfPrivateMode()) return [];   /* 私有域名不回退到任何内置 127 地址 */
     const out = [];
     const sel = mfEl("localServiceSelect");
     if(sel && sel.options) Array.from(sel.options).forEach(o => out.push(mfNormalizeBase(o.value)));
@@ -2855,7 +3066,7 @@ async function mfProbeOne(base){
         const ctrl = new AbortController();
         const timer = setTimeout(()=>ctrl.abort(), 1400);
         try{
-            const res = await fetch(base + p, { method:"GET", signal:ctrl.signal, cache:"no-store" });
+            const res = await fetch(base + p, { method:"GET", signal:ctrl.signal, cache:"no-store", headers:mfLocalModelAuth() });
             if(!res.ok) continue;
             let data = null;
             try { data = await res.json(); } catch(e){}
@@ -2883,7 +3094,7 @@ async function mfProbeOne(base){
                所以只要还没拿到 visionStatus，就补一次 /health（桥接会报 vision 字段）。 */
             if(!visionStatus){
                 try{
-                    const hres = await fetch(base + "/health", { method:"GET", signal:ctrl.signal, cache:"no-store" });
+                    const hres = await fetch(base + "/health", { method:"GET", signal:ctrl.signal, cache:"no-store", headers:mfLocalModelAuth() });
                     if(hres.ok){
                         const hd = await hres.json();
                         if(hd && typeof hd === "object"){
@@ -2942,11 +3153,12 @@ async function mfTestVision(){
     let url, headers, model, bodyBase;
     try{
         if(computeMode === "local"){
+            if(!mfEnsureLocalReady("strata")) throw new Error("Strata BaseURL 为空，请求已阻止");
             if(!localConnReady) await mfDetectLocal({ quiet:true });
             const real = await mfResolveActiveModel(mfCurrentBase());
             model = real || (inpLocalModel && inpLocalModel.value.trim()) || "local";
             url = mfChatUrl(mfCurrentBase());
-            headers = { "Content-Type":"application/json" };
+            headers = mfLocalHeaders();
             bodyBase = Object.assign({}, MF_NO_THINK);
         } else if(computeMode === "api"){
             url = inpEndpoint.value.trim();
@@ -3068,6 +3280,7 @@ function mfApplyLocalChoice(choice){
     }
 }
 async function mfDetectLocal({ quiet=false } = {}){
+    if(mfPrivateMode()) return null;   /* 私有模式不扫描本机端口：两种模式互不干扰 */
     if(localDetectRunning) return null;
     localDetectRunning = true;
     const btn = mfEl("autoDetectBtn");
@@ -3421,6 +3634,7 @@ async function sendMessage(autoSourceText) {
         { role: "user", content: userContent }
     ];
     if(computeMode === "local"){
+        if(!mfEnsureLocalReady("strata")) return;   /* 私有模式 BaseURL 为空：弹窗提示并禁止发起请求 */
         // 还没自动接通就先静默扫一次端口，保证「本机大模型软件开着就能用」
         if(!localConnReady) await mfDetectLocal({ quiet:true });
         /* 保险：即使本次会话已接通过，也向当前地址核对一次真实加载的模型名，
@@ -3435,7 +3649,7 @@ async function sendMessage(autoSourceText) {
                 }
             }
             // 视觉能力：桥接 /health 会带 vision 字段；直连上游没有就保持 null（走模型名兜底）
-            const hr = await fetch(mfCurrentBase() + "/health", { cache:"no-store" });
+            const hr = await fetch(mfCurrentBase() + "/health", { cache:"no-store", headers:mfLocalModelAuth() });
             if(hr.ok){
                 const hd = await hr.json();
                 if(typeof hd.visionOfDefault === "boolean" || Array.isArray(hd.visionModels) || hd.visionStatus){
@@ -3445,7 +3659,7 @@ async function sendMessage(autoSourceText) {
             }
         }catch(e){}
         fetchUrl = mfChatUrl(mfCurrentBase());
-        fetchHeaders = { "Content-Type":"application/json" };
+        fetchHeaders = mfLocalHeaders();
         // 留空时保持原来的 "local"，兼容 llama-server / Ollama 默认行为
         // thinking 模式由「推理思考」开关决定（默认关闭=MF_NO_THINK；可被服务端拒绝后自动降级重试）
         bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true, ...mfThinkingFields() };
@@ -3604,6 +3818,8 @@ function initUI(){
     try {
     loadApiProfiles();
     initComputeModeUI();
+    mfBindPrivateUI();
+    mfBindLlamaKeyUI();
     mfInitComputeSync();
     renderCustomSkillButtons();
     renderRefPreview();
@@ -3664,7 +3880,7 @@ function initUI(){
     if(visionTestBtn) visionTestBtn.addEventListener("click", ()=> mfTestVision());
     /* 页面加载即渲染已保存的清单下拉（不触发扫描），刷新后用户仍能选/删历史地址 */
     mfRenderBaseList(savedBase || mfCurrentBase());
-    if(computeMode === "local") setTimeout(()=> mfDetectLocal({ quiet:true }), 350);
+    if(computeMode === "local" && !mfPrivateMode()) setTimeout(()=> mfDetectLocal({ quiet:true }), 350);
 
     // 上下文窗口快捷值：统一事件绑定、恢复上次档位、当前档位高亮
     document.querySelectorAll(".token-quick-btn[data-token]").forEach(btn=>{
