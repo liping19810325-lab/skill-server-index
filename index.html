@@ -339,6 +339,9 @@
         .ai { color: var(--text); }
         .tip { color: var(--muted); }
         .err { color: #fca5a5; }
+        /* 修改基准：双击吐字窗口某条 AI 回复即设为「后续修改所依据的原稿」，左侧色条 + 顶部标签标示 */
+        .msg.ai.ai-base { border-left: 3px solid var(--blue); background: var(--panel); border-radius: 0 8px 8px 0; padding: 8px 12px; position: relative; }
+        .msg.ai.ai-base::before { content: "📌 修改基准 · 后续指令将在此稿基础上修改"; display: block; font-size: 11px; color: var(--blue); margin-bottom: 4px; }
         .input-row { display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
         #userInput { flex: 1; min-height: 48px; padding: 11px 13px; border: 1px solid var(--border2); border-radius: 12px; font-size: 14px; line-height: 1.6; resize: vertical; background: var(--panel); color: var(--text); outline: none; }
         #userInput:focus { border-color: var(--blue); }
@@ -806,6 +809,10 @@ let abortController = null;
 let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
+/* 修改基准：双击吐字窗口某条 AI 回复，把这条设为「后续指令在其基础上修改」的原稿。
+   baseMsgDom 指向那条消息节点；正文直接从节点 innerText 去掉「【AI】：」前缀取得，
+   不额外存变量——这样历史载入 / 现场恢复后，基准正文依然随 DOM 一起在。 */
+let baseMsgDom = null;
 
 let customSkillList = [];
 
@@ -1225,6 +1232,70 @@ function togglePreviewFullscreen(force){
     previewFsBtn.textContent = on ? "⛶ 退出全屏" : "⛶ 全屏";
     previewFsBtn.title = on ? "退出全屏，恢复普通预览窗口" : "全屏预览，充分利用屏幕看更多文字";
 }
+/* ===== 修改基准（连续对话的"上文原稿"）=====
+   设计：双击吐字窗口任意一条 AI 回复 → 该条设为基准并高亮；下一轮指令即在此稿基础上修改。
+   基准正文直接从 DOM 节点取（去掉「【AI】：」前缀），所以刷新/历史载入后依然有效。 */
+function msgFullText(dom){
+    if(!dom) return "";
+    return String(dom.innerText||"").replace(/^【AI】[：:]\s*/, "");
+}
+function setBaseMsg(dom, silent){
+    if(!dom || !dom.classList || !dom.classList.contains("ai")) return;
+    chatBox.querySelectorAll(".msg.ai.ai-base").forEach(n=>n.classList.remove("ai-base"));
+    dom.classList.add("ai-base");
+    baseMsgDom = dom;
+    try{ scheduleLiveSave(); }catch(e){}
+    if(!silent) append("📌 已将这条设为修改基准：下一轮指令将在此稿基础上修改（可再双击其它回复切换）。", "tip");
+}
+function getBaseText(){
+    if(baseMsgDom && baseMsgDom.isConnected) return msgFullText(baseMsgDom);
+    /* 兜底：没显式设过基准时，用窗口里最后一条 AI 回复作为基准 */
+    const last = chatBox.querySelector(".msg.ai:last-of-type");
+    return last ? msgFullText(last) : "";
+}
+function refreshBaseRef(){
+    /* 现场/历史载入后重建引用：优先认高亮节点，否则指回最后一条 AI 回复 */
+    baseMsgDom = chatBox.querySelector(".msg.ai.ai-base") || chatBox.querySelector(".msg.ai:last-of-type") || null;
+}
+/* 从基准剧本里抽出「大纲与设定 + 最近一集」，供连续修改时回灌给模型。
+   - 大纲区：从开头到第一个集标题行之前；
+   - 最近一集：最后一个集标题行到其【第N集完】（含）；
+   - 非剧本结构（如提示词）返回 null，调用方退回"整段已有文字"策略。 */
+function extractScriptMemory(text){
+    const s = String(text||"").trim();
+    if(!s) return null;
+    const lines = s.split(/\r?\n/);
+    const titleRe = /^\s*《[^》\n]{1,40}》第\s*\d+\s*集[：:]/;
+    const titleIdx = [];
+    lines.forEach((ln,i)=>{ if(titleRe.test(ln)) titleIdx.push(i); });
+    if(!titleIdx.length) return null;
+    const outline = lines.slice(0, titleIdx[0]).join("\n").replace(/\n{3,}/g,"\n\n").trim();
+    const lastStart = titleIdx[titleIdx.length-1];
+    let end = lines.length;
+    for(let i=lastStart+1;i<lines.length;i++){ if(/^\s*【第\s*\d+\s*集完】\s*$/.test(lines[i])){ end = i+1; break; } }
+    const lastEpisode = lines.slice(lastStart, end).join("\n").trim();
+    return { outline, lastEpisode };
+}
+function buildBaseContextBlock(){
+    if(currentSkillKey !== "a") return "";   /* 只给剧本技能注入；其它技能保持原样 */
+    const text = getBaseText();
+    if(!text.trim()) return "";
+    const mem = extractScriptMemory(text);
+    let body;
+    if(mem){
+        body = "【已有剧本（连续对话 · 本轮在此稿基础上修改，请勿当作新剧重写）】\n"
+             + "下面这份「大纲与设定 + 最近一集」是你上一轮已经写好的同一部剧。用户本轮指令是基于它的修改/优化意见，"
+             + "必须沿用原有《剧名》、世界观、人物设定、集号与已写剧情，不得另起新主题、不得改剧名、不得重出大纲；"
+             + "只针对用户本轮点明的问题做增量修改并输出修改后的对应内容。\n\n"
+             + "—— 大纲与设定 ——\n" + (mem.outline || "（此前未产出大纲，按正文已有设定沿用）") + "\n\n"
+             + "—— 最近一集（修改基准）——\n" + mem.lastEpisode;
+    }else{
+        body = "【已有产物（连续对话 · 本轮在此稿基础上修改）】\n"
+             + "下面是本页上一轮已生成的正文，用户本轮指令是基于它的修改/优化，请在沿用其主题与设定的前提下做增量修改，不要重写成全新主题：\n\n"
+             + text;
+    }
+    return body;
+}
 function resetPreviewEditor(){
     if(chatPreviewEditor){
         chatPreviewEditor.style.display = "none";
@@ -1235,8 +1306,21 @@ function resetPreviewEditor(){
     if(savePreviewBtn) savePreviewBtn.disabled = true;
     if(chatPreviewActions) chatPreviewActions.style.display = "none";
 }
-function openChatPreview(){
-    const text = (typeof fullAiText === "string") ? fullAiText : "";
+function openChatPreview(ev){
+    /* 双击某条 AI 回复：预览那条、并把它设为后续修改基准。
+       双击在空白/非 AI 区域时，退回最近一次产物（保持旧的整段预览行为）。 */
+    let target = null;
+    if(ev && ev.target){
+        const node = (ev.target.closest && ev.target.closest(".msg.ai")) || null;
+        if(node && chatBox.contains(node)) target = node;
+    }
+    if(target){
+        setBaseMsg(target, true);   /* 静默设置：预览弹窗本身就是反馈，不再刷一条 tip */
+    }else{
+        const last = chatBox.querySelector(".msg.ai:last-of-type");
+        if(last) target = last;
+    }
+    const text = target ? msgFullText(target) : ((typeof fullAiText==="string") ? fullAiText : "");
     if(!text.trim()){ append("💡 吐字窗口里还没有 AI 生成的内容，先生成一次剧本或提示词再双击预览。", "tip"); return; }
     resetPreviewEditor();
     const actions = document.getElementById("historyPreviewActions");
@@ -1245,7 +1329,7 @@ function openChatPreview(){
     previewModal.dataset.previewSource = "chat";
     modalTextEl.textContent = text;
     if(chatPreviewActions) chatPreviewActions.style.display = "flex";
-    showPreviewModal("产物预览 · 可编辑");
+    showPreviewModal("产物预览 · 可编辑" + (baseMsgDom===target && target ? "（已设为修改基准）" : ""));
 }
 function enterPreviewEdit(){
     if(previewModal.dataset.previewSource !== "chat") return;
@@ -1298,11 +1382,13 @@ function saveChatPreview(){
         return;
     }
     fullAiText = after;
+    /* 写回当前预览的那条（即双击设为基准的回复）；找不到就退回基准引用/最后一条 */
     const aiMsgs = chatBox.querySelectorAll(".msg.ai");
-    const target = (aiMsgDom && aiMsgDom.isConnected && aiMsgDom.classList.contains("ai"))
-        ? aiMsgDom : (aiMsgs.length ? aiMsgs[aiMsgs.length - 1] : null);
-    if(target) target.innerText = "【AI】：" + after;
-    else append("【AI】：" + after, "ai");
+    let target = baseMsgDom && baseMsgDom.isConnected ? baseMsgDom : null;
+    if(!target && aiMsgDom && aiMsgDom.isConnected && aiMsgDom.classList.contains("ai")) target = aiMsgDom;
+    if(!target && aiMsgs.length) target = aiMsgs[aiMsgs.length - 1];
+    if(target){ target.innerText = "【AI】：" + after; try{ setBaseMsg(target, true); }catch(e){} }
+    else { const n=append("【AI】：" + after, "ai"); try{ setBaseMsg(n, true); }catch(e){} }
     syncEditedHistory(before, after);
     resetPreviewEditor();
     modalTextEl.textContent = after;
@@ -1884,6 +1970,7 @@ function restoreLiveSession(){
         customSkillList = Array.isArray(s.customSkillList) ? s.customSkillList : [];
         /* aiMsgDom / fullAiText 保持一致：指向最后一条 ai 消息，编辑保存才能覆盖正确节点 */
         aiMsgDom = chatBox.querySelector(".msg.ai:last-of-type") || null;
+        refreshBaseRef();   /* 恢复修改基准引用（高亮节点，或退回最后一条 AI 回复） */
         /* 参考图（可能与文本快照分开写、或超配额丢失） */
         let refs = null;
         try{ refs = JSON.parse(safeSession.get(STORAGE_KEY_LIVE_REFS) || "null"); }catch(e){ refs = null; }
@@ -1916,7 +2003,7 @@ function restoreLiveSession(){
 function clearCurrentPage(){
     if(!confirm("清空本页会删除当前页面的全部聊天记录、剧本、参考图、技能与生成内容（等同新建一个对话），本机历史产物与算力配置保留。确定清空吗？")) return;
     try{ stopGenerate(); }catch(e){}
-    abortController = null; pendingText = ""; aiMsgDom = null;
+    abortController = null; pendingText = ""; aiMsgDom = null; baseMsgDom = null;
     fullAiText = ""; chatBox.innerHTML = "";
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     fileStore = []; refImages = []; customSkillList = [];
@@ -1952,6 +2039,9 @@ function stopGenerate() {
     if (abortController) {
         abortController.abort();
         abortController = null;
+        /* 标记本次为"用户停止"：finally 里据此不把半截稿设为修改基准，
+           避免下一轮基于半截稿改；历史基准仍保留，用户可双击任意回复重新指定。 */
+        try{ chatBox.dataset.stoppedDraft = "1"; }catch(e){}
         append("⚠️ 已停止生成", "tip");
         try { syncSendToCanvasBtn(); } catch(e){}
     }
@@ -2678,6 +2768,7 @@ function loadHistoryRecordToChat(){
     if(!confirm("载入这条历史产物会清空当前聊天框，确认？")) return;
     chatBox.innerHTML = rec.chatHtml || "";
     fullAiText = rec.aiResult || "";
+    refreshBaseRef();   /* 载入历史后基准指向该历史稿的最后一条 AI 回复 */
     currentSkillName = rec.skillName || "";
     currentSkillKey = rec.skillKey || "";
     currentSystemPrompt = rec.systemPrompt || "";
@@ -3389,8 +3480,22 @@ function parseScriptEpisodeRequest(cmd){
     }
     return r;
 }
-function scriptEpisodeDirective(ep){
+/* 判断本轮指令是否明确要"从头新写"（此时不按连续修改处理，允许重写大纲/新剧名） */
+function wantsFreshScript(cmd){
+    const s = String(cmd||"");
+    return /(?:重写|重新?写|新写|换[一个部].*(?:剧|主题|题材|故事)|另起|换剧名|改剧名|重出大纲|重新出大纲|从头(?:写|创作|新写)|全新创作|换个题材|创作一部新的|写一部新的)/.test(s);
+}
+function scriptEpisodeDirective(ep, isRevision){
     const head = "【本次剧本集数要求｜创作台指令（最高优先级，须覆盖默认参数）】\n";
+    /* 连续修改模式：沿用上一条已经写好的剧本，只做增量修改，禁止重出大纲与改剧名 */
+    if(isRevision){
+        return head
+            + "本轮为「在已有剧本基础上的修改/优化」，上方已回灌同一部剧的《大纲与设定 + 最近一集》。严格按以下执行：\n"
+            + "1) 沿用已有《剧名》、世界观、人物设定、集号与已写剧情，剧名与设定一字不改（用户本轮明确要求改的除外）；\n"
+            + "2) 严禁重出完整大纲与设定、严禁把本轮当作新剧从头创作、严禁另起主题；只针对用户本轮指出的具体问题做增量修改；\n"
+            + "3) 输出修改后的对应剧本正文（沿用技能规定的集标题行、三栏、△动作、台词与【第N集完】格式），用户未点名的内容保持不变。\n"
+            + "本条要求优先级高于技能默认参数中「输出大纲」的设定——有上文稿时就不要重出大纲。";
+    }
     if(ep.mode === "continue"){
         return head + "本次为续写：按用户在指令中指定的集号只续写该集正文，不重出完整大纲（用户另有要求除外），也不扩写其它集。以用户指令为准，其余遵循技能续写规则。";
     }
@@ -3496,6 +3601,8 @@ async function sendMessage(autoSourceText) {
     pendingText = "";
     fullAiText = "";
     const userCmd = userInput.value.trim();
+    /* 本轮是否明确要"从头新写"（此时不带旧稿、不按连续修改处理） */
+    const WANT_FRESH = (currentSkillKey === "a") && wantsFreshScript(userCmd);
     const attachedFiles = fileStore.filter(x => x.checked);
     let combinedContent = "";
     if (attachedFiles.length > 0) {
@@ -3511,7 +3618,10 @@ async function sendMessage(autoSourceText) {
        美术助手 c/e——无条件追加「出词前对照剧本资产 + 出词后校验补齐」强指令。 */
     if (currentSkillKey === "a") {
         const epReq = parseScriptEpisodeRequest(userCmd);
-        combinedContent += (combinedContent ? "\n\n" : "") + scriptEpisodeDirective(epReq);
+        /* 连续修改模式：已设修改基准、且本轮不是明确要"新写/重写大纲/换剧名/新剧"时，
+           不再要求重出《剧名》大纲，避免在旧稿基础上修改却另起主题、改剧名。 */
+        const isRevision = !!buildBaseContextBlock() && !WANT_FRESH;
+        combinedContent += (combinedContent ? "\n\n" : "") + scriptEpisodeDirective(epReq, isRevision);
     } else if (currentSkillKey === "b" || currentSkillKey === "d") {
         const epReq = parseScriptEpisodeRequest(userCmd);
         combinedContent += (combinedContent ? "\n\n" : "") + storyboardEpisodeDirective(epReq);
@@ -3630,9 +3740,14 @@ async function sendMessage(autoSourceText) {
         userContent = combinedContent;
     }
     const messagesArr = [
-        { role: "system", content: currentSystemPrompt || "你是专业漫剧编剧，严格按照用户要求创作" },
-        { role: "user", content: userContent }
+        { role: "system", content: currentSystemPrompt || "你是专业漫剧编剧，严格按照用户要求创作" }
     ];
+    /* 连续对话：把「修改基准」的大纲设定 + 最近一集作为上文回灌（仅剧本技能、仅设过基准时）。
+       放在 system 之后、本轮指令之前，让模型明确这是同一部剧的已有稿、本轮是增量修改。 */
+    const baseCtx = WANT_FRESH ? "" : buildBaseContextBlock();
+    if(baseCtx) messagesArr.push({ role: "assistant", content: baseCtx });
+    messagesArr.push({ role: "user", content: userContent });
+    let onlyReasoning = false;   /* 函数级：finally 里判断是否把新稿设为修改基准时需要 */
     if(computeMode === "local"){
         if(!mfEnsureLocalReady("strata")) return;   /* 私有模式 BaseURL 为空：弹窗提示并禁止发起请求 */
         // 还没自动接通就先静默扫一次端口，保证「本机大模型软件开着就能用」
@@ -3779,7 +3894,7 @@ async function sendMessage(autoSourceText) {
                 }catch(e){ /*忽略单行json解析异常*/ }
             }
         }
-        let onlyReasoning = false;
+        onlyReasoning = false;
         if(!fullAiText.trim() && reasoningText.trim()){
             /* 服务端忽略了关闭 thinking 的参数：至少把内容吐出来，并明确告知原因 */
             onlyReasoning = true;
@@ -3799,8 +3914,13 @@ async function sendMessage(autoSourceText) {
     } finally {
         abortController = null;
         syncSendToCanvasBtn();
+        const completed = !!(fullAiText && fullAiText.trim());
         // 正常结束、用户点停止、请求异常三种情况都把已生成的产物写入历史（只写一次）
-        if (fullAiText && fullAiText.trim()) saveHistoryToLocal();
+        if (completed) saveHistoryToLocal();
+        /* 只有正常生成完毕才把新稿设为修改基准；停止/异常的半成品不设基准，
+           避免下一轮基于半截稿修改。用户仍可双击任意历史回复重新指定基准。 */
+        if (completed && !onlyReasoning && aiMsgDom && aiMsgDom.isConnected && !chatBox.dataset.stoppedDraft) setBaseMsg(aiMsgDom, true);
+        delete chatBox.dataset.stoppedDraft;
     }
 }
 
@@ -3932,7 +4052,7 @@ function initUI(){
     closeHelpBtn.addEventListener("click", closeHelpModal);
     closePreviewBtn.addEventListener("click", closePreview);
     // 吐字窗口双击预览 / 在线编辑 / 保存
-    chatBox.addEventListener("dblclick", ()=> openChatPreview());
+    chatBox.addEventListener("dblclick", (e)=> openChatPreview(e));
     if(editPreviewBtn) editPreviewBtn.addEventListener("click", enterPreviewEdit);
     if(savePreviewBtn) savePreviewBtn.addEventListener("click", saveChatPreview);
     // 预览：右上角全屏 / 退出全屏（Esc 也能退出全屏）
