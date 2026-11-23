@@ -11101,6 +11101,17 @@ function releaseRecordAudio(){ mfRecordAudio=false; }
    这里缓存最近一帧"已成功解码并合成"的成片画面；解码空窗期复用该帧，宁可停一帧也不闪黑。 */
 let exportFrameCache={cv:null,w:0,h:0,valid:false};
 function exportFrameCacheReset(){ exportFrameCache.valid=false; }
+/* 视频帧"真正可画"判定：跨段 seek 期间 readyState 可能仍是 2~4、videoWidth 也 >0，
+   但画面是空/旧/黑的中间态，必须排除 seeking。
+   这是衔接点闪黑的核心：旧版只判 readyState>1，把 seek 空窗当有效帧画进成片。 */
+function exportVideoFrameReady(vc){
+    if(!vEl.classList.contains("show") || vEl.readyState<2 || !(vEl.videoWidth>0)) return false;
+    /* seek 进行中即解码空窗，绝不可画。注意：这里刻意不校验 currentTime 与目标时间差——
+       播放中 syncMedia 容许 currentTime 落后播放头达 0.32s 才 seek，若按半帧校验会把
+       正常播放帧全判成未就绪，导致成片持续停帧。seeking 已可靠覆盖跨段空窗。 */
+    if(vEl.seeking) return false;
+    return true;
+}
 function exportFrameCachePut(x,W,H){
     let cv=exportFrameCache.cv;
     if(!cv||cv.width!==W||cv.height!==H){ cv=document.createElement("canvas"); cv.width=W; cv.height=H; exportFrameCache.cv=cv; }
@@ -11140,12 +11151,15 @@ function drawStageFrame(x,W,H,opts){
         const hc=mainVisualClip(), ha=hc&&hc.assetId?assetById(hc.assetId):null;
         const srcReady=ha?(ha.type==="image"
             ? (imgEl.classList.contains("show")&&imgEl.complete&&imgEl.naturalWidth>0)
-            : (vEl.classList.contains("show")&&vEl.readyState>1&&vEl.videoWidth>0)):false;
-        if(!srcReady&&exportFrameCacheRestore(x,W,H)) return;
+            : exportVideoFrameReady(hc)):false;
+        /* 没有一帧可画的主画面（判空 / seek 空窗 / 换源未就绪）一律复用上一帧合成图。
+           宁可停一帧也不用黑帧污染成片。缓存尚无效（录制最开头）时才落到下面的正常绘制。 */
+        if(!srcReady && exportFrameCache.valid && exportFrameCacheRestore(x,W,H)) return;
     }
-    let drewMedia=false;
+    let drewMedia=false, srcValid=false;   /* srcValid：本帧主画面来自真实解码帧，可写入缓存；seek 空窗处 false */
     x.save(); x.filter="none"; x.globalAlpha=1;
     const vc=mainVisualClip(), f=vc?fxOf(vc):null;
+    const va=vc&&vc.assetId?assetById(vc.assetId):null;   /* 本帧主画面素材，供视频/图片就绪判定 */
     x.fillStyle=(f&&f.bg)?String(f.bg):"#000"; x.fillRect(0,0,W,H);
     /* AI包装画面模板的主画面构图：以画幅中心为基准整体缩放+位移，把主画面缩到一侧。
        与预览 fvFitTransform（transform-origin:center + translate(x%) scale）数学等价；
@@ -11163,7 +11177,12 @@ function drawStageFrame(x,W,H,opts){
     }
     try{
         x.filter=vc?fxFilter(vc):"none"; x.globalAlpha=vc?animOpacity(vc):1;
-        const src=vEl.classList.contains("show")&&vEl.readyState>1?vEl:(imgEl.classList.contains("show")&&imgEl.complete?imgEl:null);
+        /* 录制期间：视频必须"真正可画"（排除 seek 空窗）；普通预览保持原有宽松判定，
+           避免拖动/逐帧时因严格判定造成预览卡顿。 */
+        const videoOk=exportRecording?(vc&&va&&va.type!=="image"?exportVideoFrameReady(vc):false)
+            : (vEl.classList.contains("show")&&vEl.readyState>1);
+        const imgOk=imgEl.classList.contains("show")&&imgEl.complete&&imgEl.naturalWidth>0;
+        const src=videoOk?vEl:(imgOk?imgEl:null);
         if(src){
             const nw=src.videoWidth||src.naturalWidth||W, nh=src.videoHeight||src.naturalHeight||H;
             /* 与预览一致按 contain 完整放入画布（不再拉伸铺满），并在源图上应用四边裁剪 */
@@ -11174,7 +11193,7 @@ function drawStageFrame(x,W,H,opts){
             const ox=(W-dw)/2+dw*cr.left/100, oy=(H-dh)/2+dh*cr.top/100;
             const ow=dw*(1-(cr.left+cr.right)/100), oh=dh*(1-(cr.top+cr.bottom)/100);
             x.drawImage(src, sx,sy,sw,sh, -W/2+ox,-H/2+oy,ow,oh);
-            drewMedia=true;
+            drewMedia=true; srcValid=(videoOk||imgOk);   /* 只有"真正可画"的帧才允许写入缓存，杜绝黑帧污染 */
         }
     }catch(e){ throw new Error("素材受跨域保护，浏览器无法把画面写入导出画布；请把该素材下载到本地后重新导入"); }
     x.restore();
@@ -11374,7 +11393,9 @@ function drawStageFrame(x,W,H,opts){
             }
         }
     }catch(e){}
-    if(exportRecording&&drewMedia) exportFrameCachePut(x,W,H);
+    /* 只有主画面确实来自真实解码帧时才更新缓存；seek 空窗/换源未就绪的帧即使画了也不写，
+       否则黑帧会被固化进缓存，之后所有兜底恢复的都是黑，正是"每个衔接点持续闪黑"的元凶。 */
+    if(exportRecording&&srcValid) exportFrameCachePut(x,W,H);
 }
 let _grainTile=null;
 function grainTile(){
