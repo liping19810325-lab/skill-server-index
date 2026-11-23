@@ -6483,9 +6483,10 @@ async function detectClipSilences(a,c,cfg){
             res={silences:[],raw:null,engine:"none"};
         }
     }
-    /* 只有真正拿到检测引擎结果才缓存；素材暂不可读(engine:none/空)时绝不缓存空结果，
-       否则「重新检测静音」会一直命中这份失败缓存、永远 0 候选（工作区合并后素材跨库时常见）。 */
-    if(res.engine&&res.engine!=="none") silenceCache.set(key,res);
+    /* 只有检出实际静音段才缓存；空结果一律不缓存——否则服务端曾因固定阈值过严得到 0 段、
+       或素材暂不可读时，这份空结果会被永久命中，「重新检测静音」也拿不到自适应后的新结果。
+       无停顿的素材每次重检成本很低（本机 FFmpeg 亚秒级），信任实时结果优于缓存空值。 */
+    if(res.engine&&res.engine!=="none"&&res.silences&&res.silences.length) silenceCache.set(key,res);
     addSilences(res.silences);
     return res;
 }

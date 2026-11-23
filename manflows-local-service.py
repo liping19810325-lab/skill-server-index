@@ -53,7 +53,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.5.1"
+VERSION = "1.5.2"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -1299,20 +1299,14 @@ def _silence_params(data):
             "pad": num("keepPad", 0.12, 0.0, 2.0)}
 
 
-def _detect_silences_ex(ff, wav_path, params=None):
-    """FFmpeg silencedetect 找出气口；返回可删区间 + 原始事件，供日志面板展示。"""
-    pa = params or _silence_params({})
-    db, minsec, pad = pa["db"], pa["minSec"], pa["pad"]
+def _silence_detect_once(ff, wav_path, db, minsec, pad):
+    """按给定阈值跑一次 silencedetect，返回 (可删区间列表, 原始事件, ffmpeg stderr)。"""
     cmd = [ff, "-hide_banner", "-i", wav_path,
            "-af", "silencedetect=noise=%.1fdB:d=%.3f" % (db, minsec),
            "-f", "null", "-"]
-    try:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                              timeout=TIMEOUT_TRANSCODE)
-        txt = (proc.stderr or b"").decode("utf-8", "replace")
-    except Exception as e:
-        return {"silences": [], "raw": {"events": [], "error": _short(e),
-                "filter": cmd[5], "noiseDb": db, "minSec": minsec}}
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          timeout=TIMEOUT_TRANSCODE)
+    txt = (proc.stderr or b"").decode("utf-8", "replace")
     starts = [float(x) for x in re.findall(r"silence_start:\s*([\d.]+)", txt)]
     ends = []
     for x in re.findall(r"silence_end:\s*([\d.]+)\s*\|\s*silence_duration:\s*([\d.]+)", txt):
@@ -1334,11 +1328,44 @@ def _detect_silences_ex(ff, wav_path, params=None):
                     "duration": round(dur, 3),
                     "cutStart": round(cs, 3), "cutEnd": round(ce, 3),
                     "keepPad": pad, "canCut": ce > cs + 0.15})
-    out = out[:600]
-    return {"silences": out,
-            "raw": {"events": events[:1200], "filter": cmd[5],
-                    "noiseDb": db, "minSec": minsec, "keepPad": pad,
-                    "detected": len(out), "stderrTail": _scrub(txt, ff)[-500:]}}
+    return out[:600], events, txt
+
+
+def _detect_silences_ex(ff, wav_path, params=None):
+    """FFmpeg silencedetect 找出气口；返回可删区间 + 原始事件，供日志面板展示。
+
+    自适应阈值：先用用户设定阈值；若 0 段（常见于带背景音乐/环境底噪的素材，
+    噪声底一直高于 -35dB），则依次放宽到 -30/-25/-20/-16dB，取第一个检出
+    合理停顿的档位。避免"有声音却一段都检不出"的假阴性。返回里标注实际阈值。"""
+    pa = params or _silence_params({})
+    db, minsec, pad = pa["db"], pa["minSec"], pa["pad"]
+    auto = pa.get("auto", True)
+    # 放宽档位：只在默认阈值 0 段时逐档尝试，且不超过 -16dB（再高会把正常语音判成静音）
+    ladder = [db] + [d for d in (-30, -25, -20, -16) if d > db]
+    used_db, out, events, txt, err = db, [], [], "", None
+    for level in ladder:
+        try:
+            out, events, txt = _silence_detect_once(ff, wav_path, level, minsec, pad)
+            err = None
+        except subprocess.TimeoutExpired:
+            raise
+        except Exception as e:
+            err = _short(e)
+            out, events, txt = [], [], ""
+        if out:
+            used_db = level
+            break
+    if err is not None and not out:
+        return {"silences": [], "raw": {"events": [], "error": err,
+                "filter": "silencedetect=noise=%.1fdB:d=%.3f" % (db, minsec),
+                "noiseDb": db, "minSec": minsec}}
+    raw = {"events": events[:1200], "filter": "silencedetect=noise=%.1fdB:d=%.3f" % (used_db, minsec),
+           "noiseDb": used_db, "requestedDb": db, "autoAdjusted": used_db != db,
+           "minSec": minsec, "keepPad": pad,
+           "detected": len(out), "stderrTail": _scrub(txt, ff)[-500:]}
+    result = {"silences": out, "raw": raw, "usedDb": used_db,
+              "autoAdjusted": used_db != db}
+    return result
 
 
 def api_silences(body):
@@ -1366,10 +1393,15 @@ def api_silences(body):
             return _fail(_short(e), "请确认素材含有声音轨、且 ffmpeg 可读取该格式。")
     det["ok"] = True
     det["engine"] = "本机 FFmpeg silencedetect"
-    det["log"] = ["静音检测参数：%g dB / 最短 %.2f 秒 / 切口留白 %.2f 秒" %
-                  (pa["db"], pa["minSec"], pa["pad"]),
-                  "检测到 %d 段静音（其中 %d 段可删）" %
-                  (len(det["silences"]), sum(1 for z in det["silences"] if z.get("canCut")))]
+    used = det.get("usedDb", pa["db"])
+    log = []
+    if det.get("autoAdjusted"):
+        log.append("设定阈值 %g dB 未检出停顿（素材底噪较高），已自动放宽到 %g dB" % (pa["db"], used))
+    log.append("静音检测参数：%g dB / 最短 %.2f 秒 / 切口留白 %.2f 秒" %
+               (used, pa["minSec"], pa["pad"]))
+    log.append("检测到 %d 段静音（其中 %d 段可删）" %
+               (len(det["silences"]), sum(1 for z in det["silences"] if z.get("canCut"))))
+    det["log"] = log
     det["hint"] = "本结果不依赖语音转写；即使 Whisper 失败也能作为智能剪口播候选。"
     return det
 
