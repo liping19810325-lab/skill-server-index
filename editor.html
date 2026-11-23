@@ -11802,6 +11802,18 @@ function startCoverLive(){
     const loop=()=>{
         const modal=$("exportModal");
         if(!modal||!modal.classList.contains("show")){ stopCoverLive(); return; } /* 弹窗关闭即停，省电 */
+        /* 与主播放器(#previewGuard)/成片导出同款「解码空帧守卫」：
+           之前本预览小窗直接 drawStageFrame，而 drawStageFrame 的防闪黑只在 exportRecording
+           时生效，实时预览走的是宽松判定（只认 readyState），于是浏览器 H.264 解码空帧
+           被原样画进小窗 —— 主播放器与成片都没黑帧、唯独小窗夹黑，正是这个问题。
+           这里复用 exportVideoFrameReady：与成片逐帧同一亮度判据 + 帧级缓存，空帧/seek/
+           未就绪时跳过本帧绘制、canvas 保留上一有效帧，保证小窗所见=最终成片。
+           图片 / 无主画面不参与判定（无解码空帧可言），照常绘制。 */
+        const hc=mainVisualClip(), ha=hc&&hc.assetId?assetById(hc.assetId):null;
+        const needGuard=!!(hc&&ha&&ha.type!=="image");
+        if(needGuard && !exportVideoFrameReady(hc)){
+            coverLiveRaf=requestAnimationFrame(loop); return;   /* 空帧：保留上一帧，不绘制 */
+        }
         try{ drawStageFrame(x,W,H,{noSub:false}); }catch(e){ /* 单帧失败不中断预览 */ }
         coverLiveRaf=requestAnimationFrame(loop);
     };
