@@ -872,7 +872,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                             <button type="button" class="mini-btn red" id="edDelBaseBtn" title="从清单里删除当前选中的地址">🗑 删除</button>
                         </div>
                         <div class="ed-conn-state" id="edLocalState">○ 尚未检测本机大模型服务</div>
-                        <div style="font-size:10px;color:var(--muted);line-height:1.6;margin-top:5px">API Key 选填：留空则不发送任何鉴权头；有值则自动带 <code>Authorization: Bearer</code>。支持局域网 http://192.168.x.x 与 Cloudflare HTTPS 隧道。剪辑台会把你的剪辑思路与轨道信息发给所选模型，密钥只在本机不上传源码。</div>
+                        <div style="display:none;font-size:10px;color:var(--muted);line-height:1.6;margin-top:5px">API Key 选填：留空则不发送任何鉴权头；有值则自动带 <code>Authorization: Bearer</code>。支持局域网 http://192.168.x.x 与 Cloudflare HTTPS 隧道。剪辑台会把你的剪辑思路与轨道信息发给所选模型，密钥只在本机不上传源码。</div>
                     </div>
                 </div>
                 <div class="hint" id="edComputeHint" style="display:none"></div>
@@ -2392,7 +2392,7 @@ function edApplyPrivateUI(){
     const cfg=edLoadPrivateCfg(), priv=cfg.mode==="private";
     if(row) row.style.display="flex";
     if(box) box.style.display=priv?"block":"none";
-    if(conn) conn.style.display=priv?"none":"flex";
+    if(conn) conn.style.display=priv?"none":"block";
     document.querySelectorAll('input[name="edConnectMode"]').forEach(r=>{ r.checked=(r.value===cfg.mode); });
     const fields={edStrataBase:cfg.strataBase,edStrataKey:cfg.strataKey,edComfyBase:cfg.comfyBase,edComfyToken:cfg.comfyToken};
     Object.keys(fields).forEach(id=>{ const n=$(id); if(!n) return; n.value=fields[id]; n.disabled=!priv; });
