@@ -7668,6 +7668,103 @@ async function collectFrames(){
     const res=await Promise.all(jobs);
     return res.filter(Boolean).slice(0,6);
 }
+
+/* ==================================================================
+   长视频「对话剪辑 / 快速剪辑」自动分片（共享基础设施）
+   —— 单片 15~25s：镜头切换密的剧情段靠近 15s，固定机位口播可到 25s。
+   —— 所有片段 id / start / [sN] 一律沿用全局值：分片只做「截取」不做「重新编号」，
+      因此各片模型返回的提案天然落在全局坐标上，合并时无需任何坐标变换。
+   ================================================================== */
+const AI_SHARD_MIN=15, AI_SHARD_MAX=25;
+/* 真实内容跨度（不含 totalDuration 的 +4s 留白 / 最小 30s 兜底） */
+function aiContentEnd(){
+    let end=0;
+    for(const c of state.clips){ const e=(Number(c.start)||0)+(Number(c.duration)||0); if(e>end) end=e; }
+    return +end.toFixed(3);
+}
+/* 计算镜头切换密度：单位秒内的「视频片段边界」数量。
+   切换多(剧情/漫剧)→密度高→单片趋近 15s；固定机位长口播→密度低→趋近 25s。 */
+function aiShotDensity(){
+    const vids=state.clips.filter(c=>trackKind(c.track)==="video"&&(Number(c.duration)||0)>0.2)
+        .sort((a,b)=>a.start-b.start);
+    if(vids.length<2) return 0;
+    const span=Math.max(1,(vids[vids.length-1].start+vids[vids.length-1].duration)-vids[0].start);
+    // 边界数≈片段数-1；再叠加字幕段密度（口播字密也说明信息密度高，但不代表镜头切换，权重低）
+    return (vids.length-1)/span;
+}
+/* 平均镜头时长（秒）：视频片段覆盖跨度 / 片段数。只有一个长片段=固定机位口播。 */
+function aiAvgShotSec(){
+    const vids=state.clips.filter(c=>trackKind(c.track)==="video"&&(Number(c.duration)||0)>0.2)
+        .sort((a,b)=>a.start-b.start);
+    if(vids.length<2) return 9999;                    // 单镜头 → 固定机位
+    const span=(vids[vids.length-1].start+vids[vids.length-1].duration)-vids[0].start;
+    return span/vids.length;
+}
+function aiShardSeconds(){
+    const avg=aiAvgShotSec();
+    // 平均镜头 ≤15s（切换密 / 剧情漫剧）→15s；≥30s（长镜头固定口播）→25s；中间线性
+    const t=Math.max(0,Math.min(1,(avg-AI_SHARD_MIN)/30));
+    return Math.round(AI_SHARD_MIN+(AI_SHARD_MAX-AI_SHARD_MIN)*t);
+}
+/* 生成分片窗口：等长 target 切分，最后一段可能略短但不低于 3s（太短则并入前段） */
+function aiShardPlan(){
+    const end=aiContentEnd();
+    if(end<=0) return [];
+    const target=aiShardSeconds();
+    const out=[]; let s=0;
+    while(s<end-0.01){
+        let e=Math.min(end,s+target);
+        if(end-e>0&&end-e<3) e=end;           // 尾巴太短并进本片
+        out.push({start:+s.toFixed(3),end:+e.toFixed(3)});
+        s=e;
+    }
+    return out;
+}
+/* 是否需要分片：内容长度超过单片上限即需要 */
+function aiNeedShard(){ return aiContentEnd()>AI_SHARD_MAX+1; }
+/* 裁剪时间轴结构到某窗口：保留全局片段 id / start；子段按相交截取，assets 带过去供引用 */
+function scopedStructure(sh){
+    const full=collectTimelineStructure();
+    const hit=c=>(Number(c.start)||0)<sh.end&&((Number(c.start)||0)+(Number(c.duration)||0))>sh.start;
+    const clips=full.clips.filter(hit);
+    const vids=clips.filter(c=>c.trackType==="video"&&c.name);
+    const used=new Set(vids.map(c=>c.asset&&c.asset.id).filter(Boolean));
+    return {
+        version:full.version,project:full.project,
+        shard:{start:sh.start,end:sh.end,duration:+(sh.end-sh.start).toFixed(3)},
+        totalDuration:full.totalDuration,shardOfTotal:{start:sh.start,end:sh.end},
+        trackOrder:full.tracks,config:full.config,tracks:full.tracks,clips:clips,
+        assets:full.assets.filter(a=>used.has(a.id)),
+        subtitles:full.subtitles.filter(hit),
+        silences:full.silences.filter(z=>hit({start:z.start,duration:Math.max(0.001,(z.end||z.start)-(z.start||0))})),
+        candidates:full.candidates.filter(x=>hit({start:x.start,duration:Math.max(0.001,(x.end||x.start)-(x.start||0))}))
+    };
+}
+/* 该窗口内的字幕文稿，保留全局 [sN] 序号（序号 = 全量 agentScriptSegs 里的位置+1） */
+function scopedScript(sh){
+    const all=agentScriptSegs();
+    const rows=[];
+    all.forEach((s,i)=>{
+        const e=s.start+s.duration;
+        if(s.start<sh.end&&e>sh.start) rows.push("[s"+(i+1)+"] "+String(s.text).replace(/\n/g," ")+"\n");
+    });
+    return rows.length?rows.join(""):"（本片段时间窗内没有字幕）\n";
+}
+/* 该窗口内的抽帧：沿用 grabFrame 视觉逻辑，按窗口内视频片段取中点帧，最多 6 帧 */
+async function scopedFrames(sh){
+    const jobs=[];
+    const vids=state.clips.filter(c=>trackKind(c.track)==="video"&&c.assetId
+        &&(Number(c.start)||0)<sh.end&&((Number(c.start)||0)+(Number(c.duration)||0))>sh.start).slice(0,4);
+    for(const c of vids){
+        const a=assetById(c.assetId); if(!a||!mediaUrl(a)) continue;
+        const segStart=Math.max(c.start,sh.start), segEnd=Math.min(c.start+c.duration,sh.end);
+        const local=(segStart+segEnd)/2;
+        const src=timelineToSource(c,local).t;
+        jobs.push(grabFrame(mediaUrl(a),src).then(d=>d?{name:a.name,data:d}:null));
+    }
+    const res=await Promise.all(jobs);
+    return res.filter(Boolean).slice(0,6);
+}
 /* ---------- 轨道素材结构化采集：供 AI 分析 / 调试 / 下载的统一原始数据 ---------- */
 function collectTimelineStructure(){
     const num=(v,d)=>{ const n=Number(v); return Number.isFinite(n)?+n.toFixed(3):(d||0); };
@@ -7748,6 +7845,7 @@ let aiAgentBusy=false;
 let aiAgentProposal=[];        // 待确认的编辑操作 [{op,label,...}]
 let aiAgentActiveTier="base";  // base | advanced（渐进式工具披露）
 let aiAgentCfg=null;
+let aiAgentScope=null;         // 分片作用域 {start,end}；非空时 read_timeline/read_script 只返回本窗，编辑提案仍是全局 id
 
 const AI_AGENT_BASE_TOOLS=[
     {type:"function",function:{name:"read_timeline",description:"读取当前时间轴结构：轨道、片段 id/类型/起止时间、素材元信息、毫秒字幕、静音区间、已有候选。任何编辑前必须先调用它拿到准确的片段 id 与秒数，绝不虚构 id。",parameters:{type:"object",properties:{},required:[]}}},
@@ -7882,10 +7980,11 @@ async function agentFindHighlights(opts){
 async function aiToolDispatch(name,args){
     const c=args||{};
     if(name==="read_timeline"){
-        return {ok:true,structure:collectTimelineStructure()};
+        return {ok:true,structure:aiAgentScope?scopedStructure(aiAgentScope):collectTimelineStructure()};
     }
     if(name==="read_script"){
-        return {ok:true,markdown:serializeScript(),segCount:agentScriptSegs().length};
+        return {ok:true,markdown:aiAgentScope?scopedScript(aiAgentScope):serializeScript(),
+            segCount:agentScriptSegs().length};
     }
     if(name==="preview_frame"){
         return await agentPreviewFrame(c.time);
@@ -8061,6 +8160,56 @@ function openAgentPanel(){
 }
 /* 对话主循环：用户消息 → 模型 → 工具调用 → 结果回注 → 下一轮，直到最终答复。
    支持：渐进式工具披露（load_skill 解锁高级工具）、多模态视觉自检回注、自主验收补一次自检。 */
+/* 多轮 agent 循环：被单片 / 分片两路共用。
+   opts: {maxRounds, status(round), recordHistory, selfCheck} */
+async function runAgentLoop(llmMsgs,tools,cfg,opts){
+    const o=opts||{}, MAX_ROUNDS=o.maxRounds||14, rec=o.recordHistory!==false;
+    let editsMade=false, checkedAfterEdit=false, selfCheckNudged=false;
+    for(let round=0;round<MAX_ROUNDS;round++){
+        if(o.status) o.status(round+1,"thinking");
+        const r=await serviceLlmChat(cfg,llmMsgs,0.3,4096,tools);
+        const content=String(r.content||"");
+        if(rec) aiAgentMsgs.push({role:"assistant",text:content});
+        llmMsgs.push({role:"assistant",content:content,tool_calls:r.tool_calls||[]});
+        renderAgentPanel();
+        const calls=r.tool_calls||[];
+        if(!calls.length){
+            if(o.selfCheck!==false && editsMade&&!checkedAfterEdit&&!selfCheckNudged){
+                selfCheckNudged=true;
+                const tip="请对刚才的改动做一次视觉自检：调用 preview_frame 抽查画面，确认无误后再给出最终总结。";
+                if(rec) aiAgentMsgs.push({role:"user",text:tip});
+                llmMsgs.push({role:"user",content:tip});
+                renderAgentPanel();
+                continue;
+            }
+            if(o.status) o.status(round+1,"done");
+            return {rounds:round+1,calls:0};
+        }
+        for(const tc of calls){
+            const fn=tc.function||{}, name=String(fn.name||"");
+            let args={}; try{ args=JSON.parse(fn.arguments||"{}"); }catch(e){}
+            const callId=String(tc.id||uid());
+            let result,ok=true;
+            try{ result=await aiToolDispatch(name,args); ok=result&&result.ok!==false; }
+            catch(e){ ok=false; result={ok:false,error:String(e&&e.message||e)}; }
+            const resultText=result?JSON.stringify(result):"null";
+            if(rec) aiAgentMsgs.push({role:"tool",name:name,args:args,status:ok?"done":"fail",callId:callId,resultText:resultText});
+            llmMsgs.push({role:"tool",tool_call_id:callId,content:resultText});
+            if(AI_AGENT_EDIT_TOOLS.has(name)) editsMade=true;
+            /* 视觉自检 preview_frame：逻辑完全保留——抽真实帧回注给模型，与单片路径一致 */
+            if(name==="preview_frame"&&ok&&result&&result.data){
+                if(rec) aiAgentMsgs.push({role:"frame",data:result.data,time:result.time||0});
+                llmMsgs.push({role:"user",content:[
+                    {type:"text",text:"【视觉自检】这是时间轴 "+Number(result.time||0).toFixed(2)+"s 处的真实画面，请结合画面判断剪辑是否正确，若不对请用工具修正。"},
+                    {type:"image_url",image_url:{url:result.data}}]});
+                checkedAfterEdit=true;
+            }
+            renderAgentPanel();
+        }
+        if(o.status) o.status(round+1,"tools");
+    }
+    return {rounds:MAX_ROUNDS,calls:1};
+}
 async function runAgentChat(text){
     if(aiAgentBusy){ toast("AI 正在处理中，请稍候","err"); return; }
     const cfg=aiConfig();
@@ -8075,70 +8224,58 @@ async function runAgentChat(text){
     const send=$("agentSend"); if(send) send.disabled=true;
     agentSetStatus("正在调用 "+cfg.model+" …","busy");
 
-    const llmMsgs=[{role:"system",content:AI_AGENT_SYS}];
-    for(const m of aiAgentMsgs){
-        if(m.role==="user") llmMsgs.push({role:"user",content:m.text});
-        else if(m.role==="assistant") llmMsgs.push({role:"assistant",content:m.text||""});
-        else if(m.role==="tool") llmMsgs.push({role:"tool",tool_call_id:m.callId,content:m.resultText});
-        else if(m.role==="frame") llmMsgs.push({role:"user",content:[
-            {type:"text",text:"【视觉自检】这是时间轴 "+Number(m.time||0).toFixed(2)+"s 处的真实画面，请结合画面判断剪辑是否正确，若不对请用工具修正。"},
-            {type:"image_url",image_url:{url:m.data}}]});
-    }
     const tools=aiAgentActiveTier==="advanced"
         ? AI_AGENT_BASE_TOOLS.concat(AI_AGENT_ADVANCED_TOOLS)
         : AI_AGENT_BASE_TOOLS.slice();
 
-    const MAX_ROUNDS=14;
-    let editsMade=false, checkedAfterEdit=false, selfCheckNudged=false;
     try{
-        for(let round=0;round<MAX_ROUNDS;round++){
-            agentSetStatus("第 "+(round+1)+" 轮 · "+cfg.model+" 思考中…","busy");
-            const r=await serviceLlmChat(cfg,llmMsgs,0.3,4096,tools);
-            const content=String(r.content||"");
-            aiAgentMsgs.push({role:"assistant",text:content});
-            llmMsgs.push({role:"assistant",content:content,tool_calls:r.tool_calls||[]});
-            renderAgentPanel();
-            const calls=r.tool_calls||[];
-            if(!calls.length){
-                if(editsMade&&!checkedAfterEdit&&!selfCheckNudged){
-                    selfCheckNudged=true;
-                    const tip="请对刚才的改动做一次视觉自检：调用 preview_frame 抽查画面，确认无误后再给出最终总结。";
-                    aiAgentMsgs.push({role:"user",text:tip});
-                    llmMsgs.push({role:"user",content:tip});
-                    renderAgentPanel();
-                    continue;
-                }
-                agentSetStatus("完成 · 共 "+(round+1)+" 轮","" );
-                break;
+        if(aiNeedShard()){
+            /* ===== 长视频自动分片：每窗一个干净会话，工具结果裁剪到本窗，提案全局累积 ===== */
+            const shards=aiShardPlan();
+            agentSetStatus("长视频自动分片 "+shards.length+" 段（每段 "+aiShardSeconds()+"s），逐段独立请求后自动合并…","busy");
+            /* 分片模式剔除 apply_script：分段文稿只含本窗 [sN]，用它写回会误删其它窗字幕。
+               用 trim/delete/move/split/add_subtitle 即可完成分段剪辑；文稿整体改写留给用户单片时做。 */
+            const shardTools=tools.filter(t=>!(t&&t.function&&t.function.name==="apply_script"));
+            for(let i=0;i<shards.length;i++){
+                const sh=shards[i];
+                aiAgentScope=sh;
+                const sys=AI_AGENT_SYS+"\n【自动分片模式】本条需求正作用于全片的分段处理。你当前只负责时间窗 "
+                    +sh.start.toFixed(1)+"~"+sh.end.toFixed(1)+"s：read_timeline / read_script 返回的都是本窗裁剪数据，"
+                    +"片段 id、秒数与 [sN] 段号都是全片真实值。请只针对本窗内容生成编辑提案（trim/delete/move/split/add_subtitle 等），"
+                    +"提案会与其它分段的结果自动合并，无需你汇总全片。改完照常 preview_frame 自检。";
+                const local=[{role:"system",content:sys},{role:"user",content:String(text||"").trim()}];
+                await runAgentLoop(local,shardTools,cfg,{
+                    maxRounds:8, recordHistory:false,
+                    status:(rd,ph)=>agentSetStatus("分片 "+(i+1)+"/"+shards.length+"（"+sh.start.toFixed(0)+"~"+sh.end.toFixed(0)+"s）· "
+                        +rd+" 轮 · "+(ph==="thinking"?"思考中":ph==="tools"?"工具已执行，继续推理…":"完成"),ph==="done"?"":"busy")
+                });
             }
-            for(const tc of calls){
-                const fn=tc.function||{}, name=String(fn.name||"");
-                let args={}; try{ args=JSON.parse(fn.arguments||"{}"); }catch(e){}
-                const callId=String(tc.id||uid());
-                let result,ok=true;
-                try{ result=await aiToolDispatch(name,args); ok=result&&result.ok!==false; }
-                catch(e){ ok=false; result={ok:false,error:String(e&&e.message||e)}; }
-                const resultText=result?JSON.stringify(result):"null";
-                aiAgentMsgs.push({role:"tool",name:name,args:args,status:ok?"done":"fail",callId:callId,resultText:resultText});
-                llmMsgs.push({role:"tool",tool_call_id:callId,content:resultText});
-                if(AI_AGENT_EDIT_TOOLS.has(name)) editsMade=true;
-                if(name==="preview_frame"&&ok&&result&&result.data){
-                    aiAgentMsgs.push({role:"frame",data:result.data,time:result.time||0});
-                    llmMsgs.push({role:"user",content:[
-                        {type:"text",text:"【视觉自检】这是时间轴 "+Number(result.time||0).toFixed(2)+"s 处的真实画面，请结合画面判断剪辑是否正确，若不对请用工具修正。"},
-                        {type:"image_url",image_url:{url:result.data}}]});
-                    checkedAfterEdit=true;
-                }
-                renderAgentPanel();
+            aiAgentScope=null;
+            agentSetStatus("完成 · "+shards.length+" 段已合并，共 "+aiAgentProposal.length+" 项提案待确认","" );
+            aiAgentMsgs.push({role:"assistant",text:"（长视频已自动分 "+shards.length+" 段处理完成，共 "+aiAgentProposal.length+" 项剪辑提案，请确认应用。）"});
+        }else{
+            /* ===== 原单片路径：带完整对话历史 ===== */
+            const llmMsgs=[{role:"system",content:AI_AGENT_SYS}];
+            for(const m of aiAgentMsgs){
+                if(m.role==="user") llmMsgs.push({role:"user",content:m.text});
+                else if(m.role==="assistant") llmMsgs.push({role:"assistant",content:m.text||""});
+                else if(m.role==="tool") llmMsgs.push({role:"tool",tool_call_id:m.callId,content:m.resultText});
+                else if(m.role==="frame") llmMsgs.push({role:"user",content:[
+                    {type:"text",text:"【视觉自检】这是时间轴 "+Number(m.time||0).toFixed(2)+"s 处的真实画面，请结合画面判断剪辑是否正确，若不对请用工具修正。"},
+                    {type:"image_url",image_url:{url:m.data}}]});
             }
-            agentSetStatus("工具已执行，继续推理…","busy");
+            await runAgentLoop(llmMsgs,tools,cfg,{
+                maxRounds:14, recordHistory:true,
+                status:(rd,ph)=>agentSetStatus(ph==="done"?("完成 · 共 "+rd+" 轮"):("第 "+rd+" 轮 · "+cfg.model+" "+(ph==="thinking"?"思考中…":"工具已执行，继续推理…")),ph==="done"?"":"busy")
+            });
         }
     }catch(e){
         const msg=String(e&&e.message||e);
         agentSetStatus("出错："+msg,"err");
         aiAgentMsgs.push({role:"err",text:msg});
-        renderAgentPanel();
     }finally{
+        aiAgentScope=null;
+        renderAgentPanel();
         aiAgentBusy=false;
         if(send) send.disabled=false;
     }
@@ -8166,17 +8303,21 @@ function bindAgentEvents(){
 }
 
 const AI_SYS_PROMPT = "你是一位资深短视频 / 漫剧剪辑师。用户会给你一份剪辑时间轴的结构化 JSON（轨道、片段 id / 类型 / 起止时间、素材元信息、独立音轨标记、毫秒级字幕、静音/气口区间、已有候选）以及若干视频抽帧图片。请先做语义分析：区分「有效停顿」（叙事节奏需要、语气留白）与「无效废片」（嗯啊语气词、长静音、重复赘述、口误），再给出内容优化建议。你必须只输出一个 JSON 对象，不要解释文字、不要 Markdown 围栏。格式：{\"analysis\":\"语义分析结论：哪些停顿有效、哪些是废片（中文，80字内）\",\"advice\":\"内容优化建议：节奏、顺序、字幕、画面等（中文，120字内）\",\"candidates\":[{\"start\":数字,\"end\":数字,\"type\":\"停顿|语气词|重复|废片\",\"reason\":\"中文理由，20字内\"}],\"summary\":\"整体剪辑思路（中文，60字内）\",\"actions\":[{\"id\":\"原片段id\",\"op\":\"keep|trim|delete|move\",\"start\":数字,\"duration\":数字,\"reason\":\"中文理由\"}],\"newSubtitles\":[{\"start\":数字,\"duration\":数字,\"text\":\"字幕文字\",\"kind\":\"dialogue|narration|inner\"}]}。candidates 的 start/end 必须是输入 JSON 时间轴上的绝对秒数（参考 clips[].start/end 与 subtitles/silences），不要超出 totalDuration，不要虚构片段，建议删除总时长不超过总时长的 60%。actions 只使用给定片段 id，trim 的 start/duration 必须在原片段范围内。若用户写了剪辑思路，必须优先满足并在 summary 说明如何落实；";
-function buildAiMessages(frames,idea){
-    const full=collectTimelineStructure();
+function buildAiMessages(frames,idea,scope){
+    const full=scope||collectTimelineStructure();
+    const chunkNote=full.shard?("\n【本次是全片自动分片中的一段：时间窗 "+full.shard.start.toFixed(1)+"~"+full.shard.end.toFixed(1)
+        +"s，下面的片段/字幕/静音/候选都已裁剪到本窗，id 与绝对秒数仍是全片真实值。请只针对本窗给出建议，"
+        +"candidates/actions 的 start/end 必须落在本窗内。所有分段的结果会被合并成完整方案，无需你重复全片分析。】\n"):"";
     const info={
         version:full.version,project:full.project,totalDuration:full.totalDuration,
+        shard:full.shard||null,shardOfTotal:full.shardOfTotal||null,
         trackOrder:"字幕(text) 恒最上、音频(audio) 恒最下；中间视觉轨（图片 image / LUT lut / 视频 video）按各自 z 值上下排序，LUT 只对排在它下方的图片/视频层调色",
         config:full.config,tracks:full.tracks,clips:full.clips,assets:full.assets,
         subtitles:full.subtitles,silences:full.silences,candidates:full.candidates
     };
     const ideaBlock=String(idea||"").trim()
         ? "\n\n【用户的剪辑思路 / 想法 —— 优先级高于你自己的节奏偏好，必须严格遵守】\n"+String(idea).trim()+"\n【思路结束】\n" : "";
-    const txt="请对下面这份时间轴做语义分析并给出剪辑优化建议。"+ideaBlock+"轨道与片段数据（JSON，含毫秒字幕、静音区间与已有候选）：\n"+JSON.stringify(info)
+    const txt="请对下面这份时间轴做语义分析并给出剪辑优化建议。"+ideaBlock+chunkNote+"轨道与片段数据（JSON，含毫秒字幕、静音区间与已有候选）：\n"+JSON.stringify(info)
         +"\n\n"+(frames.length?"后面附 "+frames.length+" 张按片段顺序抽取的画面（JPEG），请结合画面判断。":"本次没有附上画面，请仅依据轨道结构与时间码决策。")
         +"\n请先区分有效停顿与无效废片，再给出可执行的 candidates 删除建议与 advice 内容优化建议；严格只输出上面约定的 JSON 对象；若用户写了剪辑思路，方案必须体现该思路，并在 summary 里用一句话说明如何落实。";
     const content=frames.length
@@ -8228,6 +8369,61 @@ async function aiChat(cfg,messages){
         if(!c) throw new Error("模型没有返回文本内容："+raw.slice(0,300));
         return c;
     }finally{ clearTimeout(timer); }
+}
+/* 快速剪辑分片执行：逐片独立请求本机模型，收集每片 plan，最后合并成完整方案。
+   与单片路径共用 buildAiMessages / aiChat / parseAiPlan，仅传 scoped 结构与 scoped 抽帧。
+   onProgress(done,total,sec) 供 UI 展示无感知进度。 */
+async function runAiEditSharded(cfg,idea,withFrames,onProgress,onElapsed){
+    const shards=aiShardPlan();
+    const texts=[];
+    for(let i=0;i<shards.length;i++){
+        const sh=shards[i];
+        if(onProgress) onProgress(i,shards.length,sh);
+        const frames=withFrames?await scopedFrames(sh):[];
+        const msgs=buildAiMessages(frames,idea,scopedStructure(sh));
+        let t="";
+        try{ t=await aiChat(cfg,msgs); }
+        catch(e){
+            if(frames.length){
+                /* 视觉模型不支持时该片退化为纯结构（其余片不受影响） */
+                try{ t=await aiChat(cfg,buildAiMessages([],idea,scopedStructure(sh))); }
+                catch(e2){ throw new Error("第 "+(i+1)+"/"+shards.length+" 片（"+sh.start.toFixed(0)+"~"+sh.end.toFixed(0)+"s）请求失败："+((e2&&e2.message)||e2)); }
+            }else throw new Error("第 "+(i+1)+"/"+shards.length+" 片请求失败："+((e&&e.message)||e));
+        }
+        texts.push(t);
+        if(onElapsed) onElapsed(i,shards.length);
+    }
+    if(onProgress) onProgress(shards.length,shards.length,null);
+    return texts;
+}
+/* 合并各片 plan：actions / candidates / newSubtitles 都是全局坐标，直接拼接去重；
+   文本字段拼接每片结论。返回结构与单片 plan 完全一致，走同一 renderAiPlan/applyAiPlan。 */
+function mergeAiPlans(plans){
+    const out={actions:[],newSubtitles:[],candidates:[],analysis:[],advice:[],summary:[]};
+    plans.forEach((p,i)=>{
+        if(!p) return;
+        (p.actions||[]).forEach(a=>out.actions.push(a));
+        (p.newSubtitles||[]).forEach(s=>out.newSubtitles.push(s));
+        (p.candidates||[]).forEach(c=>out.candidates.push(c));
+        if(p.analysis) out.analysis.push("片"+(i+1)+"："+p.analysis);
+        if(p.advice) out.advice.push("片"+(i+1)+"："+p.advice);
+        if(p.summary) out.summary.push("片"+(i+1)+"："+p.summary);
+    });
+    /* 去重：candidates 按 start/end 1 秒内近似同一处只留一条；actions 按 id+op 去重 */
+    const seenC=new Set();
+    out.candidates=out.candidates.filter(c=>{
+        const k=Math.round(c.start)+"|"+Math.round(c.end)+"|"+c.type;
+        if(seenC.has(k)) return false; seenC.add(k); return true;
+    }).slice(0,200);
+    const seenA=new Set();
+    out.actions=out.actions.filter(a=>{
+        const k=String(a.id)+"|"+String(a.op);
+        if(seenA.has(k)) return false; seenA.add(k); return true;
+    });
+    return {
+        actions:out.actions,newSubtitles:out.newSubtitles,candidates:out.candidates,
+        analysis:out.analysis.join(" "),advice:out.advice.join(" "),summary:out.summary.join(" ")
+    };
 }
 function parseAiPlan(s){
     let t=String(s||"").trim();
@@ -8393,26 +8589,47 @@ async function runAiEdit(idea,overrideModel){
         setAiProgress(3,"前置分析完成，已调用模型「"+cfg.model+"」（"+cfg.label+"）"+(idea?"，已带上你的剪辑思路":"，未写思路，由模型自主判断"));
         await new Promise(r=>setTimeout(r,160));
         setAiProgress(4,"正在整理 "+state.tracks.length+" 条轨道 / "+state.clips.length+" 个片段 / "+subAfter+" 条字幕 / "+smartCutCandidates.length+" 处候选的结构与素材信息…");
-        const frames=$("aiFrames").checked?await collectFrames():[];
-        setAiProgress(5,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
-        setAiProgress(6,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
+        const withFrames=$("aiFrames").checked;
+        const doShard=aiNeedShard();
+        if(doShard){
+            const sh=aiShardPlan();
+            setAiProgress(5,"长视频自动分片：内容 "+aiContentEnd().toFixed(0)+"s，切成 "+sh.length+" 段（每段 "
+                +aiShardSeconds()+"s，镜头密的段更短），逐段独立请求，完成后自动合并，无需你手动切分");
+        }else{
+            const frames=withFrames?await collectFrames():[];
+            setAiProgress(5,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
+        }
         let elapsed=0;
         const hb=setInterval(()=>{ elapsed+=5; setAiProgress(6,"AI 剪辑进程中：已等待 "+elapsed+" 秒（强多模态模型通常需要 10~60 秒）…"); },5000);
-        let text="";
+        let plan=null;
         try{
-            try{ text=await aiChat(cfg,buildAiMessages(frames,idea)); }
-            catch(e){
-                if(frames.length){
-                    setAiProgress(6,"带图请求失败，正在改用纯轨道数据重试…");
-                    try{
-                        text=await aiChat(cfg,buildAiMessages([],idea));
-                        toast("当前模型可能不支持视觉输入，已改用纯轨道数据分析；建议换 Claude / GPT-4o / Gemini 等多模态模型","err");
-                    }catch(e2){ throw e2; }
-                }else throw e;
+            if(doShard){
+                /* 分片路径：每段独立抽帧 + 独立请求，逐段解析 plan 后合并 */
+                const texts=await runAiEditSharded(cfg,idea,withFrames,(done,total,sh)=>{
+                    setAiProgress(6,"AI 分片剪辑 "+(done+1)+"/"+total+"（"+(sh?sh.start.toFixed(0)+"~"+sh.end.toFixed(0)+"s":"合并中")+"）正在请求 "+cfg.model+"…");
+                });
+                const plans=texts.map(t=>parseAiPlan(t)).filter(Boolean);
+                if(!plans.length) throw new Error("所有分片都没有返回可解析的剪辑方案 JSON");
+                plan=mergeAiPlans(plans);
+                setAiProgress(7,"已合并 "+plans.length+" 段方案（"+plan.actions.length+" 项操作 / "+plan.candidates.length+" 处候选）");
+            }else{
+                setAiProgress(6,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
+                const frames=withFrames?await collectFrames():[];
+                let text="";
+                try{ text=await aiChat(cfg,buildAiMessages(frames,idea)); }
+                catch(e){
+                    if(frames.length){
+                        setAiProgress(6,"带图请求失败，正在改用纯轨道数据重试…");
+                        try{
+                            text=await aiChat(cfg,buildAiMessages([],idea));
+                            toast("当前模型可能不支持视觉输入，已改用纯轨道数据分析；建议换 Claude / GPT-4o / Gemini 等多模态模型","err");
+                        }catch(e2){ throw e2; }
+                    }else throw e;
+                }
+                setAiProgress(7,"模型已返回，正在解析可执行的剪辑方案…");
+                plan=parseAiPlan(text);
             }
         }finally{ clearInterval(hb); }
-        setAiProgress(7,"模型已返回，正在解析可执行的剪辑方案…");
-        const plan=parseAiPlan(text);
         if(!plan){
             setAiProgress(7,"模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o 等综合能力强的多模态模型重试。",true);
             toast("方案解析失败，建议换 Claude / GPT 重试","err"); return;
