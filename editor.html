@@ -1489,12 +1489,12 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <div class="ai-state" id="fvState" style="margin-top:8px">就绪。轨道放一条口播音频或口播视频，选模板与模型后点「渲染AI包装成片」。</div>
             </div>
             <div class="modal-foot" style="border-top:1px solid var(--border);">
-                <button class="mini-btn gray" data-close="aiIdeaModal">关闭</button>
+                <button class="mini-btn gray" id="aiFancyCancel" data-close="aiIdeaModal">关闭</button>
                 <button class="mini-btn cyan" id="fvRender">🎨 渲染AI包装成片</button>
             </div>
         </div>
         <div class="modal-foot" id="aiIdeaFootMain">
-            <button class="mini-btn gray" data-close="aiIdeaModal">取消</button>
+            <button class="mini-btn gray" id="aiIdeaCancel" data-close="aiIdeaModal">取消</button>
             <button class="mini-btn green" id="aiIdeaStart">▶ 开始 AI 剪辑（自动剪口播 → 字幕 → 智能剪辑）</button>
         </div>
     </div>
@@ -1959,16 +1959,21 @@ async function pingService(ms){
     svcOnline=false; svcInfo=null;
     return false;
 }
-/* 带候选地址重试的 POST：网络层失败时换下一个地址，HTTP 层错误原样带回 */
-async function svcPost(path,payload,timeoutMs){
+/* 带候选地址重试的 POST：网络层失败时换下一个地址，HTTP 层错误原样带回
+   signal：可选外部中止信号（AI 任务停止时由 aiStopCtl 传入），与超时信号任一触发即中断本请求 */
+async function svcPost(path,payload,timeoutMs,signal){
     const bodies=svcCandidateBases();
     let last=null;
     for(const base of bodies){
         const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),timeoutMs||30000);
+        /* 把外部「停止」信号桥接到本次请求：任一 abort 都立即中断 fetch */
+        const onAbort=()=>{ try{ ctl.abort(); }catch(e){} };
+        if(signal){ if(signal.aborted) onAbort(); else signal.addEventListener("abort",onAbort,{once:true}); }
         try{
             const r=await fetch(base+path,{method:"POST",headers:{"Content-Type":"application/json"},
                 body:JSON.stringify(payload),signal:ctl.signal});
             clearTimeout(tm);
+            if(signal) signal.removeEventListener("abort",onAbort);
             let j=null; try{ j=await r.json(); }catch(e){}
             if(!r.ok) throw new Error("本机服务 HTTP "+r.status+(j&&j.reason?"："+j.reason:""));
             if(!j) throw new Error("本机服务返回的不是 JSON（"+base+"）");
@@ -1976,24 +1981,31 @@ async function svcPost(path,payload,timeoutMs){
             return j;
         }catch(e){
             clearTimeout(tm); last=e;
+            if(signal) signal.removeEventListener("abort",onAbort);
+            /* 外部「停止」触发：不换地址重试，立即抛停止哨兵（带 stopped 标记） */
+            if(signal&&signal.aborted) throw aiStopError();
             if(e&&e.name==="AbortError") { svcDiag="本机服务请求超时（"+base+"）"; continue; }
             if(/HTTP \d+/.test(String(e&&e.message||e))) throw e; /* 服务端明确报错，无需换地址 */
             svcDiag=svcFetchReason(e,base);
         }
     }
+    if(signal&&signal.aborted) throw aiStopError();
     throw new Error(svcDiag||((last&&last.message)||"本机服务不可用"));
 }
 /* 二进制上传媒体到本机服务：不经 base64，232MB 视频直接传不膨胀；由服务端 FFmpeg 抽音轨，
    绕开浏览器 decodeAudioData 对某些视频解出静音的问题。参数走自定义请求头。 */
-async function svcPostMedia(path,blob,headers,timeoutMs){
+async function svcPostMedia(path,blob,headers,timeoutMs,signal){
     const bases=svcCandidateBases(); let last=null;
     for(const base of bases){
         const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),timeoutMs||600000);
+        const onAbort=()=>{ try{ ctl.abort(); }catch(e){} };
+        if(signal){ if(signal.aborted) onAbort(); else signal.addEventListener("abort",onAbort,{once:true}); }
         try{
             const h={"Content-Type":"application/octet-stream"};
             Object.assign(h,headers||{});
             const r=await fetch(base+path,{method:"POST",headers:h,body:blob,signal:ctl.signal});
             clearTimeout(tm);
+            if(signal) signal.removeEventListener("abort",onAbort);
             let j=null; try{ j=await r.json(); }catch(e){}
             if(!r.ok) throw new Error("本机服务 HTTP "+r.status+(j&&j.reason?"："+j.reason:""));
             if(!j) throw new Error("本机服务返回的不是 JSON（"+base+"）");
@@ -2001,11 +2013,14 @@ async function svcPostMedia(path,blob,headers,timeoutMs){
             return j;
         }catch(e){
             clearTimeout(tm); last=e;
+            if(signal) signal.removeEventListener("abort",onAbort);
+            if(signal&&signal.aborted) throw aiStopError();
             if(e&&e.name==="AbortError"){ svcDiag="本机服务请求超时（"+base+"）"; continue; }
             if(/HTTP \d+/.test(String(e&&e.message||e))) throw e;
             svcDiag=svcFetchReason(e,base);
         }
     }
+    if(signal&&signal.aborted) throw aiStopError();
     throw new Error(svcDiag||((last&&last.message)||"本机服务不可用"));
 }
 function serviceMediaUrl(u){ return svcOnline?(LOCAL_SERVICE+"/api/media?u="+encodeURIComponent(u)):u; }
@@ -2101,6 +2116,67 @@ let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
    「剪辑/分割」据此优先切同一条轨道（音视频字幕等所有轨道通用）。 */
 let activeTrackId="";
 let aiExtraCandidates=[], pendingPlan=null, recState={rec:null, chunks:[], stream:null, t0:0, timer:0}, recBusy=false;
+/* ===== AI 任务统一「停止」控制：贯穿弹窗按钮 / 所有请求 / 各任务循环 / 本机模型输出 =====
+   aiStopCtl      = 当前任务的 AbortController，svcPost / aiChat 会自动挂它的 signal
+   aiStopRequested= 用户已点停止；各循环据此干净退出，不落地半成品
+   aiTaskKind     = "edit" | "fancy" | "agent" | ""，驱动底部按钮在「取消/关闭 ↔ ⛔停止任务」间切换
+   aiJobId        = 本次模型请求 id，随 body 交给本机服务，用于 /api/ai/cancel 精确掐断上游连接 */
+let aiStopCtl=null, aiStopRequested=false, aiTaskKind="", aiJobId="";
+function aiStopBegin(kind){
+    aiStopRequested=false; aiTaskKind=String(kind||""); aiJobId=uid();
+    try{ aiStopCtl=new AbortController(); }catch(e){ aiStopCtl=null; }
+    aiUpdateStopBtn();
+}
+function aiStopEnd(){
+    aiTaskKind=""; aiStopCtl=null; aiJobId=""; aiStopRequested=false; aiUpdateStopBtn();
+}
+function aiStopSignal(){ return aiStopCtl?aiStopCtl.signal:null; }
+function aiIsStopped(){ return aiStopRequested===true; }
+function aiStopError(){ const e=new Error("已停止"); e.stopped=true; return e; }
+function aiThrowIfStopped(){ if(aiIsStopped()) throw aiStopError(); }
+/* 用户点停止：① 立刻 abort 浏览器在途请求；② 通知本机服务关闭上游模型连接（真正终止本地模型输出） */
+function aiStopAbort(){
+    if(aiStopRequested) return;
+    aiStopRequested=true;
+    try{ if(aiStopCtl) aiStopCtl.abort(); }catch(e){}
+    const jid=aiJobId;
+    svcAiCancel(jid);      /* 尽力而为：本机服务在线则掐断，离线也无妨 */
+    aiUpdateStopBtn();
+    try{ toast("已发出停止指令，正在中断当前 AI 任务…","err"); }catch(e){}
+}
+/* 通知本机服务取消正在转发的模型请求（独立于 aiStopCtl，自己的 AbortController） */
+async function svcAiCancel(jobId){
+    for(const base of svcCandidateBases()){
+        try{
+            const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),3000);
+            const r=await fetch(base+"/api/ai/cancel",{method:"POST",headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({jobId:jobId||"all"}),signal:ctl.signal});
+            clearTimeout(tm);
+            if(r.ok) return true;
+        }catch(e){}
+    }
+    return false;
+}
+/* 底部三个 Tab 的按钮：任务运行时变红色「⛔ 停止任务」，空闲时恢复原「取消 / 关闭 / 发送」 */
+function aiUpdateStopBtn(){
+    const active=!!aiTaskKind, stopping=aiIsStopped();
+    const set=(id,normal,running)=>{
+        const b=$(id); if(!b) return;
+        b.textContent=!active?normal:(stopping?"⏹ 停止中…":running);
+        b.classList.toggle("red",active);
+        b.classList.toggle("gray",!active);
+        b.title=active?(stopping?"正在中断…":"立即停止当前 AI 任务（含本机模型输出），不关闭弹窗"):"";
+    };
+    set("aiIdeaCancel","取消","⛔ 停止任务");
+    set("aiFancyCancel","关闭","⛔ 停止任务");
+    const send=$("agentSend");
+    if(send&&aiTaskKind==="agent"){
+        send.textContent=stopping?"⏹ 停止中…":"⛔ 停止";
+        send.classList.toggle("red",true);
+    }else if(send){
+        send.textContent="发送"; send.classList.remove("red");
+    }
+}
 let recMeterRaf=0, recAudioCtx=null, recAnalysers=null;
 let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
 let showFxBox=false, fxHover=false;
@@ -3220,6 +3296,7 @@ Object.assign(FV,{
         const list=this.pickAv();
         if(!list.length){ toast("轨道上还没有可分析的口播音频/视频素材","err"); this.progress(0,"请先放入口播音频或视频",true); return; }
         if(state.compute==="manflow"){ toast("请先在算力总控切到本机算力或第三方API","err"); this.progress(0,"当前是漫流算力占位档",true); return; }
+        aiStopBegin("fancy");   /* 统一停止信号：底部「关闭」按钮变「⛔ 停止任务」 */
         this.busy=true; const btn=$("fvRender"); if(btn) btn.disabled=true;
         try{
             /* 再次渲染：时间轴上已有花式片段 → 直接复用用户改过的文字/时间/样式，跳过 ASR 与分镜 */
@@ -3249,17 +3326,19 @@ Object.assign(FV,{
                 lines=await this.getLines(m=>this.progress(1,m));
                 this.progress(1,"拿到 "+lines.length+" 句台词（含字级时间戳）");
                 await new Promise(r=>setTimeout(r,100));
-                this.progress(2,"大模型输出分镜方案…");
+                this.progress(2,"大模型输出分镜方案…（点「⛔ 停止任务」可随时中断）");
                 const typed=$("fvModelCustom")?$("fvModelCustom").value.trim():"";
                 const chosen=typed||($("fvModel")?$("fvModel").value.trim():"");
                 const cfg=aiConfig(chosen||state.aiModel);
                 try{ elements=await this.storyboard(lines,cfg,m=>this.progress(2,m)); }
                 catch(e){
+                    if(e&&e.stopped) throw e;   /* 用户停止：不降级为规则分镜、不写回 */
                     fromFallback=true;
                     this.progress(2,"模型分镜不可用（"+((e&&e.message)||e)+"），改用内置规则分镜");
                     elements=this.fallbackPlan(lines);
                 }
             }
+            aiThrowIfStopped();
             if(!elements||!elements.length) throw new Error("没有可用的分镜元素");
             if(reused) this.progress(1,"复用时间轴上 "+elements.length+" 个已编辑元素重新出片");
             const dur=Math.max.apply(null,elements.map(e=>e.end));
@@ -3270,6 +3349,7 @@ Object.assign(FV,{
             const withVideo=!!(mainC&&mainC.assetId&&assetById(mainC.assetId)&&assetById(mainC.assetId).type==="video");
             const audioName=list.map(c=>{const a=assetById(c.assetId);return a?a.name:"";}).filter(Boolean).join("、");
             await new Promise(r=>setTimeout(r,120));
+            aiThrowIfStopped();   /* 停止：不下载工程、不写回时间轴 */
             this.progress(5,"写出 JSON 工程并回写时间轴…");
             const proj=this.projectJson(elements,lines,{fps:30,duration:dur,audioName:audioName});
             const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
@@ -3278,10 +3358,15 @@ Object.assign(FV,{
             this.progress(6,"完成："+elements.length+" 个元素 / "+n+" 条可编辑片段，画面风格「"+(this.styles.length?this.styles.map(k=>FV_STYLES[k].name).join("+"):"全自动")+"」"+(fromFallback?"（规则分镜）":""));
             toast("花字已回写到时间轴（可 Ctrl+Z 撤销）；中间 MP4 不再下载，请调整后从主界面「导出成片」输出最终视频","ok");
         }catch(e){
-            this.progress(this.busy?5:0,"失败："+((e&&e.message)||e)+"。请确认已配好转写后端与大模型接口。",true);
-            toast("AI包装渲染失败，请看状态说明","err");
+            if(e&&e.stopped||aiIsStopped()){
+                this.progress(5,"⛔ 已停止：分镜请求与本机模型输出已中断，未写出工程、未回写时间轴。",true);
+                toast("已停止 AI包装","err");
+            }else{
+                this.progress(this.busy?5:0,"失败："+((e&&e.message)||e)+"。请确认已配好转写后端与大模型接口。",true);
+                toast("AI包装渲染失败，请看状态说明","err");
+            }
         }finally{
-            this.busy=false; if(btn) btn.disabled=false;
+            this.busy=false; if(btn) btn.disabled=false; aiStopEnd();
         }
     }
 });
@@ -6984,8 +7069,9 @@ async function serviceTranscribe(a,cfg,clip){
             "X-ClipStart":String(Number(clip&&clip.offset)||0),"X-ClipDuration":String(Number(clip&&clip.duration)||0),
             "X-SilenceDb":String(pc.db),"X-SilenceMin":String(pc.min),"X-KeepPad":String(pc.pad)};
         scLogPush("二进制上传原素材交服务端 FFmpeg 抽轨：「"+a.name+"」"+fmtSize(blob.size)+"（绕开浏览器解码静音问题）");
-        try{ j=await svcPostMedia("/api/transcribe/file",blob,hdr,600000); }
+        try{ j=await svcPostMedia("/api/transcribe/file",blob,hdr,600000,aiStopSignal()); }
         catch(e){
+            if(e&&e.stopped) throw e;   /* 用户停止：不再回退重试 */
             /* 二进制端点不可用（旧版服务）时，回退旧的 JSON+base64 路径 */
             scLogPush("二进制上传失败，回退 base64 路径："+((e&&e.message)||e));
             const wav=await extractTrackWav(a,clip);
@@ -6994,8 +7080,8 @@ async function serviceTranscribe(a,cfg,clip){
                 alreadyWav:!!wav,endpoint:hdr["X-Endpoint"],key:hdr["X-Key"],model:hdr["X-Model"],
                 language:hdr["X-Language"],clipStart:hdr["X-ClipStart"],clipDuration:hdr["X-ClipDuration"],
                 silenceDb:pc.db,silenceMin:pc.min,keepPad:pc.pad};
-            try{ j=await svcPost("/api/transcribe",payload,600000); }
-            catch(e2){ throw new Error("调用本机转写接口失败："+((e2&&e2.message)||e2)); }
+            try{ j=await svcPost("/api/transcribe",payload,600000,aiStopSignal()); }
+            catch(e2){ if(e2&&e2.stopped) throw e2; throw new Error("调用本机转写接口失败："+((e2&&e2.message)||e2)); }
         }
     }else{
         const payload={filename:String(a.name||"audio.wav"),dataBase64:"",url:String(a.url),
@@ -7003,8 +7089,8 @@ async function serviceTranscribe(a,cfg,clip){
             model:String(cfg.model||"whisper-1"),language:String(cfg.language||"zh"),
             clipStart:Number(clip&&clip.offset)||0,clipDuration:Number(clip&&clip.duration)||0,
             silenceDb:pc.db,silenceMin:pc.min,keepPad:pc.pad};
-        try{ j=await svcPost("/api/transcribe",payload,600000); }
-        catch(e){ throw new Error("调用本机转写接口失败："+((e&&e.message)||e)); }
+        try{ j=await svcPost("/api/transcribe",payload,600000,aiStopSignal()); }
+        catch(e){ if(e&&e.stopped) throw e; throw new Error("调用本机转写接口失败："+((e&&e.message)||e)); }
     }
     if(!j||!j.ok) throw new Error(String(j&&j.reason||"转写失败")+(j&&j.hint?"｜"+j.hint:""));
     if(svcInfo && svcInfo.asrLocal===false && !cfg.endpoint)
@@ -7257,6 +7343,7 @@ async function runAsrCore(){
         const all=[];
         const asrDiag=[];   /* 每段识别诊断：{name,engine,asrOk,segs,needFallback}，用于 0 句时精准提示 */
         for(let i=0;i<list.length;i++){
+            aiThrowIfStopped();   /* 停止：不再识别下一段，立即中断逐段转写循环 */
             const c=list[i], a=assetById(c.assetId);
             setEdProgress(2,"正在把第 "+(i+1)+"/"+list.length+" 段「"+a.name+"」的音轨发给模型识别…");
             let segs;
@@ -7339,8 +7426,12 @@ async function runAsrCore(){
         setEdProgress(4,"已把 "+n+" 条真实字幕写入字幕轨（分析 "+list.length+" 段音视频素材）");
         toast("AI 字幕完成：真实识别 "+list.length+" 段素材，生成 "+n+" 条字幕","ok");
     }catch(e){
-        setEdProgress(2,"识别失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（本机 8788 端口，本机 faster-whisper 或第三方转写接口都由它转发，不受浏览器跨域限制）；② 若没装 faster-whisper，请在「算力总控 → 第三方API」填支持 whisper-1 / gpt-4o-transcribe 的转写地址与密钥；③ 启动后重开本页面（会自动重新探测 127.0.0.1 / localhost 两个地址）。本次不会生成任何演示字幕。",true);
-        toast("AI 字幕失败，请看左侧状态说明","err");
+        if(e&&e.stopped||aiIsStopped()){
+            setEdProgress(2,"⛔ 已停止：转写请求已中断，未生成任何字幕。",true);
+        }else{
+            setEdProgress(2,"识别失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（本机 8788 端口，本机 faster-whisper 或第三方转写接口都由它转发，不受浏览器跨域限制）；② 若没装 faster-whisper，请在「算力总控 → 第三方API」填支持 whisper-1 / gpt-4o-transcribe 的转写地址与密钥；③ 启动后重开本页面（会自动重新探测 127.0.0.1 / localhost 两个地址）。本次不会生成任何演示字幕。",true);
+            toast("AI 字幕失败，请看左侧状态说明","err");
+        }
     }finally{
         asrBusy=false; btn.disabled=false;
         const b=$("asrRun"); if(b){ b.textContent="🎙 识别语音并生成字幕"; b.dataset.mic=""; }
@@ -7923,10 +8014,14 @@ async function agentPreviewFrame(time){
 async function serviceLlmChat(cfg,messages,temperature,maxTokens,tools){
     const body={endpoint:cfg.endpoint,model:cfg.model,key:cfg.key||"",
         messages:messages,tools:tools||[],temperature:temperature==null?0.3:temperature,
-        maxTokens:maxTokens||4096};
+        maxTokens:maxTokens||4096, jobId:aiJobId||""};
     let j;
-    try{ j=await svcPost("/api/ai/chat",body,180000); }
-    catch(e){ throw new Error("本机服务模型代理失败："+((e&&e.message)||e)); }
+    try{ j=await svcPost("/api/ai/chat",body,180000,aiStopSignal()); }
+    catch(e){
+        if(e&&e.stopped) throw e;   /* 用户停止：原样上抛哨兵，不让上层误报「代理失败」 */
+        throw new Error("本机服务模型代理失败："+((e&&e.message)||e));
+    }
+    if(j&&j.cancelled) throw aiStopError();   /* 服务端确认已掐断上游模型连接 */
     if(!j.ok) throw new Error(String(j.reason||"模型调用失败")+(j.hint?"｜"+j.hint:""));
     return j;
 }
@@ -8166,8 +8261,10 @@ async function runAgentLoop(llmMsgs,tools,cfg,opts){
     const o=opts||{}, MAX_ROUNDS=o.maxRounds||14, rec=o.recordHistory!==false;
     let editsMade=false, checkedAfterEdit=false, selfCheckNudged=false;
     for(let round=0;round<MAX_ROUNDS;round++){
+        aiThrowIfStopped();   /* 停止：每轮开始检查，立即退出，不再发起新请求 */
         if(o.status) o.status(round+1,"thinking");
         const r=await serviceLlmChat(cfg,llmMsgs,0.3,4096,tools);
+        aiThrowIfStopped();   /* 请求返回后也检查，停止则不再执行本轮工具调用 */
         const content=String(r.content||"");
         if(rec) aiAgentMsgs.push({role:"assistant",text:content});
         llmMsgs.push({role:"assistant",content:content,tool_calls:r.tool_calls||[]});
@@ -8186,6 +8283,7 @@ async function runAgentLoop(llmMsgs,tools,cfg,opts){
             return {rounds:round+1,calls:0};
         }
         for(const tc of calls){
+            aiThrowIfStopped();   /* 停止：不再继续执行后续工具（含编辑提案） */
             const fn=tc.function||{}, name=String(fn.name||"");
             let args={}; try{ args=JSON.parse(fn.arguments||"{}"); }catch(e){}
             const callId=String(tc.id||uid());
@@ -8211,7 +8309,12 @@ async function runAgentLoop(llmMsgs,tools,cfg,opts){
     return {rounds:MAX_ROUNDS,calls:1};
 }
 async function runAgentChat(text){
-    if(aiAgentBusy){ toast("AI 正在处理中，请稍候","err"); return; }
+    if(aiAgentBusy){
+        /* 对话剪辑运行中再点发送按钮＝停止（按钮此时已变红「⛔ 停止」） */
+        if(aiTaskKind==="agent") aiStopAbort();
+        else toast("AI 正在处理中，请稍候","err");
+        return;
+    }
     const cfg=aiConfig();
     const om=String(($("agentModel")&&$("agentModel").value)||"").trim();
     if(om) cfg.model=om;
@@ -8221,8 +8324,10 @@ async function runAgentChat(text){
     aiAgentMsgs.push({role:"user",text:String(text||"").trim()});
     renderAgentPanel();
     aiAgentBusy=true;
-    const send=$("agentSend"); if(send) send.disabled=true;
-    agentSetStatus("正在调用 "+cfg.model+" …","busy");
+    aiStopBegin("agent");   /* 统一停止信号：按钮变红「⛔ 停止」，请求/循环可被掐断 */
+    const send=$("agentSend");   /* 不再 disable：运行中作为「停止」按钮使用（pointer 可点） */
+    if(send){ send.disabled=false; send.classList.remove("purple"); }
+    agentSetStatus("正在调用 "+cfg.model+" …（点「⛔ 停止」可随时中断）","busy");
 
     const tools=aiAgentActiveTier==="advanced"
         ? AI_AGENT_BASE_TOOLS.concat(AI_AGENT_ADVANCED_TOOLS)
@@ -8237,6 +8342,7 @@ async function runAgentChat(text){
                用 trim/delete/move/split/add_subtitle 即可完成分段剪辑；文稿整体改写留给用户单片时做。 */
             const shardTools=tools.filter(t=>!(t&&t.function&&t.function.name==="apply_script"));
             for(let i=0;i<shards.length;i++){
+                aiThrowIfStopped();   /* 停止：不再进入下一段分片 */
                 const sh=shards[i];
                 aiAgentScope=sh;
                 const sys=AI_AGENT_SYS+"\n【自动分片模式】本条需求正作用于全片的分段处理。你当前只负责时间窗 "
@@ -8270,18 +8376,21 @@ async function runAgentChat(text){
             });
         }
     }catch(e){
-        const msg=String(e&&e.message||e);
-        agentSetStatus("出错："+msg,"err");
+        const stopped=e&&e.stopped||aiIsStopped();
+        const msg=stopped?"已停止：当前对话剪辑任务与本机模型输出已中断。":("出错："+String(e&&e.message||e));
+        agentSetStatus(msg,stopped?"err":"err");
         aiAgentMsgs.push({role:"err",text:msg});
     }finally{
         aiAgentScope=null;
         renderAgentPanel();
         aiAgentBusy=false;
-        if(send) send.disabled=false;
+        aiStopEnd();   /* 恢复按钮文案与可点状态 */
+        if(send){ send.disabled=false; send.classList.add("purple"); send.classList.remove("red"); }
     }
 }
 function doAgentSend(){
-    if(aiAgentBusy) return;
+    /* 对话剪辑运行中：发送按钮已变红「⛔ 停止」，再点＝停止任务 */
+    if(aiAgentBusy){ if(aiTaskKind==="agent") aiStopAbort(); return; }
     const inp=$("agentInput"); if(!inp) return;
     const t=inp.value.trim();
     if(!t){ toast("请输入剪辑需求","err"); return; }
@@ -8345,6 +8454,7 @@ async function aiChat(cfg,messages){
             if(r&&r.content) return String(r.content);
             throw new Error("模型没有返回文本内容");
         }catch(e){
+            if(e&&e.stopped) throw e;   /* 用户停止：立即终止，不再走直连兜底 */
             /* 服务端明确报错（HTTP/模型/配置）就别再直连重试，直接把原因给用户 */
             if(/HTTP \d+|模型|reason|代理失败/.test(String((e&&e.message)||e))){
                 throw new Error("本机服务代理调用失败："+((e&&e.message)||e)
@@ -8354,21 +8464,29 @@ async function aiChat(cfg,messages){
     }
     /* 浏览器直连兜底：服务离线或网络层不可达时尝试，失败给出明确 CORS 诊断 */
     const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),120000);
+    const onAbort=()=>{ try{ ctrl.abort(); }catch(e){} };
+    const extSig=aiStopSignal();
+    if(extSig){ if(extSig.aborted) onAbort(); else extSig.addEventListener("abort",onAbort,{once:true}); }
     try{
         const body={model:cfg.model,messages:messages,stream:false,temperature:0.3};
         const headers={"Content-Type":"application/json"};
         if(cfg.key) headers.Authorization="Bearer "+cfg.key;
         let r;
         try{ r=await fetch(cfg.endpoint,{method:"POST",headers:headers,body:JSON.stringify(body),signal:ctrl.signal}); }
-        catch(e){ throw new Error("浏览器直连模型失败："+String((e&&e.message)||e)
-            +"。第三方 API 通常不允许浏览器跨域直连，请双击启动本机服务由它转发（127.0.0.1:8788）。"); }
+        catch(e){
+            if(extSig&&extSig.aborted) throw aiStopError();   /* 用户停止：直接抛哨兵 */
+            throw new Error("浏览器直连模型失败："+String((e&&e.message)||e)
+                +"。第三方 API 通常不允许浏览器跨域直连，请双击启动本机服务由它转发（127.0.0.1:8788）。"); }
         const raw=await r.text();
         if(!r.ok) throw new Error("HTTP "+r.status+"："+raw.slice(0,300));
         let j; try{ j=JSON.parse(raw); }catch(e){ throw new Error("接口返回的不是 JSON："+raw.slice(0,200)); }
         const c=aiChatContent(j);
         if(!c) throw new Error("模型没有返回文本内容："+raw.slice(0,300));
         return c;
-    }finally{ clearTimeout(timer); }
+    }catch(e){
+        if(e&&e.name==="AbortError"&&extSig&&extSig.aborted) throw aiStopError();
+        throw e;
+    }finally{ clearTimeout(timer); if(extSig) extSig.removeEventListener("abort",onAbort); }
 }
 /* 快速剪辑分片执行：逐片独立请求本机模型，收集每片 plan，最后合并成完整方案。
    与单片路径共用 buildAiMessages / aiChat / parseAiPlan，仅传 scoped 结构与 scoped 抽帧。
@@ -8377,6 +8495,7 @@ async function runAiEditSharded(cfg,idea,withFrames,onProgress,onElapsed){
     const shards=aiShardPlan();
     const texts=[];
     for(let i=0;i<shards.length;i++){
+        aiThrowIfStopped();   /* 停止：不再发起下一段分片请求 */
         const sh=shards[i];
         if(onProgress) onProgress(i,shards.length,sh);
         const frames=withFrames?await scopedFrames(sh):[];
@@ -8384,6 +8503,7 @@ async function runAiEditSharded(cfg,idea,withFrames,onProgress,onElapsed){
         let t="";
         try{ t=await aiChat(cfg,msgs); }
         catch(e){
+            if(e&&e.stopped) throw e;   /* 用户停止：不重试、不继续 */
             if(frames.length){
                 /* 视觉模型不支持时该片退化为纯结构（其余片不受影响） */
                 try{ t=await aiChat(cfg,buildAiMessages([],idea,scopedStructure(sh))); }
@@ -8538,16 +8658,19 @@ async function runAiEdit(idea,overrideModel){
         toast("轨道是空的，先拖入素材","err"); return;
     }
     if(!cfg.endpoint||!cfg.model){ showAiSetup(cfg); setAiProgress(0,"模型还没配置好：请在弹窗里选一个已部署的模型，或到创作台 / 画布填好第三方API接口、接通本机算力。",true); return; }
+    aiStopBegin("edit");   /* 统一停止信号：底部按钮变「⛔ 停止任务」，请求/循环可被掐断 */
     const btn=$("aiIdeaStart"); btn.disabled=true;
     let silBackup=[];   /* 阶段①静音备份：runAsrCore 会清空静音，阶段②后合并回来 */
     try{
         /* ===== 阶段①：AI剪口播 —— 真实检测静音/气口，生成剪辑候选，喂给后面的模型 ===== */
-        setAiProgress(0,"正在对音视频做AI剪口播分析（静音 / 气口 / 停顿检测）…");
+        setAiProgress(0,"正在对音视频做AI剪口播分析（静音 / 气口 / 停顿检测）…（点「⛔ 停止任务」可随时中断）");
         await new Promise(r=>setTimeout(r,120));
+        aiThrowIfStopped();
         try{
             if(!svcOnline) await pingService(2800);
             const ready=mediaReadyClips();
             for(const c of ready){
+                aiThrowIfStopped();
                 const a=assetById(c.assetId);
                 if(a) try{ await detectClipSilences(a,c,scConfig()); }catch(e){}
             }
@@ -8563,8 +8686,9 @@ async function runAiEdit(idea,overrideModel){
         let asrElapsed=0;
         const asrHb=setInterval(()=>{ asrElapsed+=5; setAiProgress(1,"AI字幕真实转写中：已等待 "+asrElapsed+" 秒（长视频转写可能需要 10~60 秒）…"); },5000);
         try{ await runAsrCore(); }
-        catch(e){ scLogPush("AI剪辑流水线 ②AI字幕异常（继续）："+((e&&e.message)||e)); }
+        catch(e){ if(e&&e.stopped) throw e; scLogPush("AI剪辑流水线 ②AI字幕异常（继续）："+((e&&e.message)||e)); }
         finally{ clearInterval(asrHb); }
+        aiThrowIfStopped();
         const subAfter=state.clips.filter(c=>trackKind(c.track)==="text"&&String(c.text||"").trim()).length;
         /* runAsrCore 会清空 lastSilences 再重算：把阶段①备份的静音合并回来（addSilences 自带去重），
            再刷新候选，确保阶段③无论字幕成败都拿得到完整的静音+候选数据 */
@@ -8597,8 +8721,10 @@ async function runAiEdit(idea,overrideModel){
                 +aiShardSeconds()+"s，镜头密的段更短），逐段独立请求，完成后自动合并，无需你手动切分");
         }else{
             const frames=withFrames?await collectFrames():[];
+            aiThrowIfStopped();
             setAiProgress(5,frames.length?("已抽取 "+frames.length+" 帧画面（视频抽帧 / 图片缩略图）"):"本次不附画面，仅用轨道结构分析");
         }
+        aiThrowIfStopped();
         let elapsed=0;
         const hb=setInterval(()=>{ elapsed+=5; setAiProgress(6,"AI 剪辑进程中：已等待 "+elapsed+" 秒（强多模态模型通常需要 10~60 秒）…"); },5000);
         let plan=null;
@@ -8615,9 +8741,11 @@ async function runAiEdit(idea,overrideModel){
             }else{
                 setAiProgress(6,"AI 剪辑进程中：正在请求 "+cfg.model+" 分析轨道与画面…");
                 const frames=withFrames?await collectFrames():[];
+                aiThrowIfStopped();
                 let text="";
                 try{ text=await aiChat(cfg,buildAiMessages(frames,idea)); }
                 catch(e){
+                    if(e&&e.stopped) throw e;   /* 用户停止：不降级重试 */
                     if(frames.length){
                         setAiProgress(6,"带图请求失败，正在改用纯轨道数据重试…");
                         try{
@@ -8630,6 +8758,7 @@ async function runAiEdit(idea,overrideModel){
                 plan=parseAiPlan(text);
             }
         }finally{ clearInterval(hb); }
+        aiThrowIfStopped();   /* 停止：即使模型恰好返回，也绝不落地方案 */
         if(!plan){
             setAiProgress(7,"模型没有返回可解析的剪辑方案 JSON，建议使用 Claude / GPT-4o 等综合能力强的多模态模型重试。",true);
             toast("方案解析失败，建议换 Claude / GPT 重试","err"); return;
@@ -8639,9 +8768,14 @@ async function runAiEdit(idea,overrideModel){
         /* 浮窗关闭交给用户：方案弹窗叠在上面，用户关掉方案后仍可在原浮窗查看运行状态 */
         $("aiPlanModal").classList.add("show");
     }catch(e){
-        setAiProgress(6,"AI 剪辑失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域 CORS）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
-        toast("AI 剪辑失败，请看弹窗里的状态说明","err");
-    }finally{ btn.disabled=false; }
+        if(e&&e.stopped||aiIsStopped()){
+            setAiProgress(6,"⛔ 已停止：本次 AI 剪辑任务、在途请求与本机模型输出均已中断，未应用任何方案。",true);
+            toast("已停止 AI 剪辑","err");
+        }else{
+            setAiProgress(6,"AI 剪辑失败："+((e&&e.message)||e)+"。建议：① 双击启动本机服务（127.0.0.1:8788，由它转发模型请求，绕开浏览器跨域 CORS）；② 确认接口是 OpenAI 兼容 /v1/chat/completions、模型支持多模态。",true);
+            toast("AI 剪辑失败，请看弹窗里的状态说明","err");
+        }
+    }finally{ btn.disabled=false; aiStopEnd(); }
 }
 
 /* ---------- 录音 → 音频轨（设备选择 + 双声道电平表） ---------- */
@@ -9559,11 +9693,20 @@ function wire(){
 
     /* 弹窗通用关闭（导出弹窗走专门逻辑：停实时预览 + 导出中取消） */
     document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{
+        /* AI剪辑弹窗：任务运行中，底部「停止任务」按钮 / 右上 × 都先发停止信号；
+           底部按钮保留弹窗让用户看到「已停止」状态，× 则停止后照常关闭。 */
+        if(b.dataset.close==="aiIdeaModal"&&aiTaskKind){
+            aiStopAbort();
+            if(b.id==="aiIdeaCancel"||b.id==="aiFancyCancel") return;   /* 留窗看停止状态 */
+        }
         if(b.dataset.close==="exportModal") hideExportModal();
         else $(b.dataset.close).classList.remove("show");
     });
     document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",e=>{
-        if(e.target===m){ if(m.id==="exportModal") hideExportModal(); else m.classList.remove("show"); }
+        if(e.target===m){
+            if(m.id==="aiIdeaModal"&&aiTaskKind) aiStopAbort();   /* 点遮罩也算停止 */
+            if(m.id==="exportModal") hideExportModal(); else m.classList.remove("show");
+        }
     }));
 
     /* URL 弹窗 */

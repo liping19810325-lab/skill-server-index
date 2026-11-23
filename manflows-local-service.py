@@ -31,6 +31,7 @@ import os
 import platform
 import re
 import shutil
+import socket
 import socketserver
 import ssl
 import subprocess
@@ -53,7 +54,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.5.3"
+VERSION = "1.5.4"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -566,8 +567,9 @@ def api_guide():
         "ai": {
             "what": "POST /api/ai/chat 是真正 AI 剪辑的模型代理：浏览器把「算力总控」里已配置的 endpoint/model/key 随请求交给本机，由本机转发给 Claude / GPT 等模型，绕开浏览器 CORS 且 Key 不暴露在网页。",
             "why": "AI 剪辑需要模型通过 tools 工具调用真实修改时间轴。浏览器直连会被 CORS 拦截且 Key 暴露在页面里；本机代理同时兼容 OpenAI 兼容接口与 Anthropic /v1/messages。",
-            "input": "endpoint/model/key/messages 必填，tools 选填（用 OpenAI 格式，Anthropic 自动转换）；返回统一 {ok, content, tool_calls:[{id,type,function:{name,arguments}}], stop_reason, usage}。",
+            "input": "endpoint/model/key/messages 必填，tools 选填（用 OpenAI 格式，Anthropic 自动转换）；jobId 选填（用于停止）。返回统一 {ok, content, tool_calls:[{id,type,function:{name,arguments}}], stop_reason, usage}。",
             "flow": "网页发一轮 → 模型返回 tool_calls → 网页执行工具并回注结果 → 再发一轮，直到模型给出最终答复。所有编辑只生成提案，用户确认后才落时间轴，可 Ctrl+Z 撤销。",
+            "stop": "POST /api/ai/cancel 带 {jobId} 可精确中断一个正在输出的模型请求；{jobId:'all'} 或 {} 取消全部。做法是关闭本机转发连接，让上游模型因断连而立即停止生成；被取消的请求返回 {ok:false, cancelled:true}。网页点「⛔ 停止任务」时自动调用。",
         },
         "transcribe": {
             "what": "AI字幕 / 智能剪口播 的语音识别：网页把素材交给本服务，本服务用 FFmpeg 抽成 16kHz 单声道 WAV、按 60 秒切片，再逐段转发给转写接口并合并时间码。",
@@ -2516,6 +2518,68 @@ def _anthropic_msgs(messages):
     return system.strip(), merged
 
 
+# 正在进行的 LLM 请求登记表：jobId -> {"event": threading.Event, "resp": <urlopen 响应>,
+#                                        "sock": <底层 socket>, "ts": 时间}
+# 前端点「停止」时调用 /api/ai/cancel，本服务 shutdown 对应上游 socket，
+# 让阻塞中的 read() 瞬间抛错 —— 连接断开同时让模型侧（llama-server）停止生成。
+_AI_JOBS = {}
+_AI_JOBS_LOCK = threading.Lock()
+
+
+def _upstream_socket(resp):
+    """从 urllib 响应对象取出底层 socket，供 cancel 时 shutdown。
+       urllib → http.client.HTTPResponse → BufferedReader → SocketIO → socket。"""
+    try:
+        return resp.fp.raw._sock
+    except Exception:
+        try:
+            return resp.fp.raw
+        except Exception:
+            return None
+
+
+def api_ai_cancel(body):
+    """取消正在转发的 LLM 请求。
+       请求体 {"jobId":"xxx"} 精确取消；{"jobId":"all"} 或空 / {"all":true} 取消全部。
+       做法：置取消事件 + 关闭 urlopen 响应对象 → 阻塞中的 r.read() 立即抛错，
+       api_ai_chat 捕获后返回 {ok:false, cancelled:true}，上游模型因连接断开而停止生成。"""
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    jid = str(data.get("jobId") or data.get("job") or "").strip()
+    cancel_all = (not jid) or (jid.lower() == "all") or bool(data.get("all"))
+    targets = []
+    with _AI_JOBS_LOCK:
+        if cancel_all:
+            targets = list(_AI_JOBS.items())
+        elif jid in _AI_JOBS:
+            targets = [(jid, _AI_JOBS[jid])]
+        for _k, job in targets:
+            try:
+                job["event"].set()
+            except Exception:
+                pass
+    # shutdown 底层 socket 让阻塞中的 read() 瞬间返回/抛错（比单纯 resp.close() 快得多），
+    # 在锁外做，避免持锁阻塞其它请求。连接断开会同时被上游模型感知 → 停止生成。
+    for _k, job in targets:
+        sock = job.get("sock")
+        if sock is not None:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+        resp = job.get("resp")
+        if resp is not None:
+            try:
+                resp.close()
+            except Exception:
+                pass
+    return {"ok": True, "cancelled": len(targets), "scope": "all" if cancel_all else jid}
+
+
 def api_ai_chat(body):
     """LLM 代理：浏览器把「算力总控」里已配置的 endpoint/model/key 随请求传给本机，
        由本机转发给 Claude / GPT 等模型，解决浏览器 CORS 并避免 Key 暴露给第三方页面。
@@ -2544,6 +2608,14 @@ def api_ai_chat(body):
         return _fail("接口地址不是合法的 http(s) URL：%s" % endpoint[:120])
     if tools and not isinstance(tools, list):
         return _fail("tools 必须是数组")
+
+    # 登记本次请求，供 /api/ai/cancel 精确掐断（jobId 为空则不登记，行为与旧版一致）
+    job_id = str(data.get("jobId") or "").strip()
+    job = None
+    if job_id:
+        job = {"event": threading.Event(), "resp": None, "ts": time.time(), "model": model}
+        with _AI_JOBS_LOCK:
+            _AI_JOBS[job_id] = job
 
     try:
         timeout = max(10, min(600, int(data.get("timeout") or TIMEOUT_AI)))
@@ -2591,20 +2663,48 @@ def api_ai_chat(body):
         if key:
             headers["Authorization"] = "Bearer " + key
 
+    def _is_cancelled():
+        return bool(job and job["event"].is_set())
+
     try:
+        if _is_cancelled():
+            return {"ok": False, "cancelled": True, "reason": "已停止"}
         req = urllib.request.Request(
             endpoint,
             data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            raw = r.read().decode("utf-8", "replace")
+            # 把响应对象 + 底层 socket 交给登记表：/api/ai/cancel 会 shutdown socket，
+            # 使阻塞中的 read() 瞬间抛错，并让上游模型因连接断开而停止生成。
+            if job:
+                with _AI_JOBS_LOCK:
+                    job["resp"] = r
+                    job["sock"] = _upstream_socket(r)
+            if _is_cancelled():
+                try:
+                    r.close()
+                except Exception:
+                    pass
+                return {"ok": False, "cancelled": True, "reason": "已停止"}
+            raw = r.read().decode("utf-8", "replace")   # 取消时这里会抛 OSError（连接被关闭）
+        if _is_cancelled():
+            return {"ok": False, "cancelled": True, "reason": "已停止"}
         j = json.loads(raw)
     except urllib.error.HTTPError as e:
+        if _is_cancelled():
+            return {"ok": False, "cancelled": True, "reason": "已停止"}
         detail = e.read().decode("utf-8", "replace")[:1200]
         return _fail("模型接口返回 HTTP %s：%s" % (e.code, detail[:600]))
     except Exception as e:
+        if _is_cancelled():
+            return {"ok": False, "cancelled": True, "reason": "已停止"}
         return _fail("调用模型接口失败：%s" % _short(e),
                      "请检查接口地址、模型名与 Key 是否正确，并确认本机网络可访问该地址")
+    finally:
+        if job:
+            with _AI_JOBS_LOCK:
+                if _AI_JOBS.get(job_id) is job:
+                    _AI_JOBS.pop(job_id, None)
 
     content = ""
     tool_calls = []
@@ -2883,11 +2983,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_burn_subtitles(body))
             elif path == "/api/ai/chat":
                 self._send_json(api_ai_chat(body))
+            elif path == "/api/ai/cancel":
+                self._send_json(api_ai_cancel(body))
             else:
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用的 POST 接口：/api/resolve、/api/export、/api/probe、"
                                       "/api/transcribe、/api/silences、/api/render、/api/burn-subtitles、"
-                                      "/api/ai/chat"))
+                                      "/api/ai/chat、/api/ai/cancel"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
