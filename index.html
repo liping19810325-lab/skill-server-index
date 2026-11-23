@@ -456,8 +456,8 @@
                 </div>
                 <div class="param-item mf-submode-row" id="mfSubModeRow" style="display:none">
                     <label>本机接入方式：</label>
-                    <label><input type="radio" name="mfComputeSubMode" value="local" checked> 本地模式</label>
-                    <label><input type="radio" name="mfComputeSubMode" value="private"> 自定义私有算力模式</label>
+                    <label><input type="radio" name="mfComputeSubMode" value="local" checked> 本机/局域网</label>
+                    <label><input type="radio" name="mfComputeSubMode" value="private"> 私有算力通外网</label>
                 </div>
                 <details class="mf-private-tools" id="mfPrivateTools" style="display:none">
                     <summary>🔐 私有算力配置（HTTPS 域名优先 · 可收起）</summary>
@@ -467,7 +467,7 @@
                         <div class="mf-private-row"><label for="mfComfyBase">ComfyUI BaseURL（必填）</label><input type="text" id="mfComfyBase" spellcheck="false" placeholder="https://your-domain.example/comfyui"></div>
                         <div class="mf-private-row"><label for="mfComfyToken">ComfyUI Access Token（选填）</label><input type="password" id="mfComfyToken" spellcheck="false" placeholder="留空则不发送 Authorization 头"></div>
                         <div class="mf-private-actions">
-                            <button type="button" id="mfClearPrivateBtn" title="清空四项配置并回到内置本地模式；不影响下方本机地址清单">清空配置</button>
+                            <button type="button" id="mfClearPrivateBtn" title="清空四项配置并回到本机/局域网模式；不影响下方本机地址清单">清空配置</button>
                             <span class="fold-hint" style="font-size:11px;color:var(--muted)">配置只存本机浏览器 localStorage；域名 / 密钥不写入网页源码。切换模式立即生效，两种模式互不影响。</span>
                         </div>
                     </div>
@@ -482,7 +482,7 @@
                         <input type="password" id="mfLlamaKey" spellcheck="false" placeholder="留空则不携带 Bearer 鉴权头">
                         <button type="button" class="local-conn-btn" id="mfClearLlamaBtn" title="清空上方服务地址与 Llama-server API Key（不影响已保存的本机地址清单）">清空配置</button>
                     </div>
-                    <div class="mf-llama-key-hint" id="mfLlamaKeyHint">服务地址必填；支持局域网 http://192.168.x.x:8080 与 Cloudflare 外网隧道 https://xxx.manflows.com。填入密钥后，调用 llama-server / 视觉接口会自动带 Authorization: Bearer 密钥；留空则完全不带该请求头。</div>
+                    <div class="mf-llama-key-hint" id="mfLlamaKeyHint" style="display:none">服务地址必填；支持局域网 http://192.168.x.x:8080 与 Cloudflare 外网隧道 https://xxx.manflows.com。填入密钥后，调用 llama-server / 视觉接口会自动带 Authorization: Bearer 密钥；留空则完全不带该请求头。</div>
                     <div class="local-conn-state fold-hint" id="localConnState">○ 尚未检测本机大模型服务</div>
                     <div class="local-conn-pick" id="localPickRow" style="display:none">
                         <select class="local-conn-select" id="localServiceSelect" title="已保存的本机地址，选中即切换使用"></select>
@@ -553,7 +553,7 @@
                             <option value="omit">不发送该字段（完全按服务端默认）</option>
                         </select>
                     </div>
-                    <div class="token-auto-hint">推理模型开启思考会先输出一段「思维链」再给正文，占用更多上下文 token；模型上下文较小时建议保持「关闭思考」，否则更容易触发上下文超限。</div>
+                    <div class="token-auto-hint" style="display:none">推理模型开启思考会先输出一段「思维链」再给正文，占用更多上下文 token；模型上下文较小时建议保持「关闭思考」，否则更容易触发上下文超限。</div>
                 </div>
                 <div class="param-note fold-hint">
                     提示：脑洞越大越放飞；创意候选范围越小越保守。上传的剧本文件单独管理，勾选后发送时一并喂给模型；输入框只写你的指令。API模式依赖浏览器CORS解除跨域插件。
@@ -935,7 +935,7 @@ const HELP_HTML = `
 <ul>
 <li>技能加载失败：网络无法访问后端技能服务，可以尝试导入本地md技能应急；</li>
 <li>API请求报错：核对接口地址、key、模型名称，检查余额与跨域插件；</li>
-<li>本地模式无响应：确认本机大模型软件正在运行，左栏点【⚡ 自动接通】重新扫描端口，或手动填含端口的完整地址；必要时给软件加跨域放行。</li>
+<li>本机/局域网无响应：确认本机大模型软件正在运行，左栏点【⚡ 自动接通】重新扫描端口，或手动填含端口的完整地址；必要时给软件加跨域放行。</li>
 <li>带图请求报错：多半是模型或接口不支持图片输入，删除参考图或换视觉模型即可。本地模型（如 Qwen3.8）若视觉模块是独立文件，须在 Llama 里让主模型与视觉模块一起加载，并把「识图能力」设为自动（创作台会从本机桥接读取视觉模块是否已加载）；第三方多模态模型（如 gpt-4o / gemini / qwen-vl）保持自动即可，识别不出时可手动设为「支持识图」。</li>
 <li>本地单文件预览时左上角显示文字标：说明同目录没有 logo.png；把本页与 logo.png 一起放到 GitHub 仓库根目录即会自动显示原图。</li>
 <li>预览环境（沙箱 / 隐私模式）按钮点击或历史保存异常：多为浏览器禁用了站点数据，本页已做兜底，此时 API 配置与历史刷新后不保留，其余功能照常可用；正式部署到 GitHub Pages 后恢复正常。</li>
@@ -2831,7 +2831,7 @@ function mfBindLlamaKeyUI(){
 }
 function mfPrivateAlert(kind){
     const label = (kind === "comfy") ? "ComfyUI BaseURL" : "Strata BaseURL";
-    const msg = "【自定义私有算力模式】" + label + "为空，已阻止本次请求。请在左栏【算力总控 → 本机算力 → 🔐 私有算力配置】填写" + label + "后重试。";
+    const msg = "【私有算力通外网】" + label + "为空，已阻止本次请求。请在左栏【算力总控 → 本机算力 → 🔐 私有算力配置】填写" + label + "后重试。";
     try{ alert(msg); }catch(e){}
     try{ append("⚠️ " + msg, "err"); }catch(e){}
     try{ mfSetLocalState("⚠ " + label + "为空，请求已阻止", "err"); }catch(e){}
@@ -2868,7 +2868,7 @@ function mfBindPrivateUI(){
             mfApplyPrivateUI();
             const box = mfEl("mfPrivateTools");
             if(box) box.open = (r.value === "private");
-            append("ℹ️ 本机接入方式已切换为「" + (r.value === "private" ? "自定义私有算力模式" : "本地模式") + "」，立即生效", "tip");
+            append("ℹ️ 本机接入方式已切换为「" + (r.value === "private" ? "私有算力通外网" : "本机/局域网") + "」，立即生效", "tip");
         });
     });
     const fieldMap = { mfStrataBase:"strataBase", mfStrataKey:"strataKey", mfComfyBase:"comfyBase", mfComfyToken:"comfyToken" };
@@ -2890,7 +2890,7 @@ function mfBindPrivateUI(){
         mfSavePrivateCfg(mfFreshPrivateCfg());
         mfApplyPrivateUI();
         const box = mfEl("mfPrivateTools"); if(box) box.open = false;
-        append("ℹ️ 私有算力配置已清空，已回到内置本地模式（本机地址清单不受影响）", "tip");
+        append("ℹ️ 私有算力配置已清空，已回到本机/局域网模式（本机地址清单不受影响）", "tip");
     });
     window.addEventListener("storage", e=>{ if(e.key === STORAGE_KEY_PRIVATE_COMPUTE) mfApplyPrivateUI(); });
 }

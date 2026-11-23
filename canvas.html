@@ -422,8 +422,8 @@
                 <div class="hint" id="cvComputeHint">三页算力档位各自独立：本页切档不会改动创作台 / AI 剪辑台，可同时用不同算力并行工作（同一网页的多个标签页仍同步）。本页内部两处联动：本栏 ↔ 生成节点「生成引擎」任意一处切换，另一处立即跟随。切本栏会把当前画布所有生成节点一起改（生成中的不打断）；在生成节点里单独改引擎只改那一个节点，其它节点仍可各自保留，新建生成节点默认跟随本栏。</div>
                 <div class="row cv-submode-row" id="cvSubModeRow" style="display:none">
                     <label>本机接入方式：</label>
-                    <label><input type="radio" name="cvConnectMode" value="local" checked> 本地模式</label>
-                    <label><input type="radio" name="cvConnectMode" value="private"> 自定义私有算力模式</label>
+                    <label><input type="radio" name="cvConnectMode" value="local" checked> 本机/局域网</label>
+                    <label><input type="radio" name="cvConnectMode" value="private"> 私有算力通外网</label>
                 </div>
                 <details class="cv-private-tools" id="cvPrivateTools" style="display:none">
                     <summary>🔐 私有算力配置（HTTPS 域名优先 · 可收起）</summary>
@@ -443,7 +443,7 @@
                         <div class="row" style="margin-top:8px"><label>本机大模型（提示词节点自动拆分遇到识别困难时的兜底用）</label></div>
                         <div class="row"><input type="text" id="cvLocalBaseInput" spellcheck="false" placeholder="手动填写本机地址，如 http://127.0.0.1:8080；填好点「自动接通」即保存"></div>
                         <div class="row cv-llama-key-row"><label for="cvLlamaKey">Llama-server API Key（选填）</label><input type="password" id="cvLlamaKey" spellcheck="false" placeholder="留空则不携带 Bearer 鉴权头"><button class="mini-btn gray" id="cvClearLlamaBtn" title="清空地址与密钥（不影响已保存的本机地址清单）">清空配置</button></div>
-                        <div class="cv-llama-key-hint">服务地址必填；支持局域网 http://192.168.x.x:8080 与 Cloudflare HTTPS 隧道 https://xxx.manflows.com。填入密钥后，本机大模型接口与自动接通检测自动带 Authorization: Bearer 密钥。</div>
+                        <div class="cv-llama-key-hint" style="display:none">服务地址必填；支持局域网 http://192.168.x.x:8080 与 Cloudflare HTTPS 隧道 https://xxx.manflows.com。填入密钥后，本机大模型接口与自动接通检测自动带 Authorization: Bearer 密钥。</div>
                         <div class="row"><button class="mini-btn green" id="localLlmAutoBtn">⚡ 自动接通</button><span class="kv" id="localLlmState">尚未接通</span></div>
                         <div class="row" id="cvLocalPickRow" style="display:none"><select id="cvLocalBaseSelect" style="flex:1;min-width:0" title="已保存的本机地址，选中即切换使用"></select><button class="mini-btn red" id="cvDelLocalBaseBtn" title="从清单里删除当前选中的地址">🗑 删除</button></div>
                         <div class="hint" style="margin:4px 0 0">手填地址后点「⚡ 自动接通」即保存到下方清单（与创作台共用同一份），可在下拉里切换或删除；也会独立扫描 9931、8080、11434 等常用端口。Windows / macOS 通用，任意端口都行。</div>
@@ -3127,7 +3127,7 @@ function cvEnsurePrivateReady(kind){
     const label=(kind==="comfy")?"ComfyUI BaseURL":"Strata BaseURL";
     const base=(kind==="comfy")?c.comfyBase:c.strataBase;
     if(base) return true;
-    const msg="【自定义私有算力模式】"+label+"为空，已阻止本次请求。请在左栏【算力总控 → 本机算力 → 🔐 私有算力配置】填写"+label+"后重试。";
+    const msg="【私有算力通外网】"+label+"为空，已阻止本次请求。请在左栏【算力总控 → 本机算力 → 🔐 私有算力配置】填写"+label+"后重试。";
     try{ alert(msg); }catch(e){}
     try{ setStatus(label+"为空，请求已阻止","err"); }catch(e){}
     return false;
@@ -3150,7 +3150,7 @@ function cvBindPrivateUI(){
             const cfg=cvLoadPrivateCfg(); cfg.mode=r.value; cvSavePrivateCfg(cfg);
             cvApplyPrivateUI();
             const box=el("cvPrivateTools"); if(box) box.open=(r.value==="private");
-            setStatus("本机接入方式已切换为「"+(r.value==="private"?"自定义私有算力模式":"本地模式")+"」，立即生效","ok");
+            setStatus("本机接入方式已切换为「"+(r.value==="private"?"私有算力通外网":"本机/局域网")+"」，立即生效","ok");
         });
     });
     const fieldMap={cvStrataBase:"strataBase",cvStrataKey:"strataKey",cvComfyBase:"comfyBase",cvComfyToken:"comfyToken"};
@@ -3171,7 +3171,7 @@ function cvBindPrivateUI(){
     if(clearBtn) clearBtn.addEventListener("click",()=>{
         cvSavePrivateCfg(cvFreshPrivateCfg()); cvApplyPrivateUI();
         const box=el("cvPrivateTools"); if(box) box.open=false;
-        setStatus("私有算力配置已清空，已回到内置本地模式","ok");
+        setStatus("私有算力配置已清空，已回到本机/局域网模式","ok");
     });
     window.addEventListener("storage",e=>{ if(e.key===CV_KEY_PRIVATE_COMPUTE) cvApplyPrivateUI(); });
 }
