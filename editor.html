@@ -5229,6 +5229,9 @@ function clipHtml(c,t){
 }
 /* 剪映式帧号时间码：HH:MM:SS:FF（30fps），左下显示当前帧，旁边显示总长 */
 const PLAYER_FPS=30;
+/* 片段边界容差（2ms）：AI剪口播物理切分/手动拖动后，浮点取整可能在两段之间留下亚帧空档。
+   预览与导出都用它桥接，避免衔接点被判成"当前没有画面"而闪黑。 */
+const CLIP_EPS=0.002;
 function timecode(t){
     t=Math.max(0,Number(t)||0);
     const total=Math.round(t*PLAYER_FPS);
@@ -5462,11 +5465,22 @@ function copyTrack(tr){
 /* ---------- 多层预览 ---------- */
 const vEl=$("previewVideo"), imgEl=$("previewImage"), pipLayer=$("pipLayer");
 const audioPool=new Map();
-function activeClipOn(tid){ return state.clips.find(c=>c.track===tid && state.playhead>=c.start && state.playhead<c.start+c.duration)||null; }
+function activeClipOn(tid, bridge){
+    const p=Number(state.playhead)||0;
+    const exact=state.clips.find(c=>c.track===tid && p>=c.start && p<c.start+c.duration);
+    if(exact) return exact;
+    if(!bridge) return null;   /* 其它轨道保持原有严格区间，不因容差改变行为 */
+    /* 主画面才做亚帧桥接：空档里优先沿用刚结束的前一段，而不是闪黑。 */
+    const list=state.clips.filter(c=>c.track===tid && p>=c.start-CLIP_EPS && p<=c.start+c.duration+CLIP_EPS);
+    if(!list.length) return null;
+    const ended=list.filter(c=>c.start+c.duration<=p+CLIP_EPS);
+    if(ended.length) return ended.reduce((a,b)=>((b.start+b.duration)>(a.start+a.duration)?b:a));
+    return list.reduce((a,b)=> b.start<a.start?b:a);
+}
 function mainVisualClip(){
     for(const t of orderedTracks()){
         if(t.kind!=="video" || t.hidden) continue;   /* 隐藏的视频轨不参与预览 */
-        const c=activeClipOn(t.id); if(c) return c;
+        const c=activeClipOn(t.id,true); if(c) return c;
     }
     return null;
 }
@@ -11064,10 +11078,52 @@ function previewAudioTrack(){
     return mfAudioDest?mfAudioDest.stream.getAudioTracks()[0]||null:null;
 }
 function releaseRecordAudio(){ mfRecordAudio=false; }
+/* 导出衔接点防黑帧：AI剪口播/换素材后，新片段 seek 或换源需要几帧解码。
+   录制画布每帧都取当前 <video>，解码未完成时旧版 src=null 直接铺黑，于是每个切口都闪黑。
+   这里缓存最近一帧"已成功解码并合成"的成片画面；解码空窗期复用该帧，宁可停一帧也不闪黑。 */
+let exportFrameCache={cv:null,w:0,h:0,valid:false};
+function exportFrameCacheReset(){ exportFrameCache.valid=false; }
+function exportFrameCachePut(x,W,H){
+    let cv=exportFrameCache.cv;
+    if(!cv||cv.width!==W||cv.height!==H){ cv=document.createElement("canvas"); cv.width=W; cv.height=H; exportFrameCache.cv=cv; }
+    try{ cv.getContext("2d",{alpha:false}).drawImage(x.canvas,0,0); exportFrameCache.w=W; exportFrameCache.h=H; exportFrameCache.valid=true; }catch(e){}
+}
+function exportFrameCacheRestore(x,W,H){
+    const c=exportFrameCache;
+    if(!c.valid||c.w!==W||c.h!==H||!c.cv) return false;
+    try{ x.globalAlpha=1; x.filter="none"; x.drawImage(c.cv,0,0); return true; }catch(e){ return false; }
+}
+function waitVisualReady(maxMs){
+    return new Promise(res=>{
+        const t0=performance.now();
+        const step=()=>{
+            const vc=mainVisualClip(), a=vc&&vc.assetId?assetById(vc.assetId):null;
+            if(!vc||!a) return res(true);   /* 纯字幕/图片以外的空画面不需要等视频解码 */
+            if(a.type==="image"){
+                if(imgEl.classList.contains("show")&&imgEl.complete&&imgEl.naturalWidth>0) return res(true);
+            }else if(vEl.classList.contains("show")&&vEl.readyState>=2&&vEl.videoWidth>0){
+                return res(true);
+            }
+            if(performance.now()-t0>=maxMs) return res(false);
+            setTimeout(step,40);
+        };
+        step();
+    });
+}
 function drawStageFrame(x,W,H,opts){
     /* noSub：录制纯净画面（不含字幕），交给后端 FFmpeg libass 独家烧录。
        若浏览器 canvas 也画字幕、后端再烧一遍，同一条字幕会出现两层重叠。 */
     const noSub=!!(opts&&opts.noSub);
+    /* 衔接点保底：当前主画面片段存在，但视频/图片还没解码出一帧时，直接复用上一帧合成图。
+       只在录制期间启用，普通预览/封面预览完全不受影响。 */
+    if(exportRecording){
+        const hc=mainVisualClip(), ha=hc&&hc.assetId?assetById(hc.assetId):null;
+        const pending=ha&&(ha.type==="image"
+            ? (imgEl.classList.contains("show")&&(!imgEl.complete||!imgEl.naturalWidth))
+            : (vEl.classList.contains("show")&&vEl.readyState<=1));
+        if(pending&&exportFrameCacheRestore(x,W,H)) return;
+    }
+    let drewMedia=false;
     x.save(); x.filter="none"; x.globalAlpha=1;
     const vc=mainVisualClip(), f=vc?fxOf(vc):null;
     x.fillStyle=(f&&f.bg)?String(f.bg):"#000"; x.fillRect(0,0,W,H);
@@ -11098,6 +11154,7 @@ function drawStageFrame(x,W,H,opts){
             const ox=(W-dw)/2+dw*cr.left/100, oy=(H-dh)/2+dh*cr.top/100;
             const ow=dw*(1-(cr.left+cr.right)/100), oh=dh*(1-(cr.top+cr.bottom)/100);
             x.drawImage(src, sx,sy,sw,sh, -W/2+ox,-H/2+oy,ow,oh);
+            drewMedia=true;
         }
     }catch(e){ throw new Error("素材受跨域保护，浏览器无法把画面写入导出画布；请把该素材下载到本地后重新导入"); }
     x.restore();
@@ -11297,6 +11354,7 @@ function drawStageFrame(x,W,H,opts){
             }
         }
     }catch(e){}
+    if(exportRecording&&drewMedia) exportFrameCachePut(x,W,H);
 }
 let _grainTile=null;
 function grainTile(){
@@ -11325,15 +11383,16 @@ async function recordCanvas(dur,opts,onProgress){
     exportStopAt=to;   /* 让 tick 在出点处停，不空播到 contentEnd */
     exportCancelled=false;              /* 每段录制开始都视为全新一次，清掉上一次残留的取消态 */
     setMonitorMute(true);               /* 烧录期间静音扬声器监听；音频仍进成片总线，不中断音轨合成 */
-    rec.start(250);
-    state.playhead=from; seek(from); play();
-    /* 中间片是 Blob URL，等首帧解码完再开始画，避免录进黑帧 */
-    if(renderOverrides.size) await new Promise(res=>{
-        let n=0; const tm=setInterval(()=>{
-            if((vEl.readyState>=2&&vEl.videoWidth>0)||++n>40){ clearInterval(tm); res(); }
-        },100);
-    });
+    exportFrameCacheReset();
+    /* 先把播放头放到入点，等首帧真正解码出来再开录：旧版 rec.start() 早于 seek，
+       素材仍在解码时录制已经开始，成片开头与每次换源都会留下黑帧。 */
+    pause();
+    state.playhead=from; seek(from);
+    await waitVisualReady(4000);
     exportRecording=true;
+    try{ drawStageFrame(x,W,H,opts); }catch(e){ /* 单帧失败不中断整段录制 */ }
+    rec.start(250);
+    play();
     await new Promise(resolve=>{
         /* 全程以真实墙钟计时：切到别的软件/标签页后浏览器会暂停 rAF、节流 <video> 解码，
            但 performance.now() 继续走，MediaRecorder 与音频总线也继续运行。
