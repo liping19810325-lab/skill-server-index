@@ -1254,30 +1254,27 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
     </div>
 </div>
 
-<!-- 新建工程 / 工作区：空白工程 + 各用户工作区管理（原两处合并） -->
+<!-- 新建工程：一个项目一个工程，不再有工作区概念 -->
 <div class="modal-overlay" id="wsModal">
-    <div class="modal-box" style="width:min(560px,100%)">
-        <div class="modal-head">➕ 新建工程 / 工作区<button class="mh-close" data-close="wsModal">×</button></div>
+    <div class="modal-box" style="width:min(520px,100%)">
+        <div class="modal-head">➕ 新建工程<button class="mh-close" data-close="wsModal">×</button></div>
         <div class="modal-body">
-            <div class="ws-hint">给项目起个名字，点「新建项目」在<b>新标签页</b>打开一个全新的空白剪辑台；每个项目独立保存，<b>一天可以建任意多个、互不覆盖</b>，不影响当前工程，可在「🕘 历史工程」里随时切回。名字也可留空，之后点顶栏项目名随时改。</div>
+            <div class="ws-hint">给项目起个名字，点「新建工程」在<b>新标签页</b>打开一份全新的空白剪辑台。每个项目各自独立保存、<b>互不覆盖</b>，所有做过的工程都在顶栏「🕘 历史工程」里，随时点开就能继续剪。名字可留空，之后点顶栏项目名随时改。</div>
             <div class="row" style="margin:9px 0 8px"><input type="text" id="newProjName" placeholder="项目名称，例如：产品宣传片_01" style="flex:1"></div>
-            <div class="row" style="margin:0 0 14px"><button class="mini-btn green" id="newBlankProj" style="flex:1">➕ 新建项目（新标签页）</button></div>
-            <div class="ws-hint">工作区：每个工作区拥有<b>独立的工程、素材与布局</b>，切换后只能看到本工作区的工程，不会看到别人的（当前：<b id="wsName">我的工作区</b>）。不同电脑、不同浏览器配置文件本来就天然互不相通。<br>说明：本站是静态网页、没有账号体系，工作区是「分目录」级隔离而不是加密；高度敏感内容请不要多人共用同一个浏览器配置文件。</div>
-            <div id="wsList"></div>
-            <div class="row" style="margin-top:10px"><input type="text" id="wsNewName" placeholder="新工作区名称，例如：小张的剪辑" style="flex:1"><button class="mini-btn green" id="wsCreate">＋ 新建独立工作区</button></div>
+            <div class="row" style="margin:0 0 6px"><button class="mini-btn green" id="newBlankProj" style="flex:1">➕ 新建工程（新标签页）</button></div>
         </div>
         <div class="modal-foot"><button class="mini-btn gray" data-close="wsModal">关闭</button></div>
     </div>
 </div>
 
-<!-- 历史工程：合并原「打开工程」+「历史工作区」，只列当前工作区做过的工程 -->
+<!-- 历史工程：本机全部工程统一在这里，按保存时间倒序 -->
 <div class="modal-overlay" id="histModal">
     <div class="modal-box" style="width:min(620px,100%)">
-        <div class="modal-head">🕘 历史工程 · <span id="histWsName" style="color:var(--muted);font-size:12px"></span><button class="mh-close" data-close="histModal">×</button></div>
+        <div class="modal-head">🕘 历史工程<button class="mh-close" data-close="histModal">×</button></div>
         <div class="modal-body">
-            <div class="ws-hint">这里按<b>保存时间倒序</b>列出<b>当前工作区做过的全部项目</b>——<b>每个项目各自独立，只要保存过都会自动收进这里</b>，点「打开」就能切回那一份继续剪。切换前会自动保存当前项目。<br><b>只显示本工作区</b>，不会看到其它工作区或别人的工程；要换工作区请点顶栏「➕ 新建工程」。</div>
+            <div class="ws-hint">这里按<b>保存时间倒序</b>列出本机做过的<b>全部工程</b>——每个项目各自独立、只要保存过都会自动收进这里，点「打开」就能切回那一份继续剪，切换前会自动保存当前工程。需要留档可点「备份」导出 JSON。</div>
             <div id="histList"></div>
-            <div class="row" style="margin-top:10px"><button class="mini-btn gray" id="histRefresh">↻ 刷新列表</button><span class="hint" style="margin:0 0 0 8px">首次打开是<b>空白工程</b>：素材库与时间轴都不带任何自带素材，导入你自己的文件即可开始。</span></div>
+            <div class="row" style="margin-top:10px"><button class="mini-btn gray" id="histRefresh">↻ 刷新列表</button><span class="hint" style="margin:0 0 0 8px">首次打开是<b>空白工程</b>：导入你自己的文件即可开始剪辑。</span></div>
         </div>
         <div class="modal-foot"><button class="mini-btn gray" data-close="histModal">关闭</button></div>
     </div>
@@ -1742,26 +1739,12 @@ const WS_LIST_KEY = "manflows_ai_editor_ws_list";
 const WS_CUR_KEY  = "manflows_ai_editor_ws_current";
 const WS_DEFAULT_ID = "default";
 const WS_SCOPED = [PROJECT_PREFIX, LAYOUT_KEY, AI_CFG_KEY, AI_MODEL_KEY, "manflows_ai_editor_aspect"];
-function wsId(){
-    let v=null;
-    try{ v=localStorage.getItem(WS_CUR_KEY); }catch(e){}
-    if(!v){
-        try{
-            localStorage.setItem(WS_CUR_KEY,WS_DEFAULT_ID);
-            if(!localStorage.getItem(WS_LIST_KEY))
-                localStorage.setItem(WS_LIST_KEY,JSON.stringify([{id:WS_DEFAULT_ID,name:"我的工作区",created:Date.now()}]));
-        }catch(e){}
-        return WS_DEFAULT_ID;
-    }
-    return v;
-}
+/* 【工作区已合并为统一工程空间】历史上工程/素材曾按工作区分库存放，导致「历史工程」
+   只列当前工作区、别的工程看起来不见了。现在启动时 migrateUnifyWorkspaces() 会把所有
+   工作区的数据搬到统一空间；以下函数于是恒等于默认空间——全局只有一个"工程"概念。 */
+function wsId(){ return WS_DEFAULT_ID; }
 function wsScoped(k){ return WS_SCOPED.some(x=>String(k).indexOf(x)===0); }
-function wsKey(k){
-    k=String(k);
-    if(!wsScoped(k)) return k;
-    const id=wsId();
-    return id===WS_DEFAULT_ID?k:"mfws_"+id+"_"+k;
-}
+function wsKey(k){ return String(k); }
 function wsUnkey(real){
     const id=wsId();
     if(id===WS_DEFAULT_ID) return String(real).indexOf("mfws_")===0?null:real;
@@ -1775,49 +1758,79 @@ function wsList(){
     }catch(e){ return [{id:WS_DEFAULT_ID,name:"我的工作区",created:Date.now()}]; }
 }
 function wsSaveList(a){ try{ localStorage.setItem(WS_LIST_KEY,JSON.stringify(a)); }catch(e){} }
-function wsName(){ const w=wsList().find(x=>x.id===wsId()); return w?w.name:"我的工作区"; }
-function dbName(){ const id=wsId(); return id===WS_DEFAULT_ID?MF_EDITOR_DB:MF_EDITOR_DB+"_ws"+id; }
-function wsBoot(){ const el=document.getElementById("wsName"); if(el) el.textContent=wsName(); }
-function renderWsList(){
-    const box=$("wsList"); if(!box) return;
-    const cur=wsId();
-    box.innerHTML=wsList().map(w=>'<div class="ws-item'+(w.id===cur?" cur":"")+'">'
-        +'<span class="ws-n">'+esc(w.name)+(w.id===cur?' <b style="color:#67e8f9;font-size:10px">（当前）</b>':'')+'</span>'
-        +(w.id!==cur?'<button data-ws="use" data-id="'+esc(w.id)+'">切换</button>':'')
-        +'<button data-ws="rename" data-id="'+esc(w.id)+'">改名</button>'
-        +(w.id!==WS_DEFAULT_ID?'<button data-ws="del" data-id="'+esc(w.id)+'">删除</button>':'')
-        +'</div>').join("");
-}
-function openWsModal(){ renderWsList(); $("wsModal").classList.add("show"); }
-function wsSwitch(id){
-    try{ saveProject(true); }catch(e){}
-    try{ localStorage.setItem(WS_CUR_KEY,id); }catch(e){}
-    location.reload();
-}
-function wsCreate(name){
-    const list=wsList();
-    const id="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-    list.push({id:id,name:String(name||("工作区 "+(list.length+1))).trim().slice(0,24),created:Date.now()});
-    wsSaveList(list); wsSwitch(id);
-}
-function wsRename(id){
-    const list=wsList(), w=list.find(x=>x.id===id); if(!w) return;
-    const n=prompt("给这个工作区改个名字",w.name); if(!n||!n.trim()) return;
-    w.name=n.trim().slice(0,24); wsSaveList(list); renderWsList(); wsBoot();
-}
-function wsDelete(id){
-    if(id===WS_DEFAULT_ID){ toast("默认工作区不能删除","err"); return; }
-    const w=wsList().find(x=>x.id===id);
-    if(!confirm("确定删除工作区「"+(w?w.name:id)+"」？该工作区的所有工程与素材会一并删除，且不可恢复。")) return;
-    const pre="mfws_"+id+"_", del=[];
+function wsName(){ return "我的工程"; }
+function dbName(){ return MF_EDITOR_DB; }
+function wsBoot(){}
+function openWsModal(){ $("wsModal").classList.add("show"); }
+/* 兼容旧调用：工作区已合并，切换到默认空间即可（保留空壳避免旧代码报错） */
+function wsSwitch(id){ try{ saveProject(true); }catch(e){} location.reload(); }
+function renderWsList(){}
+
+/* ==================================================================
+   一次性迁移：把历史上各工作区的工程 / 素材合并进统一空间
+   —— default 工作区用原始键（无前缀），其它工作区是 mfws_<id>_<原始键>。
+      素材库同理：主库 MF_EDITOR_DB，其它是 MF_EDITOR_DB_ws<id>。
+   迁移幂等：目标已存在时保留较新的 savedAt；源数据一律不删（只复制），万无一失。
+   ================================================================== */
+const UNIFY_FLAG_KEY = "manflows_ai_editor_unified_v1";
+async function migrateUnifyWorkspaces(){
+    if(safeStorage.get(UNIFY_FLAG_KEY)==="1") return;   /* 已迁移过 */
+    let moved=0, assets=0;
+    /* ① 扫描所有工作区工程键：原始键 + mfws_<id>_ 前缀键 */
+    const projKeys=[];
     try{
-        for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(String(k).indexOf(pre)===0) del.push(k); }
-        del.forEach(k=>localStorage.removeItem(k));
-        try{ indexedDB.deleteDatabase(MF_EDITOR_DB+"_ws"+id); }catch(e){}
+        for(let i=0;i<localStorage.length;i++){
+            const k=String(localStorage.key(i)||"");
+            const m=k.match(/^(?:mfws_([^_]+)_)?(manflows_ai_editor_project_.+)$/);
+            if(m) projKeys.push({raw:k, ws:m[1]||"", bare:m[2]});
+        }
     }catch(e){}
-    wsSaveList(wsList().filter(x=>x.id!==id));
-    if(wsId()===id){ try{ localStorage.setItem(WS_CUR_KEY,WS_DEFAULT_ID); }catch(e){} location.reload(); }
-    else renderWsList();
+    for(const it of projKeys){
+        if(it.ws===WS_DEFAULT_ID || !it.ws) continue;   /* 已在统一空间 */
+        const dst=it.bare;                              /* 去掉 mfws_<id>_ 前缀 */
+        const srcVal=localStorage.getItem(it.raw);
+        if(!srcVal) continue;
+        const dstVal=localStorage.getItem(dst);
+        let take=!dstVal;
+        if(dstVal){                                     /* 目标存在：按 savedAt 取较新的 */
+            let a=0,b=0;
+            try{ a=Number((JSON.parse(srcVal)||{}).savedAt)||0; }catch(e){}
+            try{ b=Number((JSON.parse(dstVal)||{}).savedAt)||0; }catch(e){}
+            take=a>b;
+        }
+        if(take){ try{ localStorage.setItem(dst,srcVal); moved++; }catch(e){} }
+    }
+    /* ② 扫描所有工作区素材库，把 blob 复制进主库（asset id 全局唯一，直接 put） */
+    try{
+        const dbs=indexedDB.databases?await indexedDB.databases():[];
+        const srcNames=dbs.map(d=>d.name).filter(n=>n&&n.indexOf(MF_EDITOR_DB+"_ws")===0);
+        for(const name of srcNames){
+            try{
+                const db=await openDB(name,"assets");
+                const keys=await new Promise(res=>{ try{ const r=db.transaction("assets","readonly").objectStore("assets").getAllKeys(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>res([]); }catch(e){ res([]); } });
+                for(const key of keys){
+                    const blob=await new Promise(res=>{ try{ const r=db.transaction("assets","readonly").objectStore("assets").get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch(e){ res(null); } });
+                    if(blob){ try{ await dbPut("assets",key,blob); assets++; }catch(e){} }
+                }
+                try{ db.close(); }catch(e){}
+            }catch(e){}
+        }
+    }catch(e){}
+    /* ③ 其它工作区配置（布局 / AI 配置等）也搬一份到统一空间（仅当目标不存在） */
+    const cfgKeys=[LAYOUT_KEY,AI_CFG_KEY,AI_MODEL_KEY,"manflows_ai_editor_aspect"];
+    try{
+        for(let i=0;i<localStorage.length;i++){
+            const k=String(localStorage.key(i)||"");
+            const m=k.match(/^mfws_([^_]+)_(.+)$/);
+            if(!m||m[1]===WS_DEFAULT_ID) continue;
+            const bare=m[2];
+            if(cfgKeys.indexOf(bare)<0) continue;
+            if(!localStorage.getItem(bare)){ try{ localStorage.setItem(bare,localStorage.getItem(k)); }catch(e){} }
+        }
+    }catch(e){}
+    /* ④ 打迁移标记（失败不标记，下次启动重试） */
+    try{ safeStorage.set(UNIFY_FLAG_KEY,"1"); }catch(e){}
+    if(moved||assets) console.info("[漫流剪辑台] 已合并历史工程 "+moved+" 份、素材 "+assets+" 个到统一空间");
 }
 
 /* ==================================================================
@@ -8375,7 +8388,8 @@ async function loadEmptyProject(newDate, projName){
     state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
     state.subStyle=defaultFx().sub;   /* 新工程重置“新建字幕的默认模板” */
     state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=newDate||newProjectKey();
-    state.projName=String(projName||"");   /* 新建时用户设置的项目名；空则由显示层回退到默认标签 */
+    /* 每个工程都有明确文件名：用户没填就用可读默认名并入档，历史工程列表始终能认出每一份 */
+    state.projName=String(projName||"").trim()||projLabel(state.date);
     historyStack=[]; redoStack=[]; subCache=""; pipLayer.dataset.key=""; fxOverlayKey="";
     document.querySelectorAll(".lib-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab==="all"));
     setActiveProject(state.date);   /* 新建空白工程也立即记住，700ms 内刷新也不丢 */
@@ -8407,10 +8421,9 @@ function histProjects(){
 }
 function renderHistList(){
     const box=$("histList"); if(!box) return;
-    const wn=$("histWsName"); if(wn) wn.textContent=wsName();
     const arr=histProjects(), cur=state.date||todayStr();
     if(!arr.length){
-        box.innerHTML='<div class="hist-empty">这个工作区还没有保存过剪辑工程。<br>导入素材、拖到轨道后会自动保存一份，之后随时可以从这里切回来。</div>';
+        box.innerHTML='<div class="hist-empty">本机还没有保存过剪辑工程。<br>导入素材、拖到轨道后会自动保存一份，之后随时可以从这里切回来。</div>';
         return;
     }
     box.innerHTML=arr.map(p=>{
@@ -8883,14 +8896,6 @@ function wire(){
         if(n>0 && !$("urlReport").innerHTML) $("urlModal").classList.remove("show");
         else if(n>0) toast("已导入，窗口保留以便查看解析结果","ok");
     };
-    $("wsList").addEventListener("click",e=>{
-        const b=e.target.closest("[data-ws]"); if(!b) return;
-        const act=b.dataset.ws, id=b.dataset.id;
-        if(act==="use") wsSwitch(id);
-        else if(act==="rename") wsRename(id);
-        else if(act==="del") wsDelete(id);
-    });
-    $("wsCreate").onclick=()=>{ const v=$("wsNewName").value.trim(); if(!v){ toast("请先给新工作区起个名字","err"); return; } wsCreate(v); };
     /* 工程列表 */
     $("projList").addEventListener("click",async e=>{
         const b=e.target.closest("[data-load]"); if(!b)return;
@@ -11874,6 +11879,9 @@ function wireExport(){
 /* ---------- 启动 ---------- */
 async function init(){
     bootWsId=wsId();
+    /* 先把历史上各工作区的工程 / 素材合并进统一空间，再恢复工程；
+       否则「历史工程」会因工作区隔离看不到旧工程（用户反馈的"工程找不到"）。 */
+    try{ await migrateUnifyWorkspaces(); }catch(e){ console.warn("工程合并失败",e); }
     applyLayout(loadLayout());
     wireSplitters();
     wire(); setupChannels(); loadAiCfg(); wsBoot(); wireExport();
