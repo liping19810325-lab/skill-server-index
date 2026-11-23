@@ -4559,6 +4559,31 @@ async function dbGet(store,key){
     return new Promise((res,rej)=>{ const tx=db.transaction(store,"readonly"); const r=tx.objectStore(store).get(key);
         r.onsuccess=()=>{db.close();res(r.result);}; r.onerror=()=>{db.close();rej(r.error);}; });
 }
+/* 素材 blob 读取的唯一兜底入口（工作区合并后必需）：
+   历史素材可能仍留在旧工作区库 MF_EDITOR_DB_ws<id>，而 dbName() 已恒为主库。
+   一次性迁移 migrateUnifyWorkspaces 依赖 indexedDB.databases()，在部分浏览器/隐私模式
+   返回不全或被 UNIFY_FLAG_KEY 提前跳过，导致主库读不到旧素材——表现为剪口播检测 0 候选、
+   视频预览/导出无画面。这里每次读取都先查主库，读不到再扫所有旧库找到后回填主库（幂等自愈）。 */
+async function dbGetAssetBlob(id){
+    try{ const b=await dbGet("assets",id); if(b) return b; }catch(e){}
+    try{
+        const dbs=(indexedDB.databases?await indexedDB.databases():[])||[];
+        for(const d of dbs){
+            const nm=d&&d.name;
+            if(!nm || nm.indexOf(MF_EDITOR_DB+"_ws")!==0) continue;
+            try{
+                const old=await openDB(nm,"assets");
+                const v=await new Promise(res=>{
+                    try{ const tx=old.transaction("assets","readonly"); const rq=tx.objectStore("assets").get(id);
+                        rq.onsuccess=()=>res(rq.result); rq.onerror=()=>res(null); }catch(e){ res(null); }
+                });
+                try{ old.close(); }catch(e){}
+                if(v){ try{ await dbPut("assets",id,v); }catch(e){} return v; }  /* 回填主库，后续直接命中 */
+            }catch(e){}
+        }
+    }catch(e){}
+    return null;
+}
 async function canvasHistory(){
     const db=await openDB(MF_CANVAS_DB,"canvas");
     return new Promise(res=>{ try{ const tx=db.transaction("canvas","readonly"); const r=tx.objectStore("canvas").get("__global__");
@@ -6338,7 +6363,9 @@ function closeMainGaps(){
 /* ---------- AI 语音识别 → 统一字幕轨 ---------- */
 async function assetBlob(a){
     if(!a) throw new Error("没有可用素材");
-    if(a.blobId){ const b=await dbGet("assets",a.id); if(b) return b; }
+    if(a.blobId){ const b=await dbGetAssetBlob(a.id); if(b) return b; }
+    /* 没有 blobId 但 url 是本地文件/内联：也尝试按 id 兜底（历史工程可能丢了 blobId 字段） */
+    if(a.id){ const b=await dbGetAssetBlob(a.id); if(b) return b; }
     if(a.url){ const r=await fetch(a.url); if(!r.ok) throw new Error("读取素材失败 HTTP "+r.status); return await r.blob(); }
     throw new Error("这个素材没有可上传的音视频文件");
 }
@@ -6456,7 +6483,9 @@ async function detectClipSilences(a,c,cfg){
             res={silences:[],raw:null,engine:"none"};
         }
     }
-    silenceCache.set(key,res);
+    /* 只有真正拿到检测引擎结果才缓存；素材暂不可读(engine:none/空)时绝不缓存空结果，
+       否则「重新检测静音」会一直命中这份失败缓存、永远 0 候选（工作区合并后素材跨库时常见）。 */
+    if(res.engine&&res.engine!=="none") silenceCache.set(key,res);
     addSilences(res.silences);
     return res;
 }
@@ -8290,7 +8319,7 @@ async function loadProject(date){
         for(const a of (p.assets||[])){
             const x=Object.assign({},a);
             if(a.blobId){
-                const b=await dbGet("assets",a.id);
+                const b=await dbGetAssetBlob(a.id);   /* 跨库兜底：历史素材可能仍在旧工作区库 */
                 x.url=b?URL.createObjectURL(b):(a.remoteUrl||"");
                 x.urlKind=b?"blob":(a.remoteUrl?"remote":"inline");
                 if(b) x.blob=b;   /* 仅内存持有，供 MKV 转封装兜底；存档时会被剔除 */
@@ -10077,7 +10106,10 @@ function drawLutFrame(){
          · LUT 层：对当前累积画面整体调色，结果写回累积画布。
        排在 LUT 上方的画面在其后再画上去，因此不受调色——这正是「LUT 只影响下方层」。 */
     const items=lutItems.slice();
-    const vOK=vEl.classList.contains("show")&&vEl.readyState>=2&&vEl.videoWidth>0;
+    /* 跨段 seek 空窗期间 readyState 可能仍>=2，但画面是黑/旧帧；此时不把主画面叠进 LUT，
+       否则导出 drawStageFrame 里 drawImage(lutCv) 会用这份黑帧覆盖本已正常的主画面。
+       预览也一样：seek 中保留上一帧 LUT 合成结果，宁停一帧不闪黑。 */
+    const vOK=vEl.classList.contains("show")&&vEl.readyState>=2&&vEl.videoWidth>0&&!vEl.seeking;
     const iOK=imgEl.classList.contains("show")&&imgEl.complete&&imgEl.naturalWidth>0;
     const mv=mainVisualClip();
     if(mv&&(vOK||iOK)){
@@ -11135,7 +11167,10 @@ function waitVisualReady(maxMs){
             if(!vc||!a) return res(true);   /* 纯字幕/图片以外的空画面不需要等视频解码 */
             if(a.type==="image"){
                 if(imgEl.classList.contains("show")&&imgEl.complete&&imgEl.naturalWidth>0) return res(true);
-            }else if(vEl.classList.contains("show")&&vEl.readyState>=2&&vEl.videoWidth>0){
+            }else if(vEl.classList.contains("show")&&vEl.readyState>=2&&vEl.videoWidth>0&&!vEl.seeking){
+                /* 必须排除 seeking：跨段 seek 若落在已缓冲区间，readyState 仍是 2~4，
+                   但画面处于解码空窗（黑/旧帧）。旧版只判 readyState 就放行，录制开局
+                   在空窗开始 -> 首帧黑；这正是"剪口播衔接点残留黑帧"的另一处盲区。 */
                 return res(true);
             }
             if(performance.now()-t0>=maxMs) return res(false);
