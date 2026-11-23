@@ -53,7 +53,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 # ----------------------------------------------------------------------------
 HOST = "127.0.0.1"
 PORT = 8788
-VERSION = "1.5.2"
+VERSION = "1.5.3"
 
 TIMEOUT_FETCH = 10        # 解析网页 / API 请求
 TIMEOUT_DOWNLOAD = 15     # 下载静态 FFmpeg（socket 无数据超时）
@@ -917,6 +917,58 @@ def _pick_encoder(candidates, avail, fallback):
     return fallback, ""
 
 
+# ---- 视频硬解（解码侧 GPU 加速）----
+# 只对"解码+重编码"的重路径启用：导出转码 / GIF / 逐片段真渲染。
+# 纯音频抽取、探测、silencedetect 只解音频或读元数据，硬解无收益且可能出错，一律不加。
+# 硬解后的帧会由 FFmpeg 自动交回系统内存供 CPU 滤镜（scale/lut3d/reverse）使用——
+# 已在本机 videotoolbox 上逐一验证 scale/setpts/reverse/lut3d 四种滤镜均正常。
+# 失败兜底：_run_with_hwdec() 先带 -hwaccel 试跑，失败自动去掉硬解重试一次，
+# 保证任何显卡/驱动组合下都不会因为硬解导致导出失败。
+# 环境变量 MF_HWDEC=off 可全局关闭（逃生开关）。
+def _hwdec_args():
+    """返回该平台放在 -i 之前的视频硬解参数列表；不支持/被关闭时返回 []。"""
+    try:
+        if os.environ.get("MF_HWDEC", "").strip().lower() in ("off", "0", "false", "no"):
+            return []
+    except Exception:
+        pass
+    p = _plat()
+    if p == "mac":
+        return ["-hwaccel", "videotoolbox"]
+    if p == "windows":
+        return ["-hwaccel", "d3d11va"]
+    return []   # Linux 上显卡环境各异，默认不硬解
+
+
+def _insert_hwdec(cmd, hwdec):
+    """把 -hwaccel 参数插到第一个 -i 之前（FFmpeg 要求硬解参数在输入前）。"""
+    if not hwdec:
+        return cmd
+    out = list(cmd)
+    try:
+        idx = out.index("-i")
+    except ValueError:
+        return cmd
+    return out[:idx] + list(hwdec) + out[idx:]
+
+
+def _run_with_hwdec(cmd_with_hw, cmd_plain, timeout, **kw):
+    """先跑带硬解的命令；失败则用无硬解命令重试一次。返回 (proc, used_hwdec)。"""
+    if cmd_with_hw == cmd_plain:
+        return subprocess.run(cmd_plain, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, timeout=timeout, **kw), False
+    try:
+        p = subprocess.run(cmd_with_hw, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, timeout=timeout, **kw)
+        if p.returncode == 0:
+            return p, True
+    except Exception:
+        pass
+    # 硬解不可用/失败：无硬解重试，功能绝不退化
+    return subprocess.run(cmd_plain, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, timeout=timeout, **kw), False
+
+
 def _sibling_bin(ff, name):
     try:
         cand = os.path.join(os.path.dirname(ff),
@@ -1048,13 +1100,17 @@ def _run_video(ff, td, in_path, data, stem, avail):
             cmd += ["-movflags", "+faststart"]
     cmd += [out_path]
 
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          timeout=TIMEOUT_TRANSCODE)
+    # 视频硬解：在 -i 前插入 -hwaccel，失败自动回退软解（见 _run_with_hwdec）
+    hwdec = _hwdec_args()
+    cmd_hw = _insert_hwdec(cmd, hwdec)
+    proc, used_hw = _run_with_hwdec(cmd_hw, cmd, TIMEOUT_TRANSCODE)
+    if used_hw:
+        notes.append("解码：GPU 硬件加速（%s）" % hwdec[1])
     if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
         err = _scrub((proc.stderr or b"").decode("utf-8", "replace"), ff, td)[-600:]
         return _fail("FFmpeg 转码失败：%s" % (err or "未生成输出文件"),
                      "可尝试换用 H.264 + MP4，或降低分辨率/码率；并确认中间文件本身可播放。")
-    return _ok_file(out_path, stem + "." + ext, _scrub_cmd(cmd, ff, td), notes)
+    return _ok_file(out_path, stem + "." + ext, _scrub_cmd(cmd_hw if used_hw else cmd, ff, td), notes)
 
 
 def _run_audio(ff, td, in_path, data, stem):
@@ -1089,13 +1145,13 @@ def _run_gif(ff, td, in_path, data, stem):
           "[b][p] paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle") % (fps, w)
     cmd = [ff, "-y", "-hide_banner", "-loglevel", "error", "-i", in_path,
            "-filter_complex", fc, "-loop", "0", out_path]
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          timeout=TIMEOUT_TRANSCODE)
+    cmd_hw = _insert_hwdec(cmd, _hwdec_args())
+    proc, _used = _run_with_hwdec(cmd_hw, cmd, TIMEOUT_TRANSCODE)
     if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
         err = _scrub((proc.stderr or b"").decode("utf-8", "replace"), ff, td)[-600:]
         return _fail("FFmpeg 生成 GIF 失败：%s" % (err or "未生成输出文件"),
                      "请确认中间文件含视频画面；或降低宽度/帧率后重试。")
-    return _ok_file(out_path, stem + ".gif", _scrub_cmd(cmd, ff, td), [])
+    return _ok_file(out_path, stem + ".gif", _scrub_cmd(cmd_hw if _used else cmd, ff, td), [])
 
 
 
@@ -1881,8 +1937,9 @@ def _render_segments(ff, td, in_path, segs, opt, jid):
             cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                     "-pix_fmt", "yuv420p", "-r", _fps(fps)]
         cmd += ["-t", "%.6f" % out_len, "-movflags", "+faststart", seg_path]
-        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                           timeout=RENDER_TIMEOUT_SEG)
+        # 视频硬解：纯音频段无画面可解，不加；视频段加 -hwaccel 并保留软解回退
+        cmd_hw = _insert_hwdec(cmd, [] if pure_audio else _hwdec_args())
+        p, used_hw = _run_with_hwdec(cmd_hw, cmd, RENDER_TIMEOUT_SEG)
         if p.returncode != 0 or not os.path.isfile(seg_path) or os.path.getsize(seg_path) < 128:
             err = _scrub((p.stderr or b"").decode("utf-8", "replace"), ff, td)[-420:]
             raise RuntimeError("第 %d/%d 段渲染失败：%s" % (i + 1, len(segs), err or "未生成输出"))
@@ -2308,6 +2365,9 @@ def api_burn_subtitles(body):
         hw_enc = "videotoolbox" in venc or "nvenc" in venc
         cmd = [info["path"], "-y", "-hide_banner", "-loglevel", "error",
                "-i", in_path, "-vf", vf]
+        hwdec = _hwdec_args()
+        if hwdec:
+            burn_notes.append("解码：GPU 硬件加速（%s）" % hwdec[1])
         if vcodec == "prores":
             cmd += ["-c:v", "prores_ks", "-profile:v", "3"]  # HQ 10-bit 保留更多层次
         elif hw_enc:
@@ -2346,8 +2406,11 @@ def api_burn_subtitles(body):
             ("真无损 CRF0" if (quality == "lossless" and not hw_enc and vcodec != "prores")
              else ("CRF " + (crf if not hw_enc and vcodec != "prores" else (vn or venc))))))
         burn_notes.append("音质：高保真（AAC 320k / Opus 256k）")
-        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                           timeout=TIMEOUT_TRANSCODE)
+        cmd_hw = _insert_hwdec(cmd, hwdec)
+        p, used_hw = _run_with_hwdec(cmd_hw, cmd, TIMEOUT_TRANSCODE)
+        if not used_hw and hwdec:
+            burn_notes = [n for n in burn_notes if not n.startswith("解码：GPU")]
+            burn_notes.append("解码：GPU 硬解不可用，已自动回退软解")
         if p.returncode != 0 or not os.path.isfile(out_path) or os.path.getsize(out_path) < 128:
             err = _scrub((p.stderr or b"").decode("utf-8", "replace"), info["path"], td)[-420:]
             return _fail("字幕烧录失败：%s" % (err or "未生成输出"),
