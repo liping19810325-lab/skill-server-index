@@ -430,6 +430,21 @@
             </div>
         </div>
 
+        <div class="card" id="aspectCard">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>剧集画幅 <span class="hint-q" data-hint-toggle title="点我看画幅说明">?</span></span>
+            </div>
+            <div class="param-content">
+                <div class="param-item" style="flex-wrap:wrap;gap:6px 14px;">
+                    <label><input type="radio" name="aspectMode" value="landscape" checked> 横屏剧 16:9</label>
+                    <label><input type="radio" name="aspectMode" value="portrait"> 竖屏剧 9:16</label>
+                </div>
+                <div class="local-hint fold-hint" style="font-size:11px;color:var(--muted);line-height:1.5">
+                    ℹ️ 一次选定，剧本与生视频分镜全流程锁定；<b>美术资产图不受此项影响</b>，仍按人物/场景/道具各自规格出图。
+                </div>
+            </div>
+        </div>
+
         <div class="card param-panel">
             <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
                 <span>算力总控 <span class="hint-q" data-hint-toggle title="点我看算力说明">?</span></span>
@@ -791,6 +806,21 @@ try{
         }
     }
 }catch(e){}
+
+/* ===== 画幅锁定：横屏剧(16:9) / 竖屏剧(9:16) =====
+   · 入口一次选定后全剧不可变，随剧本(a)、生视频(b/d)两个阶段注入 prompt；
+     美术技能(c/e)不注入画幅——美术按资产类型固定出图规格，用户单独调图不受牵制。
+   · 仅存当前对话标签页(sessionStorage)，默认横屏；跨页技能接力时随 payload 传递(见 chooseSkillAction/applySkillTask)。
+   · 画幅是元数据：只作取景引导，不改剧情/台词/场次/输出格式；生视频正文禁写画幅词由 Skill 保证。 */
+const STORAGE_KEY_ASPECT = "manflows_aspect";
+let scriptAspect = "landscape";   // landscape=横屏剧 / portrait=竖屏剧
+try{
+    const savedAspect = safeSession.get(STORAGE_KEY_ASPECT);
+    if(savedAspect === "portrait" || savedAspect === "landscape") scriptAspect = savedAspect;
+}catch(e){}
+/* 生视频技能 key：需要注入画幅强指令的仅剧本 a 与生视频 b/d */
+const VIDEO_SKILL_KEYS = ["b", "d"];
+function aspectNeedsInject(key){ return key === "a" || VIDEO_SKILL_KEYS.includes(key); }
 
 /* 三种算力：manflow=漫流算力（默认占位）、local=本机算力、api=第三方API。
    已保存过 local / api 的老用户保持原选择，只有从未保存过（或值无效）才默认漫流算力。 */
@@ -1719,6 +1749,31 @@ function stylePresetPrompt(withRefImage){
         +"本项只作风格引导，不改变剧本内容，也不改变技能规定的输出格式与结构。";
 }
 
+/* ===== 画幅锁定 → 注入剧本(a) / 生视频(b/d) 的强指令 =====
+   美术(c/e)不调用本函数。指令要求：画幅一次判定全剧不变、集标题画幅字段跟随、
+   生视频正文禁写画幅词（由 Skill 自检保证）、分镜取景按横竖二选一。
+   画幅是元数据，只作取景引导，不改剧情/台词/场次/输出格式。 */
+function aspectDirective(){
+    if(!scriptAspect) return "";
+    const isPortrait = scriptAspect === "portrait";
+    const label = isPortrait ? "竖屏剧（9:16）" : "横屏剧（16:9）";
+    let s = "\n\n【剧集画幅·全流程锁定】\n本剧画幅为" + label
+        + "，是动笔前一次选定、全剧不可变的参数：所有集、所有场次、所有正文产物统一采用此画幅，续写、局部修改、坍缩重切都沿用，不得中途改成另一种画幅或混用。";
+    if(currentSkillKey === "a"){
+        s += "\n剧本侧执行：每集集标题末尾固定写 ` ｜ 画幅：" + (isPortrait ? "竖屏" : "横屏")
+            + "`，与大纲「爆款定位」的画幅行一致；3.7 取景按此画幅二选一，通过【场景设计】的实际空间描写体现（横屏写左右铺展/纵深，竖屏写中央纵深/前后景），正文任何栏禁写\"横屏/竖屏/16:9/9:16/画幅\"字样或比例数字。";
+    }else if(VIDEO_SKILL_KEYS.includes(currentSkillKey)){
+        s += "\n生视频侧执行：每个组标记行末尾固定加 ` ｜ 画幅：" + (isPortrait ? "竖屏" : "横屏")
+            + "`（非提示词元数据），全剧一致；分镜取景按此画幅二选一——"
+            + (isPortrait
+                ? "竖屏以主体居中、前后景双层纵深为主，多用推近/拉远与特写，少用横向横移与大范围全景铺展；"
+                : "横屏以横向铺展为主，可用横移、摇镜、全景交代左右关系与空间张力；")
+            + "提示词正文严禁出现\"横屏/竖屏/16:9/9:16/画幅\"或比例数字（Skill 自检会判违规），画幅只进组标记行。";
+    }
+    s += "\n本项只作画幅与取景引导，不改变剧情、台词、场次编号、输出格式与本技能规定的结构。";
+    return s;
+}
+
 /* ===== 画风预选 → 主动触发两个美术画风助手技能中「对应画风的提示词」 =====
    两份技能已更新：第 6 章「画风预选库」按 ### 画风名 分段（27 项，标题与下拉逐项一致），
    每项含「全剧统一画风锚」。带画风参数请求 c / e 两技能 → 按画风名提取对应段 → 发送时作为
@@ -2411,7 +2466,8 @@ function chooseSkillAction(sel){
             from: "skill", at: Date.now(),
             text: sourceText,
             cmd: String(userInput.value || "").trim(),
-            skill: skill
+            skill: skill,
+            aspect: scriptAspect   /* 画幅随剧本跨页传递到生视频：新标签页 sessionStorage 独立，必须显式携带 */
         };
         const stored = safeStorage.set(MF_NEW_SESSION_KEY, JSON.stringify(payload));
         const win = openNewSession(stored ? null : payload);
@@ -2433,6 +2489,12 @@ function applySkillTask(o){
     const sk = o && o.skill;
     if(!t.trim() || !sk) return false;
     window.__mfNewSessionApplied = true;
+    /* 恢复上一页锁定的画幅（新标签页 sessionStorage 不继承），保持剧本→生视频画幅一致；
+       只接受合法值，非法/缺失时保持本页默认横屏，不打断任务。 */
+    if(o.aspect === "landscape" || o.aspect === "portrait"){
+        scriptAspect = o.aspect;
+        try{ safeSession.set(STORAGE_KEY_ASPECT, o.aspect); }catch(e){}
+    }
     window.__mfPendingSkillTask = { text:t, skill:sk, cmd:String(o.cmd || ""), at:Number(o.at)||0 };
     return true;
 }
@@ -3631,6 +3693,11 @@ async function sendMessage(autoSourceText) {
         /* 全剧资产覆盖：无条件追加，与是否带图/预选画风无关，防止漏资产 */
         combinedContent += (combinedContent ? "\n\n" : "") + assetCoverageDirective(currentSkillKey);
     }
+    /* 画幅锁定强指令：只对剧本(a)与生视频(b/d)注入，美术(c/e)不注入（美术按资产类型固定规格，不受画幅牵制） */
+    if (aspectNeedsInject(currentSkillKey)) {
+        const aspectTxt = aspectDirective();
+        if (aspectTxt) combinedContent += (combinedContent ? "\n\n" : "") + aspectTxt.replace(/^\n\n/, "");
+    }
     /* 跨页技能任务触发的自动开始：把上一页带过来的已有文字作为待处理素材送进模型，
        窗口里不重复刷一大段原文；普通点「开始」时 autoSourceText 为空，行为完全不变 */
     if(autoSourceText){
@@ -4201,6 +4268,19 @@ function initUI(){
     });
     renderStylePresets();
     fetchArtSkillStylePrompts();           /* 有会话记忆的画风时，进入页面即主动取对应提示词 */
+
+    /* 画幅锁定：radio 切换即保存(sessionStorage)并回显；恢复本对话已锁定的画幅 */
+    document.querySelectorAll('input[name="aspectMode"]').forEach(r=>{
+        r.checked = (r.value === scriptAspect);
+        r.addEventListener("change", e=>{
+            if(!e.target.checked) return;
+            scriptAspect = e.target.value;
+            try{ safeSession.set(STORAGE_KEY_ASPECT, scriptAspect); }catch(e){}
+            append("🎞️ 画幅已锁定为" + (scriptAspect === "portrait" ? "竖屏剧（9:16）" : "横屏剧（16:9）")
+                + "，剧本与生视频分镜将按此画幅生成；美术资产图不受影响。", "tip");
+            scheduleLiveSave();
+        });
+    });
 
     /* 恢复上次桥接上报的本地视觉能力（刷新页面后不用重新扫描就能正确判定识图） */
     try{
