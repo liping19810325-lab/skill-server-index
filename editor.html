@@ -7010,20 +7010,16 @@ async function openSmartCutModal(){
    物理切成多个独立小片段（视频/音频/字幕/LUT 全部一致），方便用户逐段手动微调。
    每段重新计算 offset/时长并清空 cutRanges；导出时这些片段仍会拼成完整一条成片。 */
 function rippleDeleteRanges(ranges){
-    const rs=ranges.slice().sort((a,b)=>a.start-b.start).reduce((acc,r)=>{
+    const norm=arr=>arr.slice().sort((a,b)=>a.start-b.start).reduce((acc,r)=>{
         const last=acc[acc.length-1];
         if(last && r.start<=last.end+0.001) last.end=Math.max(last.end,r.end);
         else acc.push({start:Number(r.start),end:Number(r.end)});
         return acc;
-    },[]).filter(r=>r.end>r.start+0.05);
-    if(!rs.length) return {cuts:0,removed:0,pieces:0,cutByClip:[]};
-    /* 某时间点之前被删掉的总时长，用于前移 */
-    const shift=t=>rs.reduce((a,r)=>a+(t>=r.end?(r.end-r.start):0),0);
-    const before=state.clips.length, out=[], cutByClip=[];
-    let pieces=0;
-    for(const c of state.clips){
-        const s=Number(c.start)||0, e=s+(Number(c.duration)||0);
-        /* [s,e] 减去删除区间，得到该片段真正保留的时间轴区间 */
+    },[]);
+    const baseRs=norm(ranges).filter(r=>r.end>r.start+0.05);
+    if(!baseRs.length) return {cuts:0,removed:0,pieces:0,cutByClip:[]};
+    /* 把 [s,e] 减去删除区间，得到保留段（含极短段，供下一步判定） */
+    const splitBy=(s,e,rs)=>{
         let segs=[{s:s,e:e}];
         for(const r of rs){
             const next=[];
@@ -7034,7 +7030,26 @@ function rippleDeleteRanges(ranges){
             }
             segs=next;
         }
-        segs=segs.filter(g=>g.e-g.s>0.08);
+        return segs.filter(g=>g.e-g.s>1e-6);
+    };
+    /* 关键修复（导出衔接点闪黑）：≤80ms 的极短保留段旧版直接 filter 丢弃，
+       却没把它计入 shift——后续片段前移量少了这段时长，主轨就会留下真实空档，
+       成片每个衔接点都闪一下黑。这里把这些极短段并入删除区间，一次切分到位：
+       既避免碎片段，又保证时间轴完全连续（跨轨仍然按同一批区间删除、保持同步）。 */
+    const extraDrops=[];
+    for(const c of state.clips){
+        const s=Number(c.start)||0, e=s+(Number(c.duration)||0);
+        for(const g of splitBy(s,e,baseRs)) if(g.e-g.s<=0.08) extraDrops.push({start:g.s,end:g.e});
+    }
+    const rs=extraDrops.length?norm(baseRs.concat(extraDrops)):baseRs;
+    /* 某时间点之前被删掉的总时长，用于前移 */
+    const shift=t=>rs.reduce((a,r)=>a+(t>=r.end?(r.end-r.start):0),0);
+    const before=state.clips.length, out=[], cutByClip=[];
+    let pieces=0;
+    for(const c of state.clips){
+        const s=Number(c.start)||0, e=s+(Number(c.duration)||0);
+        /* [s,e] 减去删除区间，得到该片段真正保留的时间轴区间 */
+        const segs=splitBy(s,e,rs);
         if(!segs.length) continue;                       /* 整段被删掉 */
         const unchanged=segs.length===1 && Math.abs(segs[0].s-s)<1e-6 && Math.abs(segs[0].e-e)<1e-6;
         if(unchanged){                                    /* 没碰到删除区：只前移，原样保留 */
@@ -7058,6 +7073,9 @@ function rippleDeleteRanges(ranges){
         cutByClip.push({id:c.id,pieces:segs.length});
     }
     state.clips=out;
+    /* 剪口播后主轨无论磁吸开关是否开启都要连续：极少保留段/浮点取整仍可能留下
+       微小空档，这里无条件把主轨片段按原顺序贴紧（只动主轨，不改其它轨道）。 */
+    rippleMainTrack();
     state.selected=null; state.multi=[]; state.selectedAsset=null;
     return {cuts:rs.length,removed:before-state.clips.length,pieces:pieces,cutByClip:cutByClip};
 }
@@ -11114,14 +11132,16 @@ function drawStageFrame(x,W,H,opts){
     /* noSub：录制纯净画面（不含字幕），交给后端 FFmpeg libass 独家烧录。
        若浏览器 canvas 也画字幕、后端再烧一遍，同一条字幕会出现两层重叠。 */
     const noSub=!!(opts&&opts.noSub);
-    /* 衔接点保底：当前主画面片段存在，但视频/图片还没解码出一帧时，直接复用上一帧合成图。
-       只在录制期间启用，普通预览/封面预览完全不受影响。 */
+    /* 衔接点保底：只要当前"没有一帧可画的主画面"就复用上一帧合成图，覆盖三种情形——
+       ① 主轨空档（mainVisualClip 判空，旧版这里直接铺黑，正是剪口播/移动后的闪黑）；
+       ② 有片段但视频/图片尚未解码出帧（seek / 换源空窗）；
+       ③ 线段切换瞬间 show 类还没跟上。只在导出录制期间启用，预览行为完全不变。 */
     if(exportRecording){
         const hc=mainVisualClip(), ha=hc&&hc.assetId?assetById(hc.assetId):null;
-        const pending=ha&&(ha.type==="image"
-            ? (imgEl.classList.contains("show")&&(!imgEl.complete||!imgEl.naturalWidth))
-            : (vEl.classList.contains("show")&&vEl.readyState<=1));
-        if(pending&&exportFrameCacheRestore(x,W,H)) return;
+        const srcReady=ha?(ha.type==="image"
+            ? (imgEl.classList.contains("show")&&imgEl.complete&&imgEl.naturalWidth>0)
+            : (vEl.classList.contains("show")&&vEl.readyState>1&&vEl.videoWidth>0)):false;
+        if(!srcReady&&exportFrameCacheRestore(x,W,H)) return;
     }
     let drewMedia=false;
     x.save(); x.filter="none"; x.globalAlpha=1;
