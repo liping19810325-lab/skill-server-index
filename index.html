@@ -1348,6 +1348,13 @@ function togglePreviewFullscreen(force){
 /* ===== 修改基准（连续对话的"上文原稿"）=====
    设计：双击吐字窗口任意一条 AI 回复 → 该条设为基准并高亮；下一轮指令即在此稿基础上修改。
    基准正文直接从 DOM 节点取（去掉「【AI】：」前缀），所以刷新/历史载入后依然有效。 */
+/* 取吐字窗口里最后一条 AI 消息节点。
+   ★ 不能用 .msg.ai:last-of-type：chatBox 里所有消息都是 div，:last-of-type 是按标签类型
+   （div）算的，只要末尾追加了 tip（确认稿/提示），它就恒为 null。改为取所有 .msg.ai 的末位。 */
+function lastAiMsg(){
+    const nodes = chatBox.querySelectorAll(".msg.ai");
+    return nodes.length ? nodes[nodes.length - 1] : null;
+}
 function msgFullText(dom){
     if(!dom) return "";
     return String(dom.innerText||"").replace(/^【AI】[：:]\s*/, "");
@@ -1363,12 +1370,12 @@ function setBaseMsg(dom, silent){
 function getBaseText(){
     if(baseMsgDom && baseMsgDom.isConnected) return msgFullText(baseMsgDom);
     /* 兜底：没显式设过基准时，用窗口里最后一条 AI 回复作为基准 */
-    const last = chatBox.querySelector(".msg.ai:last-of-type");
+    const last = lastAiMsg();
     return last ? msgFullText(last) : "";
 }
 function refreshBaseRef(){
     /* 现场/历史载入后重建引用：优先认高亮节点，否则指回最后一条 AI 回复 */
-    baseMsgDom = chatBox.querySelector(".msg.ai.ai-base") || chatBox.querySelector(".msg.ai:last-of-type") || null;
+    baseMsgDom = chatBox.querySelector(".msg.ai.ai-base") || lastAiMsg() || null;
 }
 /* 从基准剧本里抽出「大纲与设定 + 最近一集」，供连续修改时回灌给模型。
    - 大纲区：从开头到第一个集标题行之前；
@@ -1436,7 +1443,7 @@ function openChatPreview(ev){
     if(target){
         setBaseMsg(target, true);   /* 静默设置：预览弹窗本身就是反馈，不再刷一条 tip */
     }else{
-        const last = chatBox.querySelector(".msg.ai:last-of-type");
+        const last = lastAiMsg();
         if(last) target = last;
     }
     const text = target ? msgFullText(target) : ((typeof fullAiText==="string") ? fullAiText : "");
@@ -2174,7 +2181,7 @@ function restoreLiveSession(){
         if(topPInput && s.topP !== "" && s.topP != null) topPInput.value = s.topP;
         customSkillList = Array.isArray(s.customSkillList) ? s.customSkillList : [];
         /* aiMsgDom / fullAiText 保持一致：指向最后一条 ai 消息，编辑保存才能覆盖正确节点 */
-        aiMsgDom = chatBox.querySelector(".msg.ai:last-of-type") || null;
+        aiMsgDom = lastAiMsg() || null;
         refreshBaseRef();   /* 恢复修改基准引用（高亮节点，或退回最后一条 AI 回复） */
         /* 参考图（可能与文本快照分开写、或超配额丢失） */
         let refs = null;
@@ -2242,7 +2249,12 @@ function clearCurrentPage(){
     chatScrollBottom(true);   /* 清空后回到顶部位置（内容很少）并恢复跟随 */
 }
 
-function stopGenerate() {
+/* keepContinuation=true 仅供 sendMessage 开头内部调用（清上一轮 abortController，但必须保留
+   mfAutoContinue，否则刚排好的下一批自动续写会被自己清掉）。用户点「停止」、清空本页、换技能
+   一律走默认 false：即使此刻没有 abortController（如自动续写 30ms 定时器间隙、队列任务间隙），
+   也要无条件清掉续写态/队列/中断原因，否则用户点了停止却照常续写。 */
+function stopGenerate(keepContinuation) {
+    const internal = keepContinuation === true;
     if (abortController) {
         abortController.abort();
         abortController = null;
@@ -2250,7 +2262,10 @@ function stopGenerate() {
            避免下一轮基于半截稿改；历史基准仍保留，用户可双击任意回复重新指定。 */
         try{ chatBox.dataset.stoppedDraft = "1"; }catch(e){}
         append("⚠️ 已停止生成", "tip");
-        /* 用户主动停止 → 排队任务与自动续写一并撤销，避免"停了却又自动开始下一个" */
+    }
+    if(!internal){
+        /* 用户主动停止 → 排队任务与自动续写一并撤销，避免"停了却又自动开始下一个"。
+           ★ 这段从 if(abortController) 里移出：没有 abortController 的间隙也要清。 */
         clearSendQueue();
         if(mfAutoContinue || mfScriptGoal){ mfAutoContinue = null; mfScriptGoal = null; append("🛑 已取消自动续写。", "tip"); }
         mfInterruptReason = "";   /* 用户停止=放弃中断续写，避免停止后又弹出确认框 */
@@ -5015,7 +5030,9 @@ async function sendMessage(autoSourceText) {
         enqueueSendTask(autoSourceText);
         return;
     }
-    stopGenerate();
+    /* 内部调用：只清上一轮可能残留的 abortController，保留 mfAutoContinue——
+       自动续写靠 setTimeout 再次进入本函数，若这里清掉续写锚点，下一批就会被取消。 */
+    stopGenerate(true);
     /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位。
        不发起任何请求、不计费，直接给出提示；原有本机算力 / 第三方API 链路完全不受影响。 */
     if(computeMode === "manflow"){
@@ -5023,6 +5040,11 @@ async function sendMessage(autoSourceText) {
         alert("漫流算力即将开放（扫码充值即可使用，正在接入中）。\n当前请先在左栏【算力总控 → 算力模式】切换到「本机算力」或「第三方API」。");
         return;
     }
+    /* ★ 本机算力·私有模式 BaseURL 为空：必须在任何副作用之前早退。
+       原检查在 5203 `abortController = new AbortController()` 之后、try 之前，早退会绕过 finally，
+       留下 abortController 非空 → isGenerating() 恒 true → 后续「开始」全被排队且永不 drain（死锁）。
+       提前到这里：此时 abortController 仍是 null、尚未 append 任何用户/AI 消息，早退干净无残留。 */
+    if(computeMode === "local" && !mfEnsureLocalReady("strata")) return;
     pendingText = "";
     /* 断点续写（刷新中断后自动发起）：保留已吐半截稿、复用原 AI 消息节点，不新建、不清空。 */
     const isResuming = !!mfResumeMode;
@@ -5226,7 +5248,7 @@ async function sendMessage(autoSourceText) {
     messagesArr.push({ role: "user", content: userContent });
     let onlyReasoning = false;   /* 函数级：finally 里判断是否把新稿设为修改基准时需要 */
     if(computeMode === "local"){
-        if(!mfEnsureLocalReady("strata")) return;   /* 私有模式 BaseURL 为空：弹窗提示并禁止发起请求 */
+        /* 私有模式 BaseURL 校验已提前到函数开头（副作用之前），此处不再早退，避免绕过 finally 留下幽灵 abortController。 */
         // 还没自动接通就先静默扫一次端口，保证「本机大模型软件开着就能用」
         if(!localConnReady) await mfDetectLocal({ quiet:true });
         /* 保险：即使本次会话已接通过，也向当前地址核对一次真实加载的模型名，
@@ -5688,7 +5710,9 @@ function initUI(){
                 mfResumeUserNote = note;
                 userInput.value = "";
                 mfResumeMode = true;
-                mfResumeDom = chatBox.querySelector(".msg.ai:last-of-type") || null;
+                /* ★ 不能用 .msg.ai:last-of-type：上面刚 append 的 tip 是最后一个 div，
+                   会让它恒为 null → 续写另起第二条 AI 消息、fullAiText 被重置成空节点（半截稿从下载里丢失）。 */
+                mfResumeDom = lastAiMsg();
                 try{ sendMessage(buildResumeContext(String(fullAiText || ""))); }
                 finally{ mfResumeUserNote = ""; }
                 return;
@@ -5942,7 +5966,7 @@ function maybeResumeInterrupted(){
     const partial = String(fullAiText || "").trim();
     if(!partial) return;                      /* 没有可接的半截稿 */
     if(window.__mfPendingSkillTask) return;   /* 有跨页任务待跑，避免两个任务并发 */
-    if(!chatBox.querySelector(".msg.ai:last-of-type")) return;
+    if(!lastAiMsg()) return;
     /* ★ 刷新也是中断：不自动续写，先出"确认后续写"理解稿，用户点开始再带全文续写，
        避免刷新后模型在缺上文的裸指令下另起炉灶写全新剧名（用户实测踩过此坑）。 */
     mfOfferInterruptedResume("页面被刷新、生成被打断");
