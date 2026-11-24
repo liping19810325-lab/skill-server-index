@@ -1483,7 +1483,9 @@ function syncEditedHistory(before, after){
         /* 旧版无 projectId 的记录：退回按旧 aiResult 文本匹配，兼容老历史 */
         idx = records.findIndex(r => typeof r.aiResult === "string" && r.aiResult === before);
     }
-    if(idx < 0) idx = 0;
+    /* ★ 两级匹配都落空时不再 idx=0 兜底：那会把本次编辑写进最新的无关项目（#16）。
+       找不到归属就直接不写——用户编辑内容仍留在当前窗口与 fullAiText 里，不会丢失。 */
+    if(idx < 0) return;
     const rec = records[idx];
     try{ rec.aiResult = mfProjectProductText() || after; }catch(e){ rec.aiResult = after; }
     rec.chatHtml = chatBox.innerHTML;   /* 直接取当前窗口快照：所有输入/输出/互动都在里面 */
@@ -2119,6 +2121,10 @@ function snapshotLiveSession(){
         fullAiText: fullAiText,
         mfAutoContinue: mfAutoContinue,
         mfScriptGoal: mfScriptGoal,
+        /* #7：待确认状态（对齐稿/中断续写/复读确认）随现场保存——生成已结束、显示确认稿时刷新，
+           窗口里提示文字虽在，但语义若丢失，点「开始」会变成全新指令。恢复后走原确认分支。 */
+        mfClarifyPending: (typeof mfClarifyPending !== "undefined" && mfClarifyPending && typeof mfClarifyPending === "object")
+            ? JSON.parse(JSON.stringify(mfClarifyPending)) : null,
         currentSkillKey: currentSkillKey,
         currentSkillName: currentSkillName,
         currentSystemPrompt: currentSystemPrompt,
@@ -2168,6 +2174,9 @@ function restoreLiveSession(){
         /* 续写锚点随现场恢复：刷新后自动续写链不中断（结构做基本校验，异常值退回 null）。 */
         mfAutoContinue = (s.mfAutoContinue && typeof s.mfAutoContinue.from === "number" && s.mfAutoContinue.from >= 1) ? s.mfAutoContinue : null;
         mfScriptGoal = (s.mfScriptGoal && typeof s.mfScriptGoal.total === "number" && s.mfScriptGoal.total >= 1) ? s.mfScriptGoal : null;
+        /* #7：恢复待确认状态。只接受结构合法的对象（有 cmd/brief），避免损坏的快照污染确认分支。 */
+        mfClarifyPending = (s.mfClarifyPending && typeof s.mfClarifyPending === "object"
+            && typeof s.mfClarifyPending.cmd === "string") ? s.mfClarifyPending : null;
         /* 吐字中被刷新打断 → 标记待断点续写（真正发起在 initUI 末尾，等按钮绑定完成）。
            只有"上次生成中 + 确实吐出了半截稿"才值得续；空稿没有可接的内容，交给用户重新发指令。 */
         mfWasGenerating = !!s.generating && !!(s.fullAiText && String(s.fullAiText).trim());
@@ -2218,6 +2227,9 @@ function clearCurrentPage(){
     abortController = null; pendingText = ""; aiMsgDom = null; baseMsgDom = null;
     fullAiText = ""; chatBox.innerHTML = "";
     mfAutoContinue = null; mfScriptGoal = null; mfInterruptReason = ""; mfWasGenerating = false; mfClarifyPending = null;
+    /* #15：清空本页=等同新建对话，断点续写态也必须清干净，否则清空后点「开始」会被旧续写锚点接管。
+       （sendQueue 已由上方 stopGenerate() 清空；画幅是面板物理按钮的全局态，按最高优先级保留不动。） */
+    mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
     mfProjectId = "";   /* 清空即开新项目：下次生成会新建一条历史产物，不覆盖旧项目 */
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     fileStore = []; refImages = []; customSkillList = [];
@@ -2269,6 +2281,10 @@ function stopGenerate(keepContinuation) {
         clearSendQueue();
         if(mfAutoContinue || mfScriptGoal){ mfAutoContinue = null; mfScriptGoal = null; append("🛑 已取消自动续写。", "tip"); }
         mfInterruptReason = "";   /* 用户停止=放弃中断续写，避免停止后又弹出确认框 */
+        /* #6：用户主动停止/换技能 = 放弃待确认的理解稿（对齐稿/中断确认/复读确认），
+           否则下次点「开始」会把旧理解稿当成新指令的修正合并进去，污染新任务。
+           注意 internal=true（sendMessage 开头内部清理）时不走这里，不影响正常续写确认链。 */
+        mfClarifyPending = null;
         try { syncSendToCanvasBtn(); } catch(e){}
     }
 }
@@ -2623,8 +2639,13 @@ const MF_LOOP_DIALOGUE_RE = /^\s*(?!人物\s*[：:]|[-*|#>'"])[^【：:△\n|#*>
 function mfLoopBodyLines(raw){
     const out = [];
     let meta = false, off = 0;
-    String(raw||"").split(/\r?\n/).forEach(ln=>{
-        const cur = off; off += ln.length + 1;
+    const src = String(raw||"");
+    /* #18：CRLF 文本下 split(/\r?\n/) 去掉了 \r\n 两字符，但下面 off 只加 1，
+       逐行累积偏移 → mfLoopEvidence 用 owners 映射回原文时截取范围错位、证据片段尾部多/少字。
+       这里按每行的真实分隔符长度累加：LF=1、CRLF=2，保证 at 始终指回原文准确下标。 */
+    const crlf = src.indexOf("\r\n") >= 0;
+    src.split(/\r?\n/).forEach(ln=>{
+        const cur = off; off += ln.length + (crlf ? 2 : 1);
         if(MF_LOOP_META_RE.test(ln)){ meta = true; out.push({ text:ln, at:cur, anchor:true }); return; }
         if(meta){
             if(/^\s*△/.test(ln) || MF_LOOP_STRUCT_RE.test(ln) || !ln.trim()) meta = false;
@@ -2781,14 +2802,17 @@ function maybeAutoContinue(completedNormally, extraNote){
     }
     /* 停滞检测：连续多批都没能推进起点（模型没写出任何集标题），避免无限空转 */
     const stalled = prev && prev.from === range.from && written.size === prev.writtenSize;
+    /* #14：把"正文实际写到的最大集号"存进状态，供 autoContinueDirective 如实描述进度——
+       缺集补齐场景（如写到第7集但缺第3集、range.from=3）下，用 from-1 会误报"写到第2集"。 */
+    const writtenMaxNow = written.size ? Math.max.apply(null, Array.from(written)) : 0;
     mfAutoContinue = { from:range.from, to:range.to, total:range.total, rounds, writtenSize:written.size,
-                       note: extraNote || (prev && prev.note) || "" };
+                       writtenMax:writtenMaxNow, note: extraNote || (prev && prev.note) || "" };
     if(stalled && rounds >= 3){
         append("⚠️ 已连续 3 批未写出新的集正文，停止自动接力。可点「停止」后改用更小批次或检查本机模型的输出长度设置。", "err");
         mfAutoContinue = null; mfScriptGoal = null;
         return false;
     }
-    const writtenMax = written.size ? Math.max.apply(null, Array.from(written)) : 0;
+    const writtenMax = writtenMaxNow;
     append("🔄 正文实际写到第 " + writtenMax + " 集 / 目标 " + goal.total + " 集，"
         + (range.from > writtenMax + 1 ? "检测到缺集，补齐" : "自动续写")
         + "第 " + range.from + "–" + range.to + " 集（第 " + rounds + " 批）…", "tip");
@@ -2810,14 +2834,18 @@ function maybeAutoContinue(completedNormally, extraNote){
 function autoContinueDirective(c){
     return "【自动续写·补齐全剧（创作台指令，最高优先级）】\n"
         + "上文是同一部剧已经写好的正文、已写集号清单与大纲。用户要求写满 " + c.total + " 集，"
-        + "目前正文实际写到第 " + (c.from - 1) + " 集，还差第 " + c.from + "–" + c.total + " 集未写。现在请**直接接着写第 " + c.from + "–" + c.to + " 集**（共 "
+        + "目前正文里已写到的最大集号是第 " + (typeof c.writtenMax === "number" ? c.writtenMax : (c.from - 1)) + " 集"
+        + (typeof c.writtenMax === "number" && c.writtenMax >= c.from
+            ? "（中间第 " + c.from + " 集起存在缺集，本批优先补齐）" : "")
+        + "，还差第 " + c.from + "–" + c.total + " 集未写。现在请**直接接着写第 " + c.from + "–" + c.to + " 集**（共 "
         + (c.to - c.from + 1) + " 集）：\n"
-        + "1) 严禁重出大纲与设定、严禁改剧名、严禁从头重写前面已写的集；沿用上文已有的《剧名》、世界观、人物设定、画幅，"
-        + "以及每集时长与场次数（含用户逐集明确指定的值，如『第一集3分钟、第二集起每集1分钟』）——**用户指令优先级最高，不得压回默认105秒/3–5场**；\n"
+        + "1) 严禁重出大纲与设定、严禁改剧名、严禁从头重写前面已写的集；沿用上文已有的《剧名》、世界观、人物设定，"
+        + "以及每集时长与场次数（含用户逐集明确指定的值，如『第一集3分钟、第二集起每集1分钟』）——**用户指令优先级最高，不得压回默认105秒/3–5场**；"
+        + "画幅不在此处复述，一律以本请求里【剧集画幅·全流程锁定】强指令（面板物理按钮锁定）为准，不得改、不得沿用上文文字里可能出现的相反画幅表述；\n"
         + "1b) ★大纲表覆盖检查（仍以用户指令为准）：用户要求写满 " + c.total + " 集。若上文的分集大纲表尚未规划到用户要求的总集数，"
         + "请在本批正文之前，把分集大纲表**从已有最后一行往后补**到用户要求的第 " + c.total + " 集（每行含集数/集名/预估成片/核心冲突/爽点/情绪曲线/高光15秒/钩子类型/悬念推进），"
         + "只追加缺失集号、绝不重出或改写已有行；这是为了让每集正文都有规划锚点、避免剧情走回头路。若用户指令明确只要写到某个更小的集数，则以用户指令为准，不补到更大集数；\n"
-        + "2) 从 `《剧名》第" + c.from + "集：集名 ｜ 预估成片：XX 秒 ｜ 画幅：横屏/竖屏`（画幅、时长与场次沿用上文该集已确立的值）开始，"
+        + "2) 从 `《剧名》第" + c.from + "集：集名 ｜ 预估成片：XX 秒 ｜ 画幅：横屏/竖屏`（时长与场次沿用上文该集已确立的值；画幅按【剧集画幅·全流程锁定】强指令填写）开始，"
         + "逐集写完整正文（每集场次按该集已确立的时长/场次要求分配，用户未指定才用默认3–5场；三栏、一△一镜头、台词、【第X集完】），每集集标题都带两个元数据字段；\n"
         + "3) 本轮只需写第 " + c.from + "–" + c.to + " 集（共 " + (c.to - c.from + 1) + " 集），集号连续、不得跳号、不得重复已写集，"
         + "每集必须有完整的 `《剧名》第N集：` 标题行和 `【第N集完】` 收尾——系统靠这两个标记核对实际进度；\n"
@@ -2988,7 +3016,15 @@ function extractCreativeBody(text){
     }
     if(start < 0){
         /* 没有行首锚点：整段可能是一份无标题大纲。仅当它明显是创作内容（含设定关键词且无解释性开场）才保留。 */
-        if(SCRIPT_BODY_ANCHOR.test(s) && !NON_CREATIVE_RE.test(s.slice(0, 240))) return s.trim();
+        if(SCRIPT_BODY_ANCHOR.test(s) && !NON_CREATIVE_RE.test(s.slice(0, 240))){
+            /* #17：SCRIPT_BODY_ANCHOR 后半段关键词（世界观/人物设定/爆款定位…）未锚定行首，
+               若只是正文中间提到"世界观"，带对话解释腔的开场（"好的，根据您的要求…这个故事的世界观…"）
+               会被整段当正文回灌。这里要求：开头 240 字内不能是对话式解释腔。
+               正常"世界观：…/人物设定：…"开头的大纲不含这些腔调，照常保留。 */
+            const chattyLead = /^(?:好的|好的[，,]|收到|明白|根据(?:您|你的)?要求|根据(?:您|你的)描述|我来|我来帮|以下(?:是|为)|作为(?:编剧|助手)|没问题|当然可以|很高兴)/.test(s.trim());
+            if(!chattyLead) return s.trim();
+            return "";
+        }
         return "";
     }
     /* ★ 锚点之前若有解释性开场白（"由于…我将…通用模板/报错/请提供"），说明这条消息是模型的
@@ -3238,7 +3274,11 @@ function applyNewSessionText(text){
     if(!t.trim()) return false;
     window.__mfNewSessionApplied = true;
     fullAiText = t;
-    append("【AI】：" + t, "ai");
+    /* ★ 历史产物是用户已确认/已编辑的成品正文：打上手动编辑标记，
+       让续写时的 getAuthoritativeOutline/buildMergedScriptText 认定"手动稿优先"，
+       否则新对话里基于它续写会被模型重新生成的大纲覆盖（#5）。 */
+    const importedNode = append("【AI】：" + t, "ai");
+    try{ if(importedNode) importedNode.setAttribute("data-manual-edited", "1"); }catch(e){}
     append("📜 已从历史产物加入新建对话：可双击预览 / 编辑保存、下载 TXT、送到画布，或点任意技能继续处理这段文字。", "tip");
     return true;
 }
@@ -3569,6 +3609,8 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
     currentSkillKey = "";           // 加载期间先清空，失败时绝不带图
     currentSystemPrompt = "";       // 同时清空旧模板与旧名字
     currentSkillName = "";
+    /* #6：换技能即放弃上一条指令待确认的理解稿，避免旧稿污染新技能下的新指令 */
+    mfClarifyPending = null;
     updateRefBadge();
     updateDownloadLabel();
     skillStatusEl.innerText = `⏳ 正在加载技能：${nameMap[type]} ...`;
@@ -3706,10 +3748,19 @@ function saveHistoryToLocal() {
            找到就接管它的 projectId 并更新同一条——保证「A 项目隔两天回来续，仍更新 A 那一条产物」。
            只有指纹确实指向同一部剧/同一技能才认领，避免把两部不同剧误并。 */
         if(idx < 0){
-            const match = all.findIndex(r => mfRecordMatchesProject(r, fp));
-            if(match >= 0){
-                idx = match;
-                mfProjectId = all[match].projectId || mfProjectId;
+            /* ★ 剧本技能必须在剧名能识别时才做指纹认领：剧名抽不到（fp.title 为空）时，
+               mfRecordMatchesProject 对任意同技能记录都返回 true，会认领并覆盖最新一条别的剧产物。
+               此时宁可新建一条记录（安全），也不冒跨项目覆盖的风险。
+               非剧本技能（美术/生图/生视频）没有"剧名"概念，仍按 skillName 指纹认领，行为不变。
+               注意：projectId 精确匹配路径（上方 3702-3703）不受影响——那里剧名空时返回 true
+               是为了不否定硬证据 projectId，属于正确行为。 */
+            const mayClaim = (fp.skillKey !== "a") || !!fp.title;
+            if(mayClaim){
+                const match = all.findIndex(r => mfRecordMatchesProject(r, fp));
+                if(match >= 0){
+                    idx = match;
+                    mfProjectId = all[match].projectId || mfProjectId;
+                }
             }
         }
         if(idx >= 0){
@@ -4822,6 +4873,8 @@ const MF_CLARIFY_SYS = "你是创作开工前的「执行方案对齐员」。�
     + "严禁在明明是续写时反过来让用户『提供剧名或前文』。只有当事实里明确标注『暂未识别到剧名』『尚未写出任何集』等缺失时，才把该项列为待确认问题；已知项一律当作确定值直接复述。";
 /* 本地快速预筛（旧歧义检测保留备用）：这些情形几乎不会歧义，直接放行。
    注意是"粗筛"——只在明显安全时返回 true，拿不准一律交给模型判断。 */
+/* mfCmdLooksClear：早期"指令是否足够清楚"的判定，现对齐开关已改用 mfCmdNeedsAlign（更全面的风险信号）。
+   本函数当前无调用点，保留仅为兼容可能的外部脚本引用，不影响任何在线流程。 */
 function mfCmdLooksClear(cmd){
     const s = String(cmd || "").trim();
     if(!s) return false;
@@ -5470,16 +5523,32 @@ async function sendMessage(autoSourceText) {
            ★ 网络/模型/超时等意外中断一律不自动续写（见下方 mfOfferInterruptedResume）——
              先停下来跟用户对齐确认，避免模型在无上文时另起炉灶写全新剧名。
            ★ 疑似复读被 loopHold 拦下时也停在这里，等用户确认。 */
-        let continued = loopHold ? false : maybeAutoContinue((completedNormally || degradeContinue) && !interruptedDraft);
+        /* ★ #10：仅思考轮（服务端忽略关闭 thinking）不自动续写——fallback 正文质量不可控，
+           模型配置异常时先把控制权还给用户。正常轮 onlyReasoning=false，行为完全不变。 */
+        let continued = loopHold ? false : maybeAutoContinue(
+            (completedNormally || degradeContinue) && !interruptedDraft && !onlyReasoning
+        );
         if(!continued && !loopHold){
             /* ★ 无条件清残留续写态：只要本轮没有启动下一批，mfAutoContinue 就必须归零。
                旧逻辑 `if(!isAutoContinue)` 在异常续写轮里不清，脏状态会污染下一条手动指令。 */
             mfAutoContinue = null;
+            /* ★ #10：失败/异常轮次（HTTP错误、空正文、不支持流式、仅思考）没启动下一批，
+               也不是已知中断——必须清掉 mfScriptGoal，否则下一条不含集数的简单修改指令
+               会继承旧目标，被 maybeAutoContinue 误判成续写、凭空吐出一整批新集。
+               中断场景（interruptedDraft）保留目标，供下面 mfOfferInterruptedResume / 断点续写使用。 */
+            if(!interruptedDraft && mfScriptGoal) mfScriptGoal = null;
             if(interruptedDraft && currentSkillKey === "a" && !!mfScriptGoal){
                 /* 剧本任务被意外中断：出"确认后续写"的理解稿，等用户点开始再带全文续写 */
                 mfOfferInterruptedResume(interruptReason);
             }else if(interruptedDraft){
-                append("⏸ 检测到生成中断（" + interruptReason + "）。已写内容都在，请确认后点「开始」继续。", "tip");
+                /* #8：非剧本技能中断也要兑现"点开始继续"的承诺——设 resume 确认态，
+                   让下次点「开始」走断点续写分支（buildResumeContext 对非剧本返回中断前内容接着写），
+                   而不是把点开始当成全新指令另起炉灶。 */
+                const brief = "检测到生成中断（" + interruptReason + "）。已生成的内容都保留在窗口里。\n"
+                    + "· 点「开始」我会带上中断前已生成的内容，接着往下完成本次任务，不另起炉灶；\n"
+                    + "· 若要改需求，直接把修正写进指令框再点开始。";
+                mfClarifyPending = { cmd: "【中断续写确认】继续完成本次任务", brief: brief, advice: "", resume: true };
+                append("⏸ 生成已中断，开工前先跟你确认：\n\n" + brief, "tip");
             }
             /* 当前吐字结束后，自动接力执行下一条排队指令。setTimeout 让调用栈清空；
                用户点停止时队列已清空，这里自然无事可做。 */
@@ -5605,11 +5674,17 @@ function initUI(){
 
     // 推理参数展开收起（原有功能，保留）
     const toggleParamBtn = document.querySelector('.toggle-param-btn');
-    const paramContent = document.querySelector('.param-content');
-    toggleParamBtn.addEventListener('click', ()=>{
-        paramContent.classList.toggle('collapse');
-        toggleParamBtn.innerText = paramContent.classList.contains('collapse') ? '展开' : '收起';
-    });
+    /* #11：页面有两个 .param-content（画幅卡在前、算力总控卡在后），
+       旧代码 document.querySelector 取到第一个=画幅卡，点"收起"把画幅按钮藏了、算力卡没动。
+       改为从按钮所在的 .card 内查找，确保折叠的正是按钮所属的算力总控卡。 */
+    const paramContent = toggleParamBtn && toggleParamBtn.closest('.card')
+        ? toggleParamBtn.closest('.card').querySelector('.param-content') : null;
+    if(toggleParamBtn && paramContent){
+        toggleParamBtn.addEventListener('click', ()=>{
+            paramContent.classList.toggle('collapse');
+            toggleParamBtn.innerText = paramContent.classList.contains('collapse') ? '展开' : '收起';
+        });
+    }
 
     // 专注模式：一键收起整个左侧配置栏，让 AI 输出窗口占满宽度；再点恢复
     focusBtn.addEventListener("click", ()=>{
@@ -5673,15 +5748,19 @@ function initUI(){
                 mfClarifyPending = null;
                 const typed = userInput.value.trim();
                 userInput.value = "";
+                /* #12：把纯选项 1/2 与"自由处理意见"区分开——
+                   1=有意重复（照常续写，不带防复读指令）；2=确实卡住（带防复读指令）；
+                   只有其它文字才是用户处理意见原文。旧代码只排除"1"，导致输入"2"被当作
+                   "【用户处理意见】2"原样注入模型，既无意义又干扰。 */
+                const isIntentional = /^[1１①一]$/.test(typed);
+                const isStuck = /^[2２②二]$/.test(typed);
                 let note = "";
-                if(!mfAlignIsConfirm(typed) && typed && !/^[1１①一]$/.test(typed)){
-                    /* 用户写了处理意见（含"2"=卡住、或"从第N集换条线重写"等），最高优先级 */
-                    note = typed;
+                if(!mfAlignIsConfirm(typed) && typed && !isIntentional && !isStuck){
+                    note = typed;   /* 真正的处理意见（如"从第N集换条线重写"） */
                 }
                 const antiLoop = "【防复读·最高优先级】严格按大纲路线图推进全新剧情，严禁把已推进过的情节点当成新情节再演，"
                     + "严禁整段整场地复读上文；口头禅/套路化钩子等有意重复不受限制。";
-                /* 选"1"（有意设计重复）只照常续写，不额外注入防复读指令；其余（空/2/处理意见）都带防复读指令 */
-                const isIntentional = /^[1１①一]$/.test(typed);
+                /* 选"1"只照常续写；选"2"与其它（空/处理意见）都带防复读指令 */
                 const nextNote = isIntentional ? (note ? "【用户补充】" + note : "")
                     : (note ? (antiLoop + "\n【用户处理意见（最高优先级）】" + note) : antiLoop);
                 append("✅ 已确认，只写未写过的新集（绝不重演已写集）" + (nextNote ? "，带防复读指令" : "") + "…", "tip");
