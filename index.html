@@ -26,7 +26,7 @@
         .side::-webkit-scrollbar { width: 6px; }
         .side::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
         .side.collapsed { width: 0; flex-basis: 0; padding-right: 0; opacity: 0; overflow: hidden; }
-        .main { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+        .main { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; position: relative; }
 
         .header-bar { display: flex; align-items: center; gap: 12px; padding: 2px 2px 2px; flex-shrink: 0; }
         /* 左上角 LOGO = 主站入口，新标签页打开，不打断当前创作 */
@@ -341,9 +341,16 @@
         .vision-test-btn:hover:not(:disabled) { border-color: var(--blue); }
         .vision-test-btn:disabled { opacity: .55; cursor: wait; }
 
-        #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid var(--border); padding: 16px 18px; border-radius: 12px; overflow-y: auto; background-color: var(--card); }
+        #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid var(--border); padding: 16px 18px; border-radius: 12px; overflow-y: auto; overflow-anchor: none; background-color: var(--card); }
         #chatBox::-webkit-scrollbar { width: 6px; }
         #chatBox::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        /* 上滑查看早期剧本时暂停跟随，「回到最新」按钮浮在吐字窗右下（输入行之上） */
+        .jump-latest-btn { display: none; position: absolute; right: 26px; bottom: 74px; z-index: 15;
+            padding: 8px 14px; border-radius: 999px; border: 1px solid var(--blue);
+            background: var(--panel); color: var(--blue); font-size: 12.5px; line-height: 1; cursor: pointer;
+            box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+        .jump-latest-btn.show { display: inline-flex; align-items: center; gap: 5px; }
+        .jump-latest-btn:hover { background: var(--hover); }
         .msg { margin: 10px 0; line-height: 1.8; white-space: pre-wrap; font-size: 14.5px; word-break: break-word; }
         .user { color: #60a5fa; }
         .ai { color: var(--text); }
@@ -655,6 +662,7 @@
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         </div>
         <div id="chatBox"></div>
+        <button type="button" class="jump-latest-btn" id="jumpLatestBtn" title="回到正在吐字的最新内容（用户上滑查看历史时自动出现）">↓ 回到最新吐字</button>
         <div class="input-row">
             <button class="ctrl-btn stop-btn" id="stopBtn">停止</button>
             <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
@@ -873,6 +881,11 @@ let mfAutoContinue = null;
 let mfScriptGoal = null;
 /* 上下文超限降级标志：本机/API 返回 400 上下文超限时置位，finally 里用更小批次+精简上文重试。 */
 let mfCtxDegradeNeeded = false;
+/* 中断态：网络错误/HTTP 错误/模型无正文/刷新打断时记下原因，finally 里不自动续写，
+   而是转成「开工前对齐」理解稿让用户确认，确认后再带完整上文续写（避免模型另起炉灶乱写）。 */
+let mfInterruptReason = "";
+/* 中断续写确认时，用户在指令框里写的修正文字（改剧名/集数/画幅等），带进续写请求 */
+let mfResumeUserNote = "";
 /* 刷新中断·断点续写（防止误刷新打断吐字）：
    mfWasGenerating —— 页面加载时从现场快照读到的"上次是否在吐字中被刷新打断"（一次性消费）；
    mfResumeMode/mfResumeDom —— 本轮为"接着半截稿写"模式：不新建 AI 消息、不重置 fullAiText，
@@ -1373,7 +1386,9 @@ function extractScriptMemory(text){
 }
 function buildBaseContextBlock(){
     if(currentSkillKey !== "a") return "";   /* 只给剧本技能注入；其它技能保持原样 */
-    const text = getBaseText();
+    const rawText = getBaseText();
+    /* 提纯：只留大纲/设定/正文，排除模型解释、报错、状态提示等非创作文字 */
+    const text = extractCreativeBody(rawText) || rawText;
     if(!text.trim()) return "";
     const mem = extractScriptMemory(text);
     let body;
@@ -1504,7 +1519,7 @@ function saveChatPreview(){
     scrollPreviewToTop();
     if(chatPreviewActions) chatPreviewActions.style.display = "flex";
     append("✎ 产物已保存：窗口、下载、送到画布与最近一条历史产物已同步。", "tip");
-    chatBox.scrollTop = chatBox.scrollHeight;
+    chatScrollBottom(true);   /* 用户明确操作：回到结果处并恢复跟随 */
 }
 
 /* ================= 画风参考图：上传 / 压缩 / 预览 / 删除 ================= */
@@ -2023,12 +2038,50 @@ async function loadScriptFile(file){
     }
 }
 
+/* ===== 吐字窗口「跟随最新输出」滚动控制 =====
+   问题：流式吐字每收到一段就无条件 chatBox.scrollTop = scrollHeight，
+   用户想上滑看前面已写的几集时会被新字不断拽回底部。
+   方案：维护 chatStickBottom（是否贴底/跟随）。
+   · 用户滚动时按「距底部是否 ≤ 阈值」判定：贴底→继续跟随；上滑离开底部→暂停跟随，
+     此时新字只追加 DOM、不动 scrollTop，用户可自由查看早期内容；
+   · 暂停期间右下显示「回到最新吐字」按钮，点它或用户手动滑回底部即恢复跟随；
+   · 区分DOM动画与真实用户滚动：滚动监听里用"是否在底部"重算，而非拦截 wheel，
+     这样鼠标滚轮/触控板/拖动滚动条/键盘 PageUp 等所有方式都统一生效。
+   阈值给 80px：容忍渲染抖动与几行误差，用户小滑一下不会误判成"离开底部"。 */
+let chatStickBottom = true;                 /* 当前是否跟随最新吐字 */
+const CHAT_BOTTOM_EPS = 80;                 /* 距底部 ≤80px 视为贴底 */
+let chatJumpBtn = null;                     /* DOM 就绪后绑定，见 initUI */
+function chatIsNearBottom(){
+    try{ return (chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight) <= CHAT_BOTTOM_EPS; }
+    catch(e){ return true; }
+}
+function chatSetStick(on){
+    chatStickBottom = !!on;
+    if(chatJumpBtn) chatJumpBtn.classList.toggle("show", !chatStickBottom);
+}
+/* 唯一的滚动入口：仅当处于"跟随"状态才滚到底。force=true 用于用户主动触发
+   （如点击"回到最新"、新建/清空、发送新指令）时无条件回到底部并恢复跟随。 */
+function chatScrollBottom(force){
+    if(force) chatSetStick(true);
+    if(chatStickBottom){
+        try{ chatBox.scrollTop = chatBox.scrollHeight; }catch(e){}
+    }
+}
+function chatInitScrollFollow(){
+    chatJumpBtn = document.getElementById("jumpLatestBtn");
+    if(!chatJumpBtn) return;
+    chatJumpBtn.addEventListener("click", ()=> chatScrollBottom(true));
+    /* 用户滚动：贴底恢复跟随、离底暂停；程序化赋值 scrollTop 也会触发 scroll，
+       但此时计算结果仍是"贴底"，不会误判成暂停。 */
+    chatBox.addEventListener("scroll", ()=>{ chatSetStick(chatIsNearBottom()); }, {passive:true});
+}
+
 function append(text, type = "tip") {
     const div = document.createElement("div");
     div.className = `msg ${type}`;
     div.innerText = text;
     chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    chatScrollBottom();   /* 跟随时才滚底；用户上滑查看历史时保持其位置 */
     scheduleLiveSave();
     return div;
 }
@@ -2150,7 +2203,7 @@ function clearCurrentPage(){
     try{ stopGenerate(); }catch(e){}
     abortController = null; pendingText = ""; aiMsgDom = null; baseMsgDom = null;
     fullAiText = ""; chatBox.innerHTML = "";
-    mfAutoContinue = null; mfScriptGoal = null;
+    mfAutoContinue = null; mfScriptGoal = null; mfInterruptReason = ""; mfWasGenerating = false; mfClarifyPending = null;
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     fileStore = []; refImages = []; customSkillList = [];
     userInput.value = "";
@@ -2178,7 +2231,7 @@ function clearCurrentPage(){
     tip.className = "msg tip";
     tip.innerText = "🧹 已清空本页，等同于新建对话。可重新开始创作。";
     chatBox.appendChild(tip);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    chatScrollBottom(true);   /* 清空后回到顶部位置（内容很少）并恢复跟随 */
 }
 
 function stopGenerate() {
@@ -2192,6 +2245,7 @@ function stopGenerate() {
         /* 用户主动停止 → 排队任务与自动续写一并撤销，避免"停了却又自动开始下一个" */
         clearSendQueue();
         if(mfAutoContinue || mfScriptGoal){ mfAutoContinue = null; mfScriptGoal = null; append("🛑 已取消自动续写。", "tip"); }
+        mfInterruptReason = "";   /* 用户停止=放弃中断续写，避免停止后又弹出确认框 */
         try { syncSendToCanvasBtn(); } catch(e){}
     }
 }
@@ -2354,6 +2408,10 @@ function nextContinuationRange(goal, writtenSet){
     }
     return { from:start, to:end, total:goal.total };
 }
+/* 续写上文容量护栏：已经写到几十上百集时，绝不能把全部正文塞进上下文（本机模型会爆）。
+   策略：大纲/设定摘录封顶 3500 字，正文只带最后 2 集，其余只给"集号清单"。 */
+const MF_CTX_OUTLINE_MAX = 3500;
+const MF_CTX_RECENT_EPISODES = 2;
 function buildContinuationContext(fullText, writtenSetOpt){
     const s = String(fullText || "").trim();
     /* 降级重试时本轮 fullText 为空，但只要有全局已写集号/权威大纲，就仍要构造精简上文 */
@@ -2363,14 +2421,19 @@ function buildContinuationContext(fullText, writtenSetOpt){
     const endRe = /^\s*【第\s*\d+\s*集完】\s*$/;
     const titleIdx = [];
     lines.forEach((ln,i)=>{ if(titleRe.test(ln)) titleIdx.push(i); });
-    /* 大纲优先取"用户手动改过的权威大纲"（改了角色名 → 后续全按新名）。 */
+    /* 大纲优先取"用户手动改过的权威大纲"（改了角色名 → 后续全按新名）。
+       ★ 摘录而非全文：只保留设定类关键段落并封顶，防止百集大纲把上下文撑爆。 */
     const authoritative = (typeof getAuthoritativeOutline === "function") ? getAuthoritativeOutline() : "";
-    let outline = authoritative;
-    if(!outline && titleIdx.length) outline = lines.slice(0, titleIdx[0]).join("\n");
-    if(!outline) outline = s;   /* 非标准剧本结构也要给，至少不丢信息 */
+    let outline = authoritative || (titleIdx.length ? lines.slice(0, titleIdx[0]).join("\n") : "");
+    if(!outline && !titleIdx.length) outline = s;   /* 非标准剧本结构也要给，至少不丢信息 */
     outline = outline.replace(/\n{3,}/g,"\n\n").trim();
-    /* 最近 2 集完整正文，只用于衔接语气与剧情进度（全文不放，防上下文越滚越长）。 */
-    const recent = titleIdx.length ? (()=>{
+    if(outline.length > MF_CTX_OUTLINE_MAX){
+        outline = outline.slice(0, MF_CTX_OUTLINE_MAX)
+                + "\n…（大纲摘录已截断，仅保留前 " + MF_CTX_OUTLINE_MAX + " 字；续写时严格沿用其中剧名/人物/画幅/设定）";
+    }
+    /* 正文只带最后 MF_CTX_RECENT_EPISODES 集，用于衔接语气与剧情进度；更早的集只进"集号清单"，不给正文。 */
+    let recent = "";
+    if(titleIdx.length){
         const episodes = [];
         for(let i=0;i<titleIdx.length;i++){
             const start = titleIdx[i];
@@ -2379,8 +2442,11 @@ function buildContinuationContext(fullText, writtenSetOpt){
             for(let j=start+1;j<end;j++){ if(endRe.test(lines[j])){ endMark = j; break; } }
             episodes.push(lines.slice(start, endMark >= 0 ? endMark+1 : end).join("\n").trim());
         }
-        return episodes.slice(-2).join("\n\n");
-    })() : s;
+        recent = episodes.slice(-MF_CTX_RECENT_EPISODES).join("\n\n");
+    }else if(!authoritative){
+        /* 无集标题、无大纲：非标准结构的兜底也要封顶，防整段全文灌入 */
+        recent = s.slice(0, MF_CTX_OUTLINE_MAX);
+    }
     /* 全局已写集号：优先用传入的窗口集合（跨批累积），否则退回本批文本扫描。 */
     const written = writtenSetOpt || new Set(scanEpisodeNumbers(s));
     const writtenList = Array.from(written).sort((a,b)=>a-b);
@@ -2388,10 +2454,11 @@ function buildContinuationContext(fullText, writtenSetOpt){
         ? writtenList.map(n=>"第"+n+"集").join("、")
         : "（尚未写出任何集）";
     return "【本剧已写部分（续写上文，供衔接，不要重复输出）】\n"
-        + "—— 大纲与设定（含画幅/人物/分集规划，沿用，不要重出）——\n" + (outline || "（此前未单独出大纲，按下方已写集沿用设定）") + "\n\n"
+        + "—— 大纲与设定摘录（含画幅/人物/分集规划，沿用，不要重出）——\n" + (outline || "（此前未单独出大纲，按下方已写集沿用设定）") + "\n\n"
         + "—— 已实际写出的集号（全局，供你接着往下写）——\n" + ledger + "\n"
-        + "（注意：只写下一条指令指定的集号，严禁把上面已写集号再输出一遍。）\n\n"
-        + "—— 最近 2 集完整正文（衔接语气与剧情进度）——\n" + recent;
+        + "（注意：只写下一条指令指定的集号，严禁把上面已写集号再输出一遍；更早的集未提供正文，"
+        + "请依据大纲与集号清单保持人设/画幅/时间线连续，不要重复内容。）\n\n"
+        + "—— 最近 " + MF_CTX_RECENT_EPISODES + " 集完整正文（衔接语气与剧情进度）——\n" + recent;
 }
 function parseBatchRemainder(text){
     const s = String(text || "");
@@ -2451,7 +2518,14 @@ function maybeAutoContinue(completedNormally){
     append("🔄 正文实际写到第 " + writtenMax + " 集 / 目标 " + goal.total + " 集，"
         + (range.from > writtenMax + 1 ? "检测到缺集，补齐" : "自动续写")
         + "第 " + range.from + "–" + range.to + " 集（第 " + rounds + " 批）…", "tip");
-    const ctx = buildContinuationContext(String(fullAiText || ""), written);
+    /* 用全窗口的创作正文构造续写上文（不只是本批 fullAiText），确保前 30 集的剧名/设定/大纲都在；
+       只抓大纲/设定/正文，排除模型解释与报错。 */
+    let ctxText = String(fullAiText || "");
+    try{
+        const creative = collectCreativeOutputs().map(x=>x.text).join("\n\n");
+        if(creative) ctxText = creative;
+    }catch(e){}
+    const ctx = buildContinuationContext(ctxText, written);
     userInput.value = "继续写第" + range.from + "集到第" + range.to + "集（自动续写，共" + goal.total + "集）";
     /* 用 setTimeout 让本轮栈清空再发起，避免递归；不经过队列（续写是本任务的延续）。
        回调里复核 mfAutoContinue 仍在（用户若在这几十毫秒内点了停止，就不再发起）。 */
@@ -2464,9 +2538,10 @@ function autoContinueDirective(c){
         + "上文是同一部剧已经写好的正文、已写集号清单与大纲。用户要求写满 " + c.total + " 集，"
         + "目前正文实际写到第 " + (c.from - 1) + " 集，还差第 " + c.from + "–" + c.total + " 集未写。现在请**直接接着写第 " + c.from + "–" + c.to + " 集**（共 "
         + (c.to - c.from + 1) + " 集）：\n"
-        + "1) 严禁重出大纲与设定、严禁改剧名、严禁从头重写前面已写的集；沿用上文已有的《剧名》、世界观、人物设定、画幅与时长档位；\n"
-        + "2) 从 `《剧名》第" + c.from + "集：集名 ｜ 预估成片：XX 秒 ｜ 画幅：横屏/竖屏`（画幅与时长沿用上文）开始，"
-        + "逐集写完整正文（3–5 场、三栏、一△一镜头、台词、【第X集完】），每集集标题都带两个元数据字段；\n"
+        + "1) 严禁重出大纲与设定、严禁改剧名、严禁从头重写前面已写的集；沿用上文已有的《剧名》、世界观、人物设定、画幅，"
+        + "以及每集时长与场次数（含用户逐集明确指定的值，如『第一集3分钟、第二集起每集1分钟』）——**用户指令优先级最高，不得压回默认105秒/3–5场**；\n"
+        + "2) 从 `《剧名》第" + c.from + "集：集名 ｜ 预估成片：XX 秒 ｜ 画幅：横屏/竖屏`（画幅、时长与场次沿用上文该集已确立的值）开始，"
+        + "逐集写完整正文（每集场次按该集已确立的时长/场次要求分配，用户未指定才用默认3–5场；三栏、一△一镜头、台词、【第X集完】），每集集标题都带两个元数据字段；\n"
         + "3) 本轮只需写第 " + c.from + "–" + c.to + " 集（共 " + (c.to - c.from + 1) + " 集），集号连续、不得跳号、不得重复已写集，"
         + "每集必须有完整的 `《剧名》第N集：` 标题行和 `【第N集完】` 收尾——系统靠这两个标记核对实际进度；\n"
         + (c.to < c.total
@@ -2479,9 +2554,11 @@ function autoContinueDirective(c){
    新页面加载后检测到现场快照 generating=true，就用这里的上文 + 强指令自动发一轮续写，
    把已吐的半截稿接下去写完整。核心要求：不重出大纲、不从头、不重复、风格格式一致。 */
 function resumeDirective(){
-    return "【断点续写·页面刷新中断后自动接续（创作台指令，最高优先级）】\n"
-        + "下方「中断前已生成内容」是同一任务刚刚生成到一半、因页面刷新而被迫中断的正文。"
+    return "【断点续写·页面刷新/网络中断后自动接续（创作台指令，最高优先级）】\n"
+        + "下方「本剧已写部分」与「中断前已生成内容」是同一任务刚刚写到一半、因页面刷新或网络中断而被迫停下的正文。"
         + "请从它的最后一个字/镜头/场次自然接续，**直接接着往下写**，直到把本次任务完整写完：\n"
+        + "0) ★若上文能识别出《剧名》与画幅，必须严格沿用、一字不改；若上文里找不到任何可确认的剧名/设定"
+        + "（例如窗口为空、或只有零散片断），严禁自行编造新剧名、新题材或写「通用模板」——先停下来明确告诉用户缺什么、请其补充，不得直接开写；\n"
         + "1) 严禁重新开头、严禁重出大纲与设定、严禁改剧名/人物/画幅/格式；把已生成内容当作你自己的上一句，无缝续写；\n"
         + "2) 严禁重复已生成内容里的任何段落、台词或镜头（它已经交付给用户，只需写它之后的全新内容）；\n"
         + "3) 沿用已生成内容里的一切设定、命名、称谓、时长与画质标注，风格、语气、颗粒度保持一致；\n"
@@ -2490,8 +2567,47 @@ function resumeDirective(){
 }
 function buildResumeContext(partialText){
     const p = String(partialText || "").trim();
-    return "【中断前已生成内容（这是本次任务已交付的正文，从末尾直接接续，不要重复）】\n" + p
+    /* ★ 关键修复：以前只把"最后半截稿"当上下文交给模型，前 30 集的剧名/人物/大纲/画幅全丢了，
+       模型只能凭空编新剧（用户实测：刷新后续写成全新题材）。现在按自动续写同款方式，
+       聚合窗口内全部 AI 产物，构造"权威大纲 + 已写集清单 + 最近正文"的完整上文。 */
+    let anchor = "";
+    if(currentSkillKey === "a"){
+        try{
+            /* 只抓大纲/设定/正文，排除模型解释、报错、通用模板等非创作文字（避免错误剧名被回灌） */
+            const all = collectCreativeOutputs().map(x=>x.text).join("\n\n");
+            const written = collectWrittenEpisodeSet();
+            anchor = buildContinuationContext(all || extractCreativeBody(p) || p, written);
+        }catch(e){ anchor = ""; }
+    }
+    return "【本剧已写部分（断点续写上文，沿用原剧名/设定/画幅，不要重出、不要改）】\n"
+        + (anchor || "（未取得结构化上文，请以「中断前已生成内容」为准并严格沿用其设定；若其中也无剧名/设定，先问用户，不要自创）")
+        + "\n\n—— 中断前已生成内容（本次任务已交付的正文，从末尾直接接续，不要重复）——\n"
+        + (p || "（本轮未吐出正文，请从上方已写集的下一集接着写）")
         + "\n【中断前内容结束 · 请从上面最后一个字直接往下续写，不要复述本指引】";
+}
+/* ===== 中断后"确认再续写"（用户明确要求）=====
+   网络/模型/超时等意外中断后，绝不自动往下写（模型会因缺上文另起炉灶）。
+   改为出一份"开工前对齐"理解稿：告诉用户写到哪、接下来接哪集、沿用哪部剧，
+   并请用户点「开始」确认。确认后由 mfClarifyPending.resume=true 分支带完整上文续写。 */
+function mfOfferInterruptedResume(reason){
+    const written = collectWrittenEpisodeSet();
+    const writtenMax = written.size ? Math.max.apply(null, Array.from(written)) : 0;
+    const goal = mfScriptGoal || {};
+    const total = goal.total || 0;
+    const range = nextContinuationRange(goal, written);
+    const titleMatch = getAuthoritativeOutline().match(/《([^》\n]{1,40})》/);
+    const title = titleMatch ? "《" + titleMatch[1] + "》" : "（见上文的原剧名）";
+    let brief = "检测到生成中断（" + reason + "）。我已保留窗口里已写好的正文，绝不另起新剧。我的理解与下一步：\n"
+        + "· 这是同一部剧 " + title + "，正文实际已写到第 " + writtenMax + " 集"
+        + (total ? " / 目标第 " + total + " 集" : "") + "；\n"
+        + "· 准备从第 " + (range ? range.from : (writtenMax + 1)) + " 集接着往下写"
+        + (range ? "到本批第 " + range.to + " 集" : "")
+        + "，沿用原有大纲、人物设定、画幅与每集时长/场次；\n"
+        + "· 只写新集，不重出大纲、不从第 1 集重写、不改剧名/画幅。\n"
+        + "请确认无误后点「开始」继续（系统会自动带上前几集正文与全剧大纲）；"
+        + "若要调整剧名、集数或设定，直接把修正写进指令框再点开始。";
+    mfClarifyPending = { cmd: "【中断续写确认】继续接着写", brief: brief, advice: "", resume: true };
+    append("⏸ " + reason + "，生成已暂停。开工前先跟你对一下续写安排：\n\n" + brief, "tip");
 }
 /* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
    按钮不随技能改名，避免用户误解；文件名则按技能区分，方便归档。 */
@@ -2549,6 +2665,49 @@ function collectAllAiOutputs(){
     });
     return out;
 }
+/* ===== 续写抓取·创作正文提纯（用户明确要求）=====
+   续写上文只以「大纲 / 设定 / 剧本正文」为准，排除模型的系统回复、报错、解释说明等非创作内容。
+   背景：截图里模型曾输出"由于当前对话窗口未包含前30集…我将为你构建通用模板"这类文字，
+   它落在 .msg.ai 里被当"已有正文"抓走，反而把错误剧名/题材喂给下一轮，导致另起炉灶。
+   * 只保留：① 集标题行《剧名》第N集：…  ② 大纲/设定段（世界观/人物设定/分集大纲/爆款定位/核心规则/画幅/题材）
+   * 剔除：报错、状态提示、"由于…无法/我将…/通用模板/请提供/注意"等解释性开场白。
+   * 注意：本提纯只用于"续写上文/进度/权威大纲"的抓取，不影响下载（下载要交付窗口全部产物原文）。 */
+const SCRIPT_BODY_ANCHOR = /(?:^\s*《[^》\n]{1,40}》第\s*\d+\s*集[：:]|^\s*#+\s*.*(?:大纲|设定|世界观|人物|分集)|^\s*(?:【[^】]{0,12}(?:大纲|设定|世界观|人物|分集)[^】]{0,12}】)|世界观|人物设定|核心规则|爆款定位|主线三幕|分集大纲|题材定位|画幅设定|本剧设定|故事背景)/m;
+const NON_CREATIVE_RE = /(?:请求异常|HTTP\s*错误|network\s*error|已停止生成|生成完毕|已排队|已取消自动续写|检测到上次生成|正在自动重连|网络中断|正在自动重连续写|由于当前对话窗口|无法直接|无缝.{0,6}续写|通用模板|通用高潮阶段|标准结构.{0,8}模板|我将基于|我将严格替换|作为编剧助手|请(?:你)?提供|占位符|若你有前文|请从上面|不要复述本指引)/;
+function extractCreativeBody(text){
+    const s = String(text || "");
+    if(!s.trim()) return "";
+    const lines = s.split(/\r?\n/);
+    /* 找第一个"创作锚点"行：集标题 或 大纲/设定标题。锚点之前的解释/报错一律丢弃。 */
+    let start = -1;
+    for(let i=0;i<lines.length;i++){
+        const ln = lines[i];
+        if(/^\s*《[^》\n]{1,40}》第\s*\d+\s*集[：:]/.test(ln)){ start = i; break; }
+        if(/^\s*(?:#{1,6}\s*)?[【(（]?\s*(?:.{0,10})(?:大纲|设定|世界观|人物设定|分集大纲|核心规则|爆款定位)(?:.{0,10})\s*[】)）]?\s*[:：]?\s*$/.test(ln) && i < 12){ start = i; break; }
+    }
+    if(start < 0){
+        /* 没有行首锚点：整段可能是一份无标题大纲。仅当它明显是创作内容（含设定关键词且无解释性开场）才保留。 */
+        if(SCRIPT_BODY_ANCHOR.test(s) && !NON_CREATIVE_RE.test(s.slice(0, 240))) return s.trim();
+        return "";
+    }
+    /* ★ 锚点之前若有解释性开场白（"由于…我将…通用模板/报错/请提供"），说明这条消息是模型的
+       说明性回复而非交付正文——连它带出来的模板一起整条丢弃，绝不把错误剧名/题材抓进续写上文。 */
+    const lead = lines.slice(0, start).join("\n");
+    if(lead.trim() && NON_CREATIVE_RE.test(lead)) return "";
+    let body = lines.slice(start).join("\n");
+    /* 去掉正文里混入的状态/交接行（逐行过滤，保留剧本结构行） */
+    body = body.split(/\r?\n/).filter(ln=>! /^\s*(?:✅|❌|🔄|⚠️|🛑|⏳|🔌|ℹ️|【本批交付[:：]|【待处理)/.test(ln)).join("\n");
+    return body.trim();
+}
+/* 只抓"创作正文"的 AI 输出（续写专用）。返回带 manual/order 的对象，结构与 collectAllAiOutputs 一致。 */
+function collectCreativeOutputs(){
+    const out = [];
+    collectAllAiOutputs().forEach(it=>{
+        const body = extractCreativeBody(it.text);
+        if(body) out.push({ text:body, manual:it.manual, order:it.order });
+    });
+    return out;
+}
 function stripBatchTransitionLines(text){
     return String(text||"").split(/\r?\n/).filter(line=>! /^\s*【本批交付[:：]/.test(line)).join("\n");
 }
@@ -2579,7 +2738,8 @@ function parseScriptBlocks(text){
 /* 权威大纲：用户手动改过的大纲优先（取最后一次手动编辑），否则取窗口里最后一份大纲。
    下载合并与自动续写共用，保证"改了角色名 → 后续全按新名"在两端同时生效。 */
 function getAuthoritativeOutline(){
-    const items = collectAllAiOutputs();
+    /* 用提纯后的创作正文：模型的解释/报错/通用模板不能当"权威大纲"，否则错误剧名会被续写沿用 */
+    const items = collectCreativeOutputs();
     let lastAny = "", lastManual = "";
     items.forEach(it=>{
         const p = parseScriptBlocks(it.text);
@@ -4241,15 +4401,17 @@ function assetCoverageDirective(key){
    ================================================================== */
 const MF_CLARIFY_SYS = "你是创作开工前的「执行方案对齐员」。在读正文之前，先向用户复述你对指令的理解与执行计划，供用户确认；并主动教用户怎样写指令你能更快更准地执行。绝对不要开始写正文或大纲。\n"
     + "严格只输出一个 JSON 对象，不要代码块、不要任何解释：\n"
-    + '{"clear":true,"brief":"我理解你要做的是：…\\n关键参数：剧名…；新写/续写/修改：…；起点与范围：…；画幅：…\\n执行计划：1)… 2)… 3)…","questions":[],"advice":"建议写法：…"}\n'
+    + '{"clear":true,"brief":"我理解你要做的是：…\\n关键参数：剧名…；新写/续写/修改：…；起点与范围：…；画幅：…；每集时长/场次：…\\n执行计划：1)… 2)… 3)…","questions":[],"advice":"建议写法：…"}\n'
     + "字段：clear=指令本身是否足够明确（仅作标记，不影响是否展示理解稿）；brief=你的理解稿，"
-    + "必须包含【意图复述】【关键参数（剧名 / 新写还是续写还是修改 / 集数起点与范围 / 画幅）】【执行计划（分几步、每步产出什么）】三部分，简洁但具体；"
+    + "必须包含【意图复述】【关键参数（剧名 / 新写还是续写还是修改 / 集数起点与范围 / 画幅 / 每集时长与场次数，含逐集差异）】【执行计划（分几步、每步产出什么）】三部分，简洁但具体；"
     + "questions=最多 3 个你最想让用户确认的短问题，没有就空数组；"
-    + "advice=主动给出的「指令优化建议」：指出这条指令里缺了哪些你能更快更准执行的关键信息（剧名、集数区间、画幅、新写/续写/修改、具体动作对象、风格/时长等），"
-    + "并给出一条可直接照抄的推荐写法示例，例如『建议写成：写《剧名》第12集到第30集，横屏，接着已有稿续写，每集3–5场』。"
+    + "advice=主动给出的「指令优化建议」：指出这条指令里缺了哪些你能更快更准执行的关键信息（剧名、集数区间、画幅、新写/续写/修改、具体动作对象、风格/时长/场次等），"
+    + "并给出一条可直接照抄的推荐写法示例，例如『建议写成：写《剧名》第12集到第30集，横屏，接着已有稿续写，每集105秒3–5场；也可逐集指定，如第一集3分钟、第二集起每集1分钟』。"
     + "若指令已经很清楚，advice 就写一句肯定+可选的小优化，不要啰嗦。\n"
     + "★ 务必把『是新写一部还是接着已有稿写、从第几集开始、写到第几集、剧名与画幅』明确写进 brief，"
-    + "让用户一眼就能发现你理解错了没有。advice 要具体可照抄，不要泛泛而谈。";
+    + "让用户一眼就能发现你理解错了没有。★ 若用户指令里明确给出了每集时长或场次数（尤其『第一集3分钟、第二集起1分钟』这类逐集不同的指定），"
+    + "必须在 brief 的关键参数里逐集写清，并明确『这是用户指定、优先级最高，不受默认105秒/3–5场限制』——绝不可在理解稿里把它拉平或改成默认值。"
+    + "advice 要具体可照抄，不要泛泛而谈。";
 /* 本地快速预筛（旧歧义检测保留备用）：这些情形几乎不会歧义，直接放行。
    注意是"粗筛"——只在明显安全时返回 true，拿不准一律交给模型判断。 */
 function mfCmdLooksClear(cmd){
@@ -4429,7 +4591,9 @@ async function sendMessage(autoSourceText) {
     const isResuming = !!mfResumeMode;
     if(!isResuming) fullAiText = "";
     const isAutoContinue = !!mfAutoContinue;
-    const userCmd = isResuming ? "【断点续写】从中断处继续完成本次任务" : userInput.value.trim();
+    const userCmd = isResuming
+        ? ("【断点续写】从中断处继续完成本次任务" + (mfResumeUserNote ? "\n【用户对续写的修正（最高优先级，覆盖上文对应处）】\n" + mfResumeUserNote : ""))
+        : userInput.value.trim();
     /* 本轮是否明确要"从头新写"（此时不带旧稿、不按连续修改处理）。
        自动续写 / 断点续写都是"接着往下写"，既非新写也非修改，故强制 WANT_FRESH 语义走独立续写分支。 */
     const WANT_FRESH = !isAutoContinue && !isResuming && (currentSkillKey === "a") && wantsFreshScript(userCmd);
@@ -4594,6 +4758,9 @@ async function sendMessage(autoSourceText) {
         append(`【用户】：${userCmd}${autoSourceText ? "（已附带窗口内已有文字，按当前技能处理）" : ""}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
         userInput.value = "";
         aiMsgDom = append("【AI】：", "ai");
+        /* 用户手动发新指令 → 恢复跟随并回到底部看新输出；
+           自动续写/断点续写不强制回底，避免打断用户上滑查看前面已写好的集。 */
+        if(!isAutoContinue) chatScrollBottom(true);
     }
     mfResumeMode = false; mfResumeDom = null;   /* 本轮已消费续写状态；后续停止/清空不应再触发续写 */
     abortController = new AbortController();
@@ -4777,7 +4944,7 @@ async function sendMessage(autoSourceText) {
                     if(delta){
                         aiMsgDom.innerText += delta;
                         fullAiText += delta;
-                        chatBox.scrollTop = chatBox.scrollHeight;
+                        chatScrollBottom();   /* 仅贴底时跟随；用户上滑查看早期集时保持位置 */
                     }else if(d.reasoning_content){
                         /* 推理模型的「思考过程」单独收集，不混进正文 */
                         reasoningText += d.reasoning_content;
@@ -4793,7 +4960,7 @@ async function sendMessage(autoSourceText) {
             if(fallback){
                 aiMsgDom.innerText += fallback;
                 fullAiText += fallback;
-                chatBox.scrollTop = chatBox.scrollHeight;
+                chatScrollBottom();   /* 仅贴底时跟随；用户上滑查看早期集时保持位置 */
             }
             append("⚠️ 本机模型只返回了思考过程、未输出正文：请在模型软件里关闭「思考 / reasoning」模式，或升级到支持 enable_thinking 的版本。", "err");
         }
@@ -4801,7 +4968,11 @@ async function sendMessage(autoSourceText) {
         else if(!fullAiText.trim()) append("❌ 本次没有生成任何正文：请确认模型软件正在运行、模型已加载，且未开启「仅思考」模式。", "err");
     } catch (e) {
         console.error(e);
-        if(e.name !== "AbortError") append(`❌ 请求异常：${e.message}`, "err");
+        if(e.name !== "AbortError"){
+            append(`❌ 请求异常：${e.message}`, "err");
+            /* 非用户停止的异常（网络/模型/超时）→ 记下原因，finally 里转成"确认后续写"，绝不自动乱写 */
+            mfInterruptReason = String((e && e.message) || "请求异常").slice(0, 100);
+        }
     } finally {
         abortController = null;
         syncSendToCanvasBtn();
@@ -4815,16 +4986,27 @@ async function sendMessage(autoSourceText) {
            避免下一轮基于半截稿修改。用户仍可双击任意历史回复重新指定基准。 */
         if (completed && !onlyReasoning && aiMsgDom && aiMsgDom.isConnected && !chatBox.dataset.stoppedDraft) setBaseMsg(aiMsgDom, true);
         const completedNormally = completed && !chatBox.dataset.stoppedDraft;
+        const interruptedDraft = !!mfInterruptReason && !chatBox.dataset.stoppedDraft;  /* 非用户停止的中断 */
+        const interruptReason = mfInterruptReason;
+        mfInterruptReason = "";
         delete chatBox.dataset.stoppedDraft;
-        /* 上下文超限降级：400 分支已置位并把批次减半。这里清标志，并且即使本轮无正文
-           也按"可续写"语义进入 maybeAutoContinue——它会按正文实际集号算出下一批并自动发起。 */
+        /* 上下文超限降级：400 分支已置位并已把批次减半——这是明确可控的重试，不属于"意外中断"，照旧自动续 */
         const degradeContinue = !!mfCtxDegradeNeeded && !!mfScriptGoal && !chatBox.dataset.stoppedDraft;
         if(degradeContinue) mfCtxDegradeNeeded = false;
-        /* 剧本分批自动续写：以正文实际集号为准，未写满目标就自动接着写。
-           若已启动续写，接力权交给续写轮（它自己的 finally 会再判断），本轮不再 drain 队列。 */
-        const continued = maybeAutoContinue(completedNormally || degradeContinue);
+        /* 剧本分批自动续写：只有"正常吐完"或"上下文降级重试"才自动开下一批。
+           ★ 网络/模型/超时等意外中断一律不自动续写（见下方 mfOfferInterruptedResume）——
+             先停下来跟用户对齐确认，避免模型在无上文时另起炉灶写全新剧名。 */
+        let continued = maybeAutoContinue((completedNormally || degradeContinue) && !interruptedDraft);
         if(!continued){
-            if(!isAutoContinue) mfAutoContinue = null;   /* 非续写任务正常收尾，清掉可能残留的续写态 */
+            /* ★ 无条件清残留续写态：只要本轮没有启动下一批，mfAutoContinue 就必须归零。
+               旧逻辑 `if(!isAutoContinue)` 在异常续写轮里不清，脏状态会污染下一条手动指令。 */
+            mfAutoContinue = null;
+            if(interruptedDraft && currentSkillKey === "a" && !!mfScriptGoal){
+                /* 剧本任务被意外中断：出"确认后续写"的理解稿，等用户点开始再带全文续写 */
+                mfOfferInterruptedResume(interruptReason);
+            }else if(interruptedDraft){
+                append("⏸ 检测到生成中断（" + interruptReason + "）。已写内容都在，请确认后点「开始」继续。", "tip");
+            }
             /* 当前吐字结束后，自动接力执行下一条排队指令。setTimeout 让调用栈清空；
                用户点停止时队列已清空，这里自然无事可做。 */
             if(sendQueue.length) setTimeout(()=>{ drainSendQueue(); }, 0);
@@ -4844,6 +5026,7 @@ function initUI(){
         q.title = (open?"点我收起":"点我看")+"说明";
     }));
     try {
+    chatInitScrollFollow();   /* 吐字窗跟随最新/上滑暂停 的滚动控制 */
     loadApiProfiles();
     initComputeModeUI();
     mfBindPrivateUI();
@@ -5005,6 +5188,21 @@ function initUI(){
         /* 若上轮已吐理解稿待确认、用户又点开始（回答填回指令框，或留空表示认可）→
            合并「原指令 + 理解稿 + 用户修正」，直接开工。合并后 pending 清空，不再重复探测。 */
         if(mfClarifyPending){
+            const p = mfClarifyPending;
+            if(p.resume){
+                /* 中断续写确认：用户已确认 → 以"断点续写"模式带完整上文接着写，绝不另起炉灶。
+                   若用户在指令框写了修正，并入续写指令一起送（比如改剧名/集数）。 */
+                mfClarifyPending = null;
+                const typed = userInput.value.trim();
+                mfResumeUserNote = (typed && !mfAlignIsConfirm(typed)) ? typed : "";
+                userInput.value = "";
+                mfResumeMode = true;
+                mfResumeDom = chatBox.querySelector(".msg.ai:last-of-type") || null;
+                append("✅ 已确认，正在带上原剧大纲与最近正文接着写…", "tip");
+                try{ sendMessage(buildResumeContext(String(fullAiText || ""))); }
+                finally{ mfResumeUserNote = ""; }
+                return;
+            }
             const merged = mfMergeClarifyAnswer(userInput.value);
             userInput.value = merged;
             append("✅ 已按你的确认/修正合并理解稿，开始生成。", "tip");
@@ -5254,12 +5452,10 @@ function maybeResumeInterrupted(){
     const partial = String(fullAiText || "").trim();
     if(!partial) return;                      /* 没有可接的半截稿 */
     if(window.__mfPendingSkillTask) return;   /* 有跨页任务待跑，避免两个任务并发 */
-    mfResumeDom = chatBox.querySelector(".msg.ai:last-of-type") || null;
-    if(!mfResumeDom) return;
-    mfResumeMode = true;
-    append("🔄 检测到上次生成时页面被刷新，正在从断点继续完成（无需重新操作）…", "tip");
-    /* autoSourceText 传"中断前已生成内容"：sendMessage 在续写模式下直接把它作为衔接上文给模型 */
-    sendMessage(buildResumeContext(partial));
+    if(!chatBox.querySelector(".msg.ai:last-of-type")) return;
+    /* ★ 刷新也是中断：不自动续写，先出"确认后续写"理解稿，用户点开始再带全文续写，
+       避免刷新后模型在缺上文的裸指令下另起炉灶写全新剧名（用户实测踩过此坑）。 */
+    mfOfferInterruptedResume("页面被刷新、生成被打断");
 }
 if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", initUI, { once:true });
