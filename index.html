@@ -4720,7 +4720,10 @@ const MF_CLARIFY_SYS = "你是创作开工前的「执行方案对齐员」。�
     + "★ 务必把『是新写一部还是接着已有稿写、从第几集开始、写到第几集、剧名与画幅』明确写进 brief，"
     + "让用户一眼就能发现你理解错了没有。★ 若用户指令里明确给出了每集时长或场次数（尤其『第一集3分钟、第二集起1分钟』这类逐集不同的指定），"
     + "必须在 brief 的关键参数里逐集写清，并明确『这是用户指定、优先级最高，不受默认105秒/3–5场限制』——绝不可在理解稿里把它拉平或改成默认值。"
-    + "advice 要具体可照抄，不要泛泛而谈。";
+    + "advice 要具体可照抄，不要泛泛而谈。\n"
+    + "★★ 最高优先级（违反即为错误理解稿）：若用户指令下方附有【本对话已有创作事实】，那么理解稿里的『剧名 / 画幅 / 新写还是续写 / 起点集号 / 已写集数 / 每集时长场次』"
+    + "必须逐项严格引用这些事实——严禁把已知剧名或画幅写成『未知（需确认）』；严禁臆造不存在的集（例如事实里写明只写了第1集，却说『读取并分析已有剧本的前5集』）；"
+    + "严禁在明明是续写时反过来让用户『提供剧名或前文』。只有当事实里明确标注『暂未识别到剧名』『尚未写出任何集』等缺失时，才把该项列为待确认问题；已知项一律当作确定值直接复述。";
 /* 本地快速预筛（旧歧义检测保留备用）：这些情形几乎不会歧义，直接放行。
    注意是"粗筛"——只在明显安全时返回 true，拿不准一律交给模型判断。 */
 function mfCmdLooksClear(cmd){
@@ -4786,10 +4789,55 @@ function mfExtractClarifyJson(text){
     }
     return null;
 }
+/* 构造「本对话已有创作事实」事实卡，注入到开工前对齐探测里。
+   ★ 根因修复：对齐探测以前只发系统提示 + 用户当前这句话，零上下文，导致模型把窗口里
+     明明已有的《剧名》/画幅/已写集当成"未知（需确认）"，还幻觉出"前5集"这类不存在的进度。
+     现在从提纯后的创作正文里提取剧名/画幅/已写集/目标集数 + 大纲摘要一并发给对齐员。
+   只取事实、不取整集正文——探测要短，避免本机模型上下文吃不消。 */
+function mfBuildClarifyFacts(){
+    if(currentSkillKey !== "a") return "";   /* 只有剧本技能有"剧名/画幅/集数"这套事实 */
+    try{
+        const creative = collectCreativeOutputs();
+        const items = creative.map(x=>x.text).join("\n\n");
+        const written = Array.from(collectWrittenEpisodeSet()).sort((a,b)=>a-b);
+        const outline = getAuthoritativeOutline() || "";
+        if(!items.trim() && !written.length && !outline.trim()) return "";
+        /* 剧名：先大纲，再正文集标题 */
+        let title = "";
+        const tm = outline.match(/《([^》\n]{1,40})》/) || items.match(/《([^》\n]{1,40})》第\s*\d+\s*集/);
+        if(tm) title = tm[1];
+        /* 画幅 */
+        let aspect = "";
+        const am = (outline + "\n" + items).match(/画幅\s*[:：]\s*(横屏|竖屏)/);
+        if(am) aspect = am[1];
+        /* 每集时长/场次：从分集大纲表里抽「预估成片」字样，给对齐员一个档位参考 */
+        let secHint = "";
+        const sm = items.match(/预估成片\s*[:：]\s*(\d+)\s*秒/);
+        if(sm) secHint = sm[1] + " 秒";
+        /* 大纲摘要：截断到 900 字，够对齐员认剧名/题材/人物即可，不塞全文 */
+        let outlineBrief = outline.replace(/\n{3,}/g,"\n\n").trim();
+        if(outlineBrief.length > 900) outlineBrief = outlineBrief.slice(0, 900) + "…（大纲摘要已截断）";
+        let s = "【本对话已有创作事实（对齐员必读，逐项采信，严禁写成未知/严禁臆造）】\n"
+            + "· 剧名：" + (title ? "《" + title + "》" : "（暂未在本对话识别到剧名——若用户指令也没给，才列为待确认）") + "\n"
+            + "· 画幅：" + (aspect || "（本对话暂未识别到画幅——若用户指令也没给，才列为待确认）") + "\n"
+            + "· 已实际写出的集：" + (written.length
+                ? written.map(n=>"第"+n+"集").join("、") + "（共 " + written.length + " 集，最大到第 " + written[written.length-1] + " 集）"
+                : "（本对话尚未写出任何集）") + "\n";
+        if(secHint) s += "· 已有分集时长档位：" + secHint + "（沿用；用户指令若另指定则以用户为准）\n";
+        if(mfScriptGoal && mfScriptGoal.total) s += "· 本任务目标：写到第 " + mfScriptGoal.total + " 集\n";
+        if(outlineBrief) s += "· 本对话已有大纲/设定摘要：\n" + outlineBrief + "\n";
+        s += "（以上均为本对话窗口中真实存在的内容。判断新写/续写、剧名、画幅、起点集号时必须引用；"
+           + "例如事实写明只写到第1集，理解稿就绝不能出现「读取前5集」。）";
+        return s;
+    }catch(e){ return ""; }
+}
 /* 发一次非流式探测请求，复用当前已配置的计算模式/地址/模型/密钥。
    返回 {clear,brief,questions} 或 null（失败静默）。用独立 AbortController，不影响主生成。 */
 async function mfProbeClarify(userCmd){
     if(computeMode === "manflow") return null;   /* 未接入 */
+    /* ★ 带上窗口里已有的剧名/画幅/已写集/大纲摘要，避免对齐员零上下文乱写"未知/前5集"。 */
+    const facts = mfBuildClarifyFacts();
+    const probeUser = "用户的创作指令：\n" + userCmd + (facts ? "\n\n" + facts : "");
     let url, headers, body;
     try{
         if(computeMode === "local"){
@@ -4798,7 +4846,7 @@ async function mfProbeClarify(userCmd){
             headers = mfLocalHeaders();
             body = { model: localModelName || "local", messages:[
                 { role:"system", content: MF_CLARIFY_SYS },
-                { role:"user", content: "用户的创作指令：\n" + userCmd }
+                { role:"user", content: probeUser }
             ], temperature: 0.1, stream: false, max_tokens: 900, ...mfThinkingFields() };
         }else{
             const ep = inpEndpoint.value.trim(), ky = inpKey.value.trim(), mdl = inpModel.value.trim();
@@ -4807,7 +4855,7 @@ async function mfProbeClarify(userCmd){
             headers = { "Content-Type":"application/json", "Authorization":"Bearer " + ky };
             body = { model: mdl, messages:[
                 { role:"system", content: MF_CLARIFY_SYS },
-                { role:"user", content: "用户的创作指令：\n" + userCmd }
+                { role:"user", content: probeUser }
             ], temperature: 0.1, stream: false, max_tokens: 900 };
         }
         const ctl = new AbortController();
