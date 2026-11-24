@@ -1144,6 +1144,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <li>点「＋ 导入素材」「＋ 上传本地文件」，或把文件拖进虚线框：支持<b>文本</b>（.txt / .md / .srt / .vtt）、<b>图片</b>（.png / .jpg / .webp）、<b>视频</b>（.mp4 / .webm / .mov）、<b>声音</b>（.mp3 / .wav / .m4a）。顶部 Tab 可切「全部 / 视频 / 图片库 / 音乐 / 音效库 / 文本」；切到「音乐/音效库」后可用下方子目录分别看「音乐库」「音效库」，每个声音素材卡上的 🎵/🔊 标签可一键切换归类。点「🔗 粘贴在线 URL」可一行一个粘贴在线文件地址。</li>
                 <li>每个素材的预览缩略图已<b>放大一倍</b>，卡片上不再放演示、＋、播放、删除按钮：按住素材<b>拖到下方对应类型的轨道</b>即可放到鼠标落点的时间位置；<b>双击</b>则自动放到该类轨道的播放头处。</li>
                 <li><b>单击</b>选中素材（蓝色高亮），按 <code>Delete</code> / <code>Backspace</code> 删除；文本与 SRT/VTT 会自动拆成一条条字幕落到字幕轨。本地大文件只存本机 IndexedDB，不上传服务器。</li>
+                <li><b>★ 素材多选（方便一次拖多条到时间轴）</b>：三种方式任选——① <b>全选</b>：鼠标停在素材库区域按 <code>Ctrl/⌘ + A</code> 全选当前分类的所有素材（停在时间轴区域按同样键则是全选片段）；② <b>框选</b>：在素材卡片之间的<b>空白处按住左键拖矩形</b>，框到的素材全部高亮；③ <b>点选组合</b>：<code>Ctrl/⌘ + 单击</code> 逐个加/减选，<code>Shift + 单击</code> 选中两次点击之间的连续一段。多选后<b>按住其中任一素材拖到轨道</b>，整组会按选中顺序<b>首尾相接依次落轨</b>（不同类型自动分到各自轨，文本拆成字幕），且<b>一次 <code>Ctrl/⌘ + Z</code> 整批撤销</b>；<code>Delete</code> 也会一次删除所有选中素材。</li>
             </ul>
             <h2>③ 轨道层级：字幕固定最上 · 视觉层可上下移动 · 音频固定最下</h2>
             <ul>
@@ -1179,6 +1180,7 @@ body.resizing,body.resizing *{user-select:none!important;cursor:inherit!importan
                 <tr><td>播放 / 暂停</td><td><code>Space</code></td><td>分割（剪断）</td><td><code>Ctrl/⌘ + B</code>（兼容 <code>S</code>）</td></tr>
                 <tr><td>删除选中片段 / 素材</td><td><code>Delete</code> / <code>Backspace</code></td><td>撤销 / 重做</td><td><code>Ctrl/⌘ + Z</code> / <code>Ctrl/⌘ + Shift + Z</code></td></tr>
                 <tr><td>复制 / 剪切 / 粘贴</td><td><code>Ctrl/⌘ + C</code> / <code>Ctrl/⌘ + X</code> / <code>Ctrl/⌘ + V</code></td><td>全选片段</td><td><code>Ctrl/⌘ + A</code></td></tr>
+                <tr><td colspan="4" style="color:#a5b4fc">💡 <b>素材库多选</b>：鼠标停在素材库按 <code>Ctrl/⌘ + A</code> = 全选当前分类素材（停在时间轴则全选片段）；<b>空白处拖框</b> = 框选多个素材；<code>Ctrl/⌘ + 单击</code> = 加/减选，<code>Shift + 单击</code> = 连续多选。多选后拖到轨道会依次落轨，一次 Ctrl+Z 整批撤销。</td></tr>
                 <tr><td colspan="4" style="color:#a5b4fc">💡 多条字幕一起改画面位置：在时间轴<b>框选</b>若干条字幕，或点字幕/花字轨轨道头的<b>「选」</b>全选整轨 → 在预览画面里拖动其中一条，所有选中字幕的画面位置按相同位移一起平移（花字、普通字幕均支持）；撤销一次即可整组还原。</td></tr>
                 <tr><td>保存 / 历史工程</td><td><code>Ctrl/⌘ + S</code> / <code>Ctrl/⌘ + O</code></td><td>导入素材 / 导出成片</td><td><code>Ctrl/⌘ + I</code> / <code>Ctrl/⌘ + E</code></td></tr>
                 <tr><td>回到开头 / 结尾</td><td><code>Home</code> / <code>End</code></td><td>播放头逐帧 / 逐秒</td><td><code>← →</code> / <code>Shift + ← →</code></td></tr>
@@ -2112,6 +2114,10 @@ let gestureSnap=null;
    历史快照里只存 asset id 列表，不序列化大 Blob，避免 50 条历史把内存吃满。 */
 const assetUndoCache=new Map();
 let toastTimer=0, subCache="", canvasResults=[], clipboard=[], dragAssetId="";
+/* 素材库多选（瞬时 UI 态，不随工程存档）：assetSelIds 为当前选中的素材 id 数组；
+   state.selectedAsset 仍是"主选中"，兼容预览/删除等旧逻辑——单选时两者一致，多选时等于最后点中的那个。
+   dragAssetIds = 本次拖拽携带的全部素材 id；assetMarqueeAnchor = Shift 连选的锚点。 */
+let assetSelIds=[], dragAssetIds=[], assetMarqueeAnchor=null, assetAreaHover=false;
 /* 活动轨道：最近一次被选中素材所在的轨道。点标尺/空白清空选中时不会重置，
    「剪辑/分割」据此优先切同一条轨道（音视频字幕等所有轨道通用）。 */
 let activeTrackId="";
@@ -2178,7 +2184,7 @@ function aiUpdateStopBtn(){
     }
 }
 let recMeterRaf=0, recAudioCtx=null, recAnalysers=null;
-let recordMuted=false, suppressLaneClick=false, asrBusy=false, fxDrag=null;
+let recordMuted=false, suppressLaneClick=false, suppressAssetClick=false, asrBusy=false, fxDrag=null;
 let showFxBox=false, fxHover=false;
 let showSafeFrame=false;   /* 安全框开关（仅预览参考，不写入成片；初值在 wire 里从本机偏好读取） */
 const waveCache=new Map();   /* assetId -> {ready,peaks,error} */
@@ -4727,10 +4733,54 @@ function wireMarquee(){
                 const q=el.getBoundingClientRect();
                 if(q.right>=r.l&&q.left<=r.r&&q.bottom>=r.t&&q.top<=r.b) ids.push(el.dataset.id);
             });
-            state.multi=ids; state.selected=ids[0]||null; state.selectedAsset=null;
+            state.multi=ids; state.selected=ids[0]||null; assetSelIds=[]; state.selectedAsset=null;
             suppressLaneClick=true; setTimeout(()=>{suppressLaneClick=false;},350);
             renderProps(); renderSubList(); renderTimeline();
             if(ids.length) toast("框选了 "+ids.length+" 个片段","ok");
+        };
+        document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+    });
+}
+/* 素材库鼠标框选：在素材卡片之间的空白处按下并拖矩形，选中相交的素材。
+   与卡片单击/拖拽互不干扰：命中 .asset-item 时直接放行；框选结束后抑制紧随的 click。 */
+function wireAssetMarquee(){
+    const box=$("assetList"); let st=null;
+    /* 记录鼠标是否在素材库区域，供 Ctrl/⌘+A 判断"全选素材"还是"全选片段" */
+    const libCard=box.closest(".card")||box;
+    libCard.addEventListener("mouseenter",()=>{assetAreaHover=true;});
+    libCard.addEventListener("mouseleave",()=>{assetAreaHover=false;});
+    box.addEventListener("mousedown",e=>{
+        if(e.button!==0||st) return;
+        if(e.target.closest(".asset-item")||e.target.closest("button")) return;
+        st={x0:e.clientX,y0:e.clientY,moved:false,el:null,add:e.ctrlKey||e.metaKey||e.shiftKey};
+        const mv=ev=>{
+            if(!st) return;
+            if(!st.moved && (Math.abs(ev.clientX-st.x0)>6||Math.abs(ev.clientY-st.y0)>6)){
+                st.moved=true;
+                const d=document.createElement("div"); d.className="marquee"; document.body.appendChild(d); st.el=d;
+            }
+            if(st.moved&&st.el){
+                st.el.style.left=Math.min(st.x0,ev.clientX)+"px"; st.el.style.top=Math.min(st.y0,ev.clientY)+"px";
+                st.el.style.width=Math.abs(ev.clientX-st.x0)+"px"; st.el.style.height=Math.abs(ev.clientY-st.y0)+"px";
+            }
+        };
+        const up=ev=>{
+            document.removeEventListener("mousemove",mv); document.removeEventListener("mouseup",up);
+            const cur=st; st=null;
+            if(!cur) return;
+            if(cur.el) cur.el.remove();
+            if(!cur.moved) return;   /* 只是点空白：不处理，交给 dblclick 导入等逻辑 */
+            const r={l:Math.min(cur.x0,ev.clientX),t:Math.min(cur.y0,ev.clientY),r:Math.max(cur.x0,ev.clientX),b:Math.max(cur.y0,ev.clientY)};
+            const ids=[];
+            box.querySelectorAll(".asset-item").forEach(el=>{
+                const q=el.getBoundingClientRect();
+                if(q.right>=r.l&&q.left<=r.r&&q.bottom>=r.t&&q.top<=r.b) ids.push(el.dataset.id);
+            });
+            const next=cur.add?Array.from(new Set(assetSelection().concat(ids))):ids;
+            setAssetSelection(next, ids.length?ids[0]:null);
+            if(ids.length) assetMarqueeAnchor=ids[ids.length-1];
+            suppressAssetClick=true; setTimeout(()=>{suppressAssetClick=false;},350);
+            if(ids.length) toast("框选了 "+ids.length+" 个素材（可一起拖到轨道）","ok");
         };
         document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
     });
@@ -5329,6 +5379,38 @@ async function ensureAssetThumbs(arr){
     renderAssets();
 }
 let thumbFillRunning=false;
+/* ===== 素材库多选：辅助函数（瞬时 UI 态，不写进工程存档） =====
+   assetSelIds 是选中集合；state.selectedAsset 保持"主选中"以兼容预览/删除/属性等旧逻辑。 */
+function assetSelection(){ return assetSelIds.slice(); }
+function hasAssetSelection(){ return assetSelIds.length>0; }
+/* 设选中集合：ids 为素材 id 数组，primary 为主选中（默认取最后一个）。同步高亮但**不重渲素材卡**（保留 thumbnail/preview）。 */
+function setAssetSelection(ids, primary){
+    assetSelIds=Array.from(new Set((ids||[]).filter(Boolean)));
+    state.selectedAsset=primary&&assetSelIds.indexOf(primary)>=0?primary:(assetSelIds.length?assetSelIds[assetSelIds.length-1]:null);
+    state.selected=null; state.multi=[];   /* 素材与轨道片段互斥选中 */
+    syncAssetSelClass();
+}
+function clearAssetSelection(){ assetSelIds=[]; state.selectedAsset=null; assetMarqueeAnchor=null; syncAssetSelClass(); }
+/* 全选素材库当前分类下所有可见素材（与界面过滤一致），Ctrl/⌘+A 在素材库区域触发 */
+function selectAllAssets(){
+    const ids=visibleAssetIds();
+    if(!ids.length){ toast("当前分类没有可选素材"); return; }
+    setAssetSelection(ids, ids[0]);
+    assetMarqueeAnchor=ids[0];
+    toast("已全选 "+ids.length+" 个素材（可一起拖到轨道，或 Shift/Ctrl 点选微调）","ok");
+}
+/* 只更新卡片 .sel 类，不重建 DOM（重建会打断缩略图/预览/拖拽） */
+function syncAssetSelClass(){
+    document.querySelectorAll("#assetList .asset-item").forEach(x=>x.classList.toggle("sel", assetSelIds.indexOf(x.dataset.id)>=0));
+}
+/* 当前 tab / 音频子类过滤后、实际可见的素材 id（顺序与界面一致，供 Shift 连选、全选、框选用） */
+function visibleAssetIds(){
+    return state.assets.filter(a=>{
+        if(state.tab!=="all" && a.type!==state.tab) return false;
+        if(state.tab==="audio" && a.type==="audio" && (a.audioKind||"music")!==state.audioSub) return false;
+        return true;
+    }).map(a=>a.id);
+}
 function renderAssets(){
     const list=$("assetList");
     const subTabs=$("audioSubTabs");
@@ -5357,7 +5439,7 @@ function renderAssets(){
         const kind=a.type==="audio"?(a.audioKind==="sfx"?"sfx":"music"):null;
         const kindTag=kind?'<span class="audio-kind-tag k-'+kind+'" data-audio-kind="'+esc(a.id)+'" title="点击切换为'+(kind==="music"?"音效":"音乐")+'">'+(kind==="music"?"🎵 音乐":"🔊 音效")+'</span>':"";
         const onTrack=usedAssetIds.has(a.id);
-        return '<div class="asset-item'+(state.selectedAsset===a.id?" sel":"")+(assetPreviewId===a.id?" previewing":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="单击立即在预览窗口预览（不自动入轨）；拖到下方轨道开始剪辑；双击自动加入；Delete 删除">'
+        return '<div class="asset-item'+(assetSelIds.indexOf(a.id)>=0?" sel":"")+(assetPreviewId===a.id?" previewing":"")+'" data-id="'+esc(a.id)+'" draggable="true" title="单击预览；Ctrl/⌘+单击或 Shift+单击多选；空白处拖框框选；Ctrl/⌘+A 全选；拖到下方轨道（多选会依次加入）；双击加入；Delete 删除">'
           +'<div class="asset-thumb">'+assetThumbHtml(a)+(onTrack?'<span class="asset-on-track" title="已添加到时间轴轨道"></span>':'')+'</div>'
           +'<div class="asset-meta"><div class="asset-name">'+esc(a.name)+kindTag+'</div>'
           +'<div class="asset-sub">'+esc(meta)+'</div>'
@@ -5388,9 +5470,29 @@ function removeAsset(id){
     assetUndoCache.set(id,a);
     if(assetUndoCache.size>60) assetUndoCache.delete(assetUndoCache.keys().next().value);
     state.assets=state.assets.filter(x=>x.id!==id);
-    if(state.selectedAsset===id) state.selectedAsset=null;
+    assetSelIds=assetSelIds.filter(x=>x!==id);
+    if(state.selectedAsset===id) state.selectedAsset=assetSelIds.length?assetSelIds[assetSelIds.length-1]:null;
     renderAssets(); renderProjInfo(); autoSave();
     toast("已从素材库删除「"+a.name+"」","ok");
+}
+/* 批量删除选中素材：整批一次撤销。注意素材被删后，时间轴上引用它的片段仍保留
+   （与单删 removeAsset 行为一致，避免误删用户已剪好的内容）。 */
+function removeAssetsBatch(ids){
+    const arr=(ids||[]).filter(Boolean);
+    if(!arr.length) return 0;
+    pushHistory();
+    let n=0;
+    for(const id of arr){
+        const a=assetById(id); if(!a) continue;
+        assetUndoCache.set(id,a);
+        if(assetUndoCache.size>60) assetUndoCache.delete(assetUndoCache.keys().next().value);
+        n++;
+    }
+    state.assets=state.assets.filter(x=>arr.indexOf(x.id)<0);
+    clearAssetSelection();
+    renderAssets(); renderProjInfo(); autoSave();
+    if(n) toast("已删除 "+n+" 个素材（一次 Ctrl+Z 可撤销）","ok");
+    return n;
 }
 
 /* ---------- 文本 / 字幕解析 ---------- */
@@ -5590,9 +5692,58 @@ function addAssetToTrack(a, opts){
     if(kind==="video" && isMainTrack(tr.id) && !state.clips.some(c=>c.track===tr.id)) base=0;
     pushHistory();
     const c={id:uid(), track:tr.id, assetId:a.id, start:base, duration:dur, offset:0, text:"", name:a.name, fx:defaultFx()};
-    state.clips.push(c); state.selected=c.id; state.multi=[]; state.selectedAsset=null;
+    state.clips.push(c); state.selected=c.id; state.multi=[]; assetSelIds=[]; state.selectedAsset=null;
     renderAll(); autoSave();
     toast("已加入「"+tr.label+"」轨道","ok");
+}
+/* 批量把多个素材依次加入轨道（素材库多选后一次拖入）。
+   设计：整批只 pushHistory 一次 → Ctrl+Z 一次整批撤销；按素材类型各自落到对应轨；
+   从落点 at 开始，同类片段首尾相接顺排，互不重叠；文本素材拆成字幕追加到字幕轨并从当前光标顺排。
+   返回本次加入的片段 id 数组，便于批量选中。 */
+function addAssetsToTrackBatch(list, opts){
+    opts=opts||{};
+    const arr=(list||[]).filter(Boolean);
+    if(!arr.length) return [];
+    pushHistory();
+    /* 光标：每放一个片段就前移一个片段时长；视频/音频/图片共用一条时间线顺序，保证"依次"播放 */
+    let cursor=Math.max(0, opts.at!=null?Number(opts.at):state.playhead);
+    const addedClips=[];
+    let textCount=0;
+    for(const a of arr){
+        if(a.type==="text"){
+            /* 文本素材：拆成字幕，从 cursor 开始顺排（段内相对时间保留），追加不清空 */
+            const segs=textToSegments(a.text,a.name);
+            if(!segs.length) continue;
+            const span=applySegments(segs,{trackId:opts.trackId&&trackKind(opts.trackId)==="text"?opts.trackId:undefined,at:cursor,keep:true,quiet:true});
+            textCount+=span;
+            /* 用这批字幕的结束时刻推进光标（字幕轨视图与音视频轨共享时间轴） */
+            const startBefore=cursor;
+            const last=state.clips.filter(c=>trackKind(c.track)==="text" && c.start>=startBefore-0.001 && c.start<startBefore+600)
+                .reduce((m,c)=>Math.max(m,c.start+c.duration),startBefore);
+            cursor=Math.max(cursor,last);
+            continue;
+        }
+        const kind=({video:"video",image:"image",audio:"audio"})[a.type]||"video";
+        let tr=opts.trackId?trackById(opts.trackId):null;
+        if(tr && tr.kind!==kind) tr=null;   /* 类型不符自动改放对应类型轨 */
+        const dur=a.type==="image"?3:(Number(a.duration)>0?Number(a.duration):8);
+        if(!tr) tr=pickTrackFor(kind,cursor,dur);
+        let base=cursor;
+        /* 首批视频落到空的主轨时沿用磁吸到 0 的既有规则 */
+        if(kind==="video" && isMainTrack(tr.id) && !state.clips.some(c=>c.track===tr.id) && cursor<=state.playhead+0.01) base=0;
+        const c={id:uid(), track:tr.id, assetId:a.id, start:base, duration:dur, offset:0, text:"", name:a.name, fx:defaultFx()};
+        state.clips.push(c); addedClips.push(c.id);
+        cursor=base+dur;
+    }
+    /* 清空素材多选态，整批片段选中（方便继续整体移动/删除） */
+    assetSelIds=[]; state.selectedAsset=null;
+    state.multi=addedClips.slice(); state.selected=addedClips[0]||null;
+    renderAll(); autoSave();
+    const parts=[];
+    if(addedClips.length) parts.push(addedClips.length+" 个片段");
+    if(textCount) parts.push(textCount+" 条字幕");
+    toast("已依次加入 "+parts.join(" + ")+"（一次 Ctrl+Z 可整批撤销）","ok");
+    return addedClips;
 }
 /* 某轨道现有片段的最末尾时间（秒）：把新字幕/粘贴字幕放到该轨现有内容之后的空白位置，
    保证不与任意已有字幕重叠（含部分重叠）。空轨返回 0。 */
@@ -6592,7 +6743,7 @@ function restore(s){
     if(Array.isArray(o.assetIds)){
         const live=new Map(state.assets.map(a=>[a.id,a]));
         state.assets=o.assetIds.map(id=>live.get(id)||assetUndoCache.get(id)).filter(Boolean);
-        state.selectedAsset=null;
+        assetSelIds=[]; state.selectedAsset=null;
     }
     state.selected=null; state.multi=[]; subCache=""; fancyCache="";
     renderAll(); autoSave();
@@ -6613,6 +6764,7 @@ function deleteSelected(){
 }
 function deleteAction(){
     if(selectedIds().length){ deleteSelected(); return; }
+    if(hasAssetSelection()){ removeAssetsBatch(assetSelection()); return; }
     if(state.selectedAsset){ removeAsset(state.selectedAsset); return; }
     toast("请先点选片段或素材，再按删除键","err");
 }
@@ -6697,7 +6849,7 @@ function selectTrackClips(tid){
     const t=trackById(tid);
     const ids=state.clips.filter(c=>c.track===tid).map(c=>c.id);
     if(!ids.length){ toast("这条轨道上还没有片段"); return; }
-    state.multi=ids.slice(); state.selected=ids[0]; state.selectedAsset=null;
+    state.multi=ids.slice(); state.selected=ids[0]; assetSelIds=[]; state.selectedAsset=null;
     renderProps(); renderSubList(); renderTimeline();
     toast("已全选「"+(t?t.label:"本轨")+"」"+ids.length+" 条，在预览画面拖动一条即可整轨移动位置","ok");
 }
@@ -7639,7 +7791,7 @@ function rippleDeleteRanges(ranges){
     /* 剪口播后主轨无论磁吸开关是否开启都要连续：极少保留段/浮点取整仍可能留下
        微小空档，这里无条件把主轨片段按原顺序贴紧（只动主轨，不改其它轨道）。 */
     rippleMainTrack();
-    state.selected=null; state.multi=[]; state.selectedAsset=null;
+    state.selected=null; state.multi=[]; assetSelIds=[]; state.selectedAsset=null;
     return {cuts:rs.length,removed:before-state.clips.length,pieces:pieces,cutByClip:cutByClip};
 }
 function applySmartCut(){
@@ -9115,7 +9267,7 @@ async function loadProject(date){
         for(const a of state.assets) if(isMkvAsset(a)){
             prepareMkvPreview(a,a.blob).then(()=>{ renderAssets(); syncMedia(); }).catch(()=>{});
         }
-        state.selected=null; state.multi=[]; state.selectedAsset=null; state.playhead=0;
+        state.selected=null; state.multi=[]; assetSelIds=[]; state.selectedAsset=null; state.playhead=0;
         /* 恢复撤销/重做历史：刷新后重开工程不该把操作记忆清空。
            只接收字符串快照并限长 50，非法/旧数据一律丢弃；restore 内对缺失素材已有兜底。 */
         historyStack=(Array.isArray(p.hist)?p.hist:[]).filter(s=>typeof s==="string").slice(-50);
@@ -9197,7 +9349,7 @@ function setEmptyHint(){
 async function loadEmptyProject(newDate, projName){
     pause(); state.assets=[]; state.clips=[]; state.selected=null; state.multi=[];
     state.inPoint=null; state.outPoint=null;   /* 新工程清空入点 / 出点 */
-    state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
+    assetSelIds=[]; state.selectedAsset=null; state.playhead=0; state.zoom=36; state.tab="all"; state.audioSub="music";
     state.subStyle=defaultFx().sub;   /* 新工程重置“新建字幕的默认模板” */
     state.tracks=defaultTracks(); state.subTrack="tk_text1"; state.date=newDate||newProjectKey();
     /* 每个工程都有明确文件名：用户没填就用可读默认名并入档，历史工程列表始终能认出每一份 */
@@ -9794,6 +9946,7 @@ function wire(){
     });
     /* 音乐/音效标记一键切换：阻止冒泡，避免触发整卡预览 */
     $("assetList").addEventListener("click",e=>{
+        if(suppressAssetClick){ suppressAssetClick=false; return; }   /* 框选刚结束时抑制那一次 click */
         const tag=e.target.closest("[data-audio-kind]");
         if(tag){
             e.stopPropagation();
@@ -9803,10 +9956,27 @@ function wire(){
             return;
         }
         const it=e.target.closest(".asset-item"); if(!it)return;
-        state.selectedAsset=it.dataset.id; state.selected=null; state.multi=[];
-        document.querySelectorAll(".asset-item").forEach(x=>x.classList.toggle("sel",x.dataset.id===state.selectedAsset));
+        const id=it.dataset.id;
+        if(e.ctrlKey||e.metaKey){
+            /* Ctrl/⌘+单击：切换该素材的选中态（已选则取消，未选则加入） */
+            const cur=assetSelection();
+            const next=cur.indexOf(id)>=0?cur.filter(x=>x!==id):cur.concat([id]);
+            setAssetSelection(next, next.indexOf(id)>=0?id:(next.length?next[next.length-1]:null));
+            assetMarqueeAnchor=id;
+        }else if(e.shiftKey){
+            /* Shift+单击：以上次点中的素材为锚点，选中锚点到当前之间的所有可见素材（连续区间） */
+            const vis=visibleAssetIds();
+            let a=assetMarqueeAnchor&&vis.indexOf(assetMarqueeAnchor)>=0?vis.indexOf(assetMarqueeAnchor):vis.indexOf(id);
+            let b=vis.indexOf(id); if(a>b){ const t=a;a=b;b=t; }
+            const range=vis.slice(a,b+1);
+            setAssetSelection(range, id);
+        }else{
+            /* 普通单击：单选并预览，锚点同步（保留原有行为） */
+            setAssetSelection([id], id);
+            assetMarqueeAnchor=id;
+        }
         renderProps(); renderTimeline();
-        previewAsset(assetById(state.selectedAsset));
+        previewAsset(assetById(id));   /* 单击即预览：多选时仍预览刚点中的那一个 */
     });
     $("assetList").addEventListener("dblclick",e=>{
         const it=e.target.closest(".asset-item"); if(!it)return;
@@ -9815,12 +9985,25 @@ function wire(){
     $("assetList").addEventListener("dragstart",e=>{
         const it=e.target.closest(".asset-item"); if(!it)return;
         pause(); if(assetPreviewId) exitAssetPreview(true);   /* 拖动素材时立即停止预览，避免拖入轨道后画面仍在播放 */
-        dragAssetId=it.dataset.id;
-        try{ e.dataTransfer.setData("text/plain","manflows-asset:"+dragAssetId); e.dataTransfer.effectAllowed="copy"; }catch(_){}
-        it.classList.add("dragging");
+        const id=it.dataset.id;
+        /* 拖已选中的素材 → 带上整组；拖未选中的素材 → 只拖它一个（并按单选处理，符合直觉） */
+        if(assetSelIds.indexOf(id)>=0 && assetSelIds.length>1){
+            dragAssetIds=assetSelection();
+        }else{
+            dragAssetIds=[id];
+            setAssetSelection([id], id);
+            assetMarqueeAnchor=id;
+        }
+        dragAssetId=id;
+        try{
+            e.dataTransfer.setData("text/plain","manflows-asset:"+id);
+            e.dataTransfer.setData("application/x-manflows-assets",JSON.stringify(dragAssetIds));
+            e.dataTransfer.effectAllowed="copy";
+        }catch(_){}
+        dragAssetIds.forEach(x=>{ const el=$("assetList").querySelector('.asset-item[data-id="'+CSS.escape(x)+'"]'); if(el) el.classList.add("dragging"); });
     });
     $("assetList").addEventListener("dragend",()=>{
-        dragAssetId="";
+        dragAssetId=""; dragAssetIds=[];
         document.querySelectorAll(".asset-item.dragging").forEach(x=>x.classList.remove("dragging"));
         document.querySelectorAll(".lane.drag-over").forEach(x=>x.classList.remove("drag-over"));
     });
@@ -10041,7 +10224,7 @@ function wire(){
         const rm=e.target.closest("[data-rm]");
         if(rm){ pushHistory(); state.clips=state.clips.filter(c=>c.id!==rm.dataset.rm); renderAll(); autoSave(); return; }
         const item=e.target.closest(".sub-item"); if(!item)return;
-        state.selected=item.dataset.id; state.multi=[]; state.selectedAsset=null;
+        state.selected=item.dataset.id; state.multi=[]; assetSelIds=[]; state.selectedAsset=null;
         if(e.target.closest("[data-text]")){
             /* 点在字幕文字输入框：只切选中高亮，绝不重建整表，否则正在编辑的 input 被销毁，无法鼠标选中/实时编辑 */
             document.querySelectorAll("#subList .sub-item").forEach(el=>el.classList.toggle("sel",el.dataset.id===item.dataset.id));
@@ -10278,7 +10461,7 @@ function wire(){
         if(lane||scale){
             const rect=(lane||scale).getBoundingClientRect();
             seek(snapPlayhead(clamp((e.clientX-rect.left)/state.zoom,0,totalDuration())));
-            if(lane){ state.selected=null; state.multi=[]; state.selectedAsset=null; renderProps(); renderAssets(); renderTimeline(); }
+            if(lane){ state.selected=null; state.multi=[]; assetSelIds=[]; state.selectedAsset=null; renderProps(); renderAssets(); renderTimeline(); }
         }
     });
     /* 剪映式播放头拖拽：按住标尺或红色三角左右移动，红线实时跟随；
@@ -10397,7 +10580,7 @@ function wire(){
         const groupDrag=inMarquee && !resize && !resizeL;
         state.selected=c.id;
         if(!groupDrag) state.multi=[];
-        state.selectedAsset=null;
+        assetSelIds=[]; state.selectedAsset=null;
         renderProps(); renderSubList(); renderAssets(); renderTimeline();
         /* 裁剪时把播放头精确停在片段起点；普通点击仍用 +0.1s 偏移避免预览首帧黑。
            否则磁吸会把这个偏移当成吸附点，导致裁不到精确片头。 */
@@ -10644,17 +10827,22 @@ function wire(){
     });
     sc.addEventListener("drop",async e=>{
         const lane=e.target.closest(".lane"); if(!lane) return;
+        let ids=dragAssetIds.length?dragAssetIds.slice():[];
+        /* 跨窗口/只带 text/plain 时兼容解析：优先读完整列表，退化为单个 */
+        if(!ids.length){ try{ const t=String(e.dataTransfer.getData("application/x-manflows-assets")||""); if(t) ids=JSON.parse(t); }catch(_){} }
         let id=dragAssetId;
         if(!id){ try{ const t=String(e.dataTransfer.getData("text/plain")||""); if(t.indexOf("manflows-asset:")===0) id=t.slice(15); }catch(_){} }
-        const a=id?assetById(id):null;
-        if(!a) return;
+        if(!ids.length && id) ids=[id];
+        const assets=ids.map(x=>assetById(x)).filter(Boolean);
+        if(!assets.length) return;
         e.preventDefault(); e.stopPropagation();
         const rect=lane.getBoundingClientRect();
         const at=clamp((e.clientX-rect.left)/state.zoom,0,totalDuration());
-        dragAssetId="";
+        dragAssetId=""; dragAssetIds=[];
         document.querySelectorAll(".lane.drag-over").forEach(x=>x.classList.remove("drag-over"));
         document.querySelectorAll(".asset-item.dragging").forEach(x=>x.classList.remove("dragging"));
-        addAssetToTrack(a,{trackId:lane.dataset.track,at:at});
+        if(assets.length>1) addAssetsToTrackBatch(assets,{trackId:lane.dataset.track,at:at});
+        else addAssetToTrack(assets[0],{trackId:lane.dataset.track,at:at});
     });
 
     /* 剪映风格快捷键 */
@@ -10675,7 +10863,7 @@ function wire(){
             else if(k==="c"){ e.preventDefault(); copySelection(false); }
             else if(k==="x"){ e.preventDefault(); copySelection(true); }
             else if(k==="v"){ e.preventDefault(); pasteClips(); }
-            else if(k==="a"){ e.preventDefault(); selectAllClips(); }
+            else if(k==="a"){ e.preventDefault(); if(assetAreaHover||hasAssetSelection()) selectAllAssets(); else selectAllClips(); }
             else if(k==="s"){ e.preventDefault(); openSaveModal(); }
             else if(k==="o"){ e.preventDefault(); openHistModal(); }
             else if(k==="i"){ e.preventDefault(); $("fileInput").click(); }
@@ -12761,7 +12949,7 @@ async function init(){
     state.aspect=String(safeStorage.get("manflows_ai_editor_aspect")||"auto").trim();
     applyCompute(loadCompute(),true);
     showPropTab("basic");
-    wireMarquee(); wireFxBox();
+    wireMarquee(); wireAssetMarquee(); wireFxBox();
     window.addEventListener("resize",()=>{
         /* 窗口跨显示器/缩小后，重新把左右栏约束进可视范围，避免右栏被挤出屏幕、分隔条够不到。 */
         applyLayout(loadLayout());
