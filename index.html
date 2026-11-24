@@ -4227,23 +4227,30 @@ function assetCoverageDirective(key){
         + "校验与补齐只在内部执行，随后把补齐后的完整提示词一次性交付，不向用户输出对照表或自检清单；其余格式、画风锚、官方参数严格遵循技能。";
 }
 /* ==================================================================
-   指令歧义·按需澄清（用户与模型先确认关键点，再开工）
-   设计：只对「用户手动新输入的首次指令」做一次轻量非流式探测，让模型判断是否存在
-   会导致跑偏的歧义（对象/集数/剧名/画幅/风格/动作不明确）。明确指令直接放行、零打扰；
-   有歧义则把模型的问题吐到窗口，用户把回答填回指令框再点开始——系统自动把
-   「原指令 + 用户回答」合并成完整指令，一次发出，无需用户自己组织语言。
+   开工前对齐·理解稿确认（模型先复述理解与执行计划，用户确认后再开工）
+   设计：只对「用户手动新输入的复杂指令」做一次轻量非流式探测，让模型在写任何正文之前
+   先输出一份「理解稿」——复述它理解你要做什么、锁定关键参数（剧名/新写还是续写还是改/
+   起点与范围/画幅）、列出执行计划、给出最想确认的点。这份理解稿吐到窗口给用户过目，
+   用户回复「确认/开始」或直接写出修正；再点开始时，系统把
+   「原指令 + 理解稿（+用户修正）」合并成一条完整指令正式发出，意图锁定、避免跑偏。
+   这道人工防线专门对付前端正则猜错意图、模型自行误解指令（如把"从第12集重写"当作
+   "原创100集从第1集写"）——用户扫一眼理解稿就能当场拦下。
+   ★ 只对复杂指令（多集/重写/新剧/大纲/长指令）对齐；简单明确的指令直接放行、零打扰。
    ★ 自动续写 / 断点续写 / 排队任务 / 跨页任务一律跳过探测，绝不打断自动化。
    ★ 探测失败（网络/超时/格式异常）一律静默放行，按原指令开工，绝不影响正常生成。
    ================================================================== */
-const MF_CLARIFY_SYS = "你是创作开工前的「指令歧义检查员」。判断用户指令是否含会导致生成跑偏的歧义。\n"
-    + "只在这些情况判定 needs=true：① 动作对象不明确（改哪集/哪段/哪个角色）；② 续写或重写的起点/范围不清；"
-    + "③ 指代模糊（「这个」「上面那个」「它」在有多份稿时无法唯一定位）；④ 关键风格/画幅/数量与前文冲突或缺失且会影响产出；"
-    + "⑤ 一句话有多种截然不同的合理理解。\n"
-    + "明确具体、可直接执行的指令一律 needs=false。不要吹毛求疵，不要为已经说清楚的事提问。\n"
-    + "严格只输出一个 JSON 对象，不要任何解释、不要用代码块包裹：\n"
-    + '{"needs":false} 或 {"needs":true,"questions":["问题1","问题2"]}\n'
-    + "questions 最多 3 条，每条是可直接回答的短问题，聚焦最影响产出的歧义点。";
-/* 本地快速预筛：这些情形几乎不会歧义，直接放行、连探测请求都省掉。
+const MF_CLARIFY_SYS = "你是创作开工前的「执行方案对齐员」。在读正文之前，先向用户复述你对指令的理解与执行计划，供用户确认；并主动教用户怎样写指令你能更快更准地执行。绝对不要开始写正文或大纲。\n"
+    + "严格只输出一个 JSON 对象，不要代码块、不要任何解释：\n"
+    + '{"clear":true,"brief":"我理解你要做的是：…\\n关键参数：剧名…；新写/续写/修改：…；起点与范围：…；画幅：…\\n执行计划：1)… 2)… 3)…","questions":[],"advice":"建议写法：…"}\n'
+    + "字段：clear=指令本身是否足够明确（仅作标记，不影响是否展示理解稿）；brief=你的理解稿，"
+    + "必须包含【意图复述】【关键参数（剧名 / 新写还是续写还是修改 / 集数起点与范围 / 画幅）】【执行计划（分几步、每步产出什么）】三部分，简洁但具体；"
+    + "questions=最多 3 个你最想让用户确认的短问题，没有就空数组；"
+    + "advice=主动给出的「指令优化建议」：指出这条指令里缺了哪些你能更快更准执行的关键信息（剧名、集数区间、画幅、新写/续写/修改、具体动作对象、风格/时长等），"
+    + "并给出一条可直接照抄的推荐写法示例，例如『建议写成：写《剧名》第12集到第30集，横屏，接着已有稿续写，每集3–5场』。"
+    + "若指令已经很清楚，advice 就写一句肯定+可选的小优化，不要啰嗦。\n"
+    + "★ 务必把『是新写一部还是接着已有稿写、从第几集开始、写到第几集、剧名与画幅』明确写进 brief，"
+    + "让用户一眼就能发现你理解错了没有。advice 要具体可照抄，不要泛泛而谈。";
+/* 本地快速预筛（旧歧义检测保留备用）：这些情形几乎不会歧义，直接放行。
    注意是"粗筛"——只在明显安全时返回 true，拿不准一律交给模型判断。 */
 function mfCmdLooksClear(cmd){
     const s = String(cmd || "").trim();
@@ -4257,20 +4264,48 @@ function mfCmdLooksClear(cmd){
     if(/《[^》]{1,40}》/.test(s) && hasAction) return true;
     return false;
 }
-/* 从探测回答里稳健抽取 JSON（容忍模型加的 ```json 围栏或前后白话）。 */
+/* 复杂度判定（开工前对齐的真正开关）：只有"复杂指令"才先出理解稿确认。
+   命中任一高风险信号就要对齐——这些正是前端正则容易猜错、模型容易整体跑偏的指令：
+   ① 多集批量/长跨度（写N集、前N集、第N到第M集、写满/直到N集）；
+   ② 重写/新写/新剧/原创（"从第N集重写"曾退化成"从第1集新写"）；
+   ③ 大纲/设定/规划类（一次性定全剧基调，跑偏代价大）；④ 长指令（信息多、易漏）。
+   简单具体的修改（如"把第3集台词改快节奏"）一律直接放行、零打扰。 */
+function mfCmdNeedsAlign(cmd){
+    const s = String(cmd || "").trim();
+    if(!s) return false;
+    const multi = /(?:写|出|生成|交付|连写|连续写|写满|直到写完|共|前)\s*\d+\s*集/.test(s)
+               || /(?:第?\s*\d+\s*集?\s*(?:到|至|[-–—~])\s*第?\s*\d+\s*集)/.test(s);
+    const rewrite = /(重写|重新?写|新写|全新|另起|新剧|换剧|改剧名|重出大纲|全新创作|创作一部新的|写一部新的|原创)/.test(s);
+    const outline = /(大纲|设定|分集|规划|策划|留存地图)/.test(s);
+    return multi || rewrite || outline || s.length >= 24;
+}
+/* 从探测回答里稳健抽取结构化结果（容忍 ```json 围栏、前后白话、无引号键名）。
+   新格式：{clear, brief, questions}（理解稿）；兼容旧格式 {needs, questions}。 */
 function mfExtractClarifyJson(text){
     const s = String(text || "");
-    let m = s.match(/\{[\s\S]*?"needs"\s*:\s*(true|false)[\s\S]*?\}/);
+    /* 优先整段 JSON.parse：理解稿 brief 里含换行/引号，只能靠 parse 正确还原 */
+    let m = s.match(/\{[\s\S]*\}/);
     if(m){
         try{
             const o = JSON.parse(m[0]);
-            if(typeof o.needs === "boolean") return o;
+            if(typeof o.clear === "boolean" || typeof o.needs === "boolean"){
+                /* 把旧 needs 归一到 clear，便于统一处理 */
+                if(typeof o.clear !== "boolean" && typeof o.needs === "boolean") o.clear = o.needs;
+                if(typeof o.brief === "string" && o.brief.trim()) return o;
+                if(Array.isArray(o.questions) && o.questions.length) return o;
+                /* 新格式明确判定 clear=true 且无理解稿 → 也当作有效响应（放行） */
+                if(o.clear === true) return o;
+            }
         }catch(e){}
     }
-    /* 退一步：宽松匹配 needs 布尔值（容忍键名无引号），并尽量带上 questions */
-    const b = s.match(/['"]?needs['"]?\s*:\s*(true|false)/i);
+    /* 退一步：宽松匹配 clear/needs 布尔值；再尽量捞 brief 与 questions */
+    const b = s.match(/['"]?(?:clear|needs)['"]?\s*:\s*(true|false)/i);
     if(b){
-        const out = { needs: b[1].toLowerCase() === "true" };
+        const out = { clear: b[1].toLowerCase() === "true" };
+        const bm = s.match(/['"]?brief['"]?\s*:\s*"([\s\S]*?)"\s*[,}]/i);
+        if(bm && bm[1].trim()) out.brief = bm[1].replace(/\\n/g,"\n").replace(/\\"/g,'"');
+        const am = s.match(/['"]?advice['"]?\s*:\s*"([\s\S]*?)"\s*[,}]/i);
+        if(am && am[1].trim()) out.advice = am[1].replace(/\\n/g,"\n").replace(/\\"/g,'"');
         const qm = s.match(/['"]?questions['"]?\s*:\s*\[([\s\S]*?)\]/i);
         if(qm){
             const qs = qm[1].split(/,|\n/).map(x=>x.trim().replace(/^['"]|['"]$/g,"")).filter(Boolean);
@@ -4281,7 +4316,7 @@ function mfExtractClarifyJson(text){
     return null;
 }
 /* 发一次非流式探测请求，复用当前已配置的计算模式/地址/模型/密钥。
-   返回 {needs,questions} 或 null（失败静默）。用独立 AbortController，不影响主生成。 */
+   返回 {clear,brief,questions} 或 null（失败静默）。用独立 AbortController，不影响主生成。 */
 async function mfProbeClarify(userCmd){
     if(computeMode === "manflow") return null;   /* 未接入 */
     let url, headers, body;
@@ -4293,7 +4328,7 @@ async function mfProbeClarify(userCmd){
             body = { model: localModelName || "local", messages:[
                 { role:"system", content: MF_CLARIFY_SYS },
                 { role:"user", content: "用户的创作指令：\n" + userCmd }
-            ], temperature: 0.1, stream: false, max_tokens: 500, ...mfThinkingFields() };
+            ], temperature: 0.1, stream: false, max_tokens: 900, ...mfThinkingFields() };
         }else{
             const ep = inpEndpoint.value.trim(), ky = inpKey.value.trim(), mdl = inpModel.value.trim();
             if(!ep || !ky || !mdl) return null;
@@ -4302,7 +4337,7 @@ async function mfProbeClarify(userCmd){
             body = { model: mdl, messages:[
                 { role:"system", content: MF_CLARIFY_SYS },
                 { role:"user", content: "用户的创作指令：\n" + userCmd }
-            ], temperature: 0.1, stream: false, max_tokens: 500 };
+            ], temperature: 0.1, stream: false, max_tokens: 900 };
         }
         const ctl = new AbortController();
         const timer = setTimeout(()=>ctl.abort(), 20000);   /* 探测最多等 20 秒 */
@@ -4322,36 +4357,56 @@ async function mfProbeClarify(userCmd){
     }catch(e){ return null; }
 }
 /* 探测后：有歧义 → 把问题吐到窗口并提示用户回答；无歧义/失败 → 返回 false 表示放行。
-   返回 true 表示"本轮已按歧义拦截，调用方不要再发正式生成"。 */
-let mfClarifyPending = null;   /* 记录待合并的原指令，用户回答后取用 */
+   返回 true 表示"本轮已按理解稿拦截，等用户确认/修正后再开工"。 */
+let mfClarifyPending = null;   /* { cmd, brief }：待确认的原指令 + 模型理解稿 */
 let mfClarifyProbing = false;  /* 防止探测期间重复点击发起多个探测 */
+/* 用户回答视为"认可理解稿"的确认词（回答为空也视为认可，直接点开始即确认）。 */
+function mfAlignIsConfirm(answer){
+    const a = String(answer || "").trim();
+    if(!a) return true;
+    return /^(确认|确定|可以|好的|行|对|是|OK|ok|OK的|就按这个|照这个来|开始吧|开工|没问题|默认|同上)[。！!~，,.\s]*$/.test(a);
+}
 async function mfClarifyIfNeeded(userCmd){
     mfClarifyPending = null;
-    if(!userCmd || mfCmdLooksClear(userCmd)) return false;
+    if(!userCmd || !mfCmdNeedsAlign(userCmd)) return false;   /* 简单指令：直接放行，零打扰 */
     if(mfClarifyProbing) return true;   /* 已有探测在飞：本轮先拦下，避免重复 */
     mfClarifyProbing = true;
-    append("🔎 正在快速检查指令是否明确…", "tip");
+    append("🔎 正在整理对指令的理解，先跟你对齐再开工…", "tip");
     let res;
     try{ res = await mfProbeClarify(userCmd); }
     finally{ mfClarifyProbing = false; }
-    if(!res || !res.needs) return false;   /* 明确 / 失败 → 放行 */
+    if(!res) return false;   /* 探测失败 → 静默放行，按原指令开工 */
+    let brief = typeof res.brief === "string" ? res.brief.trim() : "";
+    let advice = typeof res.advice === "string" ? res.advice.trim() : "";
     const qs = Array.isArray(res.questions) ? res.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
-    if(!qs.length) return false;
-    mfClarifyPending = userCmd;
-    append("❓ 开工前想跟你确认几点（把回答补进指令框，再点「开始」即可，我会自动合并原指令与你的回答）：\n"
-        + qs.map((q,i)=>"  " + (i+1) + ". " + q.trim()).join("\n"), "tip");
+    /* 没有理解稿、建议、待确认点 → 无可对齐，放行 */
+    if(!brief && !advice && !qs.length) return false;
+    mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice };
+    let msg = "📋 开工前先跟你对一下我的理解，确认无误请直接点「开始」（或回复「确认」）；要改就把修正写进指令框再点开始。\n\n";
+    if(brief) msg += "—— 我的理解稿 ——\n" + brief + "\n";
+    if(qs.length) msg += "\n我最想跟你确认：\n" + qs.map((q,i)=>"  " + (i+1) + ". " + q.trim()).join("\n") + "\n";
+    if(advice) msg += "\n—— 💡 这样写指令，我能更快更准地帮你做 ——\n" + advice + "\n";
+    msg += "\n（这份理解稿会作为意图锁定和你的原指令一起送进去；有不对的地方直接改，我按你的修正执行。）";
+    append(msg, "tip");
     return true;
 }
-/* 用户回答后点开始：把原指令与回答合并成一条完整指令写回输入框。
-   合并策略：原指令原样保留在前，回答作为「补充确认」附后，并明确这是对上面歧义点的回答。 */
+/* 用户确认/修正后点开始：合并 原指令 + 模型理解稿 + 用户修正，写回输入框。
+   ★ 用户选的方案：按「原指令 + 理解稿」一起执行。理解稿作为意图锁定，防止模型再次跑偏；
+     用户若写了修正（非确认词），修正优先级最高，覆盖理解稿里对应的理解。 */
 function mfMergeClarifyAnswer(answer){
-    const orig = mfClarifyPending || "";
+    const p = mfClarifyPending;
     mfClarifyPending = null;
     const a = String(answer || "").trim();
-    if(!orig) return a;
-    if(!a) return orig;
-    return orig + "\n\n【开工前确认·用户对上面问题的补充回答】\n" + a
-        + "\n（请按原指令执行，以上回答仅用于消除歧义，不改动原指令里已经明确的剧名、集数、画幅等要求。）";
+    if(!p || !p.cmd) return a;                       /* 无待对齐：原样返回（不吞用户输入） */
+    const orig = p.cmd;
+    const brief = String(p.brief || "").trim();
+    let out = orig;
+    if(brief) out += "\n\n【开工前对齐·模型理解稿（已由用户过目，作为意图锁定）】\n" + brief;
+    if(a && !mfAlignIsConfirm(a)){
+        out += "\n\n【用户对理解稿的修正（最高优先级，覆盖理解稿中不一致处）】\n" + a;
+    }
+    out += "\n（请严格按上面原指令执行；理解稿仅用于锁定意图，其中的理解若与本轮修正冲突，以用户修正为准。）";
+    return out;
 }
 
 async function sendMessage(autoSourceText) {
@@ -4947,22 +5002,22 @@ function initUI(){
        （即 autoSourceText）传入，导致每次普通点击都把 "[object PointerEvent]" 当"已附带文字"
        塞进请求上下文，污染模型输入。唯一的字符串来源只有跨页/续写调用。 */
     sendMsgBtn.addEventListener("click", async ()=>{
-        /* 若上轮探测判定有歧义、用户已把回答填回指令框 → 自动合并原指令+回答，直接开工。
-           合并后 mfClarifyPending 清空，本次 sendMessage 走正常逻辑，不再重复探测。 */
+        /* 若上轮已吐理解稿待确认、用户又点开始（回答填回指令框，或留空表示认可）→
+           合并「原指令 + 理解稿 + 用户修正」，直接开工。合并后 pending 清空，不再重复探测。 */
         if(mfClarifyPending){
             const merged = mfMergeClarifyAnswer(userInput.value);
             userInput.value = merged;
-            append("✅ 已合并你的回答与原指令，开始生成。", "tip");
+            append("✅ 已按你的确认/修正合并理解稿，开始生成。", "tip");
             sendMessage();
             return;
         }
-        /* 只在"非生成中、非续写、非断点续写"的手动新指令上做歧义探测；
-           探测有歧义会拦截本轮，用户回答后再点开始。明确指令/探测失败照常直接生成。 */
+        /* 只在"非生成中、非续写、非断点续写"的手动新指令上做开工前对齐：
+           复杂指令先吐理解稿让用户确认；简单指令/探测失败照常直接生成。 */
         if(!isGenerating() && !mfAutoContinue && !mfResumeMode && !mfWasGenerating){
             const cmd = userInput.value.trim();
             if(cmd){
                 const blocked = await mfClarifyIfNeeded(cmd);
-                if(blocked) return;   /* 有歧义：等用户回答，不发正式请求 */
+                if(blocked) return;   /* 等用户确认理解稿，不发正式请求 */
             }
         }
         sendMessage();
