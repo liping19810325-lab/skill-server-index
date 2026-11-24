@@ -973,7 +973,7 @@ const HELP_HTML = `
 <li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；<b>三个网页的算力档位各自独立</b>：创作台、导演画布、AI 剪辑台可以同时选用不同算力并行工作，在任一网页切档位都不会改动另外两个网页（同一网页的多个标签页仍同步）。导演画布内部仍是<b>两处联动</b>：画布左侧【算力总控】与生成节点里的「生成引擎」任意一处切换，另一处立即跟随；画布切总控时会把当前画布已有生成节点一起切（生成中的节点不打断，跑完后再由用户切换），在生成节点里单独改引擎只改那一个节点、新建生成节点默认跟随画布总控。<b>上下文窗口 token（32K / 64K / 128K / 256K / 1M）只对「本机算力」生效</b>；选「漫流算力」或「第三方API」时该栏自动改为「上下文长度：跟随所选模型（自适应）」，不再发送 max_tokens，由模型与服务商按自身上限决定（这类模型上下文普遍 256K 以上甚至 1M），切回本机算力会恢复并保留你上次设定的数字；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
-<li>点【下载产物 TXT】可<b>选择下载范围</b>：<b>全部产物（全剧）</b>把窗口内所有 AI 回复按生成顺序合并（自动剔除批次交接行，默认项）；<b>完整剧本（智能合并去重）</b>把大纲与各集按集号排列、同一集多次修改只保留最新版（仅剧本有效）；<b>当前这一轮</b>只下最后一条（旧版行为）。历史产物里的「下载 TXT」仍是单条；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
+<li>点【下载产物 TXT】可<b>选择下载范围</b>：<b>全部产物（全剧）</b>把窗口内所有 AI 回复按生成顺序合并（自动剔除批次交接行，默认项）；<b>完整剧本（智能合并去重）</b>把大纲与各集按集号排列，<b>你手动编辑修改过的大纲与集数绝对优先</b>、不被后续批次的旧稿覆盖（仅剧本有效）；<b>当前这一轮</b>只下最后一条（旧版行为）。手动改过角色名等设定后，续写与后续各集都会按你改后的设定执行。历史产物里的「下载 TXT」仍是单条；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
 <li>页面顶部的【历史产物1 / 2 / 3 / 更多历史产物】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，<b>不再提供一键清空全部历史的按钮</b>（容易误操作），要删除请到【更多历史产物】下拉里逐条点红色 ×。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b><b>【更多历史产物】下拉里每条右侧有 ✎ 改名与红色 × 删除</b>：改名后可自定义好记的名字（顶部快捷按钮、列表与预览标题同步显示），删除前会确认、只删这一条；用法与导演画布「更多画布」一致。</li>
 <li>点【⇢ 送到画布】会先弹出「现有画布 / 新建画布」两个选项，选好后再送到对应画布，点「取消 / 关闭」则不送达。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送出半段内容</b>。选「现有画布」＝送到画布页当前打开（或上次使用）的那份画布；选「新建画布」＝新开画布页并自动新建一份画布，把产物作为提示词节点放进去。</li>
 </ol>
@@ -1364,11 +1364,15 @@ function buildBaseContextBlock(){
     const mem = extractScriptMemory(text);
     let body;
     if(mem){
+        /* 用户手动改过大纲（如角色改名）时，以改后版本为准，避免基准被切到别的回复后又回灌旧设定 */
+        const authOutline = (typeof getAuthoritativeOutline === "function") ? getAuthoritativeOutline() : "";
+        const outlineToUse = authOutline || mem.outline;
         body = "【已有剧本（连续对话 · 本轮在此稿基础上修改，请勿当作新剧重写）】\n"
              + "下面这份「大纲与设定 + 最近一集」是你上一轮已经写好的同一部剧。用户本轮指令是基于它的修改/优化意见，"
              + "必须沿用原有《剧名》、世界观、人物设定、集号与已写剧情，不得另起新主题、不得改剧名、不得重出大纲；"
+             + "其中「大纲与设定」若经用户手动修改（例如改了角色姓名），后续所有集都必须按改后设定执行，不得沿用旧名字；"
              + "只针对用户本轮点明的问题做增量修改并输出修改后的对应内容。\n\n"
-             + "—— 大纲与设定 ——\n" + (mem.outline || "（此前未产出大纲，按正文已有设定沿用）") + "\n\n"
+             + "—— 大纲与设定 ——\n" + (outlineToUse || "（此前未产出大纲，按正文已有设定沿用）") + "\n\n"
              + "—— 最近一集（修改基准）——\n" + mem.lastEpisode;
     }else{
         body = "【已有产物（连续对话 · 本轮在此稿基础上修改）】\n"
@@ -1441,7 +1445,7 @@ function syncEditedHistory(before, after){
         tmp.innerHTML = rec.chatHtml || "";
         const aiMsgs = tmp.querySelectorAll(".msg.ai");
         const target = aiMsgs.length ? aiMsgs[aiMsgs.length - 1] : null;
-        if(target) target.textContent = "【AI】：" + after;
+        if(target){ target.textContent = "【AI】：" + after; try{ target.setAttribute("data-manual-edited","1"); }catch(e){} }
         rec.chatHtml = tmp.innerHTML;
     }catch(e){ /* 旧存档结构不同时只影响载入后的显示，正文已正确 */ }
     safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records));
@@ -1468,8 +1472,18 @@ function saveChatPreview(){
     let target = baseMsgDom && baseMsgDom.isConnected ? baseMsgDom : null;
     if(!target && aiMsgDom && aiMsgDom.isConnected && aiMsgDom.classList.contains("ai")) target = aiMsgDom;
     if(!target && aiMsgs.length) target = aiMsgs[aiMsgs.length - 1];
-    if(target){ target.innerText = "【AI】：" + after; try{ setBaseMsg(target, true); }catch(e){} }
-    else { const n=append("【AI】：" + after, "ai"); try{ setBaseMsg(n, true); }catch(e){} }
+    if(target){
+        target.innerText = "【AI】：" + after;
+        /* 持久标记：这条被用户手动改过。下载合并/续写取设定时优先采信，且不被后续批次的旧稿覆盖。
+           与 ai-base（修改基准，可被下次双击切换）不同，这个标记一旦打上就一直保留。 */
+        try{ target.setAttribute("data-manual-edited", "1"); }catch(e){}
+        try{ setBaseMsg(target, true); }catch(e){}
+    }
+    else {
+        const n=append("【AI】：" + after, "ai");
+        try{ n.setAttribute("data-manual-edited", "1"); }catch(e){}
+        try{ setBaseMsg(n, true); }catch(e){}
+    }
     syncEditedHistory(before, after);
     resetPreviewEditor();
     modalTextEl.textContent = after;
@@ -2243,8 +2257,11 @@ function buildContinuationContext(fullText){
     const titleIdx = [];
     lines.forEach((ln,i)=>{ if(titleRe.test(ln)) titleIdx.push(i); });
     if(!titleIdx.length) return s;   /* 不是标准剧本结构，原样给，至少不丢信息 */
-    /* 大纲 = 第一集标题之前的全部内容含《剧名》设定 */
-    const outline = lines.slice(0, titleIdx[0]).join("\n").replace(/\n{3,}/g,"\n\n").trim();
+    /* 大纲优先取"用户手动改过的权威大纲"（改了角色名 → 后续全按新名），
+       没有手动改过时退回本批正文里第一集标题之前的设定。
+       ★ 这是"用户修改优先"的关键一环：续写不重出大纲，但必须沿用用户改后的设定。 */
+    const authoritative = (typeof getAuthoritativeOutline === "function") ? getAuthoritativeOutline() : "";
+    const outline = (authoritative || lines.slice(0, titleIdx[0]).join("\n")).replace(/\n{3,}/g,"\n\n").trim();
     /* 每集：标题行 + 正文直到【第N集完】，末尾一行取钩子（完结标记前最后一条非空行） */
     const episodes = [];
     for(let i=0;i<titleIdx.length;i++){
@@ -2364,11 +2381,17 @@ function downloadBlobAs(text, name){
    - collectAllAiOutputs：按时间顺序取窗口内所有 .msg.ai 正文
    - stripBatchTransitionLines：剔除【本批交付：...】这类过程交接行，它们不是剧本正文
    - parseScriptBlocks：把一份文本拆成 {outline, episodes:Map<集号,正文块>}
-   - buildMergedScriptText：大纲 + 各集按集号排序，同集多次修改只留最后一次（最新稿） */
+   - buildMergedScriptText：大纲 + 各集按集号排序。
+   ★ 优先级铁律：用户手动改过的内容 > 模型后生成的稿。改过大纲/某集后，后续批次即便又输出了
+     旧设定（旧角色名等），也不能覆盖用户改后的版本；续写取设定同样读这份"权威大纲"。 */
+/* 收集窗口内所有 AI 回复，每条带 manual 标记（用户是否手动编辑过），并保留时间顺序索引 */
 function collectAllAiOutputs(){
     const nodes = chatBox.querySelectorAll(".msg.ai");
     const out = [];
-    nodes.forEach(n=>{ const t = msgFullText(n).trim(); if(t) out.push(t); });
+    nodes.forEach((n,i)=>{
+        const t = msgFullText(n).trim();
+        if(t) out.push({ text:t, manual:n.getAttribute("data-manual-edited")==="1", order:i });
+    });
     return out;
 }
 function stripBatchTransitionLines(text){
@@ -2398,18 +2421,61 @@ function parseScriptBlocks(text){
     });
     return { outline, episodes };
 }
+/* 权威大纲：用户手动改过的大纲优先（取最后一次手动编辑），否则取窗口里最后一份大纲。
+   下载合并与自动续写共用，保证"改了角色名 → 后续全按新名"在两端同时生效。 */
+function getAuthoritativeOutline(){
+    const items = collectAllAiOutputs();
+    let lastAny = "", lastManual = "";
+    items.forEach(it=>{
+        const p = parseScriptBlocks(it.text);
+        if(p && p.outline && p.outline.trim()){
+            lastAny = p.outline;
+            if(it.manual) lastManual = p.outline;   /* 手动编辑的覆盖，多个取最后一个 */
+        }
+    });
+    return lastManual || lastAny;
+}
 function buildMergedScriptText(outputs){
-    const parsedList = outputs.map(parseScriptBlocks);
+    /* outputs 元素支持两种形态：字符串（旧调用/测试）或 {text,manual,order}（带手动编辑标记） */
+    const parsedList = outputs.map((o,i)=>{
+        const item = (typeof o === "string") ? { text:o, manual:false, order:i } : o;
+        const p = parseScriptBlocks(item.text);
+        return p ? { outline:p.outline, episodes:p.episodes, manual:!!item.manual, order:(item.order!=null?item.order:i) } : null;
+    });
     if(!parsedList.some(p => p && p.episodes.size > 0)) return "";   /* 没有可识别的集结构 → 交回调用方回退 */
+    /* 大纲：手动改过的优先（时间上最后一个手动版）；没有手动版才用最后一份生成稿 */
     let outline = "";
-    const episodes = new Map();
+    let manualOutline = null;
     parsedList.forEach(p=>{
         if(!p) return;
-        if(p.outline) outline = p.outline;              /* 后写覆盖：若用户改过大纲，取最新 */
-        p.episodes.forEach((block,no)=> episodes.set(no, block));  /* 后写覆盖：同集取最新修改稿 */
+        if(p.outline && p.outline.trim()){
+            outline = p.outline;                              /* 兜底：最后一份（按遍历顺序） */
+            if(p.manual) manualOutline = { outline:p.outline, order:p.order };
+        }
     });
+    parsedList.forEach(p=>{
+        if(p && p.manual && p.outline && p.outline.trim() && p.order >= (manualOutline?manualOutline.order:-1)) manualOutline = { outline:p.outline, order:p.order };
+    });
+    const finalOutline = manualOutline ? manualOutline.outline : outline;
+    /* 各集：手动改过的该集优先（时间上最后一个手动版）；否则用最后生成的一版。
+       这样用户改过第2集后，即便后续批次又输出了旧第2集，也不会覆盖用户稿。 */
+    const episodes = new Map();          // 最终采用
+    const fallbackEp = new Map();        // 非手动的最后稿
+    const manualEp = new Map();          // 手动稿（含 order）
+    parsedList.forEach(p=>{
+        if(!p) return;
+        p.episodes.forEach((block,no)=>{
+            fallbackEp.set(no, block);
+            if(p.manual){
+                const prev = manualEp.get(no);
+                if(!prev || p.order >= prev.order) manualEp.set(no, { block, order:p.order });
+            }
+        });
+    });
+    fallbackEp.forEach((block,no)=> episodes.set(no, block));
+    manualEp.forEach((v,no)=> episodes.set(no, v.block));   /* 手动稿覆盖同集任何生成稿 */
     const parts = [];
-    if(outline) parts.push(outline);
+    if(finalOutline) parts.push(finalOutline);
     Array.from(episodes.keys()).sort((a,b)=>a-b).forEach(no=> parts.push(episodes.get(no)));
     return parts.join("\n\n");
 }
@@ -2455,7 +2521,7 @@ function resolveDownloadText(){
         if(merged) return merged;
         append("⚠️ 当前窗口未识别到剧本集结构，已改用「全部产物」合并。", "tip");
     }
-    const all = outputs.map(stripBatchTransitionLines).join("\n\n");
+    const all = outputs.map(o=>stripBatchTransitionLines(o.text)).join("\n\n");
     return all || pendingDownload.text;
 }
 function closeDownloadDialog(){
