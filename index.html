@@ -295,6 +295,16 @@
         .download-row input { flex: 1 1 auto; min-width: 0; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border2); background: var(--panel); color: var(--text); font-size: 12.5px; outline: none; }
         .download-row input:focus { border-color: var(--blue); }
         .download-note { font-size: 11.5px; line-height: 1.75; color: #fbbf24; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; padding: 9px 11px; margin-bottom: 12px; }
+        /* 下载范围选择：主「下载产物 TXT」才显示，历史单条下载时整块 hidden */
+        .download-scope { border: 1px solid var(--border2); border-radius: 8px; padding: 10px 11px; margin-bottom: 12px; }
+        .download-scope[hidden] { display: none; }
+        .download-scope-title { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+        .dl-scope-opt { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px; border-radius: 7px; cursor: pointer; margin-bottom: 4px; }
+        .dl-scope-opt:hover { background: var(--hover); }
+        .dl-scope-opt input[type=radio] { flex: 0 0 auto; margin: 2px 0 0; accent-color: var(--blue); }
+        .dl-scope-opt span { display: flex; flex-direction: column; gap: 2px; }
+        .dl-scope-opt b { font-size: 12.5px; color: var(--text); font-weight: 600; }
+        .dl-scope-opt small { font-size: 11px; color: var(--muted); line-height: 1.4; }
         .download-actions { display: flex; justify-content: flex-end; gap: 8px; }
         .download-actions .ctrl-btn { padding: 7px 14px; font-size: 12px; }
         /* 使用帮助：三部分小标题与 WorkBuddy 高亮栏 */
@@ -678,6 +688,12 @@
 <div class="modal-overlay" id="downloadModal">
     <div class="modal-box download-box">
         <div class="download-title">💾 保存产物 TXT</div>
+        <div class="download-scope" id="downloadScopeBox">
+            <div class="download-scope-title">下载范围（本对话窗口内的 AI 产物）</div>
+            <label class="dl-scope-opt"><input type="radio" name="dlScope" value="all" checked><span><b>全部产物（全剧）</b><small id="dlScopeAllHint">按生成顺序合并窗口内所有 AI 回复，自动剔除批次交接行</small></span></label>
+            <label class="dl-scope-opt" id="dlScopeMergedLabel"><input type="radio" name="dlScope" value="merged"><span><b>完整剧本（智能合并去重）</b><small id="dlScopeMergedHint">大纲 + 各集按集号排列；同一集多次修改只保留最新版本（仅剧本有效）</small></span></label>
+            <label class="dl-scope-opt"><input type="radio" name="dlScope" value="current"><span><b>当前这一轮</b><small>只下载最后一条生成结果（等同旧版行为）</small></span></label>
+        </div>
         <div class="download-row"><label for="downloadNameInput">文件名</label><input type="text" id="downloadNameInput" spellcheck="false"></div>
         <div class="download-note" id="downloadNote"></div>
         <div class="download-actions">
@@ -899,6 +915,9 @@ const previewTitle = document.getElementById("previewTitle");
 const downloadModal = document.getElementById("downloadModal");
 const downloadNameInput = document.getElementById("downloadNameInput");
 const downloadNote = document.getElementById("downloadNote");
+const downloadScopeBox = document.getElementById("downloadScopeBox");
+const dlScopeMergedLabel = document.getElementById("dlScopeMergedLabel");
+const dlScopeAllHint = document.getElementById("dlScopeAllHint");
 const downloadCancelBtn = document.getElementById("downloadCancelBtn");
 const downloadConfirmBtn = document.getElementById("downloadConfirmBtn");
 const newSessionFromHistoryBtn = document.getElementById("newSessionFromHistoryBtn");
@@ -954,7 +973,7 @@ const HELP_HTML = `
 <li>在左栏【算力总控】选择算力模式（默认「漫流算力」，当前可先用「本机算力」或「第三方API」）；<b>三个网页的算力档位各自独立</b>：创作台、导演画布、AI 剪辑台可以同时选用不同算力并行工作，在任一网页切档位都不会改动另外两个网页（同一网页的多个标签页仍同步）。导演画布内部仍是<b>两处联动</b>：画布左侧【算力总控】与生成节点里的「生成引擎」任意一处切换，另一处立即跟随；画布切总控时会把当前画布已有生成节点一起切（生成中的节点不打断，跑完后再由用户切换），在生成节点里单独改引擎只改那一个节点、新建生成节点默认跟随画布总控。<b>上下文窗口 token（32K / 64K / 128K / 256K / 1M）只对「本机算力」生效</b>；选「漫流算力」或「第三方API」时该栏自动改为「上下文长度：跟随所选模型（自适应）」，不再发送 max_tokens，由模型与服务商按自身上限决定（这类模型上下文普遍 256K 以上甚至 1M），切回本机算力会恢复并保留你上次设定的数字；</li>
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
-<li>点【下载产物 TXT】保存当前生成结果（可能是剧本、生视频提示词或生图提示词），本地保存对话历史；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
+<li>点【下载产物 TXT】可<b>选择下载范围</b>：<b>全部产物（全剧）</b>把窗口内所有 AI 回复按生成顺序合并（自动剔除批次交接行，默认项）；<b>完整剧本（智能合并去重）</b>把大纲与各集按集号排列、同一集多次修改只保留最新版（仅剧本有效）；<b>当前这一轮</b>只下最后一条（旧版行为）。历史产物里的「下载 TXT」仍是单条；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
 <li>页面顶部的【历史产物1 / 2 / 3 / 更多历史产物】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，<b>不再提供一键清空全部历史的按钮</b>（容易误操作），要删除请到【更多历史产物】下拉里逐条点红色 ×。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b><b>【更多历史产物】下拉里每条右侧有 ✎ 改名与红色 × 删除</b>：改名后可自定义好记的名字（顶部快捷按钮、列表与预览标题同步显示），删除前会确认、只删这一条；用法与导演画布「更多画布」一致。</li>
 <li>点【⇢ 送到画布】会先弹出「现有画布 / 新建画布」两个选项，选好后再送到对应画布，点「取消 / 关闭」则不送达。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送出半段内容</b>。选「现有画布」＝送到画布页当前打开（或上次使用）的那份画布；选「新建画布」＝新开画布页并自动新建一份画布，把产物作为提示词节点放进去。</li>
 </ol>
@@ -2340,10 +2359,79 @@ function downloadBlobAs(text, name){
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
 }
+/* ===== 下载范围：从吐字窗口聚合 AI 产物 =====
+   背景：分批续写/多轮对话时，大纲与各集分散在多条 AI 回复里，fullAiText 只指向最后一条。
+   - collectAllAiOutputs：按时间顺序取窗口内所有 .msg.ai 正文
+   - stripBatchTransitionLines：剔除【本批交付：...】这类过程交接行，它们不是剧本正文
+   - parseScriptBlocks：把一份文本拆成 {outline, episodes:Map<集号,正文块>}
+   - buildMergedScriptText：大纲 + 各集按集号排序，同集多次修改只留最后一次（最新稿） */
+function collectAllAiOutputs(){
+    const nodes = chatBox.querySelectorAll(".msg.ai");
+    const out = [];
+    nodes.forEach(n=>{ const t = msgFullText(n).trim(); if(t) out.push(t); });
+    return out;
+}
+function stripBatchTransitionLines(text){
+    return String(text||"").split(/\r?\n/).filter(line=>! /^\s*【本批交付[:：]/.test(line)).join("\n");
+}
+function parseScriptBlocks(text){
+    const s = stripBatchTransitionLines(text).trim();
+    if(!s) return null;
+    const lines = s.split(/\r?\n/);
+    const titleRe = /^\s*《[^》\n]{1,40}》第\s*(\d+)\s*集[：:]/;
+    const endRe = /^\s*【第\s*\d+\s*集完】\s*$/;
+    const titleIdx = [];
+    lines.forEach((ln,i)=>{ const m = ln.match(titleRe); if(m) titleIdx.push({i, no:parseInt(m[1],10)}); });
+    if(!titleIdx.length){
+        /* 无集标题：可能是「只改大纲」的一轮，作为大纲候选；由调用方在确认存在集结构后才采信 */
+        if(/大纲|梗概|爆款定位|人物设定|世界观/.test(s)) return { outline:s, episodes:new Map() };
+        return null;
+    }
+    const outline = lines.slice(0, titleIdx[0].i).join("\n").trim();
+    const episodes = new Map();
+    titleIdx.forEach((t,k)=>{
+        const start = t.i;
+        let end = (k+1 < titleIdx.length) ? titleIdx[k+1].i : lines.length;
+        for(let j=start+1;j<end;j++){ if(endRe.test(lines[j])){ end=j+1; break; } }
+        const block = lines.slice(start,end).join("\n").trim();
+        if(block) episodes.set(t.no, block);
+    });
+    return { outline, episodes };
+}
+function buildMergedScriptText(outputs){
+    const parsedList = outputs.map(parseScriptBlocks);
+    if(!parsedList.some(p => p && p.episodes.size > 0)) return "";   /* 没有可识别的集结构 → 交回调用方回退 */
+    let outline = "";
+    const episodes = new Map();
+    parsedList.forEach(p=>{
+        if(!p) return;
+        if(p.outline) outline = p.outline;              /* 后写覆盖：若用户改过大纲，取最新 */
+        p.episodes.forEach((block,no)=> episodes.set(no, block));  /* 后写覆盖：同集取最新修改稿 */
+    });
+    const parts = [];
+    if(outline) parts.push(outline);
+    Array.from(episodes.keys()).sort((a,b)=>a-b).forEach(no=> parts.push(episodes.get(no)));
+    return parts.join("\n\n");
+}
 let pendingDownload = null;
 const DOWNLOAD_FALLBACK_NOTE = "当前浏览器 / 预览环境不支持弹出系统「另存为」窗口，无法在网页里选择文件夹。文件会保存到浏览器默认下载目录（可在浏览器「设置 → 下载内容」里修改位置）；文件名可在这里改。";
-function openDownloadDialog(text, defaultName){
-    pendingDownload = { text: text, defaultName: defaultName };
+/* scopeEnabled=true（顶部主下载按钮）显示范围选择；历史单条下载不传，隐藏范围、固定 current */
+function openDownloadDialog(text, defaultName, scopeEnabled){
+    pendingDownload = { text: text, defaultName: defaultName, scopeEnabled: !!scopeEnabled };
+    if(downloadScopeBox) downloadScopeBox.hidden = !scopeEnabled;
+    if(scopeEnabled){
+        const outputs = collectAllAiOutputs();
+        const radios = document.querySelectorAll('input[name="dlScope"]');
+        radios.forEach(r=>{ r.checked = (r.value === "all"); });
+        const isScript = (currentSkillKey === "a");
+        if(dlScopeMergedLabel){
+            dlScopeMergedLabel.style.opacity = isScript ? "1" : "0.45";
+            const inp = dlScopeMergedLabel.querySelector("input");
+            if(inp) inp.disabled = !isScript;
+            if(!isScript && document.querySelector('input[name="dlScope"][value="merged"]')) document.querySelector('input[name="dlScope"][value="merged"]').checked = false;
+        }
+        if(dlScopeAllHint) dlScopeAllHint.textContent = "按生成顺序合并窗口内 " + outputs.length + " 条 AI 回复，自动剔除批次交接行";
+    }
     if(downloadNameInput) downloadNameInput.value = defaultName;
     if(downloadNote) downloadNote.textContent = DOWNLOAD_FALLBACK_NOTE;
     if(downloadModal) downloadModal.style.display = "flex";
@@ -2352,18 +2440,45 @@ function openDownloadDialog(text, defaultName){
         try { downloadNameInput.setSelectionRange(0, Math.max(0, String(defaultName).replace(/\.txt$/i, "").length)); } catch(e){}
     }
 }
+/* 按当前选中的范围计算最终下载文本 */
+function resolveDownloadText(){
+    if(!pendingDownload) return "";
+    let scope = "current";
+    if(pendingDownload.scopeEnabled && downloadScopeBox && !downloadScopeBox.hidden){
+        const checked = document.querySelector('input[name="dlScope"]:checked');
+        scope = checked ? checked.value : "all";
+    }
+    if(scope === "current") return pendingDownload.text;
+    const outputs = collectAllAiOutputs();
+    if(scope === "merged"){
+        const merged = buildMergedScriptText(outputs);
+        if(merged) return merged;
+        append("⚠️ 当前窗口未识别到剧本集结构，已改用「全部产物」合并。", "tip");
+    }
+    const all = outputs.map(stripBatchTransitionLines).join("\n\n");
+    return all || pendingDownload.text;
+}
 function closeDownloadDialog(){
     if(downloadModal) downloadModal.style.display = "none";
     pendingDownload = null;
 }
-function confirmDownloadDialog(){
+async function confirmDownloadDialog(){
     if(!pendingDownload) return;
     const name = safeTxtName(downloadNameInput ? downloadNameInput.value : pendingDownload.defaultName);
-    downloadBlobAs(pendingDownload.text, name);
+    const text = resolveDownloadText();
+    if(!text){ alert("没有可下载的内容！"); closeDownloadDialog(); return; }
+    const p = pendingDownload;
     closeDownloadDialog();
+    /* 已在本页弹窗里选好范围与文件名：这里只负责落盘（系统另存为优先，否则浏览器默认目录）。
+       fromDialog 阻止 saveTextWithDialog 再弹一次我们的命名弹窗。 */
+    try{ await saveTextWithDialog(text, name, { fromDialog:true, scopeEnabled:p.scopeEnabled }); }
+    catch(e){ console.error("保存产物失败：", e); }
 }
-async function saveTextWithDialog(text, defaultName){
+/* opts.fromDialog=true：范围/文件名已在本页选定，落盘时不再弹命名窗；
+   opts.scopeEnabled 仅记录在案（范围解析已在 resolveDownloadText 完成），保留参数便于扩展。 */
+async function saveTextWithDialog(text, defaultName, opts){
     if(!text){ alert("还没有 AI 输出内容！"); return; }
+    opts = opts || {};
     const canPicker = (typeof window.showSaveFilePicker === "function")
         && window.isSecureContext && (window.top === window);
     if(canPicker){
@@ -2381,13 +2496,14 @@ async function saveTextWithDialog(text, defaultName){
             /* 沙箱 / 权限 / 其它错误：降级到页面内命名弹窗 */
         }
     }
+    if(opts.fromDialog){ downloadBlobAs(text, defaultName); return; }
     openDownloadDialog(text, safeTxtName(defaultName));
 }
 function downloadAiText() {
-    if (!fullAiText) { alert("还没有 AI 输出内容！"); return; }
+    if (!collectAllAiOutputs().length && !fullAiText) { alert("还没有 AI 输出内容！"); return; }
     const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    Promise.resolve(saveTextWithDialog(fullAiText, `${currentOutputFile()}_${date}.txt`))
-        .catch(e => console.error("保存产物失败：", e));
+    /* 顶部主下载：先在本页弹窗里选「范围 + 文件名」，确认后再落盘（保留系统另存为） */
+    openDownloadDialog(fullAiText, `${currentOutputFile()}_${date}.txt`, true);
 }
 /* 新建对话 = 新开一个「前期创作台」本页，而不是当前地址。
    预览面板 / 在线预览器常用 iframe srcdoc 渲染，此时 window.location.href === "about:srcdoc"，
