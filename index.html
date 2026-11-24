@@ -893,6 +893,11 @@ let mfResumeUserNote = "";
 let mfWasGenerating = false;
 let mfResumeMode = false;
 let mfResumeDom = null;
+/* 当前「项目产物」身份（历史产物按项目而非按轮次记录）：
+   projectId 唯一标识一个项目（新对话/清空本页/换剧或换技能时换新），
+   同一项目内的多次生成都更新同一条历史产物，不再每轮各建一条。
+   随现场快照走，刷新后仍指向同一条；载入历史产物会切到那条的身份。 */
+let mfProjectId = "";
 let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
@@ -1001,7 +1006,7 @@ const HELP_HTML = `
 <li>可上传 TXT 剧本文件并勾选，会一并喂给AI（docx 请先另存为 txt）；</li>
 <li>输入创作指令，点击开始生成；</li>
 <li>点【下载产物 TXT】可<b>选择下载范围</b>：<b>全部产物（全剧）</b>把窗口内所有 AI 回复按生成顺序合并（自动剔除批次交接行，默认项）；<b>完整剧本（智能合并去重）</b>把大纲与各集按集号排列，<b>你手动编辑修改过的大纲与集数绝对优先</b>、不被后续批次的旧稿覆盖（仅剧本有效）；<b>当前这一轮</b>只下最后一条（旧版行为）。手动改过角色名等设定后，续写与后续各集都会按你改后的设定执行。历史产物里的「下载 TXT」仍是单条；<b>在吐字窗口任意位置双击鼠标可预览产物正文，点【✎ 编辑】在线修改、点【💾 保存】写回窗口，并同步最近一条历史产物（下载、送到画布、载入历史都用改后的文字）</b>；</li>
-<li>页面顶部的【历史产物1 / 2 / 3 / 更多历史产物】是本机浏览器缓存的历史剧本与提示词：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，<b>不再提供一键清空全部历史的按钮</b>（容易误操作），要删除请到【更多历史产物】下拉里逐条点红色 ×。所有内容只存在你的浏览器里，不会上传。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，顶部不再单独放「加载最近对话」按钮。</b><b>【更多历史产物】下拉里每条右侧有 ✎ 改名与红色 × 删除</b>：改名后可自定义好记的名字（顶部快捷按钮、列表与预览标题同步显示），删除前会确认、只删这一条；用法与导演画布「更多画布」一致。</li>
+<li>页面顶部的【历史产物1 / 2 / 3 / 更多历史产物】是本机浏览器缓存的历史项目：点按钮即可预览，弹窗内可载入当前对话或下载 TXT；生成完毕后自动缓存，最多保留 30 条，<b>不再提供一键清空全部历史的按钮</b>（容易误操作），要删除请到【更多历史产物】下拉里逐条点红色 ×。所有内容只存在你的浏览器里，不会上传。<b>历史产物按「项目」记录，而不是按每一轮生成</b>：一个剧本、一份美术资产提示词、一份生视频提示词各算一个产物；同一部剧分批写、继续写、反复修改互动，都会<b>持续更新同一条产物</b>（该条保存这个项目的全部输入、输出与互动，下载 TXT 一条即得完整项目正文，方便进一步处理），只有你<b>新开项目</b>（【新建对话】/【清空本页】/换成另一部剧或另一个技能）才会新建一条。<b>想恢复上次完整会话，点【历史产物1】（最新一条）→ 预览弹窗里【载入当前对话】即可，载入后继续写仍更新这一条。</b><b>【更多历史产物】下拉里每条右侧有 ✎ 改名与红色 × 删除</b>：改名后可自定义好记的名字（顶部快捷按钮、列表与预览标题同步显示），删除前会确认、只删这一条；用法与导演画布「更多画布」一致。</li>
 <li>点【⇢ 送到画布】会先弹出「现有画布 / 新建画布」两个选项，选好后再送到对应画布，点「取消 / 关闭」则不送达。<b>吐字生成中该按钮会置灰，点击会提示等生成完毕、不会送出半段内容</b>。选「现有画布」＝送到画布页当前打开（或上次使用）的那份画布；选「新建画布」＝新开画布页并自动新建一份画布，把产物作为提示词节点放进去。</li>
 </ol>
 
@@ -1462,21 +1467,20 @@ function enterPreviewEdit(){
     if(typeof requestAnimationFrame === "function") requestAnimationFrame(scrollPreviewToTop);
 }
 function syncEditedHistory(before, after){
-    /* 找到对应这条产物的历史记录（正常就是最新一条），同步正文与聊天框快照 */
+    /* 项目级：更新当前项目这一条（不再按 aiResult 文本匹配整条）。
+       aiResult 重算为"完整项目正文"，自动带上刚手动编辑过的内容（手动优先逻辑在 mfProjectProductText 内）。 */
     const records = readHistoryRecords();
     if(!records.length) return;
-    let idx = records.findIndex(r => typeof r.aiResult === "string" && r.aiResult === before);
+    let idx = mfProjectId ? records.findIndex(r => r && r.projectId === mfProjectId) : -1;
+    if(idx < 0){
+        /* 旧版无 projectId 的记录：退回按旧 aiResult 文本匹配，兼容老历史 */
+        idx = records.findIndex(r => typeof r.aiResult === "string" && r.aiResult === before);
+    }
     if(idx < 0) idx = 0;
     const rec = records[idx];
-    rec.aiResult = after;
-    try{
-        const tmp = document.createElement("div");
-        tmp.innerHTML = rec.chatHtml || "";
-        const aiMsgs = tmp.querySelectorAll(".msg.ai");
-        const target = aiMsgs.length ? aiMsgs[aiMsgs.length - 1] : null;
-        if(target){ target.textContent = "【AI】：" + after; try{ target.setAttribute("data-manual-edited","1"); }catch(e){} }
-        rec.chatHtml = tmp.innerHTML;
-    }catch(e){ /* 旧存档结构不同时只影响载入后的显示，正文已正确 */ }
+    try{ rec.aiResult = mfProjectProductText() || after; }catch(e){ rec.aiResult = after; }
+    rec.chatHtml = chatBox.innerHTML;   /* 直接取当前窗口快照：所有输入/输出/互动都在里面 */
+    rec.time = new Date().toISOString();
     safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records));
     renderHistoryBar();
 }
@@ -2110,6 +2114,7 @@ function snapshotLiveSession(){
         currentSkillKey: currentSkillKey,
         currentSkillName: currentSkillName,
         currentSystemPrompt: currentSystemPrompt,
+        mfProjectId: mfProjectId,
         fileStore: JSON.parse(JSON.stringify(fileStore)),
         userInput: userInput ? userInput.value : "",
         temp: tempInput ? tempInput.value : "",
@@ -2161,6 +2166,7 @@ function restoreLiveSession(){
         currentSkillKey = typeof s.currentSkillKey === "string" ? s.currentSkillKey : "";
         currentSkillName = typeof s.currentSkillName === "string" ? s.currentSkillName : "";
         currentSystemPrompt = typeof s.currentSystemPrompt === "string" ? s.currentSystemPrompt : "";
+        mfProjectId = typeof s.mfProjectId === "string" ? s.mfProjectId : "";
         fileStore = Array.isArray(s.fileStore) ? s.fileStore : [];
         if(userInput && typeof s.userInput === "string") userInput.value = s.userInput;
         if(tempInput && s.temp !== "" && s.temp != null) tempInput.value = s.temp;
@@ -2204,6 +2210,7 @@ function clearCurrentPage(){
     abortController = null; pendingText = ""; aiMsgDom = null; baseMsgDom = null;
     fullAiText = ""; chatBox.innerHTML = "";
     mfAutoContinue = null; mfScriptGoal = null; mfInterruptReason = ""; mfWasGenerating = false; mfClarifyPending = null;
+    mfProjectId = "";   /* 清空即开新项目：下次生成会新建一条历史产物，不覆盖旧项目 */
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     fileStore = []; refImages = []; customSkillList = [];
     userInput.value = "";
@@ -3551,29 +3558,116 @@ function importSkillMdFile(file){
 
 /* 历史记录只保存文本与技能 key，绝不写入参考图 base64。
    配额兜底：localStorage 超限（漫剧长输出常见）时自动丢弃最旧记录重试，不再让 setItem 抛错打断生成结束流程。 */
+/* ==================================================================
+   历史产物按「项目」记录（一个剧本/一份美术资产/一份生视频提示词 = 一条）
+   · 同一项目内继续写、多轮互动、分批续写 → 都更新同一条，不再每轮各建一条；
+   · 项目内所有输入与输出都留在这一条的 chatHtml（完整对话）里，不拆条、不丢失；
+   · aiResult 存"该项目的完整干净产物"（剧本=大纲+全集合并去重；其它=全部 AI 输出合并），
+     使历史「下载 TXT」一条下载到手的就是完整项目，便于进一步处理；
+   · 只有用户新开项目（新对话/清空本页/换技能/换剧名）才新建一条。
+   ================================================================== */
+/* 项目指纹：剧本按《剧名》区分，其它技能按 技能 key+技能名 区分。 */
+function mfProjectFingerprint(){
+    let title = "";
+    try{
+        const ol = getAuthoritativeOutline() || "";
+        const m = ol.match(/《([^》\n]{1,40})》/);
+        if(m) title = m[1];
+    }catch(e){}
+    if(!title){
+        try{
+            const t = collectCreativeOutputs().map(x=>x.text).join("\n");
+            const m = t.match(/《([^》\n]{1,40})》第\s*\d+\s*集/);
+            if(m) title = m[1];
+        }catch(e){}
+    }
+    return { skillKey: currentSkillKey || "", skillName: currentSkillName || "", title: title };
+}
+/* 判断一条历史记录是否仍属于当前项目（同一项目才更新，否则新建）。 */
+function mfRecordMatchesProject(rec, fp){
+    if(!rec || typeof rec !== "object") return false;
+    if((rec.skillKey || "") !== fp.skillKey) return false;
+    if(fp.skillKey === "a"){
+        const rt = rec.projectTitle || "", ct = fp.title || "";
+        if(rt && ct && rt !== ct) return false;   /* 两边都识别出剧名且不同 → 换剧了 */
+        return true;
+    }
+    return (rec.skillName || "") === (fp.skillName || "");
+}
+/* 该项目要写进产物的"完整干净正文"：剧本用智能合并去重，其它技能合并全部 AI 输出。 */
+function mfProjectProductText(){
+    try{
+        if(currentSkillKey === "a"){
+            const creative = collectCreativeOutputs();
+            const merged = buildMergedScriptText(creative.length ? creative : collectAllAiOutputs());
+            if(merged && merged.trim()) return merged;
+        }
+    }catch(e){}
+    try{
+        const outs = collectAllAiOutputs();
+        const joined = outs.map(o=>stripBatchTransitionLines(o.text)).filter(x=>x.trim()).join("\n\n");
+        if(joined.trim()) return joined;
+    }catch(e){}
+    return String(fullAiText || "");
+}
 function saveHistoryToLocal() {
     try {
-        const record = {
-            time: new Date().toISOString(),
-            skillName: currentSkillName,
-            skillKey: currentSkillKey,
-            systemPrompt: currentSystemPrompt,
-            chatHtml: chatBox.innerHTML,
-            aiResult: fullAiText,
-            fileStore: JSON.parse(JSON.stringify(fileStore))
-        };
-        let all = [];
-        try { all = JSON.parse(safeStorage.get(STORAGE_KEY_HISTORY) || "[]") || []; } catch(e){ all = []; }
+        const productText = mfProjectProductText();
+        if(!productText || !productText.trim()) return;   /* 无可保存产物，不建空记录 */
+        const fp = mfProjectFingerprint();
+        let all = readHistoryRecords();
         if(!Array.isArray(all)) all = [];
-        all.unshift(record);
-        if(all.length > 30) all = all.slice(0, 30);
+        const now = new Date().toISOString();
+        let idx = mfProjectId ? all.findIndex(r => r && r.projectId === mfProjectId) : -1;
+        if(idx >= 0 && !mfRecordMatchesProject(all[idx], fp)) idx = -1;
+        /* ★ 跨对话续同一项目：新对话/隔几天回来、或没点「载入当前对话」直接续写时，
+           mfProjectId 是空的（sessionStorage 不继承）。此时按项目指纹（剧名/技能）在历史里找唯一匹配项，
+           找到就接管它的 projectId 并更新同一条——保证「A 项目隔两天回来续，仍更新 A 那一条产物」。
+           只有指纹确实指向同一部剧/同一技能才认领，避免把两部不同剧误并。 */
+        if(idx < 0){
+            const match = all.findIndex(r => mfRecordMatchesProject(r, fp));
+            if(match >= 0){
+                idx = match;
+                mfProjectId = all[match].projectId || mfProjectId;
+            }
+        }
+        if(idx >= 0){
+            /* 同一项目：原地更新这一条（保留 customName 用户改名），刷新为完整产物 */
+            const rec = all[idx];
+            rec.time = now;
+            rec.skillName = currentSkillName;
+            rec.skillKey = currentSkillKey;
+            rec.systemPrompt = currentSystemPrompt;
+            rec.projectTitle = fp.title;
+            rec.chatHtml = chatBox.innerHTML;
+            rec.aiResult = productText;
+            rec.fileStore = JSON.parse(JSON.stringify(fileStore));
+            all.splice(idx, 1); all.unshift(rec);
+            renderHistoryBar();
+        }else{
+            /* 新项目：新建一条 */
+            mfProjectId = "p_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,7);
+            const record = {
+                time: now,
+                skillName: currentSkillName,
+                skillKey: currentSkillKey,
+                systemPrompt: currentSystemPrompt,
+                projectId: mfProjectId,
+                projectTitle: fp.title,
+                chatHtml: chatBox.innerHTML,
+                aiResult: productText,
+                fileStore: JSON.parse(JSON.stringify(fileStore))
+            };
+            all.unshift(record);
+            if(all.length > 30) all = all.slice(0, 30);
+        }
         // 写入失败（配额/被禁用）就逐条裁剪最旧记录，最多再试 8 次；仍失败则只留本次
         for(let i = 0; i < 8; i++){
             if(safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(all))){ renderHistoryBar(); return; }
             if(all.length <= 1) break;
             all = all.slice(0, Math.max(1, Math.floor(all.length / 2)));
         }
-        append("⚠️ 本地存储空间不足或已被浏览器禁用，本次对话未能写入历史；生成内容不受影响，可点【下载】保存。", "tip");
+        append("⚠️ 本地存储空间不足或已被浏览器禁用，本次项目产物未能写入历史；生成内容不受影响，可点【下载】保存。", "tip");
     } catch(e) {
         console.warn("保存历史失败（不影响生成）：", e);
     }
@@ -3745,6 +3839,8 @@ function loadHistoryRecordToChat(){
     currentSkillName = rec.skillName || "";
     currentSkillKey = rec.skillKey || "";
     currentSystemPrompt = rec.systemPrompt || "";
+    /* 切到这条历史产物的项目身份：载入后继续写/修改，都更新这一条，不新建产物 */
+    mfProjectId = typeof rec.projectId === "string" && rec.projectId ? rec.projectId : "";
     fileStore = Array.isArray(rec.fileStore) ? rec.fileStore : [];
     renderFileList();
     updateRefBadge();
