@@ -2358,7 +2358,15 @@ function collectWrittenEpisodeSet(){
 function parseScriptGoalFromCommand(cmd){
     const s = String(cmd||"");
     if(!s.trim()) return null;
-    if(/规划|策划|先出大纲|只要大纲|只出大纲|大纲即可/.test(s)) return null;
+    /* ★ 修复"写《剧名》100集 / 100集剧本 / 先出大纲然后写100集正文"写完第1集就停：
+       旧逻辑只要出现"大纲/规划"就 return null，把明确的多集写作意图也一并抹掉了 →
+       mfScriptGoal=null → 没有续写锚点 → 正文写完第1集自然停。
+       现在区分两类：
+       (a)"只要大纲/纯规划、明确不要正文" → 仍排除；
+       (b)"写了具体集数 + 要写正文/剧本/写满/写完/连写" → 不被大纲词排除。
+       关键词"大纲"若是"先出大纲然后写N集/大纲+N集"这种组合，属于(b)，照常锁定目标。 */
+    const outlineOnly = /只要大纲|只出大纲|只要.*?大纲|只写大纲|大纲即可|先出大纲(?!.*?(?:写|出|生成|交付|连写|连续写|写满|写完|正文|剧本))|规划\s*\d+\s*集\s*大纲/.test(s);
+    if(outlineOnly) return null;
     /* 中文数字只用到 mfCnNumToInt 能解析的范围（个/十/几十）；"百"不放进字符类，
        否则 "一百" 会被 mfCnNumToInt 判成 0。区间放宽：第一个"集"字可省（第15到第100集）。 */
     const NUM = "(\\d+|[一二两三四五六七八九十]+)";
@@ -2389,6 +2397,21 @@ function parseScriptGoalFromCommand(cmd){
     if(m){
         const n = mfCnNumToInt(m[1]);
         if(n>=1 && n<=500) return { from:1, total:n };
+    }
+    /* ★ 关键兜底：动词和集数之间夹了剧名/量词时上面匹配不到。
+       "写《妖震万界》100集"、"创作100集漫剧"、"帮我写一部漫剧，100集"、"100集剧本"——
+       只要指令里有明确的写作意图词，且文中出现一个明确的 NUM 集（剧中/剧名任意位置），就取它为目标。
+       限制：N 在 1..500；且必须存在写作意图词，避免把"看第3集"当任务目标。 */
+    const hasWriteIntent = /(?:写|创作|出|生成|交付|连写|连续写|写满|写完|来|要|做|剧本|正文|漫剧|短剧|剧集)/.test(s);
+    if(hasWriteIntent){
+        const allNums = s.match(new RegExp(NUM+"\\s*集","g")) || [];
+        let best = 0;
+        allNums.forEach(seg=>{
+            const numStr = seg.match(new RegExp(NUM))[1];
+            const n = mfCnNumToInt(numStr);
+            if(n>=2 && n<=500 && n>best) best = n;   /* 取最大值；只认≥2集（单集写作无需续写锚点） */
+        });
+        if(best>=2) return { from:1, total:best };
     }
     m = s.match(new RegExp("前\\s*"+NUM+"\\s*集"));
     if(m){
@@ -2739,6 +2762,9 @@ function autoContinueDirective(c){
         + (c.to - c.from + 1) + " 集）：\n"
         + "1) 严禁重出大纲与设定、严禁改剧名、严禁从头重写前面已写的集；沿用上文已有的《剧名》、世界观、人物设定、画幅，"
         + "以及每集时长与场次数（含用户逐集明确指定的值，如『第一集3分钟、第二集起每集1分钟』）——**用户指令优先级最高，不得压回默认105秒/3–5场**；\n"
+        + "1b) ★大纲表覆盖检查（仍以用户指令为准）：用户要求写满 " + c.total + " 集。若上文的分集大纲表尚未规划到用户要求的总集数，"
+        + "请在本批正文之前，把分集大纲表**从已有最后一行往后补**到用户要求的第 " + c.total + " 集（每行含集数/集名/预估成片/核心冲突/爽点/情绪曲线/高光15秒/钩子类型/悬念推进），"
+        + "只追加缺失集号、绝不重出或改写已有行；这是为了让每集正文都有规划锚点、避免剧情走回头路。若用户指令明确只要写到某个更小的集数，则以用户指令为准，不补到更大集数；\n"
         + "2) 从 `《剧名》第" + c.from + "集：集名 ｜ 预估成片：XX 秒 ｜ 画幅：横屏/竖屏`（画幅、时长与场次沿用上文该集已确立的值）开始，"
         + "逐集写完整正文（每集场次按该集已确立的时长/场次要求分配，用户未指定才用默认3–5场；三栏、一△一镜头、台词、【第X集完】），每集集标题都带两个元数据字段；\n"
         + "3) 本轮只需写第 " + c.from + "–" + c.to + " 集（共 " + (c.to - c.from + 1) + " 集），集号连续、不得跳号、不得重复已写集，"
@@ -4526,8 +4552,16 @@ function parseScriptEpisodeRequest(cmd){
         r.mode = "continue"; r.matched = true; return r;
     }
     // 规划语境（只出大纲、按默认一集）——优先判定，避免「规划30集」被当成写30集正文
-    const hasPlan = /规划|策划|先出大纲|只要大纲|写.{0,6}大纲|大纲.{0,4}(先|即可|就行)/.test(s);
-    const hasExplicitWrite = new RegExp("(?:写|出|做|生成|交付)\\s*" + NUM + "\\s*集\\s*(?:正文|剧本|全文)").test(s);
+    const hasPlan = /规划|策划|先出大纲|只要大纲|只要.{0,6}大纲|只写大纲|大纲即可/.test(s);
+    /* ★ 修复"先出大纲，然后写100集/写《剧名》100集"被误判成 plan(只写1集)：
+       只要文中存在"明确的写 N≥2 集意图"（N 集可出现在任意位置、前面可夹剧名），就算 multi/续写意图，
+       不被"大纲"二字压成只写1集。纯"写大纲/规划N集大纲/只要大纲"仍走 plan。 */
+    const writeIntent = /(?:写|创作|出|生成|交付|连写|连续写|写满|写完|剧本|正文|漫剧|短剧|剧集)/.test(s);
+    const anyMultiCount = (()=>{
+        const nums = s.match(new RegExp(NUM+"\\s*集","g")) || [];
+        return nums.some(seg=>{ const n = mfCnNumToInt((seg.match(new RegExp(NUM))||[])[1]||""); return n>=2 && n<=500; });
+    })();
+    const hasExplicitWrite = writeIntent && anyMultiCount && !/(?:只要大纲|只写大纲|大纲即可|只出大纲)/.test(s);
     if(hasPlan && !hasExplicitWrite){ r.mode = "plan"; return r; }
     /* 定向起点重写/续写（优先于下面的裸数字匹配，否则"从第12集…100集"会被"12集"误判成前12集）：
        从第N集开始重写到第M集 / 从第N集起写到第M集 / 从第N集重写，直到写完第M集。 */
@@ -4548,8 +4582,8 @@ function parseScriptEpisodeRequest(cmd){
             }
         }
     }
-    // 区间：1-3集 / 1~3集 / 1到3集 / 第1—3集
-    let m = s.match(new RegExp("第?\\s*" + NUM + "\\s*[-~—到至]\\s*" + NUM + "\\s*集"));
+    // 区间：1-3集 / 1~3集 / 1到3集 / 第1—3集 / 第1集到第100集（NUM 后可带"集"字）
+    let m = s.match(new RegExp("第?\\s*" + NUM + "\\s*集?\\s*[-~—到至]\\s*第?\\s*" + NUM + "\\s*集"));
     if(m){
         const a = mfCnNumToInt(m[1]), b = mfCnNumToInt(m[2]);
         if(a >= 1 && b >= a && b <= 200){ r.mode = (b - a + 1) > 1 ? "multi" : "single"; r.count = b - a + 1; r.from = a; r.to = b; r.matched = true; r.raw = m[0]; return r; }
@@ -4607,9 +4641,13 @@ function scriptEpisodeDirective(ep, isRevision){
     }
     if(ep.mode === "multi"){
         const n = ep.count, from = ep.from, to = ep.to;
+        const goalTotal = (mfScriptGoal && mfScriptGoal.total >= 2) ? mfScriptGoal.total : n;
         return head
-            + "本条指令中用户明确要求写 " + n + " 集剧本。严格按以下执行：\n"
-            + "1) 先正常输出完整的《剧名》大纲与设定（世界观与核心规则、人物设定表、主线三幕、分集大纲表等一律照常先出，不得省略）；\n"
+            + "本条指令中用户明确要求写 " + n + " 集剧本" + (goalTotal > n ? "（用户目标是写满 " + goalTotal + " 集）" : "") + "。严格按以下执行：\n"
+            + "1) 先正常输出完整的《剧名》大纲与设定（世界观与核心规则、人物设定表、主线三幕、分集大纲表、尺度与合规一律照常先出，不得省略）；\n"
+            + "★ 分集大纲表必须覆盖用户要求的全部 " + goalTotal + " 集：从第 1 集逐集规划到第 " + goalTotal + " 集，每集一行（集数/集名/预估成片/核心冲突/爽点/情绪曲线/高光15秒/钩子类型/悬念推进），"
+            + "绝不允许只写前几集（如只写前 6 集）就停——大纲是后面每一集正文的锚点，缺集会让后续集自由发挥、剧情重复走回头路。"
+            + "若一次写不进全部 " + goalTotal + " 行，就在本轮先把大纲表尽量往后补（至少补到本批要写的第 " + to + " 集之后），系统会自动接力继续补齐剩余集的大纲；\n"
             + "2) 在大纲末尾追加一段「本次分集小纲（分集简介）」，逐集简介本次要交付的第 " + from + "~" + to + " 集，每集 1-2 句写清核心事件与集尾钩子；\n"
             + "3) 再依次输出第 " + from + "~" + to + " 集完整剧本正文，共 " + n + " 集，每集都要有集标题与【第N集完】；超过 5 集按技能分批规则连续输出、总量不减。\n"
             + "不得只写 1 集，不得写「待续 / 是否继续写下一集」。若用户指令实际指定的集数与上述不同，以用户指令明确写出的集数为准。其余格式、节奏、时长标注严格遵循技能。";
