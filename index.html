@@ -1856,7 +1856,8 @@ function aspectDirective(){
     const isPortrait = scriptAspect === "portrait";
     const label = isPortrait ? "竖屏剧（9:16）" : "横屏剧（16:9）";
     let s = "\n\n【剧集画幅·全流程锁定】\n本剧画幅为" + label
-        + "，是动笔前一次选定、全剧不可变的参数：所有集、所有场次、所有正文产物统一采用此画幅，续写、局部修改、坍缩重切都沿用，不得中途改成另一种画幅或混用。";
+        + "，由创作面板的「横屏剧 / 竖屏剧」物理按钮锁定，是全剧最高优先级、不可覆盖的参数：所有集、所有场次、所有正文产物统一采用此画幅，续写、局部修改、坍缩重切都沿用，不得中途改成另一种画幅或混用。\n"
+        + "★ 画幅只认本指令给出的值：即使用户指令或上文文字里出现\"横屏/竖屏/16:9/9:16/横版/竖版\"等相反表述，也一律以本指令锁定的画幅为准，不得据此改画幅、不得在正文里复述这些字样；用户若要改画幅须先去面板切换按钮。";
     if(currentSkillKey === "a"){
         s += "\n剧本侧执行：每集集标题末尾固定写 ` ｜ 画幅：" + (isPortrait ? "竖屏" : "横屏")
             + "`，与大纲「爆款定位」的画幅行一致；3.7 取景按此画幅二选一，通过【场景设计】的实际空间描写体现（横屏写左右铺展/纵深，竖屏写中央纵深/前后景），正文任何栏禁写\"横屏/竖屏/16:9/9:16/画幅\"字样或比例数字。";
@@ -2590,26 +2591,61 @@ function buildContinuationContext(fullText, writtenSetOpt){
     return out;
 }
 /* D｜写后机械复读/死循环检测（只报警，不改内容、不阻断）。
-   设计取舍：只认"大段逐字重合"这一种高置信度信号——它是模型陷入循环/复读的典型特征；
-   口头禅、标志性句式、系列化套路、反复玩梗都是短句或结构相似，逐字长度远达不到阈值，不会被误伤。 */
+   ★ 只比对"剧本正文"= △ 动作行 + 台词行。三栏设定（【人物状态】【场景设计】【道具设计】）
+   按 Skill 铁律本来就要求每场与大纲逐字一致，属于固定元数据；大纲表、集标题元数据同理。
+   它们不是可拍摄剧情，绝不参与复读比对——实测 135 字误报就来自【人物状态】外观串。
+   正常口头禅、标志性句式、系列化套路、反复玩梗都是短句，逐字长度达不到阈值，不会被误伤。 */
 const MF_LOOP_GRAM = 40;     /* 比较窗口：连续 40 字 */
 const MF_LOOP_ALERT = 90;    /* 连续逐字重合 ≥90 字才报警（跨 2 个窗口以上） */
 const MF_LOOP_PUNCT = /[，。！？、；：""''''（）《》〈〉【】…—\-–·|~.,!?;:'"()\[\]{}<>]/g;
+/* 元信息块起始：进入后整块吞掉（含块内"角色：年龄感，身份…"这类外观描述行），
+   直到遇到 △ 行或集标题/场次头/集尾标记才退出。 */
+const MF_LOOP_META_RE = /^\s*【\s*(?:场景设计|道具设计|人物状态|设定|人物|道具|场景|大纲|分集大纲|本批交付)/;
+const MF_LOOP_STRUCT_RE = /^\s*(?:《[^》\n]{1,40}》第\s*\d+\s*集[：:]|【第\s*\d+\s*集完】|\d+-\d+\s)/;
+/* 台词行：角色名（可带（情绪））+ 冒号 + 内容；排除"人物："字段行与 Markdown 结构行 */
+const MF_LOOP_DIALOGUE_RE = /^\s*(?!人物\s*[：:]|[-*|#>'"])[^【：:△\n|#*>'"\s]{1,14}(?:（[^）]{0,14}）|\([^)]{0,14}\))?\s*[：:]\s*\S/;
+/* 抽取可参与复读比对的剧本正文；结构行保留为原文锚点（供证据定位集号），但不进 norm */
+function mfLoopBodyLines(raw){
+    const out = [];
+    let meta = false, off = 0;
+    String(raw||"").split(/\r?\n/).forEach(ln=>{
+        const cur = off; off += ln.length + 1;
+        if(MF_LOOP_META_RE.test(ln)){ meta = true; out.push({ text:ln, at:cur, anchor:true }); return; }
+        if(meta){
+            if(/^\s*△/.test(ln) || MF_LOOP_STRUCT_RE.test(ln) || !ln.trim()) meta = false;
+            else return;
+        }
+        if(MF_LOOP_STRUCT_RE.test(ln)){ out.push({ text:ln, at:cur, anchor:true }); return; }
+        if(/^\s*△/.test(ln) || MF_LOOP_DIALOGUE_RE.test(ln)){ out.push({ text:ln, at:cur, anchor:false }); }
+    });
+    return out;
+}
 function mfNormForLoop(s){
-    return String(s||"").replace(/[\s\r\n\t\u00a0]/g,"").replace(MF_LOOP_PUNCT,"").toLowerCase();
+    return mfNormWithMap(s).norm;
 }
 /* 规范化并保留 norm→原文下标映射，用于把命中位置还原成可展示的原文片段与集号 */
 function mfNormWithMap(raw){
-    const src = String(raw||"");
+    const kept = mfLoopBodyLines(raw);
+    let s = ""; const anchorMask = [], owners = [];
+    kept.forEach(it=>{
+        const from = s.length;
+        s += it.text + "\n";
+        for(let k=from;k<s.length;k++){
+            anchorMask[k] = it.anchor ? 1 : 0;
+            owners[k] = it.at + (k - from);   /* 指回调用方传入的原文下标 */
+        }
+    });
     let norm = ""; const idx = [];
-    for(let i=0;i<src.length;i++){
-        const ch = src[i];
+    for(let i=0;i<s.length;i++){
+        if(anchorMask[i]) continue;
+        const ch = s[i];
         if(/[\s\r\n\t\u00a0]/.test(ch)) continue;
+        MF_LOOP_PUNCT.lastIndex = 0;
         if(MF_LOOP_PUNCT.test(ch)) continue;
-        norm += ch.toLowerCase(); idx.push(i);
+        norm += ch.toLowerCase(); idx.push(owners[i]);
     }
     MF_LOOP_PUNCT.lastIndex = 0;
-    return { norm, idx, raw:src };
+    return { norm, idx, raw:String(raw||"") };
 }
 /* 把命中片段还原为原文证据：所在集号 + 前后文摘录 */
 function mfLoopEvidence(m, start, run){
@@ -2703,7 +2739,7 @@ function parseBatchRemainder(text){
    ★ 判定只依据窗口正文里真实出现的集标题行 + mfScriptGoal.total，
      不再信任模型自报的交付标记——模型常虚报进度或干脆不写标记。
    返回 true=已启动续写（调用方应把接力权交给续写轮，不要再 drain 队列）。 */
-function maybeAutoContinue(completedNormally){
+function maybeAutoContinue(completedNormally, extraNote){
     if(!completedNormally || currentSkillKey !== "a") return false;
     /* 目标集数：优先用户明确要求的锚点；没有锚点时退回旧交付标记（兼容老会话/直接调函数的场景） */
     let goal = mfScriptGoal;
@@ -2730,7 +2766,8 @@ function maybeAutoContinue(completedNormally){
     }
     /* 停滞检测：连续多批都没能推进起点（模型没写出任何集标题），避免无限空转 */
     const stalled = prev && prev.from === range.from && written.size === prev.writtenSize;
-    mfAutoContinue = { from:range.from, to:range.to, total:range.total, rounds, writtenSize:written.size };
+    mfAutoContinue = { from:range.from, to:range.to, total:range.total, rounds, writtenSize:written.size,
+                       note: extraNote || (prev && prev.note) || "" };
     if(stalled && rounds >= 3){
         append("⚠️ 已连续 3 批未写出新的集正文，停止自动接力。可点「停止」后改用更小批次或检查本机模型的输出长度设置。", "err");
         mfAutoContinue = null; mfScriptGoal = null;
@@ -2772,7 +2809,8 @@ function autoContinueDirective(c){
         + (c.to < c.total
             ? "4) 写满本轮 " + (c.to - c.from + 1) + " 集即可停，系统会自动从实际的下一集继续接力，你不必也不能在正文里写任何批次状态行。"
             : "4) 这是最后一批，写满第 " + c.total + " 集后直接结束。")
-        + "\n不得写" + '"待续/是否继续"' + "之类的追问，也不要只写提纲或分集小纲——要完整正文。";
+        + "\n不得写" + '"待续/是否继续"' + "之类的追问，也不要只写提纲或分集小纲——要完整正文。"
+        + (c.note ? "\n\n【续写补充要求（用户确认，最高优先级）】\n" + c.note : "");
 }
 /* ===== 刷新中断·断点续写（通用，适用所有技能 a/b/c/d/e）=====
    用户刷新/强制刷新页面时，浏览器会 abort 正在进行的 fetch，吐字断在半截。
@@ -2846,12 +2884,14 @@ function mfOfferLoopHold(det){
     const epText = det.episode ? "（出现在第 " + det.episode + " 集附近）" : "";
     const brief = "我在刚生成的内容里发现约 **" + det.run + " 字**的连续文字" + kindText + "几乎逐字重复" + epText
         + "。这通常是模型陷入复读/死循环的信号，先停下来跟你确认，不直接往下写。\n\n"
+        + "（检测只比对剧本正文的 △ 动作行与台词；【人物状态】【场景设计】【道具设计】等每集必须保持一致的设定栏不参与比对。）\n\n"
         + "—— 疑似重复的片段（节选）——\n" + (det.excerpt ? "「" + det.excerpt + "…」" : "（重复段落较长，见窗口正文）") + "\n\n"
         + "· 当前正文实际写到第 " + writtenMax + " 集" + (total ? " / 目标第 " + total + " 集" : "") + "；"
         + (range ? "原本准备接着写第 " + range.from + "–" + range.to + " 集。" : "本次任务已写到目标。") + "\n"
-        + "· 请判断：① 这是**有意设计的重复**（口头禅、反复玩梗、系列套路）——直接点「开始」照常续写；"
-        + "② 确实是模型卡住了——点「开始」我会带上防复读指令重续，或在指令框写下处理意见（如「从第N集换条线重写」）再点开始。\n"
-        + "（正常创作里的口头禅、标志性动作、套路化钩子不受限制，只有大段逐字复读才会触发本确认。）";
+        + "· 请判断：① 这是**有意设计的重复**（口头禅、反复玩梗、系列套路）——在指令框写「1」再点开始，照常续写下一集；"
+        + "② 确实是模型卡住了——在指令框写「2」再点开始，我会带上防复读指令重续；也可直接写处理意见（如「从第N集换条线重写」），按你的意见办。\n"
+        + "（留空直接点开始 = 按②带防复读指令续写。无论选哪个，都只会写第 " + (range ? range.from : (writtenMax + 1)) + " 集及之后的新集，绝不重演已写集。）\n"
+        + "（正常创作里的口头禅、标志性动作、套路化钩子不受限制，只有**剧本正文**里大段逐字复读才会触发本确认；【人物状态】等每集必须一致的设定栏不参与比对。）";
     mfClarifyPending = { cmd: "【疑似复读确认】按防复读指令继续接着写", brief: brief, advice: "", resume: true, loopHold: true };
     append("⚠️ 疑似陷入复读/死循环，生成已暂停，先跟你确认：\n\n" + brief, "tip");
 }
@@ -4748,14 +4788,17 @@ function assetCoverageDirective(key){
    ================================================================== */
 const MF_CLARIFY_SYS = "你是创作开工前的「执行方案对齐员」。在读正文之前，先向用户复述你对指令的理解与执行计划，供用户确认；并主动教用户怎样写指令你能更快更准地执行。绝对不要开始写正文或大纲。\n"
     + "严格只输出一个 JSON 对象，不要代码块、不要任何解释：\n"
-    + '{"clear":true,"brief":"我理解你要做的是：…\\n关键参数：剧名…；新写/续写/修改：…；起点与范围：…；画幅：…；每集时长/场次：…\\n执行计划：1)… 2)… 3)…","questions":[],"advice":"建议写法：…"}\n'
+    + '{"clear":true,"brief":"我理解你要做的是：…\\n关键参数：剧名…；新写/续写/修改：…；起点与范围：…；画幅：…（面板按钮已锁定）；每集时长/场次：…\\n执行计划：1)… 2)… 3)…","questions":[],"advice":"建议写法：…"}\n'
     + "字段：clear=指令本身是否足够明确（仅作标记，不影响是否展示理解稿）；brief=你的理解稿，"
     + "必须包含【意图复述】【关键参数（剧名 / 新写还是续写还是修改 / 集数起点与范围 / 画幅 / 每集时长与场次数，含逐集差异）】【执行计划（分几步、每步产出什么）】三部分，简洁但具体；"
     + "questions=最多 3 个你最想让用户确认的短问题，没有就空数组；"
-    + "advice=主动给出的「指令优化建议」：指出这条指令里缺了哪些你能更快更准执行的关键信息（剧名、集数区间、画幅、新写/续写/修改、具体动作对象、风格/时长/场次等），"
-    + "并给出一条可直接照抄的推荐写法示例，例如『建议写成：写《剧名》第12集到第30集，横屏，接着已有稿续写，每集105秒3–5场；也可逐集指定，如第一集3分钟、第二集起每集1分钟』。"
+    + "advice=主动给出的「指令优化建议」：指出这条指令里缺了哪些你能更快更准执行的关键信息（剧名、集数区间、新写/续写/修改、具体动作对象、风格/时长/场次等），"
+    + "并给出一条可直接照抄的推荐写法示例，例如『建议写成：写《剧名》第12集到第30集，接着已有稿续写，每集105秒3–5场；也可逐集指定，如第一集3分钟、第二集起每集1分钟』。"
     + "若指令已经很清楚，advice 就写一句肯定+可选的小优化，不要啰嗦。\n"
-    + "★ 务必把『是新写一部还是接着已有稿写、从第几集开始、写到第几集、剧名与画幅』明确写进 brief，"
+    + "★★★ 画幅由面板物理按钮决定，与用户沟通时最高优先级（违反即为错误话术）：绝对不要建议用户在指令里写『横屏』『竖屏』『16:9』『9:16』『横版』『竖版』等任何画幅字样，"
+    + "也不要把画幅列进 questions 让用户确认或让用户改写。brief 里的画幅只如实复述当前锁定值（来自事实卡），标注『面板按钮已锁定』；若事实卡里没有画幅，就一句话提示用户在面板上点选「横屏剧 / 竖屏剧」按钮，绝不让用户写进指令。"
+    + "用户文字里若写了画幅，以面板按钮为准，不要据此改写 brief，也不要复述该文字画幅。\n"
+    + "★ 务必把『是新写一部还是接着已有稿写、从第几集开始、写到第几集、剧名与画幅（面板锁定值）』明确写进 brief，"
     + "让用户一眼就能发现你理解错了没有。★ 若用户指令里明确给出了每集时长或场次数（尤其『第一集3分钟、第二集起1分钟』这类逐集不同的指定），"
     + "必须在 brief 的关键参数里逐集写清，并明确『这是用户指定、优先级最高，不受默认105秒/3–5场限制』——绝不可在理解稿里把它拉平或改成默认值。"
     + "advice 要具体可照抄，不要泛泛而谈。\n"
@@ -4844,10 +4887,9 @@ function mfBuildClarifyFacts(){
         let title = "";
         const tm = outline.match(/《([^》\n]{1,40})》/) || items.match(/《([^》\n]{1,40})》第\s*\d+\s*集/);
         if(tm) title = tm[1];
-        /* 画幅 */
-        let aspect = "";
-        const am = (outline + "\n" + items).match(/画幅\s*[:：]\s*(横屏|竖屏)/);
-        if(am) aspect = am[1];
+        /* 画幅：唯一来源是面板物理按钮（优先级最高），不从正文文字猜测——
+           否则用户切了按钮而正文还是旧画幅时，会把旧值回灌给对齐员 */
+        const aspect = (scriptAspect === "portrait") ? "竖屏" : "横屏";
         /* 每集时长/场次：从分集大纲表里抽「预估成片」字样，给对齐员一个档位参考 */
         let secHint = "";
         const sm = items.match(/预估成片\s*[:：]\s*(\d+)\s*秒/);
@@ -4857,14 +4899,14 @@ function mfBuildClarifyFacts(){
         if(outlineBrief.length > 900) outlineBrief = outlineBrief.slice(0, 900) + "…（大纲摘要已截断）";
         let s = "【本对话已有创作事实（对齐员必读，逐项采信，严禁写成未知/严禁臆造）】\n"
             + "· 剧名：" + (title ? "《" + title + "》" : "（暂未在本对话识别到剧名——若用户指令也没给，才列为待确认）") + "\n"
-            + "· 画幅：" + (aspect || "（本对话暂未识别到画幅——若用户指令也没给，才列为待确认）") + "\n"
+            + "· 画幅：" + aspect + "（由创作面板的「横屏剧 / 竖屏剧」物理按钮锁定，最高优先级；不要建议用户在指令里写画幅，也不要列为待确认）\n"
             + "· 已实际写出的集：" + (written.length
                 ? written.map(n=>"第"+n+"集").join("、") + "（共 " + written.length + " 集，最大到第 " + written[written.length-1] + " 集）"
                 : "（本对话尚未写出任何集）") + "\n";
         if(secHint) s += "· 已有分集时长档位：" + secHint + "（沿用；用户指令若另指定则以用户为准）\n";
         if(mfScriptGoal && mfScriptGoal.total) s += "· 本任务目标：写到第 " + mfScriptGoal.total + " 集\n";
         if(outlineBrief) s += "· 本对话已有大纲/设定摘要：\n" + outlineBrief + "\n";
-        s += "（以上均为本对话窗口中真实存在的内容。判断新写/续写、剧名、画幅、起点集号时必须引用；"
+        s += "（除画幅来自面板物理按钮外，其余均为本对话窗口中真实存在的内容。判断新写/续写、剧名、起点集号时必须引用；"
            + "例如事实写明只写到第1集，理解稿就绝不能出现「读取前5集」。）";
         return s;
     }catch(e){ return ""; }
@@ -5599,21 +5641,50 @@ function initUI(){
            合并「原指令 + 理解稿 + 用户修正」，直接开工。合并后 pending 清空，不再重复探测。 */
         if(mfClarifyPending){
             const p = mfClarifyPending;
+            /* ★ 复读确认（loopHold）走"自动续写"通道，绝不再走断点续写：
+               复读检测是在"整集已正常吐完"后触发的，fullAiText 是**完整正文**，不是半截稿。
+               旧代码误用断点续写（mfResumeMode + buildResumeContext(fullAiText)），把已写完的
+               整集当"中断前的半截稿"回灌、让模型"从最后一个字接写"，模型因而把该集原样重写一遍，
+               写完又触发重复检测 → 死循环。改为按 mfScriptGoal + 已写集号算出"下一批未写集"，
+               用 autoContinueDirective 明确"写第N–M集新内容"，从根本上不可能重写已写集。 */
+            if(p.loopHold){
+                mfClarifyPending = null;
+                const typed = userInput.value.trim();
+                userInput.value = "";
+                let note = "";
+                if(!mfAlignIsConfirm(typed) && typed && !/^[1１①一]$/.test(typed)){
+                    /* 用户写了处理意见（含"2"=卡住、或"从第N集换条线重写"等），最高优先级 */
+                    note = typed;
+                }
+                const antiLoop = "【防复读·最高优先级】严格按大纲路线图推进全新剧情，严禁把已推进过的情节点当成新情节再演，"
+                    + "严禁整段整场地复读上文；口头禅/套路化钩子等有意重复不受限制。";
+                /* 选"1"（有意设计重复）只照常续写，不额外注入防复读指令；其余（空/2/处理意见）都带防复读指令 */
+                const isIntentional = /^[1１①一]$/.test(typed);
+                const nextNote = isIntentional ? (note ? "【用户补充】" + note : "")
+                    : (note ? (antiLoop + "\n【用户处理意见（最高优先级）】" + note) : antiLoop);
+                append("✅ 已确认，只写未写过的新集（绝不重演已写集）" + (nextNote ? "，带防复读指令" : "") + "…", "tip");
+                /* 清干净断点态，避免后续误判为刷新中断 */
+                mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+                /* 不再自行 setTimeout/sendMessage：统一交给自动续写通道，
+                   它按"实际写出的集号"定位下一批、带全剧上文、用专用续写指令；
+                   防复读指令作为 extraNote 传入，写进 autoContinueDirective 的补充要求。 */
+                mfAutoContinue = null;
+                try{
+                    if(!maybeAutoContinue(true, nextNote)){
+                        append("⚠️ 续写启动失败，请在指令框写「继续写第" + (collectWrittenEpisodeSet().size+1) + "集」再点开始。", "err");
+                    }
+                }catch(e){
+                    append("⚠️ 续写启动失败，请在指令框写「继续写第" + (collectWrittenEpisodeSet().size+1) + "集」再点开始。", "err");
+                }
+                return;
+            }
             if(p.resume){
                 /* 中断续写确认：用户已确认 → 以"断点续写"模式带完整上文接着写，绝不另起炉灶。
                    若用户在指令框写了修正，并入续写指令一起送（比如改剧名/集数）。 */
                 mfClarifyPending = null;
                 const typed = userInput.value.trim();
-                let note = (typed && !mfAlignIsConfirm(typed)) ? typed : "";
-                if(p.loopHold){
-                    /* 疑似复读确认：注入防复读强指令；用户写的是他的处理意见，优先级更高。 */
-                    const antiLoop = "【防复读·最高优先级】严格按大纲路线图推进全新剧情，严禁把已推进过的情节点当成新情节再演，"
-                        + "严禁整段整场地复读上文；口头禅/套路化钩子等有意重复不受限制。";
-                    note = note ? (antiLoop + "\n【用户处理意见】" + note) : antiLoop;
-                    append("✅ 已确认，带上防复读指令与全剧上文接着写…", "tip");
-                }else{
-                    append("✅ 已确认，正在带上原剧大纲与最近正文接着写…", "tip");
-                }
+                const note = (typed && !mfAlignIsConfirm(typed)) ? typed : "";
+                append("✅ 已确认，正在带上原剧大纲与最近正文接着写…", "tip");
                 mfResumeUserNote = note;
                 userInput.value = "";
                 mfResumeMode = true;
