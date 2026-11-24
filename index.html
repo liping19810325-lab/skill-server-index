@@ -546,16 +546,22 @@
                     <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
                 </div>
                 <div class="param-item param-token-row" id="tokenRow">
-                    <label>上下文窗口 token（仅「本机算力」生效：本地显卡显存有限，12G显卡推荐32K，128K及以上建议高配显卡）：</label>
-                    <div class="token-row">
-                        <input type="number" id="maxTokenInput" min="64" max="1048576" step="1" value="16384">
+                    <label>输出 token 上限（仅「本机算力」生效，即本次最多生成多少 token；写长剧本/全剧提示词时若设太小会被截断、只写前几集）：</label>
+                    <div class="token-row" style="margin-bottom:6px;">
+                        <label style="white-space:nowrap;"><input type="checkbox" id="tokenAutoChk" checked> 自适应（不发送上限，跟随模型自身上下文，推荐）</label>
+                    </div>
+                    <div class="token-row" id="tokenManualRow">
+                        <input type="number" id="maxTokenInput" min="64" max="1048576" step="1" value="131072">
                         <div class="token-quick-group" id="tokenQuickGroup">
                             <button type="button" class="token-quick-btn" data-token="32768">32K</button>
-                            <button type="button" class="token-quick-btn" data-token="65536">64K</button>
                             <button type="button" class="token-quick-btn" data-token="131072">128K</button>
                             <button type="button" class="token-quick-btn" data-token="262144">256K</button>
+                            <button type="button" class="token-quick-btn" data-token="524288">512K</button>
                             <button type="button" class="token-quick-btn" data-token="1048576">1M</button>
                         </div>
+                    </div>
+                    <div class="param-note fold-hint" style="font-size:11px;color:var(--muted);line-height:1.5">
+                        自适应=不发送 max_tokens，由本机模型软件按其加载时的上下文长度（n_ctx）决定，能写多长取决于你启动模型时设的 n_ctx；取消勾选可手动限定（显存紧张时用小值防爆显存）。
                     </div>
                 </div>
                 <div class="param-item param-token-auto" id="tokenAutoRow" style="display:none">
@@ -836,6 +842,14 @@ let fileStore = [];
 let currentSystemPrompt = "";
 let currentSkillName = "";
 let abortController = null;
+/* 生成队列：吐字中用户再点「开始」时，把新指令快照压队，等当前吐字完成再依次执行。
+   每个元素是一次 sendMessage 所需状态的完整快照（指令文本/技能/系统提示词/文件/画风/画幅/参考图）。
+   用户点「停止」时整队清空（明确停止意图，不保留排队任务）。 */
+let sendQueue = [];
+let sendQueueDraining = false;
+/* 自动续写状态：剧本技能因分批/截断只写了前几集时，自动接着写剩余集，直到写满用户要求总数。
+   { from, to, total, rounds } —— rounds 防止异常循环。非续写正常请求为 null。 */
+let mfAutoContinue = null;
 let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
@@ -992,9 +1006,27 @@ tempInput.onchange = () => tempSlider.value = tempInput.value;
 topPSlider.oninput = () => topPInput.value = topPSlider.value;
 topPInput.onchange = () => topPSlider.value = topPInput.value;
 
-/* 上下文窗口快捷按钮：不再依赖内联 onclick（线上 CSP / 预览 iframe 下容易被剥离），
+/* 输出 token 上限快捷按钮：不再依赖内联 onclick（线上 CSP / 预览 iframe 下容易被剥离），
    统一由 initUI 里的 addEventListener 绑定；写入后派发 input/change、高亮当前档位并存本机。 */
 const STORAGE_KEY_MAX_TOKENS = "manflows_max_tokens";
+/* 自适应开关：默认开（不发送 max_tokens，跟随模型 n_ctx，彻底解除人为输出上限）。
+   存 "0"=关闭走手动数字，其它/未存=开启。老用户没有此 key → 默认开启。 */
+const STORAGE_KEY_TOKEN_AUTO = "manflows_max_tokens_auto";
+function tokenAutoEnabled(){
+    const v = safeStorage.get(STORAGE_KEY_TOKEN_AUTO);
+    return v !== "0";
+}
+function setTokenAuto(on){
+    try{ safeStorage.set(STORAGE_KEY_TOKEN_AUTO, on ? "1" : "0"); }catch(e){}
+    applyTokenManualRow();
+}
+function applyTokenManualRow(){
+    const auto = tokenAutoEnabled();
+    const chk = document.getElementById("tokenAutoChk");
+    const row = document.getElementById("tokenManualRow");
+    if(chk) chk.checked = auto;
+    if(row) row.style.display = auto ? "none" : "flex";
+}
 function highlightTokenBtn(v){
     document.querySelectorAll(".token-quick-btn[data-token]").forEach(b => {
         b.classList.toggle("active", Number(b.getAttribute("data-token")) === Number(v));
@@ -2098,8 +2130,177 @@ function stopGenerate() {
            避免下一轮基于半截稿改；历史基准仍保留，用户可双击任意回复重新指定。 */
         try{ chatBox.dataset.stoppedDraft = "1"; }catch(e){}
         append("⚠️ 已停止生成", "tip");
+        /* 用户主动停止 → 排队任务与自动续写一并撤销，避免"停了却又自动开始下一个" */
+        clearSendQueue();
+        if(mfAutoContinue){ mfAutoContinue = null; append("🛑 已取消自动续写。", "tip"); }
         try { syncSendToCanvasBtn(); } catch(e){}
     }
+}
+
+/* ===== 生成队列：吐字中点「开始」→ 新指令排队，等当前吐字完成再按序执行 =====
+   设计要点：
+   ① 快照完整执行状态（技能/系统提示词/文件/画风/画幅/参考图/指令），避免排队期间
+      用户改了技能或画幅导致任务错乱；drain 时先恢复快照再调用原 sendMessage 逻辑。
+   ② 当前任务在 sendMessage 的 finally 里 abortController=null 后调 drainSendQueue 接力；
+      用 setTimeout 让栈清空，避免递归。
+   ③ 用户点「停止」→ clearSendQueue 整队清空，排队任务一并撤销并提示。
+   ④ 队列里的 refImages 含 dataUrl，仅内存保存，不入 localStorage。 */
+function snapshotSendTask(autoSourceText){
+    return {
+        autoSourceText: autoSourceText || "",
+        userCmd: (typeof userInput !== "undefined" && userInput) ? userInput.value : "",
+        skillKey: currentSkillKey,
+        skillName: currentSkillName,
+        systemPrompt: currentSystemPrompt,
+        aspect: scriptAspect,
+        stylePresetSel: JSON.parse(JSON.stringify(stylePresetSel || {})),
+        refImages: JSON.parse(JSON.stringify(refImages || [])),
+        refStyleAnchor: refStyleAnchor,
+        refStyleSig: refStyleSig,
+        fileStoreChecked: (fileStore || []).filter(x=>x && x.checked).map(x=>x.id)
+    };
+}
+function restoreSendTask(t){
+    if(typeof userInput !== "undefined" && userInput) userInput.value = t.userCmd || "";
+    currentSkillKey = t.skillKey || "";
+    currentSkillName = t.skillName || "";
+    currentSystemPrompt = t.systemPrompt || "";
+    scriptAspect = (t.aspect === "portrait" || t.aspect === "landscape") ? t.aspect : "landscape";
+    stylePresetSel = JSON.parse(JSON.stringify(t.stylePresetSel || { twoD:"", threeD:"", real:"" }));
+    refImages = JSON.parse(JSON.stringify(t.refImages || []));
+    refStyleAnchor = t.refStyleAnchor || "";
+    refStyleSig = t.refStyleSig || "";
+    /* 文件勾选状态还原：按 id 勾选，其余取消；找不到 id 的（被删）跳过 */
+    const want = new Set(t.fileStoreChecked || []);
+    (fileStore || []).forEach(f=>{ f.checked = want.has(f.id); });
+    /* 同步画幅 radio 回显，保持 UI 与状态一致 */
+    document.querySelectorAll('input[name="aspectMode"]').forEach(r=>{ r.checked = (r.value === scriptAspect); });
+    renderStylePresets();
+}
+function enqueueSendTask(autoSourceText){
+    const t = snapshotSendTask(autoSourceText);
+    sendQueue.push(t);
+    append("⏳ 已排队（第 " + sendQueue.length + " 项）：" + (t.userCmd || "（无文字指令，将按当前技能处理）")
+        + " —— 当前吐字完成后自动开始，无需重复点击。", "tip");
+    try{ userInput.value = ""; }catch(e){}   /* 输入框清空，避免用户以为没提交；内容已在快照里 */
+    return t;
+}
+async function drainSendQueue(){
+    if(sendQueueDraining || isGenerating() || !sendQueue.length) return;
+    sendQueueDraining = true;
+    try{
+        while(sendQueue.length && !isGenerating()){
+            const t = sendQueue.shift();
+            restoreSendTask(t);
+            append("▶️ 开始执行排队任务：" + (t.userCmd || "（无文字指令）"), "tip");
+            try{ await sendMessage(t.autoSourceText); }
+            catch(e){ console.error("排队任务执行失败：", e); }
+        }
+    }finally{
+        sendQueueDraining = false;
+    }
+}
+function clearSendQueue(){
+    if(!sendQueue.length) return;
+    const n = sendQueue.length;
+    sendQueue = [];
+    append("🗑️ 已清空 " + n + " 项排队任务。", "tip");
+}
+
+/* ===== 剧本分批自动续写：检测到"剩余第Z–N集未交付"就自动接着写，直到写满 =====
+   解决"要求6集只给2集就停"——Skill 分批/输出上限导致模型提前收尾时，前端自动接力。
+   ① parseBatchRemainder(text)：从本批正文末尾的 `【本批交付：第 X–Y 集 / 共 N 集；剩余第 Z–N 集未交付】`
+      解析出下一批起点 Z 与总数 N；兼容旧格式与中文数字。无标记返回 null。
+   ② autoContinueDirective(c)：生成"从第 Z 集续写到第 N 集"的强指令，强调不重出大纲、沿用设定与画幅。
+   ③ 续写上文由 buildContinuationContext 构造：给「大纲 + 最近2集 + 已写各集钩子清单」，
+      而不是把已写全文全塞进去——上下文越滚越长会让后面几集质量坍缩；精简上文既保证连贯
+      又给足设定/画幅/已写进度，让第6集和第1集一个质量（体验优先，不机械堆全文）。 */
+function buildContinuationContext(fullText){
+    const s = String(fullText || "").trim();
+    if(!s) return "";
+    const lines = s.split(/\r?\n/);
+    const titleRe = /^\s*《[^》\n]{1,40}》第\s*\d+\s*集[：:]/;
+    const endRe = /^\s*【第\s*\d+\s*集完】\s*$/;
+    const titleIdx = [];
+    lines.forEach((ln,i)=>{ if(titleRe.test(ln)) titleIdx.push(i); });
+    if(!titleIdx.length) return s;   /* 不是标准剧本结构，原样给，至少不丢信息 */
+    /* 大纲 = 第一集标题之前的全部内容含《剧名》设定 */
+    const outline = lines.slice(0, titleIdx[0]).join("\n").replace(/\n{3,}/g,"\n\n").trim();
+    /* 每集：标题行 + 正文直到【第N集完】，末尾一行取钩子（完结标记前最后一条非空行） */
+    const episodes = [];
+    for(let i=0;i<titleIdx.length;i++){
+        const start = titleIdx[i];
+        let end = (i+1 < titleIdx.length) ? titleIdx[i+1] : lines.length;
+        let endMark = -1;
+        for(let j=start+1;j<end;j++){ if(endRe.test(lines[j])){ endMark = j; break; } }
+        const body = lines.slice(start, endMark >= 0 ? endMark+1 : end).join("\n").trim();
+        const headLine = lines[start].trim();
+        const epNo = (headLine.match(/第\s*(\d+)\s*集/) || [])[1] || "?";
+        let hook = "";
+        const pre = lines.slice(start+1, endMark >= 0 ? endMark : end).map(x=>x.trim()).filter(Boolean);
+        if(pre.length) hook = pre[pre.length-1].slice(0,80);
+        episodes.push({ no:epNo, head:headLine, body, hook });
+    }
+    /* 已写集清单：只给集号+集名+集尾钩子，不给全文——让模型知道写到哪、避免重复钩子 */
+    const ledger = episodes.map(e=>"第"+e.no+"集 ｜ "+e.head.replace(/^\s*《[^》]*》/,"").trim()+(e.hook?" ｜ 集尾钩子："+e.hook:"")).join("\n");
+    const recent = episodes.slice(-2).map(e=>e.body).join("\n\n");
+    return "【本剧已写部分（续写上文，供衔接，不要重复输出）】\n"
+        + "—— 大纲与设定（含画幅/人物/分集规划，沿用）——\n" + (outline || "（此前未单独出大纲，按下方已写集沿用设定）") + "\n\n"
+        + "—— 已写各集清单（集号 / 集标题 / 集尾钩子，供你接着往下写）——\n" + ledger + "\n\n"
+        + "—— 最近 2 集完整正文（衔接语气与剧情进度）——\n" + recent;
+}
+function parseBatchRemainder(text){
+    const s = String(text || "");
+    /* 只在结尾附近找批次状态行，避免误命中正文里的示例 */
+    const tail = s.slice(-3000);
+    const lines = tail.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    const line = lines.reverse().find(x=>/^【本批交付[：:]/.test(x));
+    if(!line) return null;
+    /* 形如：第 1–2 集 / 共 6 集；剩余第 3–6 集未交付 */
+    const totalM = line.match(/共\s*(\d+)\s*集/);
+    const remainM = line.match(/剩余第\s*(\d+)\s*[-–—~到至]\s*(\d+)\s*集未交付/);
+    if(!totalM || !remainM) return null;
+    const total = parseInt(totalM[1],10);
+    const from = parseInt(remainM[1],10);
+    const to = parseInt(remainM[2],10);
+    if(!(total>=1 && from>=1 && to>=from && to<=total)) return null;
+    return { from, to, total };
+}
+/* 检测本批正文是否写了"剩余第Z–N集未交付"，是则自动启动下一轮续写。
+   返回 true=已启动续写（调用方应把接力权交给续写轮，不要再 drain 队列）。 */
+function maybeAutoContinue(completedNormally){
+    if(!completedNormally || currentSkillKey !== "a") return false;
+    const rem = parseBatchRemainder(fullAiText);
+    if(!rem) { mfAutoContinue = null; return false; }   /* 无剩余标记，本任务彻底结束 */
+    const prev = mfAutoContinue;
+    const rounds = prev ? (prev.rounds||0) + 1 : 1;
+    if(rounds > 12){   /* 防异常死循环：最多接力12批，正常 30 集最多 6 批 */
+        append("⚠️ 自动续写已达上限（" + rounds + " 批），停止自动接力；剩余集请手动发「继续」。", "err");
+        mfAutoContinue = null;
+        return false;
+    }
+    mfAutoContinue = { from:rem.from, to:rem.to, total:rem.total, rounds };
+    append("🔄 检测到本批只写到第 " + (rem.from-1) + " 集 / 共 " + rem.total + " 集，自动续写第 " + rem.from + "–" + rem.to + " 集（第 " + rounds + " 批）…", "tip");
+    const priorText = String(fullAiText || "");
+    const ctx = buildContinuationContext(priorText);
+    userInput.value = "继续写第" + rem.from + "集到第" + rem.to + "集（自动续写，共" + rem.total + "集）";
+    /* 用 setTimeout 让本轮栈清空再发起，避免递归；不经过队列（续写是本任务的延续）。
+       回调里复核 mfAutoContinue 仍在（用户若在这几十毫秒内点了停止，就不再发起）。 */
+    const expected = mfAutoContinue;
+    setTimeout(()=>{ if(mfAutoContinue === expected && !isGenerating()) sendMessage(ctx); }, 30);
+    return true;
+}
+function autoContinueDirective(c){
+    return "【自动续写·补齐全剧（创作台指令，最高优先级）】\n"
+        + "上文是同一部剧已经写好的前几集正文与大纲。用户最初要求写满 " + c.total + " 集，"
+        + "之前只写到第 " + (c.from - 1) + " 集就因输出长度收尾了。现在请**直接接着写第 " + c.from + "–" + c.to + " 集**（共 "
+        + (c.to - c.from + 1) + " 集）：\n"
+        + "1) 严禁重出大纲与设定、严禁改剧名、严禁从头重写前面已写的集；沿用上文已有的《剧名》、世界观、人物设定、画幅与时长档位；\n"
+        + "2) 从 `《剧名》第" + c.from + "集：集名 ｜ 预估成片：XX 秒 ｜ 画幅：横屏/竖屏`（画幅与时长沿用上文）开始，"
+        + "逐集写完整正文（3–5 场、三栏、一△一镜头、台词、【第X集完】），每集集标题都带两个元数据字段；\n"
+        + "3) 一直写到第 " + c.to + " 集结束，本轮写满 " + (c.to - c.from + 1) + " 集才停；"
+        + (c.to < c.total ? "若仍受输出长度限制写不完，继续在末尾写 `【本批交付：第 X–Y 集 / 共 " + c.total + " 集；剩余第 Z–" + c.total + " 集未交付】`，系统会自动再次接力。" : "这是最后一批，写完后不要再写批次状态行，直接结束。") + "\n"
+        + "不得写" + '"待续/是否继续"' + "之类的追问，也不要只写提纲或分集小纲——要完整正文。";
 }
 /* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
    按钮不随技能改名，避免用户误解；文件名则按技能区分，方便归档。 */
@@ -3652,6 +3853,12 @@ function assetCoverageDirective(key){
         + "校验与补齐只在内部执行，随后把补齐后的完整提示词一次性交付，不向用户输出对照表或自检清单；其余格式、画风锚、官方参数严格遵循技能。";
 }
 async function sendMessage(autoSourceText) {
+    /* 吐字中再点「开始」→ 新指令排队，不打断当前输出。
+       drain 接力调用时 abortController 已为 null，isGenerating() 为 false，直接往下走。 */
+    if(isGenerating()){
+        enqueueSendTask(autoSourceText);
+        return;
+    }
     stopGenerate();
     /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位。
        不发起任何请求、不计费，直接给出提示；原有本机算力 / 第三方API 链路完全不受影响。 */
@@ -3662,9 +3869,11 @@ async function sendMessage(autoSourceText) {
     }
     pendingText = "";
     fullAiText = "";
+    const isAutoContinue = !!mfAutoContinue;
     const userCmd = userInput.value.trim();
-    /* 本轮是否明确要"从头新写"（此时不带旧稿、不按连续修改处理） */
-    const WANT_FRESH = (currentSkillKey === "a") && wantsFreshScript(userCmd);
+    /* 本轮是否明确要"从头新写"（此时不带旧稿、不按连续修改处理）。
+       自动续写是"接着往下写"，既非新写也非修改，故强制 WANT_FRESH 语义走独立续写分支。 */
+    const WANT_FRESH = !isAutoContinue && (currentSkillKey === "a") && wantsFreshScript(userCmd);
     const attachedFiles = fileStore.filter(x => x.checked);
     let combinedContent = "";
     if (attachedFiles.length > 0) {
@@ -3679,11 +3888,16 @@ async function sendMessage(autoSourceText) {
        导演分镜助手 b/d——默认只把第1集剧本转提示词、指定几集转几集，强调集数≠组数；
        美术助手 c/e——无条件追加「出词前对照剧本资产 + 出词后校验补齐」强指令。 */
     if (currentSkillKey === "a") {
-        const epReq = parseScriptEpisodeRequest(userCmd);
-        /* 连续修改模式：已设修改基准、且本轮不是明确要"新写/重写大纲/换剧名/新剧"时，
-           不再要求重出《剧名》大纲，避免在旧稿基础上修改却另起主题、改剧名。 */
-        const isRevision = !!buildBaseContextBlock() && !WANT_FRESH;
-        combinedContent += (combinedContent ? "\n\n" : "") + scriptEpisodeDirective(epReq, isRevision);
+        if(isAutoContinue){
+            /* 自动续写：用专门的续写强指令，不走"修改基准"分支，避免模型把续写当增量修改 */
+            combinedContent += (combinedContent ? "\n\n" : "") + autoContinueDirective(mfAutoContinue);
+        }else{
+            const epReq = parseScriptEpisodeRequest(userCmd);
+            /* 连续修改模式：已设修改基准、且本轮不是明确要"新写/重写大纲/换剧名/新剧"时，
+               不再要求重出《剧名》大纲，避免在旧稿基础上修改却另起主题、改剧名。 */
+            const isRevision = !!buildBaseContextBlock() && !WANT_FRESH;
+            combinedContent += (combinedContent ? "\n\n" : "") + scriptEpisodeDirective(epReq, isRevision);
+        }
     } else if (currentSkillKey === "b" || currentSkillKey === "d") {
         const epReq = parseScriptEpisodeRequest(userCmd);
         combinedContent += (combinedContent ? "\n\n" : "") + storyboardEpisodeDirective(epReq);
@@ -3701,7 +3915,12 @@ async function sendMessage(autoSourceText) {
     /* 跨页技能任务触发的自动开始：把上一页带过来的已有文字作为待处理素材送进模型，
        窗口里不重复刷一大段原文；普通点「开始」时 autoSourceText 为空，行为完全不变 */
     if(autoSourceText){
-        combinedContent += (combinedContent ? "\n\n" : "") + "【待处理的已有文字】\n请依据当前技能，对以下已有文字进行相应处理：\n" + autoSourceText;
+        if(isAutoContinue){
+            /* 续写：autoSourceText 已是 buildContinuationContext 构造的精简上文，直接给，措辞强调衔接而非"处理/改写" */
+            combinedContent += (combinedContent ? "\n\n" : "") + autoSourceText;
+        }else{
+            combinedContent += (combinedContent ? "\n\n" : "") + "【待处理的已有文字】\n请依据当前技能，对以下已有文字进行相应处理：\n" + autoSourceText;
+        }
     }
 
     /* ===== 画风参考图 / 预选 冲突处理 =====
@@ -3811,7 +4030,9 @@ async function sendMessage(autoSourceText) {
     ];
     /* 连续对话：把「修改基准」的大纲设定 + 最近一集作为上文回灌（仅剧本技能、仅设过基准时）。
        放在 system 之后、本轮指令之前，让模型明确这是同一部剧的已有稿、本轮是增量修改。 */
-    const baseCtx = WANT_FRESH ? "" : buildBaseContextBlock();
+    /* 自动续写时不注入"修改基准"上文（那套措辞是给增量修改用的，会误导续写），
+       续写上文已由精简上下文放进 user 消息里。 */
+    const baseCtx = (WANT_FRESH || isAutoContinue) ? "" : buildBaseContextBlock();
     if(baseCtx) messagesArr.push({ role: "assistant", content: baseCtx });
     messagesArr.push({ role: "user", content: userContent });
     let onlyReasoning = false;   /* 函数级：finally 里判断是否把新稿设为修改基准时需要 */
@@ -3844,7 +4065,10 @@ async function sendMessage(autoSourceText) {
         fetchHeaders = mfLocalHeaders();
         // 留空时保持原来的 "local"，兼容 llama-server / Ollama 默认行为
         // thinking 模式由「推理思考」开关决定（默认关闭=MF_NO_THINK；可被服务端拒绝后自动降级重试）
-        bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, max_tokens, stream:true, ...mfThinkingFields() };
+        /* 输出上限：自适应开启时不发送 max_tokens，由本机模型按其 n_ctx 决定能写多长，
+           彻底解除人为上限（长剧本/全剧提示词不再被截在前2集）；关闭时才发送手动数字。 */
+        bodyObj = { model: localModelName || "local", messages:messagesArr, temperature, top_p, stream:true, ...mfThinkingFields() };
+        if(!tokenAutoEnabled()) bodyObj.max_tokens = max_tokens;
     } else {
         fetchUrl = inpEndpoint.value.trim();
         fetchHeaders = { "Content-Type":"application/json", "Authorization":`Bearer ${inpKey.value.trim()}` };
@@ -3890,7 +4114,7 @@ async function sendMessage(autoSourceText) {
             const nc  = (errText.match(/n_ctx"\s*:\s*(\d+)/)||[])[1];
             const req = (errText.match(/request\s*\((\d+)\s*tokens\)/i)||[])[1] || pt;
             append("❌ 上下文超限：本次请求约 " + (req||"?") + " tokens，超过模型上下文 " + (nc||"?") + " tokens。", "err");
-            append("ℹ️ 这通常是新换的模型上下文比旧模型小导致的，不是 thinking 参数的问题。可任选其一解决：① 在模型软件里把上下文窗口（ctx-size / n_ctx）调大到 32768 或以上，重新加载模型；② 减少「附加剧本素材」勾选的文件、缩短指令；③ 把本页「上下文窗口 token」调大后重试（部分本机服务据此分配 n_ctx）；④ 关闭模型的推理思考模式以减少 token 占用。", "tip");
+            append("ℹ️ 这通常是新换的模型上下文比旧模型小导致的，不是 thinking 参数的问题。可任选其一解决：① 在模型软件里把上下文窗口（ctx-size / n_ctx）调大到 65536 或以上，重新加载模型（写6集以上长剧本建议 128K）；② 减少「附加剧本素材」勾选的文件、缩短指令；③ 关闭模型的推理思考模式以减少 token 占用。本页「输出 token 上限」只控制单次生成长度、不决定模型上下文，调它无法解除上下文超限。", "tip");
             return;
         }
         /* ① model not found：浏览器里残留了已失效的旧模型名（换模型前的缓存）。
@@ -3987,7 +4211,17 @@ async function sendMessage(autoSourceText) {
         /* 只有正常生成完毕才把新稿设为修改基准；停止/异常的半成品不设基准，
            避免下一轮基于半截稿修改。用户仍可双击任意历史回复重新指定基准。 */
         if (completed && !onlyReasoning && aiMsgDom && aiMsgDom.isConnected && !chatBox.dataset.stoppedDraft) setBaseMsg(aiMsgDom, true);
+        const completedNormally = completed && !chatBox.dataset.stoppedDraft;
         delete chatBox.dataset.stoppedDraft;
+        /* 剧本分批自动续写：检测到"剩余第Z–N集未交付"就自动接着写，直到写满。
+           若已启动续写，接力权交给续写轮（它自己的 finally 会再判断），本轮不再 drain 队列。 */
+        const continued = maybeAutoContinue(completedNormally);
+        if(!continued){
+            if(!isAutoContinue) mfAutoContinue = null;   /* 非续写任务正常收尾，清掉可能残留的续写态 */
+            /* 当前吐字结束后，自动接力执行下一条排队指令。setTimeout 让调用栈清空；
+               用户点停止时队列已清空，这里自然无事可做。 */
+            if(sendQueue.length) setTimeout(()=>{ drainSendQueue(); }, 0);
+        }
     }
 }
 
@@ -4080,10 +4314,16 @@ function initUI(){
     const savedMaxTokens = Number(safeStorage.get(STORAGE_KEY_MAX_TOKENS));
     if(Number.isFinite(savedMaxTokens) && savedMaxTokens >= 64 && savedMaxTokens <= 1048576){
         maxTokenInput.value = String(savedMaxTokens);
+    } else {
+        maxTokenInput.value = "131072";   /* 新默认 128K（手动档位），自适应开启时本值不发送 */
     }
     highlightTokenBtn(maxTokenInput.value);
     maxTokenInput.addEventListener("input", ()=> highlightTokenBtn(maxTokenInput.value));
     maxTokenInput.addEventListener("change", ()=> highlightTokenBtn(maxTokenInput.value));
+    /* 输出上限自适应开关：默认开、持久化；切换即显示/隐藏手动数字行 */
+    const tokenAutoChk = document.getElementById("tokenAutoChk");
+    if(tokenAutoChk) tokenAutoChk.addEventListener("change", e=> setTokenAuto(e.target.checked));
+    applyTokenManualRow();
 
     // 推理思考（thinking）开关：仅本机算力，三态持久化
     const thinkingSel = document.getElementById("thinkingSel");
