@@ -873,6 +873,13 @@ let mfAutoContinue = null;
 let mfScriptGoal = null;
 /* 上下文超限降级标志：本机/API 返回 400 上下文超限时置位，finally 里用更小批次+精简上文重试。 */
 let mfCtxDegradeNeeded = false;
+/* 刷新中断·断点续写（防止误刷新打断吐字）：
+   mfWasGenerating —— 页面加载时从现场快照读到的"上次是否在吐字中被刷新打断"（一次性消费）；
+   mfResumeMode/mfResumeDom —— 本轮为"接着半截稿写"模式：不新建 AI 消息、不重置 fullAiText，
+   而是把新吐内容追加到刷新前那条半截 AI 消息，用户看到的就是连续吐字、下载也只得到一条完整稿。 */
+let mfWasGenerating = false;
+let mfResumeMode = false;
+let mfResumeDom = null;
 let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
@@ -2060,6 +2067,9 @@ function snapshotLiveSession(){
         refStyleSig: refStyleSig,
         refStyleStatus: refStyleStatus,
         refCount: refImages ? refImages.length : 0,   /* 仅用于恢复时判断图是否超配额丢失，不含图数据 */
+        /* 吐字中标记：刷新/隐藏时若正在生成，记下"被打断"事实，供新页面自动断点续写。
+           generating 用 abortController 判定（它只在请求存活期间非空），正常结束/用户停止都会清空。 */
+        generating: !!abortController,
         savedAt: Date.now()
     };
 }
@@ -2092,6 +2102,9 @@ function restoreLiveSession(){
         /* 续写锚点随现场恢复：刷新后自动续写链不中断（结构做基本校验，异常值退回 null）。 */
         mfAutoContinue = (s.mfAutoContinue && typeof s.mfAutoContinue.from === "number" && s.mfAutoContinue.from >= 1) ? s.mfAutoContinue : null;
         mfScriptGoal = (s.mfScriptGoal && typeof s.mfScriptGoal.total === "number" && s.mfScriptGoal.total >= 1) ? s.mfScriptGoal : null;
+        /* 吐字中被刷新打断 → 标记待断点续写（真正发起在 initUI 末尾，等按钮绑定完成）。
+           只有"上次生成中 + 确实吐出了半截稿"才值得续；空稿没有可接的内容，交给用户重新发指令。 */
+        mfWasGenerating = !!s.generating && !!(s.fullAiText && String(s.fullAiText).trim());
         currentSkillKey = typeof s.currentSkillKey === "string" ? s.currentSkillKey : "";
         currentSkillName = typeof s.currentSkillName === "string" ? s.currentSkillName : "";
         currentSystemPrompt = typeof s.currentSystemPrompt === "string" ? s.currentSystemPrompt : "";
@@ -2293,7 +2306,25 @@ function parseScriptGoalFromCommand(cmd){
         const a = mfCnNumToInt(m[1]), b = mfCnNumToInt(m[2]);
         if(a>=1 && b>=a && b<=500) return { from:a, total:b };
     }
-    m = s.match(new RegExp("(?:共|总共|写|出|生成|交付|连写|连续写|写满)\\s*"+NUM+"\\s*集"));
+    /* 定向起点重写/续写："从第12集开始重写，直到写完100集" / "从第12集起写到100集" /
+       "从第12集重写到第100集"。起点 N 必须保留——退化成 from=1 就会从第1集重写（用户踩过此坑）。
+       说明：正文里已写的集由 nextContinuationRange 按缺口跳过，此处只确立"起点 + 目标总数"两个锚点。 */
+    const startM = s.match(new RegExp("(?:从|自)\\s*第?\\s*"+NUM+"\\s*集"));
+    if(startM){
+        const a = mfCnNumToInt(startM[1]);
+        if(a>=1 && a<=500){
+            const tail = s.slice(startM.index + startM[0].length);
+            /* 终点可能写成"到第M集 / 直到写完M集 / 写满M集 / 共M集"。
+               "直到写完100集"里"直到"后没有数字，regex 会继续往后命中"写完100集"，正确取 100。 */
+            let endM = tail.match(new RegExp("(?:到|至|直到|写到|写完|写满|共|总共|连续写|连写)\\s*第?\\s*"+NUM+"\\s*集"));
+            if(!endM) endM = tail.match(new RegExp("(?:写|出|生成|交付)\\s*"+NUM+"\\s*集"));
+            if(endM){
+                const b = mfCnNumToInt(endM[1]);
+                if(b>=a && b<=500) return { from:a, total:b };
+            }
+        }
+    }
+    m = s.match(new RegExp("(?:共|总共|写|出|生成|交付|连写|连续写|写满|写完)\\s*"+NUM+"\\s*集"));
     if(m){
         const n = mfCnNumToInt(m[1]);
         if(n>=1 && n<=500) return { from:1, total:n };
@@ -2442,6 +2473,25 @@ function autoContinueDirective(c){
             ? "4) 写满本轮 " + (c.to - c.from + 1) + " 集即可停，系统会自动从实际的下一集继续接力，你不必也不能在正文里写任何批次状态行。"
             : "4) 这是最后一批，写满第 " + c.total + " 集后直接结束。")
         + "\n不得写" + '"待续/是否继续"' + "之类的追问，也不要只写提纲或分集小纲——要完整正文。";
+}
+/* ===== 刷新中断·断点续写（通用，适用所有技能 a/b/c/d/e）=====
+   用户刷新/强制刷新页面时，浏览器会 abort 正在进行的 fetch，吐字断在半截。
+   新页面加载后检测到现场快照 generating=true，就用这里的上文 + 强指令自动发一轮续写，
+   把已吐的半截稿接下去写完整。核心要求：不重出大纲、不从头、不重复、风格格式一致。 */
+function resumeDirective(){
+    return "【断点续写·页面刷新中断后自动接续（创作台指令，最高优先级）】\n"
+        + "下方「中断前已生成内容」是同一任务刚刚生成到一半、因页面刷新而被迫中断的正文。"
+        + "请从它的最后一个字/镜头/场次自然接续，**直接接着往下写**，直到把本次任务完整写完：\n"
+        + "1) 严禁重新开头、严禁重出大纲与设定、严禁改剧名/人物/画幅/格式；把已生成内容当作你自己的上一句，无缝续写；\n"
+        + "2) 严禁重复已生成内容里的任何段落、台词或镜头（它已经交付给用户，只需写它之后的全新内容）；\n"
+        + "3) 沿用已生成内容里的一切设定、命名、称谓、时长与画质标注，风格、语气、颗粒度保持一致；\n"
+        + "4) 从中断处一直写到本次任务自然收尾（该有的正文/提示词组数一条不少）；受单次输出长度限制写不完时，"
+        + "写到哪算哪，系统会自动从断点再次接续，你不必也不能写任何批次状态行或「待续/是否继续」追问。";
+}
+function buildResumeContext(partialText){
+    const p = String(partialText || "").trim();
+    return "【中断前已生成内容（这是本次任务已交付的正文，从末尾直接接续，不要重复）】\n" + p
+        + "\n【中断前内容结束 · 请从上面最后一个字直接往下续写，不要复述本指引】";
 }
 /* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
    按钮不随技能改名，避免用户误解；文件名则按技能区分，方便归档。 */
@@ -4010,6 +4060,25 @@ function parseScriptEpisodeRequest(cmd){
     const hasPlan = /规划|策划|先出大纲|只要大纲|写.{0,6}大纲|大纲.{0,4}(先|即可|就行)/.test(s);
     const hasExplicitWrite = new RegExp("(?:写|出|做|生成|交付)\\s*" + NUM + "\\s*集\\s*(?:正文|剧本|全文)").test(s);
     if(hasPlan && !hasExplicitWrite){ r.mode = "plan"; return r; }
+    /* 定向起点重写/续写（优先于下面的裸数字匹配，否则"从第12集…100集"会被"12集"误判成前12集）：
+       从第N集开始重写到第M集 / 从第N集起写到第M集 / 从第N集重写，直到写完第M集。 */
+    const startM = s.match(new RegExp("(?:从|自)\\s*第?\\s*" + NUM + "\\s*集"));
+    if(startM){
+        const a = mfCnNumToInt(startM[1]);
+        if(a>=1 && a<=200){
+            const tail = s.slice(startM.index + startM[0].length);
+            let endM = tail.match(new RegExp("(?:到|至|直到|写到|写完|写满|共|总共|连续写|连写)\\s*第?\\s*" + NUM + "\\s*集"));
+            if(!endM) endM = tail.match(new RegExp("(?:写|出|生成|交付)\\s*" + NUM + "\\s*集"));
+            if(endM){
+                const b = mfCnNumToInt(endM[1]);
+                if(b>=a && b<=200){
+                    r.mode = (b - a + 1) > 1 ? "multi" : "single";
+                    r.count = b - a + 1; r.from = a; r.to = b; r.matched = true; r.raw = startM[0] + endM[0];
+                    return r;
+                }
+            }
+        }
+    }
     // 区间：1-3集 / 1~3集 / 1到3集 / 第1—3集
     let m = s.match(new RegExp("第?\\s*" + NUM + "\\s*[-~—到至]\\s*" + NUM + "\\s*集"));
     if(m){
@@ -4030,20 +4099,38 @@ function parseScriptEpisodeRequest(cmd){
     }
     return r;
 }
-/* 判断本轮指令是否明确要"从头新写"（此时不按连续修改处理，允许重写大纲/新剧名） */
+/* 判断本轮指令是否明确要"从头新写"（此时不按连续修改处理，允许重写大纲/新剧名）。
+   ★ 带明确"非第1集"起点的「从第N集重写/续写」是接着已有剧往下写，不是从头新写。
+     例："从第12集开始重写，直到写完100集" —— 若误判成新写，模型会忽略已有稿从第1集重来（用户踩过此坑）。 */
 function wantsFreshScript(cmd){
     const s = String(cmd||"");
+    const fm = (s.match(/(?:从|自)\s*第?\s*(\d+|[一二两三四五六七八九十]+)\s*集/)
+             || s.match(/第\s*(\d+|[一二两三四五六七八九十]+)\s*集\s*(?:开始|起)/));
+    if(fm){
+        const n = mfCnNumToInt(fm[1]);
+        if(n > 1) return false;
+    }
     return /(?:重写|重新?写|新写|换[一个部].*(?:剧|主题|题材|故事)|另起|换剧名|改剧名|重出大纲|重新出大纲|从头(?:写|创作|新写)|全新创作|换个题材|创作一部新的|写一部新的)/.test(s);
 }
 function scriptEpisodeDirective(ep, isRevision){
     const head = "【本次剧本集数要求｜创作台指令（最高优先级，须覆盖默认参数）】\n";
     /* 连续修改模式：沿用上一条已经写好的剧本，只做增量修改，禁止重出大纲与改剧名 */
     if(isRevision){
+        /* 定向起点重写：用户明确"从第N集开始写/重写到第M集"（N>1）。此时"修改基准"措辞不够——
+           需在已有稿基础上按集号补齐/续写，并严禁从第1集重来。自动续写链路会在本批结束后接力到总目标。 */
+        const directed = (ep && ep.mode === "multi" && ep.from > 1)
+            ? "\n4) ★用户明确要求从已有剧本的第 " + ep.from + " 集开始写、直到第 " + ep.to + " 集（共 "
+              + (ep.to - ep.from + 1) + " 集）：严禁从第 1 集重写、严禁把前面已写集再输出一遍；"
+              + "从上方已有稿的实际进度接着写，若中间缺集（例如写了第 11 集又写了第 15 集），先把缺的第 "
+              + ep.from + " 集起的集号补齐，再顺序往下写到第 " + ep.to + " 集；受单次输出长度限制写不完时，"
+              + "写到哪算哪、系统会自动从下一集接力，你不必也不能写任何批次状态行。"
+            : "";
         return head
             + "本轮为「在已有剧本基础上的修改/优化」，上方已回灌同一部剧的《大纲与设定 + 最近一集》。严格按以下执行：\n"
             + "1) 沿用已有《剧名》、世界观、人物设定、集号与已写剧情，剧名与设定一字不改（用户本轮明确要求改的除外）；\n"
             + "2) 严禁重出完整大纲与设定、严禁把本轮当作新剧从头创作、严禁另起主题；只针对用户本轮指出的具体问题做增量修改；\n"
-            + "3) 输出修改后的对应剧本正文（沿用技能规定的集标题行、三栏、△动作、台词与【第N集完】格式），用户未点名的内容保持不变。\n"
+            + "3) 输出修改后的对应剧本正文（沿用技能规定的集标题行、三栏、△动作、台词与【第N集完】格式），用户未点名的内容保持不变。"
+            + directed + "\n"
             + "本条要求优先级高于技能默认参数中「输出大纲」的设定——有上文稿时就不要重出大纲。";
     }
     if(ep.mode === "continue"){
@@ -4139,6 +4226,134 @@ function assetCoverageDirective(key){
         + "3) 出词后校验并补齐（内部完成，不输出清单）：全部提示词写完后，回到第 1 步资产清单逐类逐项核对——① 清单里每个名称是否都有对应提示词；② 每一类实际输出条数是否等于清单数量（" + countCheck + "）；③ 有无重复、错名或把多条并成一条。发现任何缺失、漏项或条数不足，立即按缺失项补出完整提示词（与技能规定的单条块结构一致），补齐到与清单完全一致后才算交付完成，不得以输出长度、示例只有一条、连续性或「待续/是否继续」为由省略。\n"
         + "校验与补齐只在内部执行，随后把补齐后的完整提示词一次性交付，不向用户输出对照表或自检清单；其余格式、画风锚、官方参数严格遵循技能。";
 }
+/* ==================================================================
+   指令歧义·按需澄清（用户与模型先确认关键点，再开工）
+   设计：只对「用户手动新输入的首次指令」做一次轻量非流式探测，让模型判断是否存在
+   会导致跑偏的歧义（对象/集数/剧名/画幅/风格/动作不明确）。明确指令直接放行、零打扰；
+   有歧义则把模型的问题吐到窗口，用户把回答填回指令框再点开始——系统自动把
+   「原指令 + 用户回答」合并成完整指令，一次发出，无需用户自己组织语言。
+   ★ 自动续写 / 断点续写 / 排队任务 / 跨页任务一律跳过探测，绝不打断自动化。
+   ★ 探测失败（网络/超时/格式异常）一律静默放行，按原指令开工，绝不影响正常生成。
+   ================================================================== */
+const MF_CLARIFY_SYS = "你是创作开工前的「指令歧义检查员」。判断用户指令是否含会导致生成跑偏的歧义。\n"
+    + "只在这些情况判定 needs=true：① 动作对象不明确（改哪集/哪段/哪个角色）；② 续写或重写的起点/范围不清；"
+    + "③ 指代模糊（「这个」「上面那个」「它」在有多份稿时无法唯一定位）；④ 关键风格/画幅/数量与前文冲突或缺失且会影响产出；"
+    + "⑤ 一句话有多种截然不同的合理理解。\n"
+    + "明确具体、可直接执行的指令一律 needs=false。不要吹毛求疵，不要为已经说清楚的事提问。\n"
+    + "严格只输出一个 JSON 对象，不要任何解释、不要用代码块包裹：\n"
+    + '{"needs":false} 或 {"needs":true,"questions":["问题1","问题2"]}\n'
+    + "questions 最多 3 条，每条是可直接回答的短问题，聚焦最影响产出的歧义点。";
+/* 本地快速预筛：这些情形几乎不会歧义，直接放行、连探测请求都省掉。
+   注意是"粗筛"——只在明显安全时返回 true，拿不准一律交给模型判断。 */
+function mfCmdLooksClear(cmd){
+    const s = String(cmd || "").trim();
+    if(!s) return false;
+    /* 明确的集号区间/单点 + 明确动作词 → 视为清楚 */
+    const hasRange = /(?:第?\s*\d+\s*集?\s*(?:到|至|[-–—~])\s*第?\s*\d+\s*集)|(?:第\s*\d+\s*集)/.test(s)
+                  || /(?:前|共|写|出|生成)\s*\d+\s*集/.test(s);
+    const hasAction = /(写|续写|重写|改|生成|出|转换|转|续|创作|扩写|精简|翻译)/.test(s);
+    if(hasRange && hasAction) return true;
+    /* 带书名号剧名 + 具体动作 → 视为清楚 */
+    if(/《[^》]{1,40}》/.test(s) && hasAction) return true;
+    return false;
+}
+/* 从探测回答里稳健抽取 JSON（容忍模型加的 ```json 围栏或前后白话）。 */
+function mfExtractClarifyJson(text){
+    const s = String(text || "");
+    let m = s.match(/\{[\s\S]*?"needs"\s*:\s*(true|false)[\s\S]*?\}/);
+    if(m){
+        try{
+            const o = JSON.parse(m[0]);
+            if(typeof o.needs === "boolean") return o;
+        }catch(e){}
+    }
+    /* 退一步：宽松匹配 needs 布尔值（容忍键名无引号），并尽量带上 questions */
+    const b = s.match(/['"]?needs['"]?\s*:\s*(true|false)/i);
+    if(b){
+        const out = { needs: b[1].toLowerCase() === "true" };
+        const qm = s.match(/['"]?questions['"]?\s*:\s*\[([\s\S]*?)\]/i);
+        if(qm){
+            const qs = qm[1].split(/,|\n/).map(x=>x.trim().replace(/^['"]|['"]$/g,"")).filter(Boolean);
+            if(qs.length) out.questions = qs;
+        }
+        return out;
+    }
+    return null;
+}
+/* 发一次非流式探测请求，复用当前已配置的计算模式/地址/模型/密钥。
+   返回 {needs,questions} 或 null（失败静默）。用独立 AbortController，不影响主生成。 */
+async function mfProbeClarify(userCmd){
+    if(computeMode === "manflow") return null;   /* 未接入 */
+    let url, headers, body;
+    try{
+        if(computeMode === "local"){
+            if(!mfEnsureLocalReady("strata")) return null;
+            url = mfChatUrl(mfCurrentBase());
+            headers = mfLocalHeaders();
+            body = { model: localModelName || "local", messages:[
+                { role:"system", content: MF_CLARIFY_SYS },
+                { role:"user", content: "用户的创作指令：\n" + userCmd }
+            ], temperature: 0.1, stream: false, max_tokens: 500, ...mfThinkingFields() };
+        }else{
+            const ep = inpEndpoint.value.trim(), ky = inpKey.value.trim(), mdl = inpModel.value.trim();
+            if(!ep || !ky || !mdl) return null;
+            url = ep;
+            headers = { "Content-Type":"application/json", "Authorization":"Bearer " + ky };
+            body = { model: mdl, messages:[
+                { role:"system", content: MF_CLARIFY_SYS },
+                { role:"user", content: "用户的创作指令：\n" + userCmd }
+            ], temperature: 0.1, stream: false, max_tokens: 500 };
+        }
+        const ctl = new AbortController();
+        const timer = setTimeout(()=>ctl.abort(), 20000);   /* 探测最多等 20 秒 */
+        try{
+            const r = await fetch(url, { method:"POST", headers, signal:ctl.signal, body:JSON.stringify(body) });
+            if(!r.ok) return null;
+            const j = await r.json();
+            let content = "";
+            if(j && j.choices && j.choices[0]){
+                const msg = j.choices[0].message || j.choices[0].delta || {};
+                content = typeof msg.content === "string" ? msg.content : "";
+            }else if(j && Array.isArray(j.content)){
+                content = j.content.filter(b=>b && b.type==="text").map(b=>b.text||"").join("");
+            }
+            return mfExtractClarifyJson(content);
+        }finally{ clearTimeout(timer); }
+    }catch(e){ return null; }
+}
+/* 探测后：有歧义 → 把问题吐到窗口并提示用户回答；无歧义/失败 → 返回 false 表示放行。
+   返回 true 表示"本轮已按歧义拦截，调用方不要再发正式生成"。 */
+let mfClarifyPending = null;   /* 记录待合并的原指令，用户回答后取用 */
+let mfClarifyProbing = false;  /* 防止探测期间重复点击发起多个探测 */
+async function mfClarifyIfNeeded(userCmd){
+    mfClarifyPending = null;
+    if(!userCmd || mfCmdLooksClear(userCmd)) return false;
+    if(mfClarifyProbing) return true;   /* 已有探测在飞：本轮先拦下，避免重复 */
+    mfClarifyProbing = true;
+    append("🔎 正在快速检查指令是否明确…", "tip");
+    let res;
+    try{ res = await mfProbeClarify(userCmd); }
+    finally{ mfClarifyProbing = false; }
+    if(!res || !res.needs) return false;   /* 明确 / 失败 → 放行 */
+    const qs = Array.isArray(res.questions) ? res.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
+    if(!qs.length) return false;
+    mfClarifyPending = userCmd;
+    append("❓ 开工前想跟你确认几点（把回答补进指令框，再点「开始」即可，我会自动合并原指令与你的回答）：\n"
+        + qs.map((q,i)=>"  " + (i+1) + ". " + q.trim()).join("\n"), "tip");
+    return true;
+}
+/* 用户回答后点开始：把原指令与回答合并成一条完整指令写回输入框。
+   合并策略：原指令原样保留在前，回答作为「补充确认」附后，并明确这是对上面歧义点的回答。 */
+function mfMergeClarifyAnswer(answer){
+    const orig = mfClarifyPending || "";
+    mfClarifyPending = null;
+    const a = String(answer || "").trim();
+    if(!orig) return a;
+    if(!a) return orig;
+    return orig + "\n\n【开工前确认·用户对上面问题的补充回答】\n" + a
+        + "\n（请按原指令执行，以上回答仅用于消除歧义，不改动原指令里已经明确的剧名、集数、画幅等要求。）";
+}
+
 async function sendMessage(autoSourceText) {
     /* 吐字中再点「开始」→ 新指令排队，不打断当前输出。
        drain 接力调用时 abortController 已为 null，isGenerating() 为 false，直接往下走。 */
@@ -4155,17 +4370,19 @@ async function sendMessage(autoSourceText) {
         return;
     }
     pendingText = "";
-    fullAiText = "";
+    /* 断点续写（刷新中断后自动发起）：保留已吐半截稿、复用原 AI 消息节点，不新建、不清空。 */
+    const isResuming = !!mfResumeMode;
+    if(!isResuming) fullAiText = "";
     const isAutoContinue = !!mfAutoContinue;
-    const userCmd = userInput.value.trim();
+    const userCmd = isResuming ? "【断点续写】从中断处继续完成本次任务" : userInput.value.trim();
     /* 本轮是否明确要"从头新写"（此时不带旧稿、不按连续修改处理）。
-       自动续写是"接着往下写"，既非新写也非修改，故强制 WANT_FRESH 语义走独立续写分支。 */
-    const WANT_FRESH = !isAutoContinue && (currentSkillKey === "a") && wantsFreshScript(userCmd);
+       自动续写 / 断点续写都是"接着往下写"，既非新写也非修改，故强制 WANT_FRESH 语义走独立续写分支。 */
+    const WANT_FRESH = !isAutoContinue && !isResuming && (currentSkillKey === "a") && wantsFreshScript(userCmd);
     /* 剧本目标集数锚点：用户明确要求多集时锁定，供自动续写按"实际写出 vs 目标"判定。
        —— 新写/重写：按本轮指令重设目标（没写集数则清空，避免沿用上一个剧的目标）；
           自动续写：沿用已有目标，不在此重设；
           普通修改/续写指令：若带明确集数区间也更新目标，否则保留原目标。 */
-    if(currentSkillKey === "a" && !isAutoContinue){
+    if(currentSkillKey === "a" && !isAutoContinue && !isResuming){
         const g = parseScriptGoalFromCommand(userCmd);
         if(WANT_FRESH){
             mfScriptGoal = g ? { from:g.from, total:g.total, batch:MF_CONTINUE_BATCH, rounds:0 } : null;
@@ -4186,7 +4403,11 @@ async function sendMessage(autoSourceText) {
        剧本助手 a——默认只写第1集、指定几集出几集、大纲先出、多集附分集小纲；
        导演分镜助手 b/d——默认只把第1集剧本转提示词、指定几集转几集，强调集数≠组数；
        美术助手 c/e——无条件追加「出词前对照剧本资产 + 出词后校验补齐」强指令。 */
-    if (currentSkillKey === "a") {
+    if (isResuming) {
+        /* 断点续写走通用续写强指令，不触发任何技能的"重出大纲 / 指定集数"强指令，
+           也不走"修改基准"分支——它已有半截稿作为上文，只需无缝接下去写。 */
+        combinedContent += (combinedContent ? "\n\n" : "") + resumeDirective();
+    } else if (currentSkillKey === "a") {
         if(isAutoContinue){
             /* 自动续写：用专门的续写强指令，不走"修改基准"分支，避免模型把续写当增量修改 */
             combinedContent += (combinedContent ? "\n\n" : "") + autoContinueDirective(mfAutoContinue);
@@ -4214,8 +4435,8 @@ async function sendMessage(autoSourceText) {
     /* 跨页技能任务触发的自动开始：把上一页带过来的已有文字作为待处理素材送进模型，
        窗口里不重复刷一大段原文；普通点「开始」时 autoSourceText 为空，行为完全不变 */
     if(autoSourceText){
-        if(isAutoContinue){
-            /* 续写：autoSourceText 已是 buildContinuationContext 构造的精简上文，直接给，措辞强调衔接而非"处理/改写" */
+        if(isAutoContinue || isResuming){
+            /* 续写 / 断点续写：autoSourceText 已是构造好的"已写上文"，直接给，措辞强调衔接而非"处理/改写" */
             combinedContent += (combinedContent ? "\n\n" : "") + autoSourceText;
         }else{
             combinedContent += (combinedContent ? "\n\n" : "") + "【待处理的已有文字】\n请依据当前技能，对以下已有文字进行相应处理：\n" + autoSourceText;
@@ -4307,9 +4528,19 @@ async function sendMessage(autoSourceText) {
         : (refImages.length > 0
             ? (visFallback ? "、参考图因模型不支持识图已忽略" : "、参考图已按当前技能自动忽略")
             : "");
-    append(`【用户】：${userCmd}${autoSourceText ? "（已附带窗口内已有文字，按当前技能处理）" : ""}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
-    userInput.value = "";
-    aiMsgDom = append("【AI】：", "ai");
+    if(isResuming){
+        /* 断点续写：不再刷一条新的【用户】消息打扰阅读；复用刷新前那条半截 AI 消息，
+           新吐的字直接续在它后面，窗口里看起来就是一次连续的吐字。 */
+        aiMsgDom = (mfResumeDom && mfResumeDom.isConnected) ? mfResumeDom : append("【AI】：", "ai");
+        append("🔄 已从断点自动接续生成（页面刷新不影响任务）", "tip");
+        /* 半截稿即已吐内容：fullAiText 在开头已保留，这里同步成节点当前文本，确保续字落点一致 */
+        fullAiText = msgFullText(aiMsgDom);
+    }else{
+        append(`【用户】：${userCmd}${autoSourceText ? "（已附带窗口内已有文字，按当前技能处理）" : ""}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
+        userInput.value = "";
+        aiMsgDom = append("【AI】：", "ai");
+    }
+    mfResumeMode = false; mfResumeDom = null;   /* 本轮已消费续写状态；后续停止/清空不应再触发续写 */
     abortController = new AbortController();
     syncSendToCanvasBtn();
 
@@ -4519,6 +4750,9 @@ async function sendMessage(autoSourceText) {
     } finally {
         abortController = null;
         syncSendToCanvasBtn();
+        /* 立即把"生成已结束"落盘（同步，不等 scheduleLiveSave 的 250ms 防抖）：
+           否则用户在结束后极短时间内刷新，会读到旧的 generating=true 而误触发续写。 */
+        try{ saveLiveSession(); }catch(e){}
         const completed = !!(fullAiText && fullAiText.trim());
         // 正常结束、用户点停止、请求异常三种情况都把已生成的产物写入历史（只写一次）
         if (completed) saveHistoryToLocal();
@@ -4709,7 +4943,30 @@ function initUI(){
     if(sendCanvasNewBtn) sendCanvasNewBtn.addEventListener("click", ()=>{ closeSendCanvasModal(); deliverToCanvas("new"); });
     syncSendToCanvasBtn();
     stopBtn.addEventListener("click", stopGenerate);
-    sendMsgBtn.addEventListener("click", sendMessage);
+    /* 必须包一层箭头函数：直接传 sendMessage 会把 click 的 PointerEvent 当第一个参数
+       （即 autoSourceText）传入，导致每次普通点击都把 "[object PointerEvent]" 当"已附带文字"
+       塞进请求上下文，污染模型输入。唯一的字符串来源只有跨页/续写调用。 */
+    sendMsgBtn.addEventListener("click", async ()=>{
+        /* 若上轮探测判定有歧义、用户已把回答填回指令框 → 自动合并原指令+回答，直接开工。
+           合并后 mfClarifyPending 清空，本次 sendMessage 走正常逻辑，不再重复探测。 */
+        if(mfClarifyPending){
+            const merged = mfMergeClarifyAnswer(userInput.value);
+            userInput.value = merged;
+            append("✅ 已合并你的回答与原指令，开始生成。", "tip");
+            sendMessage();
+            return;
+        }
+        /* 只在"非生成中、非续写、非断点续写"的手动新指令上做歧义探测；
+           探测有歧义会拦截本轮，用户回答后再点开始。明确指令/探测失败照常直接生成。 */
+        if(!isGenerating() && !mfAutoContinue && !mfResumeMode && !mfWasGenerating){
+            const cmd = userInput.value.trim();
+            if(cmd){
+                const blocked = await mfClarifyIfNeeded(cmd);
+                if(blocked) return;   /* 有歧义：等用户回答，不发正式请求 */
+            }
+        }
+        sendMessage();
+    });
     downloadAiBtn.addEventListener("click", downloadAiText);
     const sendToCanvasBtn = document.getElementById("sendToCanvasBtn");
     if(sendToCanvasBtn) sendToCanvasBtn.addEventListener("click", sendToCanvas);
@@ -4717,8 +4974,19 @@ function initUI(){
     document.querySelectorAll(".canvas-nav-btn").forEach(el => el.addEventListener("click", guardCanvasNav));
     newSessionBtn.addEventListener("click", ()=> openNewSession());
     if(clearPageBtn) clearPageBtn.addEventListener("click", clearCurrentPage);
-    /* 离开本页（刷新 / 打开画布 / 关闭标签页）兜底全量保存现场；新标签页的「新建对话」不继承 sessionStorage */
+    /* 事前拦截：吐字中用户若刷新/关闭页面，弹浏览器原生确认框让其有机会取消，避免误操作中断。
+       注意只能显示浏览器固定文案（现代浏览器不允许自定义），但足以拦住绝大多数误刷新；
+       用户坚持离开时，下面 pagehide 记下 generating=true，新页面加载后自动断点续写兜底。 */
+    window.addEventListener("beforeunload", (e)=>{
+        if(!isGenerating()) return;   /* 没在吐字：正常离开，不打扰 */
+        e.preventDefault();
+        e.returnValue = "";           /* 触发确认框；Chrome/Edge/Firefox 通用写法 */
+    });
+    /* 离开本页（刷新 / 打开画布 / 关闭标签页）兜底全量保存现场；新标签页的「新建对话」不继承 sessionStorage。
+       吐字中离开时 abortController 仍非空 → 快照 generating=true → 新页面自动断点续写。 */
     window.addEventListener("pagehide", ()=>{ try{ saveLiveSession(); }catch(e){} });
+    /* 缩小 / 隐藏 / 切后台：理解为"转后台继续运行"，只存快照、绝不 abort——
+       流式请求由浏览器在后台继续接收，吐字不中断；回到前台内容已在窗口里。 */
     document.addEventListener("visibilitychange", ()=>{
         if(document.visibilityState === "hidden"){ try{ saveLiveSession(); }catch(e){} }
     });
@@ -4914,6 +5182,29 @@ function initUI(){
     }
     /* 跨页技能任务放在最后：确保按钮绑定完成，即使初始化中途出错也尽量把任务跑起来 */
     Promise.resolve(runPendingSkillTask()).catch(e=>console.error("新网页技能任务异常：", e));
+    /* 刷新中断的断点续写：检测现场快照里的 generating=true，自动接着半截稿写。
+       放在按钮绑定之后、并让出一拍，确保跨页任务不会与本轮续写同时抢发送。 */
+    setTimeout(()=>{ try{ maybeResumeInterrupted(); }catch(e){ console.error("断点续写异常：", e); } }, 60);
+}
+
+/* 页面加载后：若上次是"吐字中被刷新打断"，自动用半截稿续写，直到任务完成。
+   触发条件（任一不满足则安静跳过，绝不多此一举）：
+   · mfWasGenerating 由 restoreLiveSession 从快照读出（上轮生成中 + 有半截稿）；
+   · 当前技能已恢复、没有正在进行的生成、没有跨页技能任务在跑；
+   · 有半截稿正文可取。 */
+function maybeResumeInterrupted(){
+    if(!mfWasGenerating) return;
+    mfWasGenerating = false;                  /* 一次性：无论是否真的续成都不再重试 */
+    if(isGenerating()) return;                /* 已在生成（如跨页任务恰好启动）：交给它，不抢 */
+    const partial = String(fullAiText || "").trim();
+    if(!partial) return;                      /* 没有可接的半截稿 */
+    if(window.__mfPendingSkillTask) return;   /* 有跨页任务待跑，避免两个任务并发 */
+    mfResumeDom = chatBox.querySelector(".msg.ai:last-of-type") || null;
+    if(!mfResumeDom) return;
+    mfResumeMode = true;
+    append("🔄 检测到上次生成时页面被刷新，正在从断点继续完成（无需重新操作）…", "tip");
+    /* autoSourceText 传"中断前已生成内容"：sendMessage 在续写模式下直接把它作为衔接上文给模型 */
+    sendMessage(buildResumeContext(partial));
 }
 if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", initUI, { once:true });
