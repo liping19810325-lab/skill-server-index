@@ -5832,6 +5832,11 @@ function cvStripComfyReferences(work,m,input){
     const LOADER_RE=/^(LoadImage|LoadImageMask|VHS_LoadImage|LoadImageUpload|ImageLoad|ImageInput|ImageFromBase|LoadAudio|VHS_LoadAudio|VHS_LoadAudioUpload|AudioLoad|LoadVideo|VHS_LoadVideo|VideoLoad)/i;
     /* 参考字段：含多参考列表 ref_audios/ref_videos，及单值 image_N/ref_image/start_video 等 */
     const REF_FIELD_RE=/^(image|image_\d+|start_image|ref_image|reference_image|image_1|image_file|audio|audio_\d+|audio_file|sound|music|video|video_\d+|video_file|start_video|ref_audio|ref_audios|ref_video|ref_videos|ref_video_audios)/i;
+    /* 配置字段白名单：名字以 ref_image 等参考词开头，但值是枚举/配置而非素材文件名，绝不能删。
+       MiniMaxH3ReferenceToVideo.ref_image_size 是必填 COMBO(默认 "match")，
+       prefix 口径会命中 REF_FIELD_RE，旧逻辑看到字符串就 delete，导致 ComfyUI 报
+       required_input_missing: ref_image_size。同类 size/mode/scale 配置一并保护。 */
+    const REF_CFG_FIELD_RE=/^(ref_image_size|ref_image_mode|ref_image_scale|ref_video_size|ref_audio_size|image_size|video_size)$/i;
     /* 会被画布连入覆盖的节点 id：每类取前 N 个（N=画布连入数），保留它们作写入通道 */
     const keepIds=new Set();
     const markKeep=(nodes,cnt)=>{
@@ -5851,6 +5856,7 @@ function cvStripComfyReferences(work,m,input){
         const node=work[id];
         if(!node||!node.inputs) return;
         Object.keys(node.inputs).forEach(f=>{
+            if(REF_CFG_FIELD_RE.test(f)) return;   /* 必填配置枚举，不是预置参考文件名 */
             if(REF_FIELD_RE.test(f)&&typeof node.inputs[f]==="string") delete node.inputs[f];
         });
     });
@@ -5859,6 +5865,7 @@ function cvStripComfyReferences(work,m,input){
         const node=work[id];
         if(!node||!node.inputs) return;
         Object.keys(node.inputs).forEach(f=>{
+            if(REF_CFG_FIELD_RE.test(f)) return;   /* 必填配置枚举，不是预置参考文件名 */
             if(!REF_FIELD_RE.test(f)) return;
             const v=node.inputs[f];
             if(Array.isArray(v)&&v.length>=1&&!Array.isArray(v[0])){
@@ -5872,6 +5879,14 @@ function cvStripComfyReferences(work,m,input){
         });
     });
     removeIds.forEach(id=>{ delete work[id]; });
+    /* 兜底：MiniMaxH3ReferenceToVideo 新版把 ref_image_size 设为必填 COMBO(match/max)，
+       旧导出或清理误删都会导致 ComfyUI 报 required_input_missing。缺则补官方默认 "match"。 */
+    Object.keys(work||{}).forEach(id=>{
+        const node=work[id];
+        if(!node||!/MiniMaxH3|ReferenceToVideo/i.test(String(node.class_type||""))) return;
+        if(!node.inputs) node.inputs={};
+        if(!("ref_image_size" in node.inputs)) node.inputs.ref_image_size="match";
+    });
     return removeIds.size;
 }
 async function genComfy(n,input){
