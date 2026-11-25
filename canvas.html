@@ -5838,6 +5838,7 @@ function cvStripComfyReferences(work,m,input){
        required_input_missing: ref_image_size。同类 size/mode/scale 配置一并保护。 */
     const REF_CFG_FIELD_RE=/^(ref_image_size|ref_image_mode|ref_image_scale|ref_video_size|ref_audio_size|image_size|video_size)$/i;
     /* 会被画布连入覆盖的节点 id：每类取前 N 个（N=画布连入数），保留它们作写入通道 */
+    const imgCnt=(input&&input.images||[]).length, audCnt=(input&&input.audios||[]).length, vidCnt=(input&&input.videos||[]).length;
     const keepIds=new Set();
     const markKeep=(nodes,cnt)=>{
         for(let i=0;i<Math.min(cnt||0,(nodes||[]).length);i++){
@@ -5845,12 +5846,29 @@ function cvStripComfyReferences(work,m,input){
             if(cfg&&cfg.node&&work[cfg.node]) keepIds.add(String(cfg.node));
         }
     };
-    markKeep(m&&m.imageNodes,(input&&input.images||[]).length);
-    markKeep(m&&m.audioNodes,(input&&input.audios||[]).length);
-    markKeep(m&&m.videoNodes,(input&&input.videos||[]).length);
-    /* 载入类节点里，不在保留集的 = 纯预置参考 → 删除 */
+    markKeep(m&&m.imageNodes,imgCnt);
+    markKeep(m&&m.audioNodes,audCnt);
+    markKeep(m&&m.videoNodes,vidCnt);
+    /* 载入类节点里，不在保留集的 = 纯预置参考 → 删除。
+       但「画布没连入该类素材」时，工作流自带的该链路（如 LoadImage→ImageResizeKJv2→H3）
+       是必经链路，删掉会让下游必填 image/video/audio 断链 → ComfyUI 报 required_input_missing。
+       规格允许只用图、或只用视频，所以没连入的那一类必须原样保留，不能清理。 */
     const loaderIds=Object.keys(work||{}).filter(id=>LOADER_RE.test(String((work[id]||{}).class_type||"")));
-    const removeIds=new Set(loaderIds.filter(id=>!keepIds.has(id)));
+    const loaderKind=id=>{
+        const cls=String((work[id]||{}).class_type||"");
+        if(/LoadAudio|AudioLoad|AudioInput/i.test(cls)) return "audio";
+        if(/LoadVideo|VideoLoad|VideoInput/i.test(cls)) return "video";
+        return "image";
+    };
+    /* 每类是否有有效写入通道：只有该类 keepIds 非空（能接收画布素材）时，
+       才允许删除该类多余的预置载入节点。否则（没连入该类、或映射失效没找到通道）
+       保留该类全部载入节点原样——否则会把必经链路的下游必填字段切断。 */
+    const hasChannel={image:false,audio:false,video:false};
+    loaderIds.forEach(id=>{ if(keepIds.has(id)) hasChannel[loaderKind(id)]=true; });
+    const removeIds=new Set(loaderIds.filter(id=>{
+        if(keepIds.has(id)) return false;
+        return hasChannel[loaderKind(id)]===true;   /* 该类无写入通道 → 不删，保留原样 */
+    }));
     /* 保留节点：清空其预置默认文件名，等待下方写入画布素材覆盖 */
     keepIds.forEach(id=>{
         const node=work[id];
@@ -5915,6 +5933,11 @@ async function genComfy(n,input){
     if(!tpl) throw new Error("请先在左侧导入 ComfyUI 工作流模板（生图与生视频可各导一份）。");
     const wf=tpl.workflow;
     if(!wf||typeof wf!=="object") throw new Error("工作流模板内容为空，请重新导入「导出(API)」格式 JSON。");
+    /* MiniMax H3 规格：音频参考不能单独使用，必须至少搭配一张参考图或一条参考视频。
+       只对 H3 模板校验，避免误伤纯配音等其它工作流。 */
+    if(/MiniMaxH3|ReferenceToVideo/i.test(JSON.stringify(wf))
+       &&(input.audios||[]).length&&!(input.images||[]).length&&!(input.videos||[]).length)
+        throw new Error("MiniMax H3 的音频参考不能单独使用：请至少再连 1 张参考图或 1 条参考视频（音频参考必须搭配画面参考）。");
     /* 映射：手工保存的映射优先，但早期导入的旧存档可能缺 promptNodes / imageNodes，
        一旦只信旧映射，就会出现「什么都没写入、ComfyUI 按工作流自带提示词出图」的静默失效。
        因此每次运行都用最新推断补齐空缺字段，并过滤掉已不存在于工作流里的节点。 */
