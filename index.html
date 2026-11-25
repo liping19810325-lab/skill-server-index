@@ -759,13 +759,31 @@ const safeStorage = {
     set(k,v){ try { window.localStorage.setItem(k,v); return true; } catch(e){ console.warn("本地存储写入失败（可能被禁用或已超配额）：", e && e.name); return false; } },
     remove(k){ try { window.localStorage.removeItem(k); } catch(e){} }
 };
-/* 会话级存储：画风预选只属于当前对话标签页，新建对话（新标签页）不继承上次的预选。
+/* 会话级存储：画风预选只属于当前对话标签页，新建对话靠 mfnew=1 主动清掉继承来的预选。
    刷新当前页仍在（sessionStorage 在同标签页刷新后保留），但开新对话即干净开始。 */
 const safeSession = {
     get(k){ try { return window.sessionStorage.getItem(k); } catch(e){ return null; } },
     set(k,v){ try { window.sessionStorage.setItem(k,v); return true; } catch(e){ return false; } },
     remove(k){ try { window.sessionStorage.removeItem(k); } catch(e){} }
 };
+
+/* ★ 新建对话的「干净页」判定（根治"新对话把当前正在跑的网页复制过来"）：
+   浏览器规范：window.open 打开的新标签页会「复制」opener 的 sessionStorage。
+   原注释误以为"按标签页隔离=新标签页天然干净"，于是当前页的现场快照（聊天 DOM、
+   正文、续写态、待确认态、技能、文件、参考图、画风预选）被整份带到新页并自动恢复。
+   openNewSession 给新页 URL 带一次性 mfnew=1；这里锁定判定后立刻从地址栏抹掉标记，
+   再由下方清掉继承来的会话现场。算力/API/历史产物存 localStorage，属全局配置，保留。 */
+const MF_FRESH_SESSION = (function(){
+    try{ return new URLSearchParams(window.location.search).get("mfnew") === "1"; }
+    catch(e){ return false; }
+})();
+if(MF_FRESH_SESSION){
+    try{
+        const u = new URL(window.location.href);
+        u.searchParams.delete("mfnew");
+        window.history.replaceState(window.history.state, "", u.pathname + u.search + u.hash);
+    }catch(e){ /* file:// / srcdoc 下历史 API 可能受限，标记已锁定，不影响清理逻辑 */ }
+}
 
 const SKILL_API_BASE = "https://skill-api.manflows.com/api/get-skill";
 const SKILL_TOKEN = "CU001-ABC123";
@@ -780,7 +798,8 @@ const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
 /* ===== 当前会话「现场快照」：刷新 / 打开画布再返回时原样恢复，避免用户以为内容丢了。
-   用 sessionStorage（按标签页隔离）：同标签页刷新与同窗口导航都在，新标签页（新建对话）天然干净。
+   用 sessionStorage：同标签页刷新与同窗口导航都在；但 window.open 新标签页会复制本页快照，
+   所以新建对话必须靠 URL 的 mfnew=1 让新页自清（见 MF_FRESH_SESSION 与下方清理）。
    文本与参考图分两个 key——图体积大，单独存、超限只丢图不拖累文本恢复。 */
 const STORAGE_KEY_LIVE_SESSION = "manflows_live_session";
 const STORAGE_KEY_LIVE_REFS = "manflows_live_refs";
@@ -818,7 +837,7 @@ function skillAllowsImage(){
 }
 
 /* 画风预选：2D / 3D / 真人 三类各 9 项，三类互斥——只能选其中一类的一项（选了新的会自动清掉其它两类）。
-   选择仅存当前对话标签页（sessionStorage），新建对话不继承；选中项作为文字风格指令随请求发送。
+   选择仅存当前对话标签页（sessionStorage），新建对话靠 mfnew=1 主动清空；选中项作为文字风格指令随请求发送。
    与画风参考图并用时：参考图优先；若当前模型不支持识图，则自动回退为以预选画风为准。 */
 const STYLE_PRESETS = {
     twoD:  { label:"2D",   items:["日系赛璐璐","写实厚涂","Q版大头漫","水墨/工笔","吉卜力治愈","高饱和风","低饱和风","复古油画风","日系水彩风"] },
@@ -827,6 +846,15 @@ const STYLE_PRESETS = {
 };
 const STORAGE_KEY_STYLE_PRESETS = "manflows_style_presets";
 let stylePresetSel = { twoD:"", threeD:"", real:"" };
+/* ★ 新建对话（mfnew=1）：丢弃从 opener 复制过来的全部会话级现场。
+   聊天记录 / 正文 / 续写态 / 待确认态 / 技能 / 上传文件 / 参考图 / 画风预选一律不带；
+   算力、API、历史产物存 localStorage（全局配置）按设计保留；画幅是面板物理按钮态，也保留。
+   这一步必须在 restoreLiveSession() 与画风预选恢复之前执行。 */
+if(MF_FRESH_SESSION){
+    safeSession.remove(STORAGE_KEY_LIVE_SESSION);
+    safeSession.remove(STORAGE_KEY_LIVE_REFS);
+    safeSession.remove(STORAGE_KEY_STYLE_PRESETS);
+}
 try{
     const saved = JSON.parse(safeSession.get(STORAGE_KEY_STYLE_PRESETS) || "{}");
     /* 互斥：只恢复一个（老数据若三类都有，按 twoD→threeD→real 取第一个有效项） */
@@ -2101,9 +2129,10 @@ function append(text, type = "tip") {
 }
 
 /* ==================================================================
-   当前会话现场快照（sessionStorage，按标签页隔离）
+   当前会话现场快照（sessionStorage）
    · 刷新 / 「打开画布」切走再返回 → 本页打开时自动恢复，用户内容不丢；
-   · 新建对话是 window.open 新标签页，sessionStorage 不继承 → 天然干净；
+   · 新建对话是 window.open 新标签页：浏览器会复制 opener 的 sessionStorage，
+     故靠 URL 的 mfnew=1 让新页自清现场（见 MF_FRESH_SESSION）→ 干净空白页；
    · 「清空本页」主动删两个 key + 重置现场 → 等同新建对话。
    实现要点：
    · 文本快照（聊天 DOM/剧本/技能/输出/草稿/参数/自定义技能/画风预选/画风锚）单独存，
@@ -2165,6 +2194,7 @@ function saveLiveSession(){
    画风预选在模块顶层已从 sessionStorage 恢复，这里跳过它避免二次覆盖。
    参考图超配额丢失时给一条轻提示，用户重新上传即可。 */
 function restoreLiveSession(){
+    if(MF_FRESH_SESSION) return;   /* 新建对话：即使快照残留也不恢复，绝不带入上一页现场 */
     let s = null;
     try{ s = JSON.parse(safeSession.get(STORAGE_KEY_LIVE_SESSION) || "null"); }catch(e){ s = null; }
     if(!s || typeof s !== "object") return;
@@ -3229,9 +3259,11 @@ function downloadAiText() {
    显式写 ./index.html，浏览器会按文档 baseURI 解析：
      · 部署在 GitHub Pages / 主站 → 同目录 index.html
      · srcdoc 预览 → 继承父文档目录，仍指向同目录 index.html
-   同时去掉 query / hash，避免把当前页状态带进新对话。 */
+   ★ 只带固定的 mfnew=1 标记（不含任何当前页状态）：新页据此自清从 opener 复制来的
+     sessionStorage 现场——window.open 的新标签页会复制 opener 的 sessionStorage，
+     不是"天然干净"，必须显式清，详见 MF_FRESH_SESSION。 */
 function openNewSession(payload) {
-    let url = "./index.html";
+    let url = "./index.html?mfnew=1";
     try {
         const u = new URL(url, document.baseURI || window.location.href);
         if(u.protocol === "http:" || u.protocol === "https:") url = u.href;
@@ -3528,7 +3560,7 @@ function applySkillTask(o){
     const sk = o && o.skill;
     if(!t.trim() || !sk) return false;
     window.__mfNewSessionApplied = true;
-    /* 恢复上一页锁定的画幅（新标签页 sessionStorage 不继承），保持剧本→生视频画幅一致；
+    /* 恢复上一页锁定的画幅（跨页 payload 显式携带），保持剧本→生视频画幅一致；
        只接受合法值，非法/缺失时保持本页默认横屏，不打断任务。 */
     if(o.aspect === "landscape" || o.aspect === "portrait"){
         scriptAspect = o.aspect;
@@ -5741,7 +5773,7 @@ function initUI(){
     updateRefBadge();
     updateDownloadLabel();
     restoreLiveSession();         /* 刷新 / 打开画布返回：恢复本标签页上次的会话现场 */
-    consumeNewSessionPayload();   /* 「加入新建对话」带过来的产物正文（新标签页无现场快照，不受影响） */
+    consumeNewSessionPayload();   /* 「加入新建对话」带过来的产物正文（新页已靠 mfnew=1 清现场，不受影响） */
     if(!safeStorage.available) console.warn("本地存储不可用（预览沙箱或隐私模式）：API配置与历史记录本次会话内有效，刷新后不保留；其余功能正常。");
 
     // 内置技能按钮
@@ -5989,8 +6021,8 @@ function initUI(){
         e.preventDefault();
         e.returnValue = "";           /* 触发确认框；Chrome/Edge/Firefox 通用写法 */
     });
-    /* 离开本页（刷新 / 打开画布 / 关闭标签页）兜底全量保存现场；新标签页的「新建对话」不继承 sessionStorage。
-       吐字中离开时 abortController 仍非空 → 快照 generating=true → 新页面自动断点续写。 */
+    /* 离开本页（刷新 / 打开画布 / 关闭标签页）兜底全量保存现场；「新建对话」新页靠 mfnew=1 自清复制来的快照。
+       吐字中离开时 abortController 仍非空 → 快照 generating=true → 同标签页刷新后自动断点续写。 */
     window.addEventListener("pagehide", ()=>{ try{ saveLiveSession(); }catch(e){} });
     /* 缩小 / 隐藏 / 切后台：理解为"转后台继续运行"，只存快照、绝不 abort——
        流式请求由浏览器在后台继续接收，吐字不中断；回到前台内容已在窗口里。 */
