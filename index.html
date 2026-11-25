@@ -1490,7 +1490,7 @@ function syncEditedHistory(before, after){
     try{ rec.aiResult = mfProjectProductText() || after; }catch(e){ rec.aiResult = after; }
     rec.chatHtml = chatBox.innerHTML;   /* 直接取当前窗口快照：所有输入/输出/互动都在里面 */
     rec.time = new Date().toISOString();
-    safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records));
+    commitHistoryRecords(records);      /* 统一提交：IndexedDB 权威 + localStorage 镜像 */
     renderHistoryBar();
 }
 function saveChatPreview(){
@@ -3793,13 +3793,11 @@ function saveHistoryToLocal() {
             all.unshift(record);
             if(all.length > 30) all = all.slice(0, 30);
         }
-        // 写入失败（配额/被禁用）就逐条裁剪最旧记录，最多再试 8 次；仍失败则只留本次
-        for(let i = 0; i < 8; i++){
-            if(safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(all))){ renderHistoryBar(); return; }
-            if(all.length <= 1) break;
-            all = all.slice(0, Math.max(1, Math.floor(all.length / 2)));
-        }
-        append("⚠️ 本地存储空间不足或已被浏览器禁用，本次项目产物未能写入历史；生成内容不受影响，可点【下载】保存。", "tip");
+        /* ★ 统一提交到 IndexedDB（权威、长剧不超限）+ localStorage 镜像（尽力）。
+           不再因 localStorage 配额而裁剪/丢弃历史记录——100 集长剧刷新即丢的根因已根治。
+           IndexedDB 也写入失败时（隐私模式等）明确提示，引导用户下载保存。 */
+        if(commitHistoryRecords(all)){ renderHistoryBar(); }
+        else append("⚠️ 本次项目产物未能写入历史（浏览器存储不可用）；生成内容不受影响，可点【下载】保存。", "tip");
     } catch(e) {
         console.warn("保存历史失败（不影响生成）：", e);
     }
@@ -3817,7 +3815,109 @@ function saveHistoryToLocal() {
    ================================================================== */
 let activeHistoryIndex = -1;
 
+/* ==================================================================
+   ★ 历史产物「长期记忆」：IndexedDB 权威存储（不受 localStorage 5MB 配额限制）
+   根因：100 集长剧本的 aiResult（完整正文）+ chatHtml（整段对话）单条就超 5MB，
+   写进 localStorage 会整条失败；旧兜底在只剩一条时直接放弃 → 刷新即丢。
+   现改为：IndexedDB 存权威完整历史（容量按磁盘算，长剧不会超限），
+   localStorage 仅作同步镜像（能写就写、写不下跳过，绝不因镜像失败删记录）。
+   · readHistoryRecords 优先读内存缓存 historyCache，读不到再回退 localStorage（兼容老版本）；
+   · commitHistoryRecords 统一提交：内存立即生效 → IndexedDB 持久化 → localStorage 尽力镜像；
+   · 与画布页的 manflows_canvas_db 完全隔离（独立库），互不影响。
+   ================================================================== */
+const MF_HIST_DB = "manflows_history_db";
+const MF_HIST_STORE = "records";
+let historyCache = null;      /* null=尚未加载；数组=权威历史（与 IndexedDB 同步） */
+let historyTouched = false;   /* 本会话是否已提交过写入——防止初始化异步读完用旧快照覆盖本次新写入 */
+/* localStorage 镜像是否"已过期"：
+   false（默认）= localStorage 是正常可用的镜像，readHistoryRecords 优先读它——完全兼容原有行为
+                  （包括外部直接 safeStorage.set 注入历史的场景，如载入/迁移/测试）。
+   true          = 最近一次写入因配额超限未能同步到 localStorage，此时改从 IndexedDB 读权威完整数据。
+   这样既不破坏任何原有 localStorage 读写路径，又让长剧在超限时仍能从 IndexedDB 恢复。 */
+let localMirrorStale = false;
+
+function mfOpenHistDB(){
+    return new Promise((resolve, reject)=>{
+        let req;
+        try{ req = indexedDB.open(MF_HIST_DB, 1); }catch(e){ reject(e); return; }
+        req.onupgradeneeded = ()=>{
+            const db = req.result;
+            if(!db.objectStoreNames.contains(MF_HIST_STORE)) db.createObjectStore(MF_HIST_STORE, {keyPath:"id"});
+        };
+        req.onsuccess = ()=>resolve(req.result);
+        req.onerror = ()=>reject(req.error);
+    });
+}
+async function mfHistDBRead(){
+    try{
+        const db = await mfOpenHistDB();
+        const out = await new Promise((res, rej)=>{
+            const tx = db.transaction(MF_HIST_STORE, "readonly");
+            const rq = tx.objectStore(MF_HIST_STORE).get("history");
+            rq.onsuccess = ()=>res(rq.result ? rq.result.records : null);
+            rq.onerror = ()=>rej(rq.error);
+        });
+        db.close();
+        return Array.isArray(out) ? out : null;
+    }catch(e){ return null; }
+}
+async function mfHistDBWrite(records){
+    try{
+        const db = await mfOpenHistDB();
+        await new Promise((res, rej)=>{
+            const tx = db.transaction(MF_HIST_STORE, "readwrite");
+            tx.objectStore(MF_HIST_STORE).put({ id:"history", records: records });
+            tx.oncomplete = ()=>res();
+            tx.onerror = ()=>rej(tx.error);
+        });
+        db.close();
+        return true;
+    }catch(e){ console.warn("历史产物写入 IndexedDB 失败：", e); return false; }
+}
+/* 统一提交历史：内存立即生效 → IndexedDB 持久化（权威）→ localStorage 尽力镜像。
+   ★ 关键修复：localStorage 写失败绝不删历史记录——这正是昨天 100 集剧本丢失的根因。 */
+function commitHistoryRecords(records){
+    if(!Array.isArray(records)) return false;
+    historyCache = records;
+    historyTouched = true;
+    mfHistDBWrite(records);                                          /* 异步持久化，不阻塞生成 */
+    /* localStorage 镜像：写成功→镜像有效（保持原有读取行为）；写失败（超限/禁用）→标记过期，
+       让 readHistoryRecords 回退到 IndexedDB/内存里的完整数据。 */
+    try{
+        localMirrorStale = !safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records));
+    }catch(e){ localMirrorStale = true; }
+    return true;
+}
+/* 页面启动：先从 IndexedDB 恢复历史（长期记忆）；DB 为空则把 localStorage 旧数据迁移过去。
+   若初始化期间本会话已提交写入（historyTouched），以内存为准，不用读到的旧快照覆盖。 */
+async function initHistoryFromDB(){
+    let records = await mfHistDBRead();
+    /* ★ 守卫必须在 await 之后重新检查：页面加载即发起本函数，await DB 期间用户可能已生成并写入历史，
+       若用 await 之前的旧值判断会漏掉这次写入，用 DB 旧快照覆盖刚写入的新产物（生成完立刻刷新会丢）。 */
+    if(historyTouched) return;   /* 期间已有写入，内存即最新，别回退 */
+    if(records === null){
+        /* DB 为空：以 localStorage 原有历史为准（完全兼容老数据），并迁移到 IndexedDB */
+        try{
+            const arr = JSON.parse(safeStorage.get(STORAGE_KEY_HISTORY) || "[]");
+            records = Array.isArray(arr) ? arr.filter(r=>r && typeof r==="object") : [];
+        }catch(e){ records = []; }
+        historyCache = records;
+        localMirrorStale = false;   /* localStorage 就是当前数据源 */
+        if(records.length) mfHistDBWrite(records);
+    }else{
+        /* DB 有权威历史（含 localStorage 装不下的长剧）：用它，并尝试回写镜像。
+           回写成功→镜像有效；超限失败→标记过期，后续读取走内存/DB，保证刷新不丢。 */
+        historyCache = records;
+        try{ localMirrorStale = !safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records)); }
+        catch(e){ localMirrorStale = true; }
+    }
+    try{ renderHistoryBar(); }catch(e){}
+}
+
 function readHistoryRecords(){
+    /* ★ 默认优先读 localStorage（原有行为，兼容外部直接写入/迁移/测试）；
+       只有镜像被标记为"过期"（写入超限时）才回退到 IndexedDB 内存缓存里的完整数据。 */
+    if(localMirrorStale && Array.isArray(historyCache)) return historyCache;
     try {
         const arr = JSON.parse(safeStorage.get(STORAGE_KEY_HISTORY) || "[]");
         return Array.isArray(arr) ? arr.filter(r => r && typeof r === "object") : [];
@@ -3902,7 +4002,7 @@ function renderHistoryBar(){
     });
 }
 function writeHistoryRecords(records){
-    return safeStorage.set(STORAGE_KEY_HISTORY, JSON.stringify(records));
+    return commitHistoryRecords(records);
 }
 function renameHistoryRecord(idx){
     const records = readHistoryRecords();
@@ -4850,7 +4950,9 @@ function assetCoverageDirective(key){
    "原创100集从第1集写"）——用户扫一眼理解稿就能当场拦下。
    ★ 只对复杂指令（多集/重写/新剧/大纲/长指令）对齐；简单明确的指令直接放行、零打扰。
    ★ 自动续写 / 断点续写 / 排队任务 / 跨页任务一律跳过探测，绝不打断自动化。
-   ★ 探测失败（网络/超时/格式异常）一律静默放行，按原指令开工，绝不影响正常生成。
+   ★ 探测失败（网络/超时/格式异常）一般静默放行；但若用户指令明确要求"分阶段暂停"
+     （先出大纲/设定、暂不写正文、等我审核/确认后再定），则绝不静默放行——本地构造理解稿照样出对齐卡，
+     确保用户"先别写正文、等我审核"的明确意愿不被绕过（否则就是提示了对齐却直接开工）。
    ================================================================== */
 const MF_CLARIFY_SYS = "你是创作开工前的「执行方案对齐员」。在读正文之前，先向用户复述你对指令的理解与执行计划，供用户确认；并主动教用户怎样写指令你能更快更准地执行。绝对不要开始写正文或大纲。\n"
     + "严格只输出一个 JSON 对象，不要代码块、不要任何解释：\n"
@@ -4901,6 +5003,46 @@ function mfCmdNeedsAlign(cmd){
     const rewrite = /(重写|重新?写|新写|全新|另起|新剧|换剧|改剧名|重出大纲|全新创作|创作一部新的|写一部新的|原创)/.test(s);
     const outline = /(大纲|设定|分集|规划|策划|留存地图)/.test(s);
     return multi || rewrite || outline || s.length >= 24;
+}
+/* mfCmdWantsPause：识别用户是否明确要求"分阶段、本轮先出前期方案、暂不写正文、等审核/确认后再继续"。
+   ★ 这类指令天然要求先停下来给用户过目——对齐探测失败（网络/超时/格式异常/未配置）也绝不能静默放行，
+     否则就会出现"提示了先对齐、却直接写正文"的阳奉阴违。只认强信号，避免误伤"写50集"这类普通指令。 */
+function mfCmdWantsPause(cmd){
+    const s = String(cmd || "").trim();
+    if(!s) return false;
+    /* ① 明确"先出大纲/设定/方案" 且 "正文/剧本暂缓" */
+    const firstStage = /(?:先|首先|第一步|第一阶段)[^。！\n]{0,30}(?:出|写|给|做|整理|生成|列)[^。！\n]{0,20}(?:大纲|设定|方案|规划|构思)/.test(s);
+    const holdRest = /(?:正文|剧本正文|剧本)[^。！\n]{0,15}?(?:暂时|暂不|先不|先别|别|不)[^。！\n]{0,10}?(?:出|写|生成|开始)/.test(s)
+                  || /(?:暂不|暂时不|先不|先别|别急着|不要(?:现在|马上|立刻))[^。！\n]{0,15}(?:写|出|生成|开始)[^。！\n]{0,12}(?:正文|剧本)/.test(s);
+    /* ② 明确"等我审核/确认/修改后再继续" */
+    const waitGate = /(?:等|待)(?:我|你)?(?:审核|确认|修改|过目|批准|看完|定)/.test(s)
+                  || /(?:审核|确认|修改|过目|批准|通过|定稿)(?:完|后|之后|好了)?[^。！\n]{0,10}(?:再|才)/.test(s)
+                  || /(?:再考虑|再决定|再定|视情况|另行决定|之后再说|待定)/.test(s);
+    /* ③ 明确分阶段表述 */
+    const staged = /(?:分阶段|分两步|分步骤|分步进行|第一阶段|第二阶段|第一步|第二步)/.test(s);
+    return (firstStage && holdRest) || waitGate || staged;
+}
+/* mfLocalPauseBrief：探测失败时的本地兜底理解稿——忠于原话复述"分阶段暂停"意图，
+   不臆造剧名/画幅；剧名优先取窗口大纲，画幅标注由面板按钮锁定（最高优先级，不写进指令）。 */
+function mfLocalPauseBrief(cmd){
+    const s = String(cmd || "").trim();
+    const ep = s.match(/(?:写|共|前|出|生成)?\s*(\d+)\s*集/);
+    const totalPart = ep ? ("目标 " + ep[1] + " 集；") : "";
+    let stage = "";
+    if(/大纲/.test(s)) stage += "全剧大纲与分集大纲";
+    if(/设定/.test(s)) stage += (stage ? "、" : "") + "人物/场景/世界观等设定";
+    if(!stage) stage = "你要求先出的前期方案";
+    let title = "";
+    try{
+        const ol = getAuthoritativeOutline() || "";
+        const tm = ol.match(/《([^》\n]{1,40})》/);
+        if(tm) title = "《" + tm[1] + "》";
+    }catch(e){}
+    const brief = "【意图复述】" + totalPart + "本轮先产出" + stage + "，剧本正文暂不写；等你审核、修改并确认后，我再按你确认的版本决定是否开始写正文。\n"
+        + "【关键参数】剧名：" + (title || "（指令未提供，按窗口已有大纲为准）")
+        + "；新写/续写/修改：以你的原话为准；画幅：由面板「横屏剧 / 竖屏剧」物理按钮锁定；本轮范围：仅前期方案，正文范围待你确认后再定。\n"
+        + "【执行计划】1) 整理并输出" + stage + "供你审核；2) 到此暂停，本轮不输出任何剧本正文；3) 你修改确认后，我再按确认版大纲续写正文。";
+    return { clear:true, brief: brief, questions: ["本轮是否只出前期方案、完全不写剧本正文？"], advice:"" };
 }
 /* 从探测回答里稳健抽取结构化结果（容忍 ```json 围栏、前后白话、无引号键名）。
    新格式：{clear, brief, questions}（理解稿）；兼容旧格式 {needs, questions}。 */
@@ -5037,18 +5179,30 @@ async function mfClarifyIfNeeded(userCmd){
     mfClarifyPending = null;
     if(!userCmd || !mfCmdNeedsAlign(userCmd)) return false;   /* 简单指令：直接放行，零打扰 */
     if(mfClarifyProbing) return true;   /* 已有探测在飞：本轮先拦下，避免重复 */
+    /* ★ 用户明确要求"分阶段暂停"时，探测失败也绝不静默放行——否则承诺了对齐却直接写正文，
+       违背用户"先出大纲、暂不写正文、等审核"的明确意愿。 */
+    const wantsPause = mfCmdWantsPause(userCmd);
     mfClarifyProbing = true;
     append("🔎 正在整理对指令的理解，先跟你对齐再开工…", "tip");
     let res;
     try{ res = await mfProbeClarify(userCmd); }
     finally{ mfClarifyProbing = false; }
-    if(!res) return false;   /* 探测失败 → 静默放行，按原指令开工 */
+    if(!res){
+        if(!wantsPause) return false;   /* 普通复杂指令：探测失败照旧静默放行，零打扰 */
+        res = mfLocalPauseBrief(userCmd);   /* 分阶段指令：本地构造理解稿，照样出对齐卡 */
+    }
     let brief = typeof res.brief === "string" ? res.brief.trim() : "";
     let advice = typeof res.advice === "string" ? res.advice.trim() : "";
-    const qs = Array.isArray(res.questions) ? res.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
-    /* 没有理解稿、建议、待确认点 → 无可对齐，放行 */
-    if(!brief && !advice && !qs.length) return false;
-    mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice };
+    let qs = Array.isArray(res.questions) ? res.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
+    /* 没有理解稿、建议、待确认点 → 无可对齐。分阶段指令兜底用本地理解稿，其余放行 */
+    if(!brief && !advice && !qs.length){
+        if(!wantsPause) return false;
+        const lc = mfLocalPauseBrief(userCmd);
+        brief = String(lc.brief || "").trim();
+        advice = String(lc.advice || "").trim();
+        qs = Array.isArray(lc.questions) ? lc.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
+    }
+    mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice, pause: wantsPause };
     let msg = "📋 开工前先跟你对一下我的理解，确认无误请直接点「开始」（或回复「确认」）；要改就把修正写进指令框再点开始。\n\n";
     if(brief) msg += "—— 我的理解稿 ——\n" + brief + "\n";
     if(qs.length) msg += "\n我最想跟你确认：\n" + qs.map((q,i)=>"  " + (i+1) + ". " + q.trim()).join("\n") + "\n";
@@ -5071,6 +5225,13 @@ function mfMergeClarifyAnswer(answer){
     if(brief) out += "\n\n【开工前对齐·模型理解稿（已由用户过目，作为意图锁定）】\n" + brief;
     if(a && !mfAlignIsConfirm(a)){
         out += "\n\n【用户对理解稿的修正（最高优先级，覆盖理解稿中不一致处）】\n" + a;
+    }
+    /* ★ 用户明确要求"分阶段暂停"时追加最高优先级锁定，防止模型阳奉阴违一口气把正文也写了。
+       覆盖技能默认流程与任何"一次性写完全部正文"的倾向。 */
+    if(p.pause){
+        out += "\n\n【分阶段执行·最高优先级（覆盖技能默认流程与任何“一次性写完全部正文”的倾向）】"
+             + "本轮严格分两阶段：第一阶段只产出【大纲与设定】（含全剧大纲、分集大纲、人物/场景设定），产出后到此为止；"
+             + "剧本正文一个字都不要写。必须停下来等用户审核、修改并明确确认后，才进入第二阶段写剧本正文。";
     }
     out += "\n（请严格按上面原指令执行；理解稿仅用于锁定意图，其中的理解若与本轮修正冲突，以用户修正为准。）";
     return out;
@@ -5854,7 +6015,8 @@ function initUI(){
     if(downloadHistoryRecordBtn) downloadHistoryRecordBtn.addEventListener("click", downloadHistoryRecord);
     const newSessionFromHistoryBtnEl = document.getElementById("newSessionFromHistoryBtn");
     if(newSessionFromHistoryBtnEl) newSessionFromHistoryBtnEl.addEventListener("click", newSessionFromHistory);
-    renderHistoryBar();
+    renderHistoryBar();                 /* 先用 localStorage 镜像即时渲染（若有） */
+    if(typeof initHistoryFromDB === "function") initHistoryFromDB();  /* 再异步从 IndexedDB 恢复权威历史（长剧不丢） */
 
     plusUploadBtn.addEventListener("click", ()=> fileInput.click());
     fileInput.onchange = async (e) => {
