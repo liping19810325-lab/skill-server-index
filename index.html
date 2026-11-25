@@ -5093,7 +5093,47 @@ function mfCmdNeedsAlign(cmd){
                || /(?:第?\s*\d+\s*集?\s*(?:到|至|[-–—~])\s*第?\s*\d+\s*集)/.test(s);
     const rewrite = /(重写|重新?写|新写|全新|另起|新剧|换剧|改剧名|重出大纲|全新创作|创作一部新的|写一部新的|原创)/.test(s);
     const outline = /(大纲|设定|分集|规划|策划|留存地图)/.test(s);
-    return multi || rewrite || outline || s.length >= 24;
+    /* ★ 参考剧创作必须对齐：这类指令往往很短（如「写一部类似《万妖图录传》类似的剧本」仅 19 字），
+       旧判定会误当简单指令直接放行，导致对齐与公网搜索被一起跳过。
+       识别函数声明提升，此处可直接调用；对齐是唯一开工闸门，先拦下搜索/情报卡才有机会执行。 */
+    const refDrama = mfExtractRefDrama(s).length > 0;
+    /* ★ 用户铁律：指令越简单、越模糊，越要对齐。旧逻辑把短指令当简单指令放行，方向反了。
+       对齐的真正目的是——用户指令往往写得不专业，要把"哪些必须讲清楚"列给用户补齐后才能开工。
+       新增创作类模糊信号：写/来/搞/编 一部剧/漫剧/剧本 却没给集数或剧名等关键信息 → 必须对齐。
+       但"续写第N集""把第N集台词改快"这类短而具体的指令仍保持零打扰（不误伤合法简单操作）。 */
+    const creativeVerb = /(?:写|创作|生成|编|搞|弄|来个|来一部)/.test(s);
+    const dramaNoun = /(?:漫剧|短剧|剧本|连续剧|电视剧|故事|剧|《[^》\n]{1,40}》)/.test(s);
+    const concreteOp = /^(?:续写|继续|接着|把|将|改|修|在第|从第|对第)/.test(s)
+                    || /(?:台词|节奏|这一场|这一段|这句|那个镜头)/.test(s);
+    const creativeVague = creativeVerb && dramaNoun && !concreteOp;
+    return multi || rewrite || outline || refDrama || creativeVague || s.length >= 24;
+}
+/* 列出指令里"没讲清楚、开工前必须补齐"的关键信息。
+   ★ 对齐的核心价值就是把不专业的指令补齐：只列真正缺的项，给了的项不重复问。
+   ★ 完整清单由用户明确指定：剧名、时代（关联服化道美术）、地点（主次）、人物（姓名/性别/外观/口头禅）、
+     故事主线、其它设定（系统/穿越/成长体系/情感线），另加集数、每集时长与本轮交付范围。
+   ★ 画幅绝对不在此列——由面板物理按钮锁定、最高优先级，只作为"已锁定"事实提示，绝不让用户写进指令。 */
+function mfMissingKeyInfo(cmd){
+    const s = String(cmd || "").trim();
+    const miss = [];
+    const has = (re) => re.test(s);
+    if(!has(/《[^》\n]{1,40}》/)) miss.push("剧名：这部剧叫什么名字（用《》写清楚）");
+    if(!has(/(?:年代|朝代|时代|古代|现代|当代|民国|上古|未来|架空|古装|唐|宋|明|清|科幻|历史)/))
+        miss.push("故事时代：发生在什么年代/朝代、现代还是架空（直接决定服化道与美术风格）");
+    if(!has(/(?:地点|场景|发生在|京城|皇宫|都市|校园|公司|山村|岛屿|星球|基地|府邸|客栈|庄园|城堡)/))
+        miss.push("地点：主要地点与次要地点分别在哪、故事在哪里展开");
+    if(!has(/(?:人物|主角|女主|男主|人设|姓名|名叫|性别|外观|长相|外貌|口头禅|角色|设定)/))
+        miss.push("人物：主角的姓名、性别、外观特点、口头禅等特征");
+    if(!has(/(?:主线|讲|关于|故事|剧情|爽点|情节|复仇|逆袭|争夺|冒险|成长史)/))
+        miss.push("故事主线：讲一个什么故事、核心爽点是什么");
+    if(!has(/(?:系统|穿越|重生|金手指|成长体系|修为|等级|情感线|感情线|恋爱|爱情|马甲|替身|空间|异能|灵根|血脉|超能力)/))
+        miss.push("其它设定：有没有系统、穿越、角色成长体系、情感线等特殊设定");
+    if(!has(/(?:\d+\s*集|集数)/)) miss.push("总集数：一共写多少集");
+    if(!has(/(?:\d+\s*(?:分钟|分|秒|s\b)|每集时长|时长|片长)/))
+        miss.push("每集时长：每集大约几分钟（关系到分集容量与节奏）");
+    if(!has(/(?:先出|暂不|等(?:我)?(?:审核|确认)|分阶段|再写正文)/))
+        miss.push("本轮交付范围：先出大纲设定等你审核，还是直接写正文");
+    return miss;
 }
 /* mfCmdWantsPause：识别用户是否明确要求"分阶段、本轮先出前期方案、暂不写正文、等审核/确认后再继续"。
    ★ 这类指令天然要求先停下来给用户过目——对齐探测失败（网络/超时/格式异常/未配置）也绝不能静默放行，
@@ -5462,7 +5502,16 @@ function mfAlignIsConfirm(answer){
 }
 async function mfClarifyIfNeeded(userCmd){
     mfClarifyPending = null;
-    if(!userCmd || !mfCmdNeedsAlign(userCmd)) return false;   /* 简单指令：直接放行，零打扰 */
+    if(!userCmd) return false;
+    /* ★ 用户铁律：凡调用剧本创作助手V5（skill a），手动新指令一律先对齐九类关键信息才能开工，
+       不论指令多短多模糊——正则可能漏掉某种措辞，以"是否用剧本助手"为准最可靠。
+       例外：续写/局部修改/确认等"后续操作"直接放行，零打扰；这些不是新创作、也不该重问九类设定。 */
+    const isScriptSkill = (typeof currentSkillKey !== "undefined" && currentSkillKey === "a");
+    const isFollowup = /^(?:续写|继续|接着|从第|在第|把第|将第|改第|修第|确认|确定|可以|好的|就按这个|照这个来|开始吧|开工)/.test(String(userCmd).trim())
+                    || /(?:第\s*\d+\s*集).{0,20}(?:台词|节奏|改|换|调|删|补|重写)/.test(String(userCmd));
+    if(isScriptSkill && !isFollowup){
+        /* 剧本助手的新指令：强制对齐，跳过复杂度正则 */
+    }else if(!mfCmdNeedsAlign(userCmd)) return false;   /* 非剧本助手的简单指令：直接放行，零打扰 */
     if(mfClarifyProbing) return true;   /* 已有探测在飞：本轮先拦下，避免重复 */
     /* ★ 用户明确要求"分阶段暂停"时，探测失败也绝不静默放行——否则承诺了对齐却直接写正文，
        违背用户"先出大纲、暂不写正文、等审核"的明确意愿。 */
@@ -5520,7 +5569,18 @@ async function mfClarifyIfNeeded(userCmd){
     }
     mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice, pause: wantsPause,
                          refIntel: (refIntel && refIntel.intel) ? String(refIntel.intel) : "" };
-    let msg = "📋 开工前先跟你对一下我的理解，确认无误请直接点「开始」（或回复「确认」）；要改就把修正写进指令框再点开始。\n\n";
+    /* ★ 对齐的核心目的：用户指令往往写得不够专业，把"没讲清楚、会影响开工"的项明确列出来，
+       让用户补进指令框后再开工；给了的不重复问，画幅只作已锁定事实提示。 */
+    const missing = mfMissingKeyInfo(userCmd);
+    let msg = "📋 开工前先跟你对一下我的理解——你的指令还不够具体，下面这些最好补进指令框，"
+            + "补齐后点「开始」（或回复「确认」）即可开工；不补也能按我的理解稿猜着写，但跑偏风险更高。\n\n";
+    if(missing.length){
+        msg += "—— ⚠️ 这些你还没讲清楚，建议补齐再开工 ——\n"
+             + missing.map((x,i)=>"  " + (i+1) + ". " + x).join("\n") + "\n"
+             + "  " + (missing.length+1) + ". 画幅：已由面板「横屏剧 / 竖屏剧」物理按钮锁定为"
+             + (scriptAspect === "portrait" ? "竖屏剧（9:16）" : "横屏剧（16:9）")
+             + "，这是最高优先级、不用写进指令；要改请点面板按钮。\n\n";
+    }
     if(brief) msg += "—— 我的理解稿 ——\n" + brief + "\n";
     if(qs.length) msg += "\n我最想跟你确认：\n" + qs.map((q,i)=>"  " + (i+1) + ". " + q.trim()).join("\n") + "\n";
     if(advice) msg += "\n—— 💡 这样写指令，我能更快更准地帮你做 ——\n" + advice + "\n";
