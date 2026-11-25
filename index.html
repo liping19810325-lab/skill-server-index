@@ -510,11 +510,12 @@
                 <details class="mf-private-tools" id="mfSearchTools" style="margin-top:6px">
                     <summary>🌐 公网搜索配置（参考剧目情报增强 · 可收起）</summary>
                     <div class="mf-private-body">
+                        <div class="mf-private-row"><label for="mfSearchEnabled">公网搜索开关</label><label style="display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px"><input type="checkbox" id="mfSearchEnabled" checked style="width:auto"> 启用（关掉后即使填了 Key 也不联网）</label></div>
                         <div class="mf-private-row"><label for="mfBochaKey">博查 API Key</label><input type="password" id="mfBochaKey" spellcheck="false" placeholder="sk-...（只存本机浏览器，随请求发给本机服务代调）"></div>
                         <div class="mf-private-row"><label for="mfSearchSvc">本机服务地址</label><input type="text" id="mfSearchSvc" spellcheck="false" placeholder="http://127.0.0.1:8788"></div>
                         <div class="mf-private-actions">
                             <button type="button" id="mfSearchTestBtn" title="用当前 Key 真搜一个关键词，验证连通与额度">🔍 测试搜索</button>
-                            <span class="fold-hint" style="font-size:11px;color:var(--muted)">写「类似《某剧》」类指令时自动搜索该剧资料、总结成情报卡给你过目；Key 与结果只走本机，不上传第三方。</span>
+                            <span class="fold-hint" style="font-size:11px;color:var(--muted)">开关默认开启、长期生效（刷新/新建对话都保留）。开启时写「类似《某剧》」类指令会自动搜索该剧资料、总结成情报卡给你过目；Key 与结果只走本机，不上传第三方。</span>
                         </div>
                     </div>
                 </details>
@@ -809,6 +810,8 @@ const STORAGE_KEY_LOCAL_BASES = "manflows_local_bases";
    默认本机服务 http://127.0.0.1:8788；部署到别的机器可改。Key 由前端随请求发给本机服务代调，不进网页源码。 */
 const STORAGE_KEY_BOCHA_KEY = "manflows_bocha_key";
 const STORAGE_KEY_SEARCH_SVC = "manflows_search_service";
+/* 公网搜索总开关：默认开启（不破坏老用户用法），存 "0" 才算关闭。刷新/新建对话都保留。 */
+const STORAGE_KEY_SEARCH_ENABLED = "manflows_search_enabled";
 const DEFAULT_SEARCH_SVC = "http://127.0.0.1:8788";
 const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
@@ -5167,6 +5170,8 @@ function mfSearchSvcBase(){
     return String(safeStorage.get(STORAGE_KEY_SEARCH_SVC) || DEFAULT_SEARCH_SVC || "").trim().replace(/\/+$/, "") || DEFAULT_SEARCH_SVC;
 }
 function mfBochaKey(){ return String(safeStorage.get(STORAGE_KEY_BOCHA_KEY) || "").trim(); }
+/* 公网搜索总开关：只有显式存了 "0" 才关闭；缺省/异常一律按开启处理，避免老用户升级后搜索突然失效。 */
+function mfSearchEnabled(){ return String(safeStorage.get(STORAGE_KEY_SEARCH_ENABLED) || "1") !== "0"; }
 /* 从指令里识别"参考剧名"：只有带 类似/参考/对标/像/根据…改编 等词的《X》才算参考，
    避免把"写一部《新剧名》"里的目标剧名误当成要搜的对象。返回去重后的剧名数组。 */
 function mfExtractRefDrama(cmd){
@@ -5263,6 +5268,10 @@ async function mfSummarizeReference(title, results){
 /* 完整情报流程：搜 → 总结 → 组装可读卡片。所有失败分支都返回可展示的 card，绝不静默编造。 */
 async function mfReferenceIntelFlow(cmd, titles){
     const title = titles[0];
+    /* 总开关守卫：任何调用路径在开关关闭时都不得联网（含测试/复核入口）。 */
+    if(!mfSearchEnabled()){
+        return { card: "🌐 公网搜索开关当前为关闭状态，未联网搜索《" + title + "》。请在【算力总控 → 🌐 公网搜索配置】勾选「启用」后重试。", intel:"", disabled:true };
+    }
     const key = mfBochaKey();
     if(!key){
         return { card: "🌐 检测到参考剧《" + title + "》，但未配置博查 API Key，本次未联网搜索。"
@@ -5294,7 +5303,11 @@ async function mfReferenceIntelFlow(cmd, titles){
 }
 /* 配置 UI：Key / 本机服务地址输入即存 localStorage；测试按钮真搜一次验证连通与额度。 */
 function mfBindSearchUI(){
-    const keyEl = mfEl("mfBochaKey"), svcEl = mfEl("mfSearchSvc"), testBtn = mfEl("mfSearchTestBtn");
+    const keyEl = mfEl("mfBochaKey"), svcEl = mfEl("mfSearchSvc"), testBtn = mfEl("mfSearchTestBtn"), enabledEl = mfEl("mfSearchEnabled");
+    if(enabledEl){
+        enabledEl.checked = mfSearchEnabled();
+        enabledEl.addEventListener("change", ()=>{ safeStorage.set(STORAGE_KEY_SEARCH_ENABLED, enabledEl.checked ? "1" : "0"); });
+    }
     if(keyEl){
         keyEl.value = mfBochaKey();
         keyEl.addEventListener("input", ()=>{ safeStorage.set(STORAGE_KEY_BOCHA_KEY, keyEl.value.trim()); });
@@ -5457,23 +5470,36 @@ async function mfClarifyIfNeeded(userCmd){
     /* ★ 参考剧目情报增强：识别「类似《X》」→ 联网搜资料 → 本机模型总结成情报卡。
        搜索/总结失败都只降级不阻断对齐（返回可展示 card），绝不影响原有对齐流程。 */
     let refIntel = null;
+    let refStatusNote = "";
     try{
         const refTitles = mfExtractRefDrama(userCmd);
-        if(refTitles.length) refIntel = await mfReferenceIntelFlow(userCmd, refTitles);
+        if(refTitles.length){
+            if(mfSearchEnabled()){
+                refIntel = await mfReferenceIntelFlow(userCmd, refTitles);
+            }else{
+                refStatusNote = "【公网搜索状态：已关闭】检测到参考剧《" + refTitles[0]
+                    + "》，但公网搜索开关处于关闭状态，本次未联网搜索。如需参考该剧资料，请在【算力总控 → 🌐 公网搜索配置】勾选「启用」。";
+            }
+        }else if(mfSearchEnabled()){
+            refStatusNote = "【公网搜索状态：本次未搜】指令里未识别到「类似/参考《某剧》」的参考剧名，因此没有联网搜索。"
+                + "如需参考某剧，请在指令里写明（例：类似《某剧》）；若已开启开关但未填 Key，请到【公网搜索配置】填写。";
+        }
     }catch(e){ refIntel = null; }
     mfClarifyProbing = true;
     append("🔎 正在整理对指令的理解，先跟你对齐再开工…", "tip");
     let res;
     try{ res = await mfProbeClarify(userCmd); }
     finally{ mfClarifyProbing = false; }
-    /* 有参考剧情报：把"已搜到的资料卡"作为最高可信事实补进理解稿，
+    /* 有参考剧情报 / 搜索状态说明：把"已搜到的资料卡"或"本次为何没搜"补进理解稿，
        让对齐卡里就能给用户过目，也让模型探测若成功时不至于忽略搜索结果。 */
-    if(refIntel && refIntel.card){
-        const addon = "\n\n【参考剧目情报（公网搜索已获取，供你核对）】\n" + refIntel.card;
+    let refAddon = "";
+    if(refIntel && refIntel.card) refAddon += "\n\n【参考剧目情报（公网搜索已获取，供你核对）】\n" + refIntel.card;
+    if(refStatusNote) refAddon += "\n\n" + refStatusNote;
+    if(refAddon){
         if(res && typeof res === "object"){
-            res.brief = String(res.brief || "").trim() + addon;
+            res.brief = String(res.brief || "").trim() + refAddon;
         }else{
-            res = { clear:true, brief: (wantsPause ? mfLocalPauseBrief(userCmd).brief : mfLocalGenericBrief(userCmd).brief) + addon, questions:[], advice:"" };
+            res = { clear:true, brief: (wantsPause ? mfLocalPauseBrief(userCmd).brief : mfLocalGenericBrief(userCmd).brief) + refAddon, questions:[], advice:"" };
         }
     }
     /* ★ 探测失败/无结果：一律用本地理解稿出对齐卡，绝不静默放行——
