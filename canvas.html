@@ -6286,13 +6286,26 @@ function comfyCandidates(){
     return list;
 }
 async function probeComfy(base,ms){
-    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),ms||2500);
-    try{
-        const res=await fetch(base.replace(/\/+$/,"")+"/system_stats",{method:"GET",signal:ctl.signal,headers:cvComfyHeadersFor(base)});
-        if(!res.ok) return null;
-        const d=await res.json();
-        return (d&&d.system)?d:null;
-    }catch(e){ return null; } finally{ clearTimeout(t); }
+    /* 公网域名（私有算力 https，如 comfyui.manflows.com）首次请求要走 DNS + TLS 握手 +
+       Cloudflare 海外节点 + 本机代理，冷启动实测可达 7~8 秒；原来的 4~5 秒（静默仅 1.8 秒）
+       会把首次请求 abort 掉，报「连不上」，第二次因连接复用变快又就好了 —— 时好时坏。
+       这里对公网 https 地址：给足预算（≥15s）+ 首次失败再重试一次；本机 / 局域网 IP 保持原超时，
+       避免服务没开时干等。判定口径：非 http(s) 回环/私网 IP 的 https 域名视为公网。 */
+    const u=String(base||"").trim();
+    const isWan=/^https:\/\//i.test(u)&&!/^https:\/\/((127\.|localhost(?:[:/]|$))|(10\.)|(192\.168\.)|(172\.(1[6-9]|2\d|3[01])\.))/i.test(u);
+    const budget=isWan?Math.max(ms||0,20000):(ms||2500);
+    const once=async(tmo)=>{
+        const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),tmo);
+        try{
+            const res=await fetch(u.replace(/\/+$/,"")+"/system_stats",{method:"GET",signal:ctl.signal,headers:cvComfyHeadersFor(u)});
+            if(!res.ok) return null;
+            const d=await res.json();
+            return (d&&d.system)?d:null;
+        }catch(e){ return null; } finally{ clearTimeout(t); }
+    };
+    let d=await once(budget);
+    if(!d&&isWan) d=await once(budget);   /* 公网冷启动偶发超时，再给一次机会 */
+    return d;
 }
 function showComfyLink(kind,text){
     const box=el("comfyLinkInfo"); if(!box) return;
