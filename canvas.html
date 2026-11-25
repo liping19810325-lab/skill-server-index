@@ -5887,6 +5887,21 @@ function cvStripComfyReferences(work,m,input){
         if(!node.inputs) node.inputs={};
         if(!("ref_image_size" in node.inputs)) node.inputs.ref_image_size="match";
     });
+    /* 兜底：KJNodes 的 ImageResizeKJv2 选 lanczos 时，GPU 路径会主动抛
+       ValueError("Lanczos is not supported on the GPU")（torch GPU resize 不支持该算法），
+       导致执行期 execution_error（不是提交校验错误）。重新导出的工作流常带 lanczos。
+       - device 显式为 cpu：CPU 路径支持 lanczos，尊重用户选择，保留；
+       - 其余（默认/隐式 gpu）：降级为 bicubic，画质接近且 GPU 可正常执行。
+       仅针对缩放节点的 upscale_method，不动任何其它字段。 */
+    Object.keys(work||{}).forEach(id=>{
+        const node=work[id];
+        if(!node||!/^ImageResizeKJ/i.test(String(node.class_type||""))) return;
+        const ins=node.inputs;
+        if(!ins||!/^lanczos$/i.test(String(ins.upscale_method||""))) return;
+        if(String(ins.device||"").toLowerCase()==="cpu") return;
+        ins.upscale_method="bicubic";
+        try{ console.warn("[画布兼容] 节点 "+id+" 的 lanczos 在 GPU 上不可用，已降级为 bicubic（如需保留 lanczos 请把该节点 device 设为 cpu）。"); }catch(e){}
+    });
     return removeIds.size;
 }
 async function genComfy(n,input){
