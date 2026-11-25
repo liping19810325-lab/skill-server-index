@@ -5530,20 +5530,42 @@ function inferMapping(wf){
     });
     const promptNodes=tracePromptSources(wf);
     if(!promptNodes.length&&promptNode) promptNodes.push({node:promptNode,field:promptField});
-    /* 参考图节点识别：① 图片载入类节点（LoadImage / VHS_LoadImage / LoadImageMask 等）的 image 字段；
-       ② 任何字段名像图片入口、值是图片文件名（xxx.png）的节点（如 start_image）。
+    /* 参考图节点识别（宽口径，与下方 cvStripComfyReferences 的 ^image 前缀保持同一尺度）：
+       ① 图片载入类节点（LoadImage / VHS_LoadImage / LoadImageMask / BatchImages 上游等）：
+          不局限字段名必须叫 image —— 凡字符串值像图片文件名即认（覆盖自定义载入节点）；
+       ② 字段名像图片入口（image/images/image0/start_image/first_image/ref_image…）且值是图片文件名；
+       ③ 字段值是连线 [节点,槽] 或连线数组 [[节点,槽],…]，且上游是图片载入节点时，认上游节点 ——
+          覆盖 BatchImagesNode.images 这种"连到若干 LoadImage"的写法。
        识别不到就不会写参考图 —— 宁可覆盖面大一点，也不要静默丢图。 */
-    const imageNodes=[];
+    const IMG_EXT=/\.(png|jpe?g|webp|bmp|gif|tiff?)$/i;
+    const isImgLoader=(cls)=>/LoadImage|ImageLoad|ImageInput|ImageFromBase|ImageReader/i.test(cls);
+    const isImgField=(f)=>/^(image|images|image_\d+|image\d+|start_image|first_image|ref_image|reference_image|image_file|img)$/i.test(f);
+    const imageNodes=[], imgSeen=new Set();
+    const pushImg=(id,f)=>{ const k=id+"|"+f; if(imgSeen.has(k)) return; imgSeen.add(k); imageNodes.push({node:id,field:f}); };
     ids.forEach(id=>{
-        const cls=String((wf[id]||{}).class_type||"");
-        const ins=(wf[id]||{}).inputs||{};
-        if(/LoadImage|ImageLoad|ImageInput|ImageFromBase/i.test(cls)&&typeof ins.image==="string"){
-            imageNodes.push({node:id,field:"image"}); return;
+        const node=wf[id]||{}, ins=node.inputs||{}, cls=String(node.class_type||"");
+        if(isImgLoader(cls)){
+            let got=false;
+            Object.keys(ins).forEach(f=>{
+                if(typeof ins[f]==="string"&&IMG_EXT.test(ins[f].trim())){ pushImg(id,f); got=true; }
+            });
+            if(!got&&typeof ins.image==="string") pushImg(id,"image");   /* 文件名无扩展名也认 */
+            return;
         }
         Object.keys(ins).forEach(f=>{
-            if(/^(image|start_image|ref_image|reference_image|image_1|image_file)$/i.test(f)
-                &&typeof ins[f]==="string"&&/\.(png|jpe?g|webp|bmp)$/i.test(ins[f].trim()))
-                imageNodes.push({node:id,field:f});
+            if(!isImgField(f)) return;
+            const v=ins[f];
+            if(typeof v==="string"&&IMG_EXT.test(v.trim())){ pushImg(id,f); return; }
+            /* 连线形式：认上游的载入节点（BatchImagesNode.images = [["6",0],["7",0]] 等） */
+            const refs=Array.isArray(v)?(Array.isArray(v[0])?v:[v]):[];
+            refs.forEach(r=>{
+                if(!Array.isArray(r)||!r.length) return;
+                const up=String(r[0]), upNode=wf[up];
+                if(!upNode||!isImgLoader(String(upNode.class_type||""))) return;
+                const uins=upNode.inputs||{};
+                const uf=Object.keys(uins).find(k=>typeof uins[k]==="string")||"image";
+                pushImg(up,uf);
+            });
         });
     });
     /* 声音 / 视频载入节点识别（多参考生视频，如 MiniMax H3）：
@@ -5901,8 +5923,20 @@ async function genComfy(n,input){
        （H3 主节点的 ref_audios / ref_videos 是 autogrow 可选输入，UI 里没连线时 API JSON 连键都没有——
         这就是「已连入声音参考却报识别不到载入节点」的根因。注入格式已实测通过 ComfyUI /prompt 校验） */
     let audInjected=0,vidInjected=0;
-    if(input.images.length&&!m.imageNodes.length)
-        throw new Error("已连入 "+input.images.length+" 张参考图，但工作流里没识别到图片载入节点（LoadImage 等），参考图无法写入。\n解决办法：左侧「映射」框里把 imageNodes 指到图片载入节点（如 [\"6\"] 或 [{\"node\":\"6\",\"field\":\"image\"}]），或点「重新推断映射」。");
+    if(input.images.length&&!m.imageNodes.length){
+        /* 诊断：列出工作流里所有"像图片入口"的节点，便于一次定位自定义节点名 / 字段名。
+           只取 class_type 与字段名，不打印提示词正文。 */
+        let diag=[];
+        Object.keys(work||{}).forEach(id=>{
+            const node=work[id]||{}, cls=String(node.class_type||""), ins=node.inputs||{};
+            const imgFields=Object.keys(ins).filter(f=>/image|img|ref/i.test(f));
+            if(/image|img/i.test(cls)||imgFields.length)
+                diag.push(id+"="+cls+(imgFields.length?"["+imgFields.join(",")+"]":""));
+        });
+        throw new Error("已连入 "+input.images.length+" 张参考图，但工作流里没识别到图片载入节点，参考图无法写入。"
+            +(diag.length?("\n诊断·工作流图片相关节点："+diag.slice(0,12).join(" | ")):"")
+            +"\n解决办法：左侧「映射」框里把 imageNodes 指到图片载入节点（如 [\"6\"] 或 [{\"node\":\"6\",\"field\":\"image\"}]），或点「重新推断映射」。\n若诊断里的节点名不是 LoadImage 类，请把这行诊断发给我，我扩充识别规则。");
+    }
     if(input.audios.length&&!m.audioNodes.length)
         audInjected=await comfyInjectAutogrowAudio(work,input.audios.slice(0,3),base,n);
     if(input.audios.length&&!m.audioNodes.length&&!audInjected)
