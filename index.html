@@ -2295,6 +2295,9 @@ function clearCurrentPage(){
    mfAutoContinue，否则刚排好的下一批自动续写会被自己清掉）。用户点「停止」、清空本页、换技能
    一律走默认 false：即使此刻没有 abortController（如自动续写 30ms 定时器间隙、队列任务间隙），
    也要无条件清掉续写态/队列/中断原因，否则用户点了停止却照常续写。 */
+/* mfStopQuiet：仅 pauseGenerate 内部临时置位，让"暂停"不误报"已停止/已取消自动续写"。
+   保持 stopGenerate(keepContinuation) 原签名不变——历史脚本/测试按签名断言，不能破坏兼容。 */
+let mfStopQuiet = false;
 function stopGenerate(keepContinuation) {
     const internal = keepContinuation === true;
     if (abortController) {
@@ -2303,13 +2306,13 @@ function stopGenerate(keepContinuation) {
         /* 标记本次为"用户停止"：finally 里据此不把半截稿设为修改基准，
            避免下一轮基于半截稿改；历史基准仍保留，用户可双击任意回复重新指定。 */
         try{ chatBox.dataset.stoppedDraft = "1"; }catch(e){}
-        append("⚠️ 已停止生成", "tip");
+        if(!mfStopQuiet) append("⚠️ 已停止生成", "tip");
     }
     if(!internal){
         /* 用户主动停止 → 排队任务与自动续写一并撤销，避免"停了却又自动开始下一个"。
            ★ 这段从 if(abortController) 里移出：没有 abortController 的间隙也要清。 */
         clearSendQueue();
-        if(mfAutoContinue || mfScriptGoal){ mfAutoContinue = null; mfScriptGoal = null; append("🛑 已取消自动续写。", "tip"); }
+        if(mfAutoContinue || mfScriptGoal){ mfAutoContinue = null; mfScriptGoal = null; if(!mfStopQuiet) append("🛑 已取消自动续写。", "tip"); }
         mfInterruptReason = "";   /* 用户停止=放弃中断续写，避免停止后又弹出确认框 */
         /* #6：用户主动停止/换技能 = 放弃待确认的理解稿（对齐稿/中断确认/复读确认），
            否则下次点「开始」会把旧理解稿当成新指令的修正合并进去，污染新任务。
@@ -2317,6 +2320,24 @@ function stopGenerate(keepContinuation) {
         mfClarifyPending = null;
         try { syncSendToCanvasBtn(); } catch(e){}
     }
+}
+/* ★ 顶部「停止」按钮 = 暂停待确认（与「清空本页 / 换技能」的彻底停止严格区分）：
+   用户点停止通常只是想歇一下或改需求，不该丢掉任务目标与写了一半的正文。
+   做法：先走 stopGenerate 做标准中止（abort + 清队列/续写态/旧确认稿），再恢复目标锚点、
+   把中断原因设为"用户暂停"并撤掉 stoppedDraft —— finally 于是走 interruptedDraft=true 分支：
+   保留 mfScriptGoal、弹"确认后续写"稿、本轮不自动续写；用户点「开始」即走断点续写补完
+   半截集，补完那轮因目标仍在，会自动接上后续集。
+   注意：此处不新增按钮；彻底放弃仍由「清空本页」和换技能承担（它们直接调 stopGenerate）。 */
+function pauseGenerate(){
+    const wasGenerating = !!abortController;
+    const savedGoal = mfScriptGoal;
+    mfStopQuiet = true;                    /* 静默标志：暂停不误报"已停止/已取消自动续写" */
+    try{ stopGenerate(); } finally{ mfStopQuiet = false; }   /* 中止请求 + 清队列/续写态/旧 pending */
+    if(!wasGenerating) return;             /* 没在吐字（如续写间隙）：不凭空造确认稿 */
+    mfScriptGoal = savedGoal;              /* 目标锚点保留：补完半截集后自动续上后续集 */
+    mfInterruptReason = "用户暂停";         /* finally 据此走确认后续写，且不清目标 */
+    try{ delete chatBox.dataset.stoppedDraft; }catch(e){}
+    append("⏸ 已暂停，正在整理续写安排…", "tip");
 }
 
 /* ===== 生成队列：吐字中点「开始」→ 新指令排队，等当前吐字完成再按序执行 =====
@@ -2933,17 +2954,36 @@ function mfOfferInterruptedResume(reason){
     const range = nextContinuationRange(goal, written);
     const titleMatch = getAuthoritativeOutline().match(/《([^》\n]{1,40})》/);
     const title = titleMatch ? "《" + titleMatch[1] + "》" : "（见上文的原剧名）";
-    let brief = "检测到生成中断（" + reason + "）。我已保留窗口里已写好的正文，绝不另起新剧。我的理解与下一步：\n"
-        + "· 这是同一部剧 " + title + "，正文实际已写到第 " + writtenMax + " 集"
-        + (total ? " / 目标第 " + total + " 集" : "") + "；\n"
-        + "· 准备从第 " + (range ? range.from : (writtenMax + 1)) + " 集接着往下写"
-        + (range ? "到本批第 " + range.to + " 集" : "")
-        + "，沿用原有大纲、人物设定、画幅与每集时长/场次；\n"
-        + "· 只写新集，不重出大纲、不从第 1 集重写、不改剧名/画幅。\n"
-        + "请确认无误后点「开始」继续（系统会自动带上前几集正文与全剧大纲）；"
-        + "若要调整剧名、集数或设定，直接把修正写进指令框再点开始。";
+    const isPause = /用户暂停/.test(String(reason || ""));
+    let brief;
+    if(isPause){
+        /* 用户主动暂停：最后吐出标题的那一集就是待补完的半截集。默认补完它再续后续；
+           若那集其实已写完，用户可在指令框写「从第N集继续」跳过——把选择权交还用户，
+           不靠格式猜测"是否写完"（模型输出格式不固定，猜错会重写已交付内容）。 */
+        const partialEp = writtenMax || 1;
+        brief = "你已暂停生成。窗口里写好的正文全部保留，绝不另起新剧。我的理解与下一步：\n"
+            + "· 这是同一部剧 " + title + (total ? "，目标第 " + total + " 集" : "")
+            + "；第 " + partialEp + " 集刚写到一半（你在它写完前点了暂停）；\n"
+            + "· 直接点「开始」= 带上这一集的半截正文与全剧大纲，从中断处把它补完，"
+            + (range ? "再自动续写第 " + range.from + " 集起" : "再接着往下写")
+            + "，沿用原有大纲、人物设定、画幅与每集时长/场次；\n"
+            + (range ? "· 若这一集其实已写完、想直接写第 " + range.from + " 集，在指令框写「从第" + range.from + "集继续」再点开始；\n" : "")
+            + "· 不重出大纲、不从第 1 集重写、不改剧名/画幅。\n"
+            + "请确认无误后点「开始」继续。";
+    }else{
+        brief = "检测到生成中断（" + reason + "）。我已保留窗口里已写好的正文，绝不另起新剧。我的理解与下一步：\n"
+            + "· 这是同一部剧 " + title + "，正文实际已写到第 " + writtenMax + " 集"
+            + (total ? " / 目标第 " + total + " 集" : "") + "；\n"
+            + "· 准备从第 " + (range ? range.from : (writtenMax + 1)) + " 集接着往下写"
+            + (range ? "到本批第 " + range.to + " 集" : "")
+            + "，沿用原有大纲、人物设定、画幅与每集时长/场次；\n"
+            + "· 只写新集，不重出大纲、不从第 1 集重写、不改剧名/画幅。\n"
+            + "请确认无误后点「开始」继续（系统会自动带上前几集正文与全剧大纲）；"
+            + "若要调整剧名、集数或设定，直接把修正写进指令框再点开始。";
+    }
     mfClarifyPending = { cmd: "【中断续写确认】继续接着写", brief: brief, advice: "", resume: true };
-    append("⏸ " + reason + "，生成已暂停。开工前先跟你对一下续写安排：\n\n" + brief, "tip");
+    append(isPause ? ("⏸ 已暂停，开工前先跟你对一下续写安排：\n\n" + brief)
+                   : ("⏸ " + reason + "，生成已暂停。开工前先跟你对一下续写安排：\n\n" + brief), "tip");
 }
 /* D｜疑似死循环/机械复读的确认稿：列出证据、暂停自动续写，让用户决定怎么走。
    userChoice 由确认分支读取：确认=按防复读指令继续；修正=并入用户意见再续。 */
@@ -5922,7 +5962,7 @@ function initUI(){
     if(sendCanvasExistingBtn) sendCanvasExistingBtn.addEventListener("click", ()=>{ closeSendCanvasModal(); deliverToCanvas("existing"); });
     if(sendCanvasNewBtn) sendCanvasNewBtn.addEventListener("click", ()=>{ closeSendCanvasModal(); deliverToCanvas("new"); });
     syncSendToCanvasBtn();
-    stopBtn.addEventListener("click", stopGenerate);
+    stopBtn.addEventListener("click", pauseGenerate);   /* 暂停待确认：保留半截稿与目标，点开始补完；彻底放弃走「清空本页」 */
     /* 必须包一层箭头函数：直接传 sendMessage 会把 click 的 PointerEvent 当第一个参数
        （即 autoSourceText）传入，导致每次普通点击都把 "[object PointerEvent]" 当"已附带文字"
        塞进请求上下文，污染模型输入。唯一的字符串来源只有跨页/续写调用。 */
@@ -5977,6 +6017,25 @@ function initUI(){
                    若用户在指令框写了修正，并入续写指令一起送（比如改剧名/集数）。 */
                 mfClarifyPending = null;
                 const typed = userInput.value.trim();
+                /* ★ 兑现暂停确认稿里的承诺：用户明确写「从第N集继续 / 跳过第N集」时，
+                   不能走断点续写（那会从半截处补完），改走自动续写通道从下一个未写集开始。
+                   普通确认词与其它修正（如"改成横屏"）不受影响，仍走下面的断点续写。 */
+                const skipPartial = /^(?:从|直接|跳过[^\n]{0,12})?\s*第?\s*\d+\s*集\s*(?:继续|开始|写起|往后写)/.test(typed)
+                    || /^(?:跳过|不要补|别补)[^\n]{0,12}第?\s*\d+\s*集/.test(typed);
+                if(skipPartial){
+                    mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+                    mfAutoContinue = null;
+                    userInput.value = "";
+                    append("✅ 已确认，跳过半截集，只写未写过的新集…", "tip");
+                    try{
+                        if(!maybeAutoContinue(true, "")){
+                            append("⚠️ 续写启动失败，请在指令框写「继续写第" + (collectWrittenEpisodeSet().size+1) + "集」再点开始。", "err");
+                        }
+                    }catch(e){
+                        append("⚠️ 续写启动失败，请在指令框写「继续写第" + (collectWrittenEpisodeSet().size+1) + "集」再点开始。", "err");
+                    }
+                    return;
+                }
                 const note = (typed && !mfAlignIsConfirm(typed)) ? typed : "";
                 append("✅ 已确认，正在带上原剧大纲与最近正文接着写…", "tip");
                 mfResumeUserNote = note;
