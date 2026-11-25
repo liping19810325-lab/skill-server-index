@@ -6301,9 +6301,14 @@ function initUI(){
                 finally{ mfResumeUserNote = ""; }
                 return;
             }
+            /* ★ 本次对齐若用到了公网参考剧情报，提示用户：情报已锁定注入，正式写剧本阶段不必再联网，
+               可随时到【公网搜索配置】关掉开关省资源（后续自动续写本就不会再搜）。 */
+            const usedIntel = !!(mfClarifyPending && mfClarifyPending.refIntel && String(mfClarifyPending.refIntel).trim());
             const merged = mfMergeClarifyAnswer(userInput.value);
             userInput.value = merged;
-            append("✅ 已按你的确认/修正合并理解稿，开始生成。", "tip");
+            append("✅ 已按你的确认/修正合并理解稿，开始生成。" + (usedIntel
+                ? "\n💡 参考剧情报已锁定注入本次创作，后续写剧本/自动续写不会再联网搜索。想省资源可随时到【算力总控 → 🌐 公网搜索配置】关掉开关，不影响已注入的情报。"
+                : ""), "tip");
             sendMessage();
             return;
         }
