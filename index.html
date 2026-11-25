@@ -5567,15 +5567,17 @@ async function mfClarifyIfNeeded(userCmd){
         advice = String(lc.advice || "").trim();
         qs = Array.isArray(lc.questions) ? lc.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
     }
-    mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice, pause: wantsPause,
-                         refIntel: (refIntel && refIntel.intel) ? String(refIntel.intel) : "" };
-    /* ★ 对齐的核心目的：用户指令往往写得不够专业，把"没讲清楚、会影响开工"的项明确列出来，
-       让用户补进指令框后再开工；给了的不重复问，画幅只作已锁定事实提示。 */
+    /* ★ 对齐的核心目的：用户指令往往写得不够专业，把"没讲清楚、会影响开工"的项明确列出来。
+       用户不知道怎么写的项可直接留空——点开始后由我综合各项已知信息按同类惯例补齐，并显性写进大纲设定供其过目修改。 */
     const missing = mfMissingKeyInfo(userCmd);
-    let msg = "📋 开工前先跟你对一下我的理解——你的指令还不够具体，下面这些最好补进指令框，"
-            + "补齐后点「开始」（或回复「确认」）即可开工；不补也能按我的理解稿猜着写，但跑偏风险更高。\n\n";
+    mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice, pause: wantsPause,
+                         refIntel: (refIntel && refIntel.intel) ? String(refIntel.intel) : "",
+                         missing: missing };
+    let msg = "📋 开工前先跟你对一下我的理解——下面这些是帮你把剧写准的关键信息，"
+            + "有就填进指令框、没有就留空，不用逐项填满，也不必严格对齐：写剧本本来就是发挥我的能力，"
+            + "点「开始」后我会综合你已给的信息按同类爆款惯例补齐，并把补全后的设定显性写进大纲给你过目、随时可改。\n\n";
     if(missing.length){
-        msg += "—— ⚠️ 这些你还没讲清楚，建议补齐再开工 ——\n"
+        msg += "—— 这些项供你补充（可填可不填，留空就由我综合补齐）——\n"
              + missing.map((x,i)=>"  " + (i+1) + ". " + x).join("\n") + "\n"
              + "  " + (missing.length+1) + ". 画幅：已由面板「横屏剧 / 竖屏剧」物理按钮锁定为"
              + (scriptAspect === "portrait" ? "竖屏剧（9:16）" : "横屏剧（16:9）")
@@ -5609,6 +5611,19 @@ function mfMergeClarifyAnswer(answer){
         out += "\n\n【分阶段执行·最高优先级（覆盖技能默认流程与任何“一次性写完全部正文”的倾向）】"
              + "本轮严格分两阶段：第一阶段只产出【大纲与设定】（含全剧大纲、分集大纲、人物/场景设定），产出后到此为止；"
              + "剧本正文一个字都不要写。必须停下来等用户审核、修改并明确确认后，才进入第二阶段写剧本正文。";
+    }
+    /* ★ 用户对齐卡里没讲清楚/不会写的项：由我综合原指令、已有设定与同类爆款惯例补齐，
+       并把补全结果显性写进大纲设定里供用户过目修改，绝不留空、绝不反过来追问用户。
+       用户本轮在指令框补写的值优先级最高，覆盖我的补齐；画幅仍只认面板物理按钮。 */
+    const missingNow = Array.isArray(p.missing) ? p.missing.filter((x)=>String(x||"").trim()) : [];
+    if(missingNow.length){
+        out += "\n\n【未明确项·由你综合补齐（用户已看过对齐卡并选择直接开工）】"
+             + "以下信息用户未提供或不便填写：" + missingNow.join("；") + "。"
+             + "请综合用户原话已给的题材/风格线索、窗口已有大纲设定，以及同类爆款剧的通行做法，替用户合理补齐成完整设定；"
+             + "补齐结果必须在大纲/设定的对应位置显性写出（例如时代与服化道、主要/次要地点、人物姓名性别外观口头禅、主线爽点、系统/穿越等设定、每集时长），"
+             + "不要留空、不要含糊带过，也不要因此中断向用户提问。"
+             + "★ 优先级：用户在本轮指令框里补写的值 > 我的补齐；若用户补写与我的推断冲突，一律以用户补写为准。"
+             + "★ 画幅例外：画幅只认创作面板「横屏剧/竖屏剧」物理按钮的锁定值，不得以补齐为由改写或另行指定画幅。";
     }
     /* ★ 参考剧目情报：确认后把情报正文随原指令注入，并锁定"只借鉴高层特征、写原创"——
        避免照搬具体剧情/桥段造成抄袭，也确保模型真的用上搜到的主题与细节。 */
