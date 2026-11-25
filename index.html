@@ -507,6 +507,17 @@
                         </div>
                     </div>
                 </details>
+                <details class="mf-private-tools" id="mfSearchTools" style="margin-top:6px">
+                    <summary>🌐 公网搜索配置（参考剧目情报增强 · 可收起）</summary>
+                    <div class="mf-private-body">
+                        <div class="mf-private-row"><label for="mfBochaKey">博查 API Key</label><input type="password" id="mfBochaKey" spellcheck="false" placeholder="sk-...（只存本机浏览器，随请求发给本机服务代调）"></div>
+                        <div class="mf-private-row"><label for="mfSearchSvc">本机服务地址</label><input type="text" id="mfSearchSvc" spellcheck="false" placeholder="http://127.0.0.1:8788"></div>
+                        <div class="mf-private-actions">
+                            <button type="button" id="mfSearchTestBtn" title="用当前 Key 真搜一个关键词，验证连通与额度">🔍 测试搜索</button>
+                            <span class="fold-hint" style="font-size:11px;color:var(--muted)">写「类似《某剧》」类指令时自动搜索该剧资料、总结成情报卡给你过目；Key 与结果只走本机，不上传第三方。</span>
+                        </div>
+                    </div>
+                </details>
                 <div class="local-conn" id="localConnBox">
                     <div class="local-conn-row">
                         <input type="text" id="localBaseInput" spellcheck="false" placeholder="手动填写本机地址，如 http://127.0.0.1:8080；填好点右侧「自动接通」即保存">
@@ -794,6 +805,11 @@ const STORAGE_KEY_LOCAL_BASE = "manflows_local_base";
 /* 本机地址清单：手填地址 + 自动接通扫到的服务统一存这里，两页（创作台 / 画布）共用同一份。
    每项 {base, label}；点「⚡ 自动接通」即把手填地址并入清单；下拉框列出全部，可选、可删。 */
 const STORAGE_KEY_LOCAL_BASES = "manflows_local_bases";
+/* 公网搜索（参考剧目情报增强）：博查 API Key + 本机中转服务地址，均只存本机浏览器 localStorage。
+   默认本机服务 http://127.0.0.1:8788；部署到别的机器可改。Key 由前端随请求发给本机服务代调，不进网页源码。 */
+const STORAGE_KEY_BOCHA_KEY = "manflows_bocha_key";
+const STORAGE_KEY_SEARCH_SVC = "manflows_search_service";
+const DEFAULT_SEARCH_SVC = "http://127.0.0.1:8788";
 const STORAGE_KEY_API_PROFILES = "manflows_api_profiles";
 const STORAGE_KEY_CURR_PROFILE = "manflows_current_profile_id";
 const STORAGE_KEY_HISTORY = "manflows_chat_history";
@@ -5116,6 +5132,189 @@ function mfLocalPauseBrief(cmd){
         + "【执行计划】1) 整理并输出" + stage + "供你审核；2) 到此暂停，本轮不输出任何剧本正文；3) 你修改确认后，我再按确认版大纲续写正文。";
     return { clear:true, brief: brief, questions: ["本轮是否只出前期方案、完全不写剧本正文？"], advice:"" };
 }
+/* mfLocalGenericBrief：探测失败时的通用本地理解稿——用于所有"非分阶段"的复杂指令。
+   ★ 提示语已经承诺"先跟你对齐再开工"，所以吐了提示就绝不能静默放行；但这类指令用户
+     没说"暂不写正文"，理解稿不锁分阶段，只忠于原话复述动作/剧名/集数/画幅并请用户过目。
+     剧名优先取窗口大纲；画幅由面板物理按钮锁定（最高优先级，不写进指令）。 */
+function mfLocalGenericBrief(cmd){
+    const s = String(cmd || "").trim();
+    const ep = s.match(/(?:写|共|前|出|生成|到)?\s*(\d+)\s*集/);
+    const totalPart = ep ? ("目标 " + ep[1] + " 集；") : "";
+    const range = s.match(/第\s*(\d+)\s*集\s*(?:到|至|[-–—~])\s*第?\s*(\d+)\s*集/);
+    const rangePart = range ? ("明确范围：第 " + range[1] + " 集到第 " + range[2] + " 集；") : "";
+    const outline = /(大纲|设定|分集|规划)/.test(s);
+    const rewrite = /(重写|重新写|新写|全新|另起|新剧|原创|改剧名)/.test(s);
+    const intent = outline ? "整理/输出大纲与设定" : (rewrite ? "按你的要求重写/新写剧集" : "按指令创作剧本正文");
+    let title = "";
+    try{
+        const ol = getAuthoritativeOutline() || "";
+        const tm = ol.match(/《([^》\n]{1,40})》/);
+        if(tm) title = "《" + tm[1] + "》";
+    }catch(e){}
+    const brief = "【意图复述】" + totalPart + rangePart + "本轮" + intent + "。\n"
+        + "【关键参数】剧名：" + (title || "（指令未提供剧名，以你原话为准）")
+        + "；画幅：由面板「横屏剧 / 竖屏剧」物理按钮锁定；新写/续写/修改：以你的原话为准。\n"
+        + "【执行计划】严格按你的原指令执行；开工前先请你过目这份理解稿，有不对的地方直接把修正写进指令框。";
+    return { clear:true, brief: brief, questions: ["我的理解是否准确？确认无误请直接点「开始」，要改就把修正写进指令框。"], advice:"" };
+}
+/* ==================================================================
+   参考剧目情报增强（公网搜索）：识别「类似《X》」→ 搜该剧资料 → 本机模型总结成情报卡
+   → 开工前给用户过目 → 确认后随原指令注入创作（只借鉴高层特征、原创）。
+   ★ 搜索/总结都在本机服务与一次性模型调用里完成，不依赖模型 function calling；
+     搜不到 / 额度不足 / 未配 Key / 服务未启动都诚实告知，绝不编造参考信息。
+   ================================================================== */
+function mfSearchSvcBase(){
+    return String(safeStorage.get(STORAGE_KEY_SEARCH_SVC) || DEFAULT_SEARCH_SVC || "").trim().replace(/\/+$/, "") || DEFAULT_SEARCH_SVC;
+}
+function mfBochaKey(){ return String(safeStorage.get(STORAGE_KEY_BOCHA_KEY) || "").trim(); }
+/* 从指令里识别"参考剧名"：只有带 类似/参考/对标/像/根据…改编 等词的《X》才算参考，
+   避免把"写一部《新剧名》"里的目标剧名误当成要搜的对象。返回去重后的剧名数组。 */
+function mfExtractRefDrama(cmd){
+    const s = String(cmd || "");
+    const out = [];
+    const REF = /(类似|参考|参照|对标|同款|像|如同|仿照|改编自|根据|基于|按照|同类型|同款|这一类|这一部)/;
+    const re = /《([^》\n]{1,40})》/g;
+    let m;
+    while((m = re.exec(s))){
+        const before = s.slice(Math.max(0, m.index - 16), m.index);
+        const after = s.slice(m.index + m[0].length, m.index + m[0].length + 18);
+        const isRef = REF.test(before) || /^\s*(?:这部|这类|这种|同款|类似的|一样的|那样的)/.test(after);
+        const t = (m[1] || "").trim();
+        if(isRef && t && !out.includes(t)) out.push(t);
+    }
+    return out;
+}
+/* 题材关键词兜底：搜不到时从剧名与指令里挑出常见题材词，供用户补充/修改，绝不编造剧情。 */
+function mfRefKeywords(title, cmd){
+    const s = String(title || "") + " " + String(cmd || "");
+    const dict = ["甜宠","虐恋","复仇","逆袭","重生","穿越","系统","马甲","替身","白月光","追妻","先婚后爱",
+                  "宅斗","宫斗","修仙","都市","年代","悬疑","犯罪","赘婿","战神","神医","总裁","复仇爽剧",
+                  "漫剧","短剧","打脸","扮猪吃虎","隐藏身份"];
+    const hit = dict.filter(k => s.indexOf(k) >= 0);
+    const uniq = hit.filter((k,i)=> hit.indexOf(k)===i);
+    return (uniq.length ? uniq.join("、") : "（指令未给出明确题材词，请补充）");
+}
+/* 调本机服务 /api/web-search 代搜博查；Key 随请求发、不落盘。返回服务原样 JSON。 */
+async function mfReferenceSearch(title){
+    const key = mfBochaKey();
+    if(!key) return { ok:false, reason:"未配置博查 API Key", noKey:true };
+    const base = mfSearchSvcBase();
+    const ctl = new AbortController();
+    const timer = setTimeout(()=>ctl.abort(), 25000);
+    try{
+        const r = await fetch(base + "/api/web-search", {
+            method:"POST", headers:{ "Content-Type":"application/json" }, signal:ctl.signal,
+            body: JSON.stringify({ query: title + " 漫剧 剧情 讲的什么 主角 设定", key: key, count: 8 })
+        });
+        const j = await r.json();
+        return (j && typeof j === "object") ? j : { ok:false, reason:"本机服务返回格式异常" };
+    }catch(e){
+        return { ok:false, reason:"连接本机服务失败（请确认已启动，地址：" + base + "）", svcDown:true };
+    }finally{ clearTimeout(timer); }
+}
+/* 一次性非流式模型调用（复用当前算力配置），返回纯文本 content 或 null。供情报总结等辅助任务用。 */
+async function mfRawLLM(system, user, maxTokens){
+    if(computeMode === "manflow") return null;
+    let url, headers, body;
+    try{
+        if(computeMode === "local"){
+            if(!mfEnsureLocalReady("strata")) return null;
+            url = mfChatUrl(mfCurrentBase());
+            headers = mfLocalHeaders();
+            body = { model: localModelName || "local", messages:[
+                { role:"system", content: system }, { role:"user", content: user }
+            ], temperature:0.2, stream:false, max_tokens:maxTokens || 900, ...mfThinkingFields() };
+        }else{
+            const ep = inpEndpoint.value.trim(), ky = inpKey.value.trim(), mdl = inpModel.value.trim();
+            if(!ep || !ky || !mdl) return null;
+            url = ep; headers = { "Content-Type":"application/json", "Authorization":"Bearer " + ky };
+            body = { model:mdl, messages:[
+                { role:"system", content: system }, { role:"user", content: user }
+            ], temperature:0.2, stream:false, max_tokens:maxTokens || 900 };
+        }
+        const ctl = new AbortController();
+        const timer = setTimeout(()=>ctl.abort(), 30000);
+        try{
+            const r = await fetch(url, { method:"POST", headers, signal:ctl.signal, body:JSON.stringify(body) });
+            if(!r.ok) return null;
+            const j = await r.json();
+            if(j && j.choices && j.choices[0]){
+                const msg = j.choices[0].message || j.choices[0].delta || {};
+                return typeof msg.content === "string" ? msg.content : "";
+            }
+            if(j && Array.isArray(j.content)) return j.content.filter(b=>b && b.type==="text").map(b=>b.text||"").join("");
+            return null;
+        }finally{ clearTimeout(timer); }
+    }catch(e){ return null; }
+}
+/* 把搜索结果交给本机模型总结成"参考剧情报卡"；模型不可用则返回 null，由调用方用原文片段兜底。 */
+async function mfSummarizeReference(title, results){
+    const lines = (results || []).slice(0, 8).map((v, i) =>
+        (i+1) + ". " + (v.name || "") + "\n" + String(v.summary || v.snippet || "").replace(/\s+/g, " ").slice(0, 420)
+    ).join("\n\n");
+    if(!lines.trim()) return null;
+    const sys = "你是剧本创作的情报整理员。根据下面关于参考剧《" + title + "》的搜索资料，提炼成一份简洁的『参考剧情报卡』，"
+        + "供编剧借鉴高层特征写一部原创剧。严格只输出这几项，每项 1-3 句，总共不超过 450 字：\n"
+        + "题材类型：\n故事主线：\n主要人物设定：\n核心爽点/钩子：\n叙事节奏特点：\n"
+        + "注意：资料可能混杂广告、同名小说或无关内容，只采信确实关于这部剧的信息；没把握的写『资料不足』，绝不编造。";
+    const txt = await mfRawLLM(sys, "搜索资料：\n" + lines, 900);
+    return (txt && txt.trim()) ? txt.trim() : null;
+}
+/* 完整情报流程：搜 → 总结 → 组装可读卡片。所有失败分支都返回可展示的 card，绝不静默编造。 */
+async function mfReferenceIntelFlow(cmd, titles){
+    const title = titles[0];
+    const key = mfBochaKey();
+    if(!key){
+        return { card: "🌐 检测到参考剧《" + title + "》，但未配置博查 API Key，本次未联网搜索。"
+               + "请在左栏【算力总控 → 🌐 公网搜索配置】填入 Key；也可直接在指令框补充你已知的该剧信息。",
+                 intel:"", noKey:true };
+    }
+    append("🌐 正在联网搜索参考剧《" + title + "》的资料…", "tip");
+    const sr = await mfReferenceSearch(title);
+    if(!sr.ok || !Array.isArray(sr.results) || sr.results.length === 0){
+        const why = String(sr.reason || "").trim();
+        return { card: "⚠️ 联网搜索未拿到《" + title + "》的有效资料" + (why ? "（" + why + "）" : "") + "。\n"
+               + "我不会编造该剧剧情。题材关键词（供你补充/修改）：" + mfRefKeywords(title, cmd) + "\n"
+               + "请在指令框补充你已知的信息，或直接确认按题材关键词创作原创剧。",
+                 intel:"", failed:true, reason:why };
+    }
+    let body = await mfSummarizeReference(title, sr.results);
+    let summarized = true;
+    if(!body){
+        summarized = false;
+        body = "【资料摘录（本机模型未参与二次总结，原文片段）】\n" +
+            sr.results.slice(0, 5).map((v, i) =>
+                (i+1) + ". " + (v.name || "") + "：" + String(v.summary || v.snippet || "").replace(/\s+/g, " ").slice(0, 220)
+            ).join("\n");
+    }
+    const card = "🌐 已联网搜到参考剧《" + title + "》的资料" + (sr.cached ? "（缓存）" : "") + "，整理给你过目：\n\n" + body
+        + "\n\n（这份情报只作为借鉴题材/爽点/节奏的参考" + (summarized ? "" : "；本机模型未开，未能二次归纳") +
+        "。请过目并可直接修改；确认后我会据此写一部原创剧，不照搬具体剧情。）";
+    return { card: card, intel: body, ok:true, summarized:summarized, results:sr.results };
+}
+/* 配置 UI：Key / 本机服务地址输入即存 localStorage；测试按钮真搜一次验证连通与额度。 */
+function mfBindSearchUI(){
+    const keyEl = mfEl("mfBochaKey"), svcEl = mfEl("mfSearchSvc"), testBtn = mfEl("mfSearchTestBtn");
+    if(keyEl){
+        keyEl.value = mfBochaKey();
+        keyEl.addEventListener("input", ()=>{ safeStorage.set(STORAGE_KEY_BOCHA_KEY, keyEl.value.trim()); });
+    }
+    if(svcEl){
+        svcEl.value = safeStorage.get(STORAGE_KEY_SEARCH_SVC) || DEFAULT_SEARCH_SVC;
+        svcEl.addEventListener("input", ()=>{ safeStorage.set(STORAGE_KEY_SEARCH_SVC, svcEl.value.trim()); });
+    }
+    if(testBtn) testBtn.addEventListener("click", async ()=>{
+        if(!mfBochaKey()){ append("⚠️ 请先填写博查 API Key 再测试。", "err"); return; }
+        append("🔍 正在测试公网搜索连通（关键词：测试）…", "tip");
+        const r = await mfReferenceSearch("漫剧 剧情");
+        if(r && r.ok){
+            append("✅ 公网搜索连通正常，返回 " + (r.total || (r.results||[]).length) + " 条资料"
+                 + (r.cached ? "（缓存）" : "") + "。", "tip");
+        }else{
+            append("⚠️ 公网搜索不可用：" + ((r && (r.reason || r.hint)) || "未知错误") + "。搜不到时创作仍会继续，只是没有参考剧情报。", "err");
+        }
+    });
+}
 /* 从探测回答里稳健抽取结构化结果（容忍 ```json 围栏、前后白话、无引号键名）。
    新格式：{clear, brief, questions}（理解稿）；兼容旧格式 {needs, questions}。 */
 function mfExtractClarifyJson(text){
@@ -5237,8 +5436,9 @@ async function mfProbeClarify(userCmd){
         }finally{ clearTimeout(timer); }
     }catch(e){ return null; }
 }
-/* 探测后：有歧义 → 把问题吐到窗口并提示用户回答；无歧义/失败 → 返回 false 表示放行。
-   返回 true 表示"本轮已按理解稿拦截，等用户确认/修正后再开工"。 */
+/* 探测后：有歧义 → 把问题吐到窗口并提示用户回答；返回 true 表示"本轮已按理解稿拦截，等用户确认/修正后再开工"。
+   ★ 已吐出"正在整理…"提示后绝不再静默放行：探测失败/空结果一律用本地理解稿出对齐卡，
+     兑现"先跟你对齐再开工"的承诺。只有根本没进入对齐的简单指令（mfCmdNeedsAlign=false）才返回 false 放行。 */
 let mfClarifyPending = null;   /* { cmd, brief }：待确认的原指令 + 模型理解稿 */
 let mfClarifyProbing = false;  /* 防止探测期间重复点击发起多个探测 */
 /* 用户回答视为"认可理解稿"的确认词（回答为空也视为认可，直接点开始即确认）。 */
@@ -5254,27 +5454,46 @@ async function mfClarifyIfNeeded(userCmd){
     /* ★ 用户明确要求"分阶段暂停"时，探测失败也绝不静默放行——否则承诺了对齐却直接写正文，
        违背用户"先出大纲、暂不写正文、等审核"的明确意愿。 */
     const wantsPause = mfCmdWantsPause(userCmd);
+    /* ★ 参考剧目情报增强：识别「类似《X》」→ 联网搜资料 → 本机模型总结成情报卡。
+       搜索/总结失败都只降级不阻断对齐（返回可展示 card），绝不影响原有对齐流程。 */
+    let refIntel = null;
+    try{
+        const refTitles = mfExtractRefDrama(userCmd);
+        if(refTitles.length) refIntel = await mfReferenceIntelFlow(userCmd, refTitles);
+    }catch(e){ refIntel = null; }
     mfClarifyProbing = true;
     append("🔎 正在整理对指令的理解，先跟你对齐再开工…", "tip");
     let res;
     try{ res = await mfProbeClarify(userCmd); }
     finally{ mfClarifyProbing = false; }
+    /* 有参考剧情报：把"已搜到的资料卡"作为最高可信事实补进理解稿，
+       让对齐卡里就能给用户过目，也让模型探测若成功时不至于忽略搜索结果。 */
+    if(refIntel && refIntel.card){
+        const addon = "\n\n【参考剧目情报（公网搜索已获取，供你核对）】\n" + refIntel.card;
+        if(res && typeof res === "object"){
+            res.brief = String(res.brief || "").trim() + addon;
+        }else{
+            res = { clear:true, brief: (wantsPause ? mfLocalPauseBrief(userCmd).brief : mfLocalGenericBrief(userCmd).brief) + addon, questions:[], advice:"" };
+        }
+    }
+    /* ★ 探测失败/无结果：一律用本地理解稿出对齐卡，绝不静默放行——
+       既然已经吐了"先跟你对齐再开工"，就必须真的停下来等确认，否则就是阳奉阴违直接开工。
+       分阶段指令用带"正文暂缓"锁定的理解稿，其余复杂指令用忠于原话的通用理解稿。 */
     if(!res){
-        if(!wantsPause) return false;   /* 普通复杂指令：探测失败照旧静默放行，零打扰 */
-        res = mfLocalPauseBrief(userCmd);   /* 分阶段指令：本地构造理解稿，照样出对齐卡 */
+        res = wantsPause ? mfLocalPauseBrief(userCmd) : mfLocalGenericBrief(userCmd);
     }
     let brief = typeof res.brief === "string" ? res.brief.trim() : "";
     let advice = typeof res.advice === "string" ? res.advice.trim() : "";
     let qs = Array.isArray(res.questions) ? res.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
-    /* 没有理解稿、建议、待确认点 → 无可对齐。分阶段指令兜底用本地理解稿，其余放行 */
+    /* 探测回来但没有理解稿/建议/待确认点 → 同样兜底本地理解稿，保持一致：绝不静默开工 */
     if(!brief && !advice && !qs.length){
-        if(!wantsPause) return false;
-        const lc = mfLocalPauseBrief(userCmd);
+        const lc = wantsPause ? mfLocalPauseBrief(userCmd) : mfLocalGenericBrief(userCmd);
         brief = String(lc.brief || "").trim();
         advice = String(lc.advice || "").trim();
         qs = Array.isArray(lc.questions) ? lc.questions.filter(q=>typeof q==="string" && q.trim()).slice(0,3) : [];
     }
-    mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice, pause: wantsPause };
+    mfClarifyPending = { cmd: userCmd, brief: brief, advice: advice, pause: wantsPause,
+                         refIntel: (refIntel && refIntel.intel) ? String(refIntel.intel) : "" };
     let msg = "📋 开工前先跟你对一下我的理解，确认无误请直接点「开始」（或回复「确认」）；要改就把修正写进指令框再点开始。\n\n";
     if(brief) msg += "—— 我的理解稿 ——\n" + brief + "\n";
     if(qs.length) msg += "\n我最想跟你确认：\n" + qs.map((q,i)=>"  " + (i+1) + ". " + q.trim()).join("\n") + "\n";
@@ -5304,6 +5523,13 @@ function mfMergeClarifyAnswer(answer){
         out += "\n\n【分阶段执行·最高优先级（覆盖技能默认流程与任何“一次性写完全部正文”的倾向）】"
              + "本轮严格分两阶段：第一阶段只产出【大纲与设定】（含全剧大纲、分集大纲、人物/场景设定），产出后到此为止；"
              + "剧本正文一个字都不要写。必须停下来等用户审核、修改并明确确认后，才进入第二阶段写剧本正文。";
+    }
+    /* ★ 参考剧目情报：确认后把情报正文随原指令注入，并锁定"只借鉴高层特征、写原创"——
+       避免照搬具体剧情/桥段造成抄袭，也确保模型真的用上搜到的主题与细节。 */
+    if(p.refIntel && String(p.refIntel).trim()){
+        out += "\n\n【参考剧目情报（公网已搜、用户已过目确认，创作时必须参考）】\n" + String(p.refIntel).trim()
+             + "\n【原创性硬约束·最高优先级】仅借鉴上述参考剧的题材类型、故事主线走向、人物设定类型、爽点结构与叙事节奏等高层特征；"
+             + "严禁照搬其具体情节、桥段、台词与人物姓名，必须写一部全新原创剧。情报若与用户本轮修正冲突，以用户修正为准。";
     }
     out += "\n（请严格按上面原指令执行；理解稿仅用于锁定意图，其中的理解若与本轮修正冲突，以用户修正为准。）";
     return out;
@@ -5806,6 +6032,7 @@ function initUI(){
     loadApiProfiles();
     initComputeModeUI();
     mfBindPrivateUI();
+    mfBindSearchUI();
     mfBindLlamaKeyUI();
     mfInitComputeSync();
     renderCustomSkillButtons();

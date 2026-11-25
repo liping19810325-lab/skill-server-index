@@ -18,6 +18,8 @@
   POST /api/burn-subtitles  字幕硬烧录到成片像素
   POST /api/ai/chat         LLM 代理：转发 Claude/GPT 等模型请求（含 tools 工具调用），
                             浏览器把已有算力配置随请求传入，由本机转发以绕开 CORS 并避免 Key 暴露
+  POST /api/web-search      公网搜索中转：博查 Bocha Web Search，前端传入 Key 与关键词，
+                            服务端代调并缓存结果（7天），供剧本创作台「参考剧目情报增强」使用
 
 所有响应都带 CORS 与 Chrome Private Network Access 头；错误一律返回 JSON，
 不向外抛裸异常。被代理目标做基本 SSRF 防护。
@@ -2580,6 +2582,143 @@ def api_ai_cancel(body):
     return {"ok": True, "cancelled": len(targets), "scope": "all" if cancel_all else jid}
 
 
+# ----------------------------------------------------------------------------
+# 公网搜索中转：博查 Bocha Web Search（供创作台「参考剧目情报增强」使用）
+#   · Key 由前端传入，仅用于本次上游请求，绝不落盘、不写日志；
+#   · 结果按 query 做磁盘缓存（~/.manflows/web_search_cache.json，TTL 7 天），
+#     同一部剧不重复扣费；额度不足/Key 无效等错误如实回传并给中文指引。
+# ----------------------------------------------------------------------------
+BOCHA_SEARCH_URL = "https://api.bochaai.com/v1/web-search"
+_SEARCH_CACHE_FILE = str(Path.home() / ".manflows" / "web_search_cache.json")
+_SEARCH_CACHE_TTL = 7 * 24 * 3600   # 7 天
+_SEARCH_CACHE = None
+_SEARCH_CACHE_LOCK = threading.Lock()
+
+
+def _search_cache_load():
+    global _SEARCH_CACHE
+    if _SEARCH_CACHE is not None:
+        return _SEARCH_CACHE
+    cache = {}
+    try:
+        if os.path.isfile(_SEARCH_CACHE_FILE):
+            with open(_SEARCH_CACHE_FILE, "r", encoding="utf-8") as f:
+                obj = json.load(f)
+            if isinstance(obj, dict):
+                cache = obj
+    except Exception:
+        cache = {}
+    _SEARCH_CACHE = cache
+    return cache
+
+
+def _search_cache_save(cache):
+    try:
+        os.makedirs(os.path.dirname(_SEARCH_CACHE_FILE), exist_ok=True)
+        with open(_SEARCH_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def api_web_search(body):
+    """博查搜索中转：前端传入 key + query，服务端代调并返回结构化结果。
+       成功与空结果都缓存（TTL 7 天），避免同一部剧重复扣费。"""
+    global _SSL_UNVERIFIED
+    try:
+        data = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return _fail("请求体不是合法 JSON：%s" % _short(e))
+    if not isinstance(data, dict):
+        return _fail("请求体格式不正确")
+
+    query = str(data.get("query") or "").strip()
+    key = str(data.get("key") or "").strip()
+    if not query:
+        return _fail("缺少搜索关键词")
+    if len(query) > 200:
+        query = query[:200]
+    if not key:
+        return _fail("缺少博查 API Key",
+                     "请在创作台「公网搜索」设置里填入博查 API Key（只存本机浏览器，不上传服务器）。")
+
+    try:
+        count = max(1, min(20, int(data.get("count") or 8)))
+    except Exception:
+        count = 8
+
+    now = time.time()
+    cache = _search_cache_load()
+    ck = query + "|" + str(count)
+    with _SEARCH_CACHE_LOCK:
+        hit = cache.get(ck)
+        if (isinstance(hit, dict) and isinstance(hit.get("ts"), (int, float))
+                and now - hit["ts"] < _SEARCH_CACHE_TTL and "results" in hit):
+            return {"ok": True, "query": query, "results": hit["results"],
+                    "cached": True, "provider": "bocha", "total": len(hit["results"])}
+
+    payload = json.dumps({"query": query, "summary": True,
+                          "freshness": "noLimit", "count": count},
+                         ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json",
+               "Authorization": "Bearer " + key,
+               "User-Agent": UA_DESKTOP, "Accept": "*/*"}
+    try:
+        req = urllib.request.Request(BOCHA_SEARCH_URL, data=payload,
+                                     headers=headers, method="POST")
+        try:
+            resp = _build_opener(_SSL_UNVERIFIED).open(req, timeout=TIMEOUT_FETCH)
+        except urllib.error.URLError as e:
+            if not _SSL_UNVERIFIED and _is_cert_error(e):
+                _SSL_UNVERIFIED = True
+                resp = _build_opener(True).open(req, timeout=TIMEOUT_FETCH)
+            else:
+                raise
+        raw = resp.read().decode("utf-8", "ignore")
+        try:
+            obj = json.loads(raw)
+        except Exception:
+            return _fail("博查返回的不是合法 JSON：%s" % raw[:200])
+    except urllib.error.HTTPError as e:
+        code = e.code
+        try:
+            err_raw = e.read().decode("utf-8", "ignore")[:300]
+        except Exception:
+            err_raw = ""
+        if code == 403 or (code == 400 and "quota" in err_raw.lower()):
+            return _fail("博查账户额度不足或套餐未开通（HTTP %s）" % code,
+                         "Key 有效，但账户余额/套餐额度为 0。请到 https://open.bochaai.com 充值或开通套餐后重试。")
+        if code in (401, 402):
+            return _fail("博查 API Key 无效或不可用（HTTP %s）" % code,
+                         "请检查 Key 是否复制完整，并到 https://open.bochaai.com 确认账户状态。")
+        return _fail("博查搜索接口返回 HTTP %s" % code, err_raw[:200] or "请稍后重试。")
+    except Exception as e:
+        return _fail("连接博查搜索失败：%s" % _short(e),
+                     "请检查本机网络（如需代理请确认代理可用）。")
+
+    if not isinstance(obj, dict):
+        return _fail("博查返回格式异常")
+    holder = obj.get("data") if isinstance(obj.get("data"), dict) else obj
+    pages = holder.get("webPages", {}) if isinstance(holder, dict) else {}
+    vals = pages.get("value", []) if isinstance(pages, dict) else []
+    results = []
+    for v in vals[:count]:
+        if not isinstance(v, dict):
+            continue
+        results.append({
+            "name": str(v.get("name") or ""),
+            "url": str(v.get("url") or ""),
+            "snippet": str(v.get("snippet") or ""),
+            "summary": str(v.get("summary") or ""),
+            "siteName": str(v.get("siteName") or ""),
+        })
+    with _SEARCH_CACHE_LOCK:
+        cache[ck] = {"ts": now, "results": results}
+        _search_cache_save(cache)
+    return {"ok": True, "query": query, "results": results,
+            "cached": False, "provider": "bocha", "total": len(results)}
+
+
 def api_ai_chat(body):
     """LLM 代理：浏览器把「算力总控」里已配置的 endpoint/model/key 随请求传给本机，
        由本机转发给 Claude / GPT 等模型，解决浏览器 CORS 并避免 Key 暴露给第三方页面。
@@ -2985,11 +3124,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(api_ai_chat(body))
             elif path == "/api/ai/cancel":
                 self._send_json(api_ai_cancel(body))
+            elif path == "/api/web-search":
+                self._send_json(api_web_search(body))
             else:
                 self._send_json(_fail("未知接口：%s" % path,
                                       "可用的 POST 接口：/api/resolve、/api/export、/api/probe、"
                                       "/api/transcribe、/api/silences、/api/render、/api/burn-subtitles、"
-                                      "/api/ai/chat、/api/ai/cancel"))
+                                      "/api/ai/chat、/api/ai/cancel、/api/web-search"))
         except Exception as e:
             try:
                 self._send_json(_fail("服务内部错误：%s" % _short(e),
