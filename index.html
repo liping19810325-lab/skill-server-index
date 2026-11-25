@@ -5503,15 +5503,22 @@ function mfAlignIsConfirm(answer){
 async function mfClarifyIfNeeded(userCmd){
     mfClarifyPending = null;
     if(!userCmd) return false;
-    /* ★ 用户铁律：凡调用剧本创作助手V5（skill a），手动新指令一律先对齐九类关键信息才能开工，
-       不论指令多短多模糊——正则可能漏掉某种措辞，以"是否用剧本助手"为准最可靠。
-       例外：续写/局部修改/确认等"后续操作"直接放行，零打扰；这些不是新创作、也不该重问九类设定。 */
+    /* ★ 用户铁律（最高优先级）：对齐只针对"全新创作委托"。
+       —— 不为"后续操作"列死规则：正则白名单永远列不全（"开始写剧本正文"就漏过，导致二次对齐），
+          用户已明确反对把后续操作方式规定死。改为按"本会话是否已开工"这一客观状态判断：
+          聊天里已有 AI 正文产物 / fullAiText 已有内容 / 已有剧本目标锚点，都说明此前已完成对齐并开工；
+          此后用户说的任何话都是对既有创作的后续操作，一律按用户原话直接执行、零打扰、绝不再二次对齐。
+       —— 唯一例外：用户明确要"重写 / 新写 / 换剧 / 写一部新的"（wantsFreshScript）= 全新委托，需重新对齐九类信息。
+       —— 全新空白对话里的剧本助手指令仍强制对齐（无现场可续，必须先把指令讲清楚）。 */
     const isScriptSkill = (typeof currentSkillKey !== "undefined" && currentSkillKey === "a");
-    const isFollowup = /^(?:续写|继续|接着|从第|在第|把第|将第|改第|修第|确认|确定|可以|好的|就按这个|照这个来|开始吧|开工)/.test(String(userCmd).trim())
-                    || /(?:第\s*\d+\s*集).{0,20}(?:台词|节奏|改|换|调|删|补|重写)/.test(String(userCmd));
-    if(isScriptSkill && !isFollowup){
-        /* 剧本助手的新指令：强制对齐，跳过复杂度正则 */
-    }else if(!mfCmdNeedsAlign(userCmd)) return false;   /* 非剧本助手的简单指令：直接放行，零打扰 */
+    const hasStartedWork = (typeof fullAiText === "string" && fullAiText.trim().length > 0)
+                        || !!(chatBox && chatBox.querySelector(".msg.ai"))
+                        || !!(typeof mfScriptGoal !== "undefined" && mfScriptGoal);
+    const isFreshCommission = (typeof wantsFreshScript === "function") && wantsFreshScript(userCmd);
+    if(isScriptSkill && hasStartedWork && !isFreshCommission) return false;   /* 已开工的后续操作：按原话放行 */
+    if(isScriptSkill && !hasStartedWork){
+        /* 全新对话的剧本助手指令：强制对齐九类信息，跳过复杂度正则 */
+    }else if(!isScriptSkill && !mfCmdNeedsAlign(userCmd)) return false;   /* 非剧本助手的简单指令：直接放行，零打扰 */
     if(mfClarifyProbing) return true;   /* 已有探测在飞：本轮先拦下，避免重复 */
     /* ★ 用户明确要求"分阶段暂停"时，探测失败也绝不静默放行——否则承诺了对齐却直接写正文，
        违背用户"先出大纲、暂不写正文、等审核"的明确意愿。 */
