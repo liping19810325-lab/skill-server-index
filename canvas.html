@@ -6283,7 +6283,50 @@ function comfyCandidates(){
     [COMFY_DEFAULT,"http://localhost:8188","http://127.0.0.1:8189"].forEach(u=>{
         if(!list.some(x=>x.url===u)) list.push({url:u,label:"本机直连"});
     });
+    /* 上次成功连过、且不是本机回环的 ComfyUI（如局域网 IP），优先重试 */
+    try{
+        const remembered=String((canvas.settings&&canvas.settings.comfyBase)||"").trim().replace(/\/+$/,"");
+        if(remembered&&!/^https?:\/\/(127\.|localhost(?:[:/]|$))/i.test(remembered)&&!list.some(x=>x.url===remembered))
+            list.push({url:remembered,label:"上次连接"});
+    }catch(e){}
     return list;
+}
+/* 局域网 ComfyUI 自动发现：推不出本机 IP 时扫高频私网段，命中 /system_stats 即返回。
+   纯前端、不依赖本机服务或 WebRTC；只在用户主动点「自动接通」且本机候选全失败时调用，避免拖慢静默体检。 */
+async function cvScanLanComfy(onProgress){
+    const isPrivateIp=s=>/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(String(s||""));
+    const segs=[];
+    /* ① 画布若用局域网 IP 打开，直接取它的 C 段 */
+    try{
+        const h=location.hostname;
+        if(isPrivateIp(h)) segs.push(h.replace(/\.\d+$/,""));
+    }catch(e){}
+    /* ② 高频私网段兜底：用户常见路由段排前面 */
+    ["192.168.31","192.168.1","192.168.0","192.168.2","10.0.0","172.16.0"].forEach(s=>{
+        if(!segs.includes(s)) segs.push(s);
+    });
+    const tryOne=(url)=>new Promise(res=>{
+        const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),1200);
+        fetch(url+"/system_stats",{method:"GET",signal:ctl.signal})
+            .then(r=>r.ok?r.json():null).then(d=>res(d&&d.system?url:null))
+            .catch(()=>res(null)).finally(()=>clearTimeout(t));
+    });
+    for(let si=0;si<segs.length;si++){
+        const seg=segs[si];
+        if(onProgress) onProgress("正在扫描局域网 "+seg+".x 找 ComfyUI…");
+        /* 先扫常见主机位（网关/常见静态段），再扫全段；并发 48，命中即停 */
+        const hosts=[];
+        [1,2,3,100,101,102,120,128,150,200,201,250].forEach(n=>hosts.push(n));
+        for(let n=4;n<=254;n++) if(!hosts.includes(n)) hosts.push(n);
+        let hit=null;
+        for(let i=0;i<hosts.length&&!hit;i+=48){
+            const batch=hosts.slice(i,i+48).map(n=>tryOne("http://"+seg+"."+n+":8188"));
+            const rs=await Promise.all(batch);
+            hit=rs.find(Boolean)||null;
+        }
+        if(hit) return hit;
+    }
+    return null;
 }
 async function probeComfy(base,ms){
     /* 公网域名（私有算力 https，如 comfyui.manflows.com）首次请求要走 DNS + TLS 握手 +
@@ -6349,7 +6392,14 @@ async function autoDetectComfy(opts){
         return true;
     }
     if(o.silent){ showComfyLink("err","○ ComfyUI 未连通 · 启动 ComfyUI 后点「⚡ 自动接通」"); return false; }
-    showComfyLink("err","✗ 没找到 ComfyUI：① 先启动 ComfyUI（8188）；② 启动参数带 --enable-cors-header * 并重启过一次；③ 画布用 http:// 本机打开。");
+    /* 本机候选全失败：主动点「自动接通」时扫局域网，覆盖「画布在 Mac、ComfyUI 在局域网另一台机器」场景 */
+    showComfyLink("busy","本机没找到，正在扫描局域网…");
+    const lanUrl=await cvScanLanComfy(msg=>showComfyLink("busy",msg));
+    if(lanUrl){
+        const d=await probeComfy(lanUrl,4000);
+        if(d){ applyComfyBase(lanUrl,d,"局域网扫描"); return true; }
+    }
+    showComfyLink("err","✗ 没找到 ComfyUI：① 先启动 ComfyUI（8188）；② 启动参数带 --enable-cors-header * 并重启过一次；③ 画布用 http:// 本机打开；④ 若在局域网另一台机器，可直接在上框填它的地址（如 http://192.168.1.98:8188）。");
     setStatus("连不上 ComfyUI：看左侧红字提示","err");
     return false;
 }
