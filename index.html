@@ -2520,6 +2520,41 @@ function parseScriptGoalFromCommand(cmd){
         const n = mfCnNumToInt(m[1]);
         if(n>=1 && n<=500) return { from:1, total:n };
     }
+    /* ★ 无集号的"继续写还没写的/剩下的/剩余的/把剧本写完"：从权威大纲的分集大纲表推算目标集数。
+       旧逻辑要求必须出现"N集"，这类指令返回 null → mfScriptGoal 建不起来 →
+       复读检测（守卫 && mfScriptGoal）与自动续写双双跳过，模型拿到"增量修改"指令原地打转。
+       目标集数取权威大纲分集表的最大集号（用户/大纲的规划就是任务边界）；取不到再退回已写最大集号。
+       只在有明确"续写剩余"意图时启用，避免把"帮我看看这个剧本"之类也误建成续写目标。 */
+    const continueAll = /(?:继续|接着|往下|后面|剩下|剩余|还没?写|没写完|未写|把.{0,10}(?:剧本|故事|剧).{0,6}(?:写完|写完)|写完(?:整个|全部|整部|剧本|所有)|所有(?:剧本|集)|全部(?:剧本|集))/;
+    if(continueAll.test(s) && !/只要大纲|只出大纲|先出大纲/.test(s)){
+        let total = 0;
+        try{
+            const outline = (typeof getAuthoritativeOutline === "function") ? getAuthoritativeOutline() : "";
+            if(outline){
+                const rows = buildStoryRoadmap(outline, 500) || "";
+                const nums = String(rows).match(/第?\s*(\d+)\s*集/g) || [];
+                nums.forEach(x=>{
+                    const n = parseInt(String(x).replace(/[^\d]/g,""),10);
+                    if(n>=1 && n<=500 && n>total) total = n;
+                });
+                /* 路线图若没解析出来，直接从大纲分集表文本扫"| N |"行 */
+                if(!total){
+                    String(outline).split(/\r?\n/).forEach(ln=>{
+                        if(!/^\s*\|/.test(ln)) return;
+                        const cells = ln.split("|").map(x=>x.trim());
+                        if(!cells.length) return;
+                        const n = parseInt(cells[1]||"",10);
+                        if(n>=1 && n<=500 && n>total) total = n;
+                    });
+                }
+            }
+        }catch(e){}
+        if(!total){
+            const written = (typeof collectWrittenEpisodeSet === "function") ? collectWrittenEpisodeSet() : new Set();
+            written.forEach(n=>{ if(n>=1 && n<=500 && n>total) total = n; });
+        }
+        if(total>=1) return { from:1, total:total };
+    }
     return null;
 }
 /* 计算下一批续写区间：从 goal.from 起找第一个"未写出"的集号（缺口优先），
@@ -2824,6 +2859,92 @@ function mfDetectScriptLoop(newText, historyTexts){
         return null;
     }catch(e){ return null; }   /* 检测失败绝不影响主流程 */
 }
+/* ★ 结构级复读检测（补 mfDetectScriptLoop 逐字口径的盲区）：
+   旧检测只认"连续 ≥90 字逐字相同"，抓不住用户实测的"1-10 场之后动作台词高度相似但不逐字相同、
+   场次号一路递增"的循环。这里按场次块比对：把每场的 △动作 + 台词行抽成归一化签名，
+   若同一集内出现多个（≥3 个）高度相似的场次签名，判为结构级复读。
+   误报控制：三栏元数据（场景/道具/人物状态）按 Skill 本就逐字一致，不参与签名；
+   台词短、动作不同的正常多场不会命中；口头禅等短句达不到相似度阈值。 */
+function mfDetectSceneLoop(rawText){
+    try{
+        const src = String(rawText||"");
+        const lines = src.split(/\r?\n/);
+        /* 按集标题切块，逐集独立检测（避免跨集正常复用场景误报） */
+        const titleRe = /^\s*《[^》\n]{1,40}》第\s*(\d+)\s*集[：:]/;
+        const blocks = []; let cur = null;
+        lines.forEach((ln,i)=>{
+            const tm = ln.match(titleRe);
+            if(tm){ cur = { ep:parseInt(tm[1],10), scenes:[] }; blocks.push(cur); return; }
+            if(!cur) return;
+            if(/^\s*\d+\s*[-－–]\s*\d+\s/.test(ln)){ cur.scenes.push({ start:i, lines:[] }); return; }
+            if(cur.scenes.length) cur.scenes[cur.scenes.length-1].lines.push(ln);
+        });
+        const normScene = sc => {
+            const body = sc.lines.filter(ln=>{
+                if(/^\s*【(?:场景设计|道具设计|人物状态|人物|设定)/.test(ln)) return false;
+                if(/^\s*$/.test(ln)) return false;
+                return /^\s*△/.test(ln) || MF_LOOP_DIALOGUE_RE.test(ln);
+            }).map(ln=>ln.replace(MF_LOOP_PUNCT,"").replace(/\s+/g,"").toLowerCase()).join("");
+            return body;
+        };
+        /* 相似度：两签名最长公共前缀/最短串长度；≥0.72 视为高度相似 */
+        const prefixRatio = (a,b)=>{
+            if(!a || !b) return 0;
+            const minLen = Math.min(a.length,b.length);
+            if(minLen < 12) return 0;
+            let k=0; while(k<minLen && a[k]===b[k]) k++;
+            return k/minLen;
+        };
+        for(const b of blocks){
+            if(b.scenes.length < 4) continue;   /* 场次少不做结构判定 */
+            const sigs = b.scenes.map(normScene).filter(x=>x.length>=12);
+            if(sigs.length < 4) continue;
+            /* 与前面**所有**场景比对（循环周期可能是 2、3、4，只看相邻会漏）：
+               统计"存在高度相似前例"的场景数；一个场景只计一次，避免单对反复累加。 */
+            let hit = 0;
+            for(let i=1;i<sigs.length;i++){
+                let similarBefore = false;
+                for(let j=0;j<i;j++){
+                    if(prefixRatio(sigs[i], sigs[j])>=0.72){ similarBefore = true; break; }
+                }
+                if(similarBefore) hit++;
+            }
+            if(hit>=3){
+                return { ep:b.ep, similar:hit+1, total:b.scenes.length, kind:"scene" };
+            }
+        }
+        return null;
+    }catch(e){ return null; }
+}
+/* ★ 生成后机械校验：集尾标记缺失、单集场次严重超标（如 90 秒写 23 场）。只出提醒，不改内容、不阻断。 */
+function mfCheckScriptQuality(rawText){
+    const s = String(rawText||"");
+    const out = { missingEnd:[], sceneOverflow:[], ok:true };
+    try{
+        const lines = s.split(/\r?\n/);
+        const titleRe = /^\s*《[^》\n]{1,40}》第\s*(\d+)\s*集[：:]\s*(.*)$/;
+        const titles = [];
+        lines.forEach((ln,i)=>{ const m=ln.match(titleRe); if(m){
+            const sec = parseInt(((m[2].match(/预估成片[：:]\s*(\d+)/)||[])[1]||"105"),10);
+            titles.push({ ep:parseInt(m[1],10), at:i, sec });
+        }});
+        for(let k=0;k<titles.length;k++){
+            const t = titles[k];
+            const endAt = (k+1<titles.length) ? titles[k+1].at : lines.length;
+            /* 集尾标记 */
+            let hasEnd = false;
+            for(let j=t.at+1;j<endAt;j++){ if(/^\s*【第\s*\d+\s*集完】\s*$/.test(lines[j])){ hasEnd=true; break; } }
+            if(!hasEnd) out.missingEnd.push(t.ep);
+            /* 场次计数与合理上限：秒数→场次按 25–35 秒/场，给宽松上限（秒/20 + 3），90秒≈7.5场 */
+            let sceneCount = 0;
+            for(let j=t.at+1;j<endAt;j++){ if(/^\s*\d+\s*[-－–]\s*\d+\s/.test(lines[j])) sceneCount++; }
+            const maxScene = Math.max(6, Math.ceil((t.sec||105)/20)+3);
+            if(sceneCount > maxScene) out.sceneOverflow.push({ ep:t.ep, count:sceneCount, sec:t.sec, max:maxScene });
+        }
+    }catch(e){}
+    out.ok = out.missingEnd.length===0 && out.sceneOverflow.length===0;
+    return out;
+}
 function parseBatchRemainder(text){
     const s = String(text || "");
     /* 只在结尾附近找批次状态行，避免误命中正文里的示例 */
@@ -2894,15 +3015,37 @@ function maybeAutoContinue(completedNormally, extraNote){
         if(creative) ctxText = creative;
     }catch(e){}
     const ctx = buildContinuationContext(ctxText, written);
-    userInput.value = "继续写第" + range.from + "集到第" + range.to + "集（自动续写，共" + goal.total + "集）";
-    /* 用 setTimeout 让本轮栈清空再发起，避免递归；不经过队列（续写是本任务的延续）。
-       回调里复核 mfAutoContinue 仍在（用户若在这几十毫秒内点了停止，就不再发起）。 */
+    const continueCmd = "继续写第" + range.from + "集到第" + range.to + "集（自动续写，共" + goal.total + "集）";
+    /* ★ 用户指令最高优先：生成期间用户若在指令框写了新指令，绝不用续写集号覆盖它。
+       自动续写让位、原样保留用户输入；用户点「开始」即发送自己的指令，之后可再说「继续写第N集」接续。 */
+    const typedNow = (typeof userInput !== "undefined" && userInput) ? String(userInput.value || "").trim() : "";
+    if(typedNow){
+        append("✋ 检测到你在生成期间写了新指令，自动续写暂停、你的输入原样保留（未被续写集号覆盖）。"
+            + "点「开始」发送你的指令；之后可再说「继续写第" + range.from + "集」接续。", "tip");
+        mfAutoContinue = null; mfScriptGoal = null;
+        return false;
+    }
+    userInput.value = continueCmd;
+    /* ★ 原本这里直接 sendMessage(ctx) 会插到用户已排好的任务前面——改走队列，续写排在队尾，绝不插队。
+       用 setTimeout 让本轮栈清空再发起，避免递归；回调里复核：已停手 / 仍在吐字 / 用户刚敲了新指令，
+       任一情况都不再发起。入队后必须显式触发 drain：上一轮 sendMessage 的 finally 此刻早已跑完，
+       不会再有人替这篇新入队的任务启动队列（否则会卡在队列里永不执行）。 */
     const expected = mfAutoContinue;
-    setTimeout(()=>{ if(mfAutoContinue === expected && !isGenerating()) sendMessage(ctx); }, 30);
+    setTimeout(()=>{
+        if(mfAutoContinue !== expected || isGenerating()) return;
+        const typedLate = (typeof userInput !== "undefined" && userInput) ? String(userInput.value || "").trim() : "";
+        if(typedLate && typedLate !== continueCmd){
+            append("✋ 检测到你刚输入了新指令，自动续写已让位、你的输入原样保留。点「开始」发送即可。", "tip");
+            mfAutoContinue = null; mfScriptGoal = null;
+            return;
+        }
+        enqueueSendTask(ctx);   /* 快照当前输入框（续写指令）后清空；restore 时会原样恢复 */
+        setTimeout(()=>{ drainSendQueue(); }, 0);
+    }, 30);
     return true;
 }
 function autoContinueDirective(c){
-    return "【自动续写·补齐全剧（创作台指令，最高优先级）】\n"
+    return "【自动续写·补齐全剧（创作台默认续写规则；用户本轮若有明确新指令，以用户指令为准、本规则让位；但让位仅限用户明确写出的值——集尾标记【第N集完】/单集最低场次/按大纲设定推进/禁止整段复读原地打转等质量与格式铁律，用户没明确要求放宽就一律严格执行）】\n"
         + "上文是同一部剧已经写好的正文、已写集号清单与大纲。用户要求写满 " + c.total + " 集，"
         + "目前正文里已写到的最大集号是第 " + (typeof c.writtenMax === "number" ? c.writtenMax : (c.from - 1)) + " 集"
         + (typeof c.writtenMax === "number" && c.writtenMax >= c.from
@@ -2930,7 +3073,7 @@ function autoContinueDirective(c){
    新页面加载后检测到现场快照 generating=true，就用这里的上文 + 强指令自动发一轮续写，
    把已吐的半截稿接下去写完整。核心要求：不重出大纲、不从头、不重复、风格格式一致。 */
 function resumeDirective(){
-    return "【断点续写·页面刷新/网络中断后自动接续（创作台指令，最高优先级）】\n"
+    return "【断点续写·页面刷新/网络中断后自动接续（创作台默认续写规则；用户本轮若有明确新指令，以用户指令为准、本规则让位；但让位仅限用户明确写出的值——集尾标记【第N集完】/单集最低场次/按大纲设定推进/禁止整段复读原地打转等质量与格式铁律，用户没明确要求放宽就一律严格执行）】\n"
         + "下方「本剧已写部分」与「中断前已生成内容」是同一任务刚刚写到一半、因页面刷新或网络中断而被迫停下的正文。"
         + "请从它的最后一个字/镜头/场次自然接续，**直接接着往下写**，直到把本次任务完整写完：\n"
         + "0) ★若上文能识别出《剧名》与画幅，必须严格沿用、一字不改；若上文里找不到任何可确认的剧名/设定"
@@ -4899,6 +5042,20 @@ function parseScriptEpisodeRequest(cmd){
     }
     return r;
 }
+/* ★ 判断本轮是不是"接着往下写还没写的新集"（相对"修改已写内容"）。
+   用户原话「继续写还没写的所有剧本 / 接下来的都写完 / 把剩下的续上」属于前者：
+   应走"续写新集"通道、注入全剧路线图+禁复读+最近2集，而不是被当成"基于最近一集做增量修改"。
+   区分要点：
+   —— 前向续写信号：继续/接着/往下/接下来/后面/剩下/剩余/还没写/没写完/未写/往下写 + 新集方向词；
+   —— 修改信号（命中则不算）：改/修改/调整/优化/重写第N集/把第N集…/替换/换成/这句/这段/这一场 等明确指向"改已写"。
+   注意"继续写第N集"也是前向续写（不是改稿），要让 mode=continue 的正文走续写通道。 */
+function mfIsForwardContinue(cmd){
+    const s = String(cmd||"").trim();
+    if(!s) return false;
+    /* 明确的修改/优化意图优先排除——这些应走 isRevision 增量修改通道 */
+    if(/(?:^|[^继接])(?:改|修改|调整|优化|润色|替换|换成|删掉|重写第|把第\s*\d+\s*集.{0,12}(?:改|换|调)|这句|这段|这一场|这个镜头|台词改)/.test(s)) return false;
+    return /(?:继续|接着|接下去|往下|向下|接下来|后面|剩下的|剩余的|还没?写|没写完|未写|往下写|续写|把.{0,12}(?:剧本|故事|剧).{0,6}写完|写满|写完)/.test(s);
+}
 /* 判断本轮指令是否明确要"从头新写"（此时不按连续修改处理，允许重写大纲/新剧名）。
    ★ 带明确"非第1集"起点的「从第N集重写/续写」是接着已有剧往下写，不是从头新写。
      例："从第12集开始重写，直到写完100集" —— 若误判成新写，模型会忽略已有稿从第1集重来（用户踩过此坑）。 */
@@ -4912,8 +5069,41 @@ function wantsFreshScript(cmd){
     }
     return /(?:重写|重新?写|新写|换[一个部].*(?:剧|主题|题材|故事)|另起|换剧名|改剧名|重出大纲|重新出大纲|从头(?:写|创作|新写)|全新创作|换个题材|创作一部新的|写一部新的)/.test(s);
 }
+/* 从已开工现场取"当前剧名"：用于判断本轮指令是否换了剧（=全新委托，需重新对齐）。
+   大纲/集标题都以《剧名》开头，故取 AI 正文里第一个《...》；取不到返回空串（此时不做剧名比对）。 */
+function mfLiveDramaTitle(){
+    try{
+        const src = (typeof fullAiText==="string" && fullAiText.trim())
+            ? fullAiText
+            : (typeof chatBox!=="undefined" && chatBox ? chatBox.innerText : "");
+        const m = String(src||"").match(/《([^》\n]{1,40})》/);
+        return m ? m[1].trim() : "";
+    }catch(e){ return ""; }
+}
+/* 判断本轮指令是否构成"全新委托"（需重新对齐九类信息）。
+   ★ 用户反对把"后续操作"用正则列死，也反对一刀切放行——曾有"写一部《XX》漫剧30集"
+     （无"重写/新写"字样）被当后续操作放行、该对齐却没对齐。故按客观冲突信号判断：
+     ① 明确的重写/新写/换剧/换题材（wantsFreshScript）；
+     ② 指令带的《剧名》与现场剧名不同，且不是"类似/参考《X》"里的参考剧。
+   续写/局部修改/确认等后续操作不带新剧名，不会被误判。 */
+function mfIsFreshCommission(cmd){
+    const s = String(cmd||"");
+    if(typeof wantsFreshScript==="function" && wantsFreshScript(s)) return true;
+    const titles = s.match(/《([^》\n]{1,40})》/g) || [];
+    if(!titles.length) return false;
+    const live = mfLiveDramaTitle();
+    if(!live) return false;
+    const first = titles[0].replace(/[《》]/g,"").trim();
+    if(!first || first===live || first.indexOf(live)>=0 || live.indexOf(first)>=0) return false;
+    /* 排除参考剧："类似/参考《X》"里的 X 是要参考的对象、不是要写的新剧名 */
+    try{
+        const refs = (typeof mfExtractRefDrama==="function") ? mfExtractRefDrama(s) : [];
+        if(refs.some(x=>first.indexOf(x)>=0 || x.indexOf(first)>=0)) return false;
+    }catch(e){}
+    return true;
+}
 function scriptEpisodeDirective(ep, isRevision){
-    const head = "【本次剧本集数要求｜创作台指令（最高优先级，须覆盖默认参数）】\n";
+    const head = "【本次剧本集数要求｜创作台默认补充（与用户本轮指令冲突时一律以用户指令为准；但仅限用户明确写出的值——用户沉默处，以及集尾标记【第N集完】/单集最低3场/按大纲设定推进/禁止整段复读原地打转等质量与格式铁律，一律继续严格执行，不因'用户最大'而失效）】\n";
     /* 连续修改模式：沿用上一条已经写好的剧本，只做增量修改，禁止重出大纲与改剧名 */
     if(isRevision){
         /* 定向起点重写：用户明确"从第N集开始写/重写到第M集"（N>1）。此时"修改基准"措辞不够——
@@ -4931,10 +5121,23 @@ function scriptEpisodeDirective(ep, isRevision){
             + "2) 严禁重出完整大纲与设定、严禁把本轮当作新剧从头创作、严禁另起主题；只针对用户本轮指出的具体问题做增量修改；\n"
             + "3) 输出修改后的对应剧本正文（沿用技能规定的集标题行、三栏、△动作、台词与【第N集完】格式），用户未点名的内容保持不变。"
             + directed + "\n"
-            + "本条要求优先级高于技能默认参数中「输出大纲」的设定——有上文稿时就不要重出大纲。";
+            + "有上文稿时就不要重出大纲（这是本轮范围判断，不是放宽质量规则）。"
+            + "★ 边界：以上只决定「本轮写什么、改哪里」；即便按增量修改，也必须守住集尾标记【第N集完】、"
+            + "单集最低 3 场、按已有大纲设定推进、禁止整段复读原地打转等质量与格式铁律——"
+            + "用户本轮没明确要求放宽这些，就不得以「用户指令最高」为由省略或砍短。";
     }
     if(ep.mode === "continue"){
-        return head + "本次为续写：按用户在指令中指定的集号只续写该集正文，不重出完整大纲（用户另有要求除外），也不扩写其它集。以用户指令为准，其余遵循技能续写规则。";
+        return head
+            + "本次为接着往下续写尚未写出的新集，严格按以下执行（以用户本轮指令为准）：\n"
+            + "1) 从上方「本剧已写部分」的剧情路线图与进度台账，找到已写集号之后**下一个还没写的集号**，"
+            + "按路线图里该集的规划往下推进全新剧情——承接最近集的真实落点，保持人设/画幅/时间线连续；\n"
+            + "2) ★ 严禁把已经推进过的情节点当成新情节再演一遍，严禁整段整场地复读上文——"
+            + "围绕同一场景反复改写动作/台词让场次号一路递增（如 90 秒写到 20 场以上）是最严重的失控，必须避免；"
+            + "口头禅、标志性动作、系列化套路与反复玩梗属于正常创作手法，不受此限；\n"
+            + "3) 集号连续、不跳号、不重复已写集；集标题行带 `预估成片：XX 秒` 与 `画幅` 两个元数据，"
+            + "单集场次数按该集时长档位取技能对照表的值（默认 3–5 场、120 秒档 ≥4 场），用户明确指定才改用用户值；\n"
+            + "4) 每集必须写完整正文并以 `【第N集完】` 收尾——系统靠集标题与集尾标记核对进度，"
+            + "不得在半句台词/半场戏处截断，也不得省略集尾标记。";
     }
     if(ep.mode === "multi"){
         const n = ep.count, from = ep.from, to = ep.to;
@@ -4949,7 +5152,15 @@ function scriptEpisodeDirective(ep, isRevision){
             + "3) 再依次输出第 " + from + "~" + to + " 集完整剧本正文，共 " + n + " 集，每集都要有集标题与【第N集完】；超过 5 集按技能分批规则连续输出、总量不减。\n"
             + "不得只写 1 集，不得写「待续 / 是否继续写下一集」。若用户指令实际指定的集数与上述不同，以用户指令明确写出的集数为准。其余格式、节奏、时长标注严格遵循技能。";
     }
-    // single / plan（未指定、规划、或明确只要 1 集）：默认只写一集
+    // plan（明确只要大纲/规划、暂不写正文）：只出大纲设定，正文一个字都不写
+    if(ep.mode === "plan"){
+        return head
+            + "本条指令中用户只要大纲/规划、暂不写剧本正文。严格按以下执行：\n"
+            + "1) 只输出完整的《剧名》大纲与设定（世界观与核心规则、人物设定表、主线三幕、分集大纲表、尺度与合规，一律照常先出，不得省略）；\n"
+            + "2) 本轮剧本正文一个字都不要写，输出大纲与设定后到此为止，停下来等用户审核确认；"
+            + "用户下一轮明确说要写正文时再进入正文阶段。若用户本轮指令明确同时要写正文，以用户本轮指令为准。";
+    }
+    // single（未指定、或明确只要 1 集）：默认只写一集
     return head
         + "本条指令中用户未明确要求多集剧本。严格按以下执行：\n"
         + "1) 先正常输出完整的《剧名》大纲与设定（世界观与核心规则、人物设定表、主线三幕、分集大纲表、尺度与合规，一律照常先出，不得省略）；\n"
@@ -4961,7 +5172,7 @@ function scriptEpisodeDirective(ep, isRevision){
    与剧本助手不同：这里没有「分集小纲」，且必须强调技能铁律「集数 ≠ 组数」，
    防止模型把「只转 1 集」误解成「只出 1 组」而严重压缩。默认只处理第 1 集，指定几集处理几集。 */
 function storyboardEpisodeDirective(ep){
-    const head = "【本次分镜处理集数要求｜创作台指令（最高优先级，须覆盖默认参数）】\n";
+    const head = "【本次分镜处理集数要求｜创作台默认补充（与用户本轮指令冲突时一律以用户指令为准）】\n";
     const iron = "注意铁律：这里的「集」指的是要处理的剧本集数，不是视频组数/提示词条数；集数 ≠ 组数。只处理 1 集 ≠ 只出 1 组——该集仍须按技能规则拆够它应得的全部组（按集标题行的「预估成片：XX 秒」换算，无标注按约 90 秒），台词逐字完整、不切镜。";
     if(ep.mode === "continue"){
         return head + "本次为续写：只把用户在指令中指定集号的那一集剧本转成生视频提示词，不处理其它集。" + iron + " 以用户指令为准，其余遵循技能。";
@@ -5011,7 +5222,7 @@ function storyboardIntegrityDirective(key){
    校验/补齐为内部动作，不额外输出自检清单（与技能「禁输出自检清单」不冲突）。
    c 有「四视图」资产、e（Midjourney）没有，故按 key 区分口径。 */
 function assetCoverageDirective(key){
-    const head = "【全剧资产覆盖与出词后校验要求｜创作台指令（最高优先级，须覆盖默认参数）】\n";
+    const head = "【全剧资产覆盖与出词后校验要求｜创作台默认补充（与用户本轮指令冲突时一律以用户指令为准）】\n";
     const isMJ = (key === "e");
     /* c：人物 / 四视图 / 场景 / 大远景 / 道具；e：人物 / 场景 / 大远景 / 道具 */
     const kinds = isMJ
@@ -5106,7 +5317,14 @@ function mfCmdNeedsAlign(cmd){
     const concreteOp = /^(?:续写|继续|接着|把|将|改|修|在第|从第|对第)/.test(s)
                     || /(?:台词|节奏|这一场|这一段|这句|那个镜头)/.test(s);
     const creativeVague = creativeVerb && dramaNoun && !concreteOp;
-    return multi || rewrite || outline || refDrama || creativeVague || s.length >= 24;
+    /* ★ 删除旧的 `s.length >= 24`：长度不是明确度的可靠指标——
+       「把这组主体定义补全，镜头二改成推镜，其他不动」这类具体修改超过 24 字仍被弹对齐卡，
+       与"越具体越零打扰"相反；模糊指令由下面真正的信号兜底，不再靠字数猜。
+       ★ 未选技能时的模糊兜底：只说"帮我写点东西/弄一下/来个文案"却没给出任何具体对象
+       （剧本/提示词/镜头/台词/图/视频/大纲等），无法判断该走哪条流水线，必须先问清楚。 */
+    const vagueGeneric = /(?:帮(?:我|忙)?|请|麻烦)?\s*(?:写|做|生成|搞|弄|来|整)\s*(?:个|点|些)?\s*(?:东西|内容|文案|稿子|一段|一版|一下|一点)/.test(s)
+        && !/(?:剧本|漫剧|短剧|连续剧|电视剧|提示词|镜头|分镜|台词|大纲|设定|画幅|图|视频|第\s*\d+\s*集)/.test(s);
+    return multi || rewrite || outline || refDrama || creativeVague || vagueGeneric;
 }
 /* 列出指令里"没讲清楚、开工前必须补齐"的关键信息。
    ★ 对齐的核心价值就是把不专业的指令补齐：只列真正缺的项，给了的项不重复问。
@@ -5503,18 +5721,26 @@ function mfAlignIsConfirm(answer){
 async function mfClarifyIfNeeded(userCmd){
     mfClarifyPending = null;
     if(!userCmd) return false;
+    /* ★ 导演分镜助手(b/d)、美术画风助手(c/e)的活是"把已有剧本/文字按各自 Skill 规则
+       转成生视频/生图提示词"，不是从零创作新剧委托——本来就不该走九类信息对齐。
+       用户明确补充：这两个助手只按 Skill 规则转化即可。故一律直接放行，连复杂度正则都不看。 */
+    const isPromptConvertSkill = (typeof currentSkillKey !== "undefined")
+        && ["b","c","d","e"].indexOf(currentSkillKey) >= 0;
+    if(isPromptConvertSkill) return false;
     /* ★ 用户铁律（最高优先级）：对齐只针对"全新创作委托"。
        —— 不为"后续操作"列死规则：正则白名单永远列不全（"开始写剧本正文"就漏过，导致二次对齐），
           用户已明确反对把后续操作方式规定死。改为按"本会话是否已开工"这一客观状态判断：
           聊天里已有 AI 正文产物 / fullAiText 已有内容 / 已有剧本目标锚点，都说明此前已完成对齐并开工；
-          此后用户说的任何话都是对既有创作的后续操作，一律按用户原话直接执行、零打扰、绝不再二次对齐。
-       —— 唯一例外：用户明确要"重写 / 新写 / 换剧 / 写一部新的"（wantsFreshScript）= 全新委托，需重新对齐九类信息。
+          此后用户说的多数话是对既有创作的后续操作，按用户原话直接执行、零打扰、不再二次对齐。
+       —— 例外（全新委托需重新对齐九类信息）：① 明确"重写 / 新写 / 换剧 / 写一部新的"；
+          ② 本轮指令带的《剧名》与现场剧名不同（换了剧），且不是"类似/参考《X》"的参考剧。
+          统一由 mfIsFreshCommission 判断，既不放过真新剧、也不给后续操作列死规则。
        —— 全新空白对话里的剧本助手指令仍强制对齐（无现场可续，必须先把指令讲清楚）。 */
     const isScriptSkill = (typeof currentSkillKey !== "undefined" && currentSkillKey === "a");
     const hasStartedWork = (typeof fullAiText === "string" && fullAiText.trim().length > 0)
                         || !!(chatBox && chatBox.querySelector(".msg.ai"))
                         || !!(typeof mfScriptGoal !== "undefined" && mfScriptGoal);
-    const isFreshCommission = (typeof wantsFreshScript === "function") && wantsFreshScript(userCmd);
+    const isFreshCommission = (typeof mfIsFreshCommission === "function") && mfIsFreshCommission(userCmd);
     if(isScriptSkill && hasStartedWork && !isFreshCommission) return false;   /* 已开工的后续操作：按原话放行 */
     if(isScriptSkill && !hasStartedWork){
         /* 全新对话的剧本助手指令：强制对齐九类信息，跳过复杂度正则 */
@@ -5620,7 +5846,7 @@ function mfMergeClarifyAnswer(answer){
              + "剧本正文一个字都不要写。必须停下来等用户审核、修改并明确确认后，才进入第二阶段写剧本正文。";
     }
     /* ★ 用户对齐卡里没讲清楚/不会写的项：由我综合原指令、已有设定与同类爆款惯例补齐，
-       并把补全结果显性写进大纲设定里供用户过目修改，绝不留空、绝不反过来追问用户。
+       并把补全结果显性写进大纲设定里供用户过目修改，绝不留空；但若发现影响剧情走向的重大缺口，仍可在合适节点向用户确认，不一味硬写。
        用户本轮在指令框补写的值优先级最高，覆盖我的补齐；画幅仍只认面板物理按钮。 */
     const missingNow = Array.isArray(p.missing) ? p.missing.filter((x)=>String(x||"").trim()) : [];
     if(missingNow.length){
@@ -5628,7 +5854,7 @@ function mfMergeClarifyAnswer(answer){
              + "以下信息用户未提供或不便填写：" + missingNow.join("；") + "。"
              + "请综合用户原话已给的题材/风格线索、窗口已有大纲设定，以及同类爆款剧的通行做法，替用户合理补齐成完整设定；"
              + "补齐结果必须在大纲/设定的对应位置显性写出（例如时代与服化道、主要/次要地点、人物姓名性别外观口头禅、主线爽点、系统/穿越等设定、每集时长），"
-             + "不要留空、不要含糊带过，也不要因此中断向用户提问。"
+             + "不要留空、不要含糊带过；若你发现某个缺口会显著影响剧情走向、补错代价很大，可在合适节点先向用户确认再写，不必一味硬写。"
              + "★ 优先级：用户在本轮指令框里补写的值 > 我的补齐；若用户补写与我的推断冲突，一律以用户补写为准。"
              + "★ 画幅例外：画幅只认创作面板「横屏剧/竖屏剧」物理按钮的锁定值，不得以补齐为由改写或另行指定画幅。";
     }
@@ -5669,13 +5895,25 @@ async function sendMessage(autoSourceText) {
     /* 断点续写（刷新中断后自动发起）：保留已吐半截稿、复用原 AI 消息节点，不新建、不清空。 */
     const isResuming = !!mfResumeMode;
     if(!isResuming) fullAiText = "";
+    /* ★ 窄口径保护（排队任务直达 sendMessage，不经过点「开始」的守卫，必须在这里也兜住）：
+       自动态下用户若输入换剧级全新委托，先清掉旧剧续写锚点，否则 isAutoContinue 会把新指令
+       当续写、带旧剧上文与集数锚点发出。mfIsFreshCommission 只认明确重写/新写或不同《剧名》，
+       普通修正、排队续写、断点续写指令都不会被误判。 */
+    const rawCmd = isResuming ? "" : String(userInput.value || "").trim();
+    const freshCommissionNow = !!(rawCmd && currentSkillKey === "a"
+        && typeof mfIsFreshCommission === "function" && mfIsFreshCommission(rawCmd));
+    if(freshCommissionNow && mfAutoContinue){
+        append("🔄 检测到全新委托，已停止旧剧的自动续写，按你的新指令处理。", "tip");
+        mfAutoContinue = null;
+    }
     const isAutoContinue = !!mfAutoContinue;
     const userCmd = isResuming
         ? ("【断点续写】从中断处继续完成本次任务" + (mfResumeUserNote ? "\n【用户对续写的修正（最高优先级，覆盖上文对应处）】\n" + mfResumeUserNote : ""))
         : userInput.value.trim();
     /* 本轮是否明确要"从头新写"（此时不带旧稿、不按连续修改处理）。
        自动续写 / 断点续写都是"接着往下写"，既非新写也非修改，故强制 WANT_FRESH 语义走独立续写分支。 */
-    const WANT_FRESH = !isAutoContinue && !isResuming && (currentSkillKey === "a") && wantsFreshScript(userCmd);
+    const WANT_FRESH = !isAutoContinue && !isResuming && (currentSkillKey === "a")
+        && (freshCommissionNow || wantsFreshScript(userCmd));
     /* 剧本目标集数锚点：用户明确要求多集时锁定，供自动续写按"实际写出 vs 目标"判定。
        —— 新写/重写：按本轮指令重设目标（没写集数则清空，避免沿用上一个剧的目标）；
           自动续写：沿用已有目标，不在此重设；
@@ -5711,10 +5949,23 @@ async function sendMessage(autoSourceText) {
             combinedContent += (combinedContent ? "\n\n" : "") + autoContinueDirective(mfAutoContinue);
         }else{
             const epReq = parseScriptEpisodeRequest(userCmd);
-            /* 连续修改模式：已设修改基准、且本轮不是明确要"新写/重写大纲/换剧名/新剧"时，
-               不再要求重出《剧名》大纲，避免在旧稿基础上修改却另起主题、改剧名。 */
-            const isRevision = !!buildBaseContextBlock() && !WANT_FRESH;
+            /* ★ 前向续写（"继续写还没写的/剩下的/往下写"）不是"修改已写稿"：
+               旧逻辑 isRevision 只看"有没有上文稿"，把续写新集也判成增量修改 →
+               模型只拿到"大纲+最近一集"围绕末尾场景打转，缺全剧路线图与禁复读约束，23场原地循环。
+               现在：前向续写强制不走 isRevision，并注入与自动续写同款的上文（路线图+进度台账+禁复读+最近2集）。 */
+            const forwardContinue = (typeof mfIsForwardContinue === "function") && mfIsForwardContinue(userCmd);
+            const isRevision = !forwardContinue && !!buildBaseContextBlock() && !WANT_FRESH;
             combinedContent += (combinedContent ? "\n\n" : "") + scriptEpisodeDirective(epReq, isRevision);
+            if(forwardContinue && !autoSourceText){
+                /* 手动前向续写：补一套完整续写上文，让模型知道全剧规划到哪、已写到哪、严禁复读。
+                   与下面 autoSourceText 分支互斥（自动续写/断点已自行带上文），避免重复灌入。 */
+                try{
+                    const creative = collectCreativeOutputs().map(x=>x.text).join("\n\n");
+                    const ctxText = creative || String(fullAiText || "");
+                    const ctx = buildContinuationContext(ctxText, collectWrittenEpisodeSet());
+                    if(ctx) combinedContent += (combinedContent ? "\n\n" : "") + ctx;
+                }catch(e){}
+            }
         }
     } else if (currentSkillKey === "b" || currentSkillKey === "d") {
         const epReq = parseScriptEpisodeRequest(userCmd);
@@ -6074,16 +6325,39 @@ async function sendMessage(autoSourceText) {
         if(degradeContinue) mfCtxDegradeNeeded = false;
         /* D｜写后复读/死循环检测：仅剧本技能、正常吐完、非中断时执行。
            命中 → 暂停自动续写、列出证据请用户确认；用户确认后才带防复读指令继续。
-           只对多集连写任务生效（有目标集数、本来会开下一批），单集/无目标只提示不拦。 */
+           ★ 放宽旧的 `&& mfScriptGoal` 硬守卫：无目标集数的"继续写还没写的" likewise 会原地打转，
+             旧逻辑因无目标直接跳过检测，正是本次 23 场失控无人拦截的原因。现在只要吐出正文就检测。
+             无目标时也拦（loopHold 走"按已写集号算下一批"通道，不依赖 mfScriptGoal 也能定位）。 */
         let loopHold = false;
         if(completedNormally && !interruptedDraft && currentSkillKey === "a"
-           && mfScriptGoal && !onlyReasoning && fullAiText && fullAiText.trim()){
+           && !onlyReasoning && fullAiText && fullAiText.trim()){
             let det = null;
             try{ det = mfDetectScriptLoop(fullAiText, mfCollectHistoryForLoop()); }catch(e){}
-            if(det){
-                if(typeof det.run === "number" && det.run >= MF_LOOP_ALERT){
-                    mfAutoContinue = null; mfOfferLoopHold(det); loopHold = true;
+            let loopHit = !!(det && typeof det.run === "number" && det.run >= MF_LOOP_ALERT);
+            let sceneDet = null;
+            if(!loopHit){
+                /* 逐字口径抓不住"场次递增但动作台词高度相似"的结构级复读，补一层检测 */
+                try{ sceneDet = mfDetectSceneLoop(fullAiText); }catch(e){}
+                if(sceneDet && sceneDet.similar>=3){
+                    loopHit = true;
+                    det = { kind:"scene", run:MF_LOOP_ALERT, episode:sceneDet.ep,
+                            excerpt:"第 "+sceneDet.ep+" 集内连续 "+sceneDet.similar+" 场动作/台词高度相似（共 "+sceneDet.total+" 场），疑似原地打转" };
                 }
+            }
+            if(loopHit){
+                mfAutoContinue = null; mfOfferLoopHold(det); loopHold = true;
+            }else{
+                /* ★ 机械兜底：集尾标记缺失 / 单集场次严重超标，只提醒不阻断、不改内容。
+                   让用户第一时间看到"这一集没写完或场次爆了"，可据此要求续写补完或重写，而不是静默交付。 */
+                try{
+                    const q = mfCheckScriptQuality(fullAiText);
+                    if(!q.ok){
+                        const parts = [];
+                        if(q.missingEnd.length) parts.push("第 "+q.missingEnd.join("、")+" 集缺少【第N集完】收尾（可能半句截断）");
+                        if(q.sceneOverflow.length) parts.push(q.sceneOverflow.map(x=>"第 "+x.ep+" 集 "+x.count+" 场（"+x.sec+" 秒，建议不超过 "+x.max+" 场）").join("；"));
+                        if(parts.length) append("⚠️ 交付自检提醒："+parts.join("；")+"。可在指令框说明要补完或重写该集。", "err");
+                    }
+                }catch(e){}
             }
         }
         /* 剧本分批自动续写：只有"正常吐完"或"上下文降级重试"才自动开下一批。
@@ -6305,6 +6579,17 @@ function initUI(){
         /* 若上轮已吐理解稿待确认、用户又点开始（回答填回指令框，或留空表示认可）→
            合并「原指令 + 理解稿 + 用户修正」，直接开工。合并后 pending 清空，不再重复探测。 */
         if(mfClarifyPending){
+            /* ★ 待确认态下若用户写了全新委托（换剧/重写/带新剧名），不要并进旧理解稿——
+               否则旧稿会一直压着新指令。清掉 pending，按新指令重新走对齐/开工。
+               全新对话的对齐卡（窗口无 AI 正文）不会被误判：mfLiveDramaTitle 取不到现场剧名。 */
+            const typedCmd = userInput.value.trim();
+            if(typedCmd && (typeof mfIsFreshCommission==="function") && mfIsFreshCommission(typedCmd)){
+                mfClarifyPending = null;
+                append("🔄 检测到全新委托，已放下上一条对齐稿，重新按你的新指令对齐…", "tip");
+                const blocked = await mfClarifyIfNeeded(typedCmd);
+                if(!blocked) sendMessage();
+                return;
+            }
             const p = mfClarifyPending;
             /* ★ 复读确认（loopHold）走"自动续写"通道，绝不再走断点续写：
                复读检测是在"整集已正常吐完"后触发的，fullAiText 是**完整正文**，不是半截稿。
@@ -6395,12 +6680,25 @@ function initUI(){
             return;
         }
         /* 只在"非生成中、非续写、非断点续写"的手动新指令上做开工前对齐：
-           复杂指令先吐理解稿让用户确认；简单指令/探测失败照常直接生成。 */
-        if(!isGenerating() && !mfAutoContinue && !mfResumeMode && !mfWasGenerating){
+           复杂指令先吐理解稿让用户确认；简单指令/探测失败照常直接生成。
+           ★ 窄口径例外：自动续写/断点续写/刚生成完这些自动态下，用户若输入的是"换剧级全新委托"
+             （明确重写/新写，或本轮《剧名》与现场剧名不同），仍必须先对齐——否则新剧会被旧续写锚点吞掉。
+             排队任务与断点修正照常跳过对齐，语义绝不触碰；生成中也不弹卡，避免打断吐字。 */
+        if(!isGenerating()){
             const cmd = userInput.value.trim();
-            if(cmd){
+            const inAutoState = !!mfAutoContinue || !!mfResumeMode || !!mfWasGenerating;
+            const freshNow = !!(cmd && typeof mfIsFreshCommission === "function" && mfIsFreshCommission(cmd));
+            if(cmd && (!inAutoState || freshNow)){
                 const blocked = await mfClarifyIfNeeded(cmd);
-                if(blocked) return;   /* 等用户确认理解稿，不发正式请求 */
+                if(blocked){
+                    /* 自动态下的全新委托已进入对齐：清掉旧剧的续写/断点锚点，
+                       否则用户确认后会带着旧剧目标与上文发出去。 */
+                    if(freshNow){
+                        mfAutoContinue = null; mfScriptGoal = null;
+                        mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+                    }
+                    return;   /* 等用户确认理解稿，不发正式请求 */
+                }
             }
         }
         sendMessage();
