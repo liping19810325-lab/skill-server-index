@@ -661,7 +661,7 @@
                 <div class="hist-menu" id="historyMenu"></div>
             </div>
             <button class="ctrl-btn download-btn" id="downloadAiBtn">下载产物 TXT</button>
-            <div class="status" id="skillStatus" title="📌 当前：尚未加载任何技能，请点选所需技能按钮">📌 当前：尚未加载任何技能，请点选所需技能按钮</div>
+            <div class="status" id="skillStatus" title="📌 当前：日常对话（未加载技能）｜点上方技能进入专业创作">📌 当前：日常对话（未加载技能）｜点上方技能进入专业创作</div>
             <span class="ref-badge" id="refBadge"></span>
             <button class="focus-btn" id="focusBtn" title="收起左侧配置栏，让输出窗口占满宽度">▤ 专注模式</button>
             <button class="ctrl-btn newtab-btn" id="newSessionBtn" title="新建一个前期创作台网页（干净会话，不打断当前生成）">新建对话</button>
@@ -851,8 +851,8 @@ let refStyleStatus = "idle";   // idle|parsing|done|fail
 let currentSkillKey = "";      // 当前技能 key：a/b/c/d/e/custom/空
 /* 当前技能是否允许随请求附带参考图。
    · c/e 美术技能：带图（原规则）。
-   · 未加载任何技能（currentSkillKey 为空）：也带图——用户可直接上传图 + 写「反推这张图的提示词」
-     之类的指令来测试识图，不必先点一个美术技能。
+   · 未加载任何技能（日常对话态）：也带图——用户可直接上传图聊天、识图、描述画面；
+     但不再自动按「反推提示词」处理（那是加载美术技能后的专业行为）。
    · a/b/d/custom 明确的文本技能：忽略参考图，避免纯文本接口报图片错误（原规则不变）。
    注意：这里只决定「技能侧是否允许带图」，最终是否真带还要看模型识图能力（见 sendMessage）。 */
 function skillAllowsImage(){
@@ -916,6 +916,14 @@ let currentProfileId = null;
 let fileStore = [];
 let currentSystemPrompt = "";
 let currentSkillName = "";
+/* ===== 日常对话态：未加载任何 Skill 时，指令框就是普通聊天 =====
+   · 不做九类对齐 / 理解探测 / 参考剧搜索，不注入剧本、集数、画幅、画风、提示词规则。
+   · 只在内存里保留最近 4 轮（8 条）user/assistant，刷新即失，不写产物历史与修改基准。
+   · 一旦加载 Skill（含自定义 / 恢复历史带技能）即清空，回到专业创作态。 */
+let mfDailyChatMemory = [];        // [{role:"user"|"assistant", content:"..."}]
+let mfDailyHintState = null;       // 提醒签名：null=本会话还没提示过，避免首轮「无素材」被误判成已提示
+const MF_DAILY_SYS = "你是漫流编导创作台的日常对话助手。正常、简洁地回答用户的各类问题。当前未加载任何创作 Skill：即使谈到剧本、分镜或提示词，也只作普通交流，不要直接产出这类专业格式的正文；可一句话建议用户点上方技能进入专业创作。不要主动追问剧名、集数、每集时长等创作参数。";
+function mfResetDailyState(){ mfDailyChatMemory = []; mfDailyHintState = null; }
 let abortController = null;
 /* 生成队列：吐字中用户再点「开始」时，把新指令快照压队，等当前吐字完成再依次执行。
    每个元素是一次 sendMessage 所需状态的完整快照（指令文本/技能/系统提示词/文件/画风/画幅/参考图）。
@@ -2266,7 +2274,7 @@ function restoreLiveSession(){
         if(skillStatusEl){
             skillStatusEl.innerText = currentSkillName
                 ? `✅ 当前已加载技能【${currentSkillName}】（已恢复上次现场）`
-                : "📌 当前：尚未加载任何技能，请点选所需技能按钮";
+                : "📌 当前：日常对话（未加载技能）｜点上方技能进入专业创作";
         }
         if(hadRefs && !refImages.length)
             append("ℹ️ 上次的参考图因本机存储配额未能恢复，请重新上传；其余内容均已恢复。", "tip");
@@ -2285,6 +2293,7 @@ function clearCurrentPage(){
     mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
     mfProjectId = "";   /* 清空即开新项目：下次生成会新建一条历史产物，不覆盖旧项目 */
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
+    mfResetDailyState();
     fileStore = []; refImages = []; customSkillList = [];
     userInput.value = "";
     if(tempInput) tempInput.value = "0.7";
@@ -2300,7 +2309,7 @@ function clearCurrentPage(){
     updateRefBadge();
     updateDownloadLabel();
     try{ renderStylePresets(); }catch(e){}
-    if(skillStatusEl) skillStatusEl.innerText = "📌 当前：尚未加载任何技能，请点选所需技能按钮";
+    if(skillStatusEl) skillStatusEl.innerText = "📌 当前：日常对话（未加载技能）｜点上方技能进入专业创作";
     /* 清空后的现场与新建对话完全一致：留一个空白页。
        提示直接写 DOM（不走 append，避免 scheduleLiveSave 把「已清空」写进快照），
        并取消可能还在排队的保存，确保刷新后是干净空白页。 */
@@ -3836,6 +3845,7 @@ function markSkillLoadFailed(msg){
     currentSystemPrompt = "";
     currentSkillName = "";
     currentSkillKey = "";
+    mfResetDailyState();   /* 加载失败退回日常态，不残留专业态上下文 */
     updateRefBadge();
     updateDownloadLabel();
     skillStatusEl.innerText = "⚠️ 技能加载失败，当前未加载任何技能模板（请重试或导入本地md技能）";
@@ -3871,6 +3881,7 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
         currentSystemPrompt = text;
         currentSkillName = nameMap[type];
         currentSkillKey = type;
+        mfResetDailyState();   /* 进入专业创作态：清掉日常聊天记忆与提醒标记 */
         updateRefBadge();
         updateDownloadLabel();
         skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
@@ -3892,6 +3903,7 @@ function loadCustomSkill(skillItem){
     currentSystemPrompt = skillItem.content;
     currentSkillName = skillItem.name;
     currentSkillKey = "custom";     // 自定义技能同样不带图，避免纯文本接口报错
+    mfResetDailyState();
     updateRefBadge();
     updateDownloadLabel();
     skillStatusEl.innerText = `✅ 当前已加载自定义技能【${currentSkillName}】`;
@@ -4309,13 +4321,14 @@ function loadHistoryRecordToChat(){
     currentSkillName = rec.skillName || "";
     currentSkillKey = rec.skillKey || "";
     currentSystemPrompt = rec.systemPrompt || "";
+    mfResetDailyState();   /* 载入历史即切换项目现场，日常记忆不跨项目带过去 */
     /* 切到这条历史产物的项目身份：载入后继续写/修改，都更新这一条，不新建产物 */
     mfProjectId = typeof rec.projectId === "string" && rec.projectId ? rec.projectId : "";
     fileStore = Array.isArray(rec.fileStore) ? rec.fileStore : [];
     renderFileList();
     updateRefBadge();
     updateDownloadLabel();
-    skillStatusEl.innerText = currentSkillName ? `✅ 当前已加载技能【${currentSkillName}】` : "📌 当前：尚未加载任何技能模板，请点击上方按钮";
+    skillStatusEl.innerText = currentSkillName ? `✅ 当前已加载技能【${currentSkillName}】` : "📌 当前：日常对话（未加载技能）｜点上方技能进入专业创作";
     closePreview();
     append("📜 已载入历史产物，可继续下载或送到画布。", "tip");
 }
@@ -5922,6 +5935,9 @@ async function mfDialogueIfNeeded(userCmd){
 async function mfClarifyIfNeeded(userCmd){
     mfClarifyPending = null;
     if(!userCmd) return false;
+    /* ★ 日常对话态（未加载任何 Skill）：不做九类对齐 / 理解探测 / 参考剧搜索，
+       也不弹任何开工确认——指令原样送进普通聊天。素材漏选 Skill 的提醒在 sendMessage 里单独给。 */
+    if(!currentSkillKey) return false;
     /* ★ 导演分镜助手(b/d)、美术画风助手(c/e)的活是"把已有剧本/文字按各自 Skill 规则
        转成生视频/生图提示词"，不是从零创作新剧委托——本来就不该走九类信息对齐。
        用户明确补充：这两个助手只按 Skill 规则转化即可。故一律直接放行，连复杂度正则都不看。 */
@@ -6076,6 +6092,25 @@ function mfMergeClarifyAnswer(answer){
     return out;
 }
 
+/* 日常态提醒：没加载 Skill 却传了文件 / 图片 / 选了画风时，给一条合并提示（不阻断本次聊天）。
+   签名按「有文件 / 有图片 / 有画风」生成，同一组合只提示一次；加载 Skill 后由 mfResetDailyState 清空。 */
+function mfMaybeDailyMaterialHint(cmd, files, images){
+    let stylePicked = false;
+    try{ stylePicked = selectedStylePresets().length > 0; }catch(e){}
+    const sig = (files && files.length ? "f" : "") + (images && images.length ? "i" : "") + (stylePicked ? "s" : "");
+    if(mfDailyHintState === sig) return;
+    mfDailyHintState = sig;
+    if(!sig){
+        append("💬 顺带一问：你想在漫流编导创作台做小说改编剧本 / 原创剧本，还是把已有剧本转成生图提示词、分镜生视频提示词？", "tip");
+        return;
+    }
+    const parts = [];
+    if(files && files.length) parts.push(files.length + " 个文件");
+    if(images && images.length) parts.push(images.length + " 张图片");
+    if(stylePicked) parts.push("画风预设");
+    append("💬 你已附带" + parts.join("、") + "，但还没加载 Skill。本次先按普通聊天处理；若要改编剧本或转成生图 / 分镜视频提示词，请点上方技能。", "tip");
+}
+
 async function sendMessage(autoSourceText) {
     /* 吐字中再点「开始」→ 新指令排队，不打断当前输出。
        drain 接力调用时 abortController 已为 null，isGenerating() 为 false，直接往下走。 */
@@ -6118,6 +6153,9 @@ async function sendMessage(autoSourceText) {
     const userCmd = isResuming
         ? ("【断点续写】从中断处继续完成本次任务" + (mfResumeUserNote ? "\n【用户对续写的修正（最高优先级，覆盖上文对应处）】\n" + mfResumeUserNote : ""))
         : userInput.value.trim();
+    /* 日常对话态：未加载任何 Skill，且不是断点续写 / 自动续写 / 跨页接力任务。
+       本分支下不注入任何专业流水线规则，只按普通聊天发请求。 */
+    const isDailyChat = !currentSkillKey && !isResuming && !isAutoContinue && !autoSourceText;
     /* 本轮是否明确要"从头新写"（此时不带旧稿、不按连续修改处理）。
        自动续写 / 断点续写都是"接着往下写"，既非新写也非修改，故强制 WANT_FRESH 语义走独立续写分支。 */
     /* ★ B 形态修正：对话式理解判为"同剧改稿"(rewrite/revise_*)时，"重写"不再触发从头新写——
@@ -6142,12 +6180,12 @@ async function sendMessage(autoSourceText) {
     const attachedFiles = fileStore.filter(x => x.checked);
     let combinedContent = "";
     if (attachedFiles.length > 0) {
-        combinedContent += "【附加剧本素材】\n";
+        combinedContent += isDailyChat ? "【附加文件】\n" : "【附加剧本素材】\n";
         for (const f of attachedFiles) {
             combinedContent += `--- 文件：${f.name} ---\n${f.content}\n\n`;
         }
     }
-    if (userCmd) combinedContent += "【用户指令】\n" + userCmd;
+    if (userCmd) combinedContent += isDailyChat ? userCmd : "【用户指令】\n" + userCmd;
     /* 集数强指令（注入在【用户指令】之后，与素材/画风段互不干扰）：
        剧本助手 a——默认只写第1集、指定几集出几集、大纲先出、多集附分集小纲；
        导演分镜助手 b/d——默认只把第1集剧本转提示词、指定几集转几集，强调集数≠组数；
@@ -6252,27 +6290,30 @@ async function sendMessage(autoSourceText) {
                 /* 参考图的文字画风锚用技能唯一识别的标题注入，并要求逐字复写进每条资产 */
                 combinedContent += `\n\n【技能画风提示词】\n已从用户上传的画风参考图中解析出如下「全剧统一画风锚」，这是本剧美术风格的最高优先级基准（高于从大纲推导的默认风格，也高于下方任何预选画风）：\n${refAnchorForSend}\n\n执行要求（强制）：请把上面这条画风锚整句逐字复写进本剧每一条资产（每张人物定妆立绘、每张四视图、每个场景、每张大远景、每个道具）提示词的 details: 末句；视觉要点融入材质、光影、色彩、取景描述；不得改写、缩写、换词，也不得只在部分资产使用。用户会把每一条提示词复制到画布单独文生图（不会携带参考图），因此画风必须完整写进每一条提示词的文字里，确保全部出图画风统一。若本条与【画风预选】冲突，以本条参考图画风锚为准。`;
             }
-        } else {
-            /* 未加载技能时：中性引导，不预设「只回画风」——让用户可自由反整图提示词/内容描述 */
+        } else if (!isDailyChat) {
+            /* 未加载美术技能但处于专业态：中性引导，不预设「只回画风」 */
             combinedContent += `\n\n【参考图】\n本次随请求附带 ${refImages.length} 张图片，请仔细识别图中的内容、主体、构图、色彩与风格；用户指令未指定时，可据此反推出完整的画面提示词。`;
         }
+        /* 日常对话态：图片本身已在 userContent 数组里，不再追加「反推提示词」这类专业指令。 */
     }
     /* 画风预选文字指令：有参考图时用"参考图优先"措辞；无图/回退时作为唯一视觉基准 */
-    const styleTxt = stylePresetPrompt(useImages);
+    const styleTxt = isDailyChat ? "" : stylePresetPrompt(useImages);
     if (styleTxt) combinedContent += styleTxt;
     /* 主动从两个美术技能提取的「对应画风提示词」（无图/回退时作唯一视觉基准）。
        有参考图文字锚时跳过：参考图画风已是最高优先级，预选段仅由上面的【画风预选】作文字补充，
        避免把两套画风锚同时写进同一条提示词造成冲突。 */
-    const artStyleTxt = activeStylePromptBlocks();
+    const artStyleTxt = isDailyChat ? "" : activeStylePromptBlocks();
     if (artStyleTxt && !refAnchorForSend) combinedContent += "\n\n【技能画风提示词】\n" + artStyleTxt;
     if (!combinedContent.trim() && !useImages) {
         alert(visFallback
-            ? "当前模型无法识别参考图，且你未预选画风、未写指令。请先在画风预选里选一种画风，或换用多模态模型。"
-            : "请输入指令，或者勾选剧本文件");
+            ? (isDailyChat
+                ? "当前模型无法识别参考图，且你还没输入想聊的内容。请直接输入文字，或换用多模态模型。"
+                : "当前模型无法识别参考图，且你未预选画风、未写指令。请先在画风预选里选一种画风，或换用多模态模型。")
+            : (isDailyChat ? "请输入想聊的内容，或上传文件 / 图片。" : "请输入指令，或者勾选剧本文件"));
         return;
     }
     if (!combinedContent.trim() && useImages) {
-        combinedContent = "【用户指令】\n请依据当前技能与所附画风参考图开始生成。";
+        combinedContent = isDailyChat ? "请看看这张图片。" : "【用户指令】\n请依据当前技能与所附画风参考图开始生成。";
     }
     /* 只选了画风、没写指令也没带文件时，补一句明确任务，避免请求里只有一段风格说明 */
     if (styleTxt && !userCmd && !attachedFiles.length && !autoSourceText && !useImages) {
@@ -6318,6 +6359,8 @@ async function sendMessage(autoSourceText) {
            自动续写/断点续写不强制回底，避免打断用户上滑查看前面已写好的集。 */
         if(!isAutoContinue) chatScrollBottom(true);
     }
+    /* 日常态的「漏选 Skill」提醒：有文件 / 图片 / 画风预选时给一条合并提示，不阻断本次聊天。 */
+    if(isDailyChat && !isResuming) mfMaybeDailyMaterialHint(userCmd, attachedFiles, refImages);
     mfResumeMode = false; mfResumeDom = null;   /* 本轮已消费续写状态；后续停止/清空不应再触发续写 */
     abortController = new AbortController();
     syncSendToCanvasBtn();
@@ -6333,14 +6376,15 @@ async function sendMessage(autoSourceText) {
     } else {
         userContent = combinedContent;
     }
-    const messagesArr = [
-        { role: "system", content: currentSystemPrompt || "你是专业漫剧编剧，严格按照用户要求创作" }
-    ];
+    /* 日常对话态：中性 system + 最近 4 轮聊天记忆；专业态沿用原来的技能 system，一行不变。 */
+    const messagesArr = isDailyChat
+        ? [{ role: "system", content: MF_DAILY_SYS }, ...mfDailyChatMemory]
+        : [{ role: "system", content: currentSystemPrompt || "你是专业漫剧编剧，严格按照用户要求创作" }];
     /* 连续对话：把「修改基准」的大纲设定 + 最近一集作为上文回灌（仅剧本技能、仅设过基准时）。
        放在 system 之后、本轮指令之前，让模型明确这是同一部剧的已有稿、本轮是增量修改。 */
     /* 自动续写时不注入"修改基准"上文（那套措辞是给增量修改用的，会误导续写），
        续写上文已由精简上下文放进 user 消息里。 */
-    const baseCtx = (WANT_FRESH || isAutoContinue) ? "" : buildBaseContextBlock();
+    const baseCtx = isDailyChat ? "" : ((WANT_FRESH || isAutoContinue) ? "" : buildBaseContextBlock());
     if(baseCtx) messagesArr.push({ role: "assistant", content: baseCtx });
     messagesArr.push({ role: "user", content: userContent });
     let onlyReasoning = false;   /* 函数级：finally 里判断是否把新稿设为修改基准时需要 */
@@ -6539,10 +6583,19 @@ async function sendMessage(autoSourceText) {
         try{ saveLiveSession(); }catch(e){}
         const completed = !!(fullAiText && fullAiText.trim());
         // 正常结束、用户点停止、请求异常三种情况都把已生成的产物写入历史（只写一次）
-        if (completed) saveHistoryToLocal();
+        // 日常聊天不写产物历史：两态分割，闲聊只留在聊天窗口与最近 4 轮记忆里
+        if (completed && !isDailyChat) saveHistoryToLocal();
+        /* 日常态把本轮问答收进轻量记忆（最近 8 条 / 4 轮），刷新即失，不落盘。 */
+        if (completed && isDailyChat) {
+            const memoryUser = String(userCmd || (attachedFiles.length ? "（我附上了文件）" : (refImages.length ? "（我附上了图片）" : "")));
+            mfDailyChatMemory.push({ role: "user", content: memoryUser });
+            mfDailyChatMemory.push({ role: "assistant", content: String(fullAiText || "") });
+            if (mfDailyChatMemory.length > 8) mfDailyChatMemory = mfDailyChatMemory.slice(-8);
+        }
         /* 只有正常生成完毕才把新稿设为修改基准；停止/异常的半成品不设基准，
-           避免下一轮基于半截稿修改。用户仍可双击任意历史回复重新指定基准。 */
-        if (completed && !onlyReasoning && aiMsgDom && aiMsgDom.isConnected && !chatBox.dataset.stoppedDraft) setBaseMsg(aiMsgDom, true);
+           避免下一轮基于半截稿修改。用户仍可双击任意历史回复重新指定基准。
+           日常对话态不设基准——那是创作态的增量改稿机制。 */
+        if (completed && !isDailyChat && !onlyReasoning && aiMsgDom && aiMsgDom.isConnected && !chatBox.dataset.stoppedDraft) setBaseMsg(aiMsgDom, true);
         const completedNormally = completed && !chatBox.dataset.stoppedDraft;
         const interruptedDraft = !!mfInterruptReason && !chatBox.dataset.stoppedDraft;  /* 非用户停止的中断 */
         const interruptReason = mfInterruptReason;
@@ -6609,6 +6662,10 @@ async function sendMessage(autoSourceText) {
             if(interruptedDraft && currentSkillKey === "a" && !!mfScriptGoal){
                 /* 剧本任务被意外中断：出"确认后续写"的理解稿，等用户点开始再带全文续写 */
                 mfOfferInterruptedResume(interruptReason);
+            }else if(isDailyChat && interruptedDraft){
+                /* 日常聊天中断：保留同一套断点续写机制，但文案去掉「开工 / 任务」这类专业腔。 */
+                mfClarifyPending = { cmd: "【接着回答】继续完成刚才的回答", brief: "刚才的回答中断了。点「开始」我会接着说完；也可以直接写新的问题。", advice: "", resume: true };
+                append("⏸ 回答中断了。点「开始」接着说，或直接输入新问题。", "tip");
             }else if(interruptedDraft){
                 /* #8：非剧本技能中断也要兑现"点开始继续"的承诺——设 resume 确认态，
                    让下次点「开始」走断点续写分支（buildResumeContext 对非剧本返回中断前内容接着写），
