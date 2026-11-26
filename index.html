@@ -359,7 +359,15 @@
         /* 修改基准：双击吐字窗口某条 AI 回复即设为「后续修改所依据的原稿」，左侧色条 + 顶部标签标示 */
         .msg.ai.ai-base { border-left: 3px solid var(--blue); background: var(--panel); border-radius: 0 8px 8px 0; padding: 8px 12px; position: relative; }
         .msg.ai.ai-base::before { content: "📌 修改基准 · 后续指令将在此稿基础上修改"; display: block; font-size: 11px; color: var(--blue); margin-bottom: 4px; }
+        /* 离线助手的可点追问按钮 */
+        .kb-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .kb-chip { border: 1px solid var(--blue); background: transparent; color: #93c5fd; border-radius: 999px; padding: 6px 13px; font-size: 12.5px; line-height: 1.5; cursor: pointer; transition: background .15s, color .15s; }
+        .kb-chip:hover { background: var(--blue); color: #fff; }
+        .kb-chip-help { border-color: var(--border2); color: var(--muted); }
+        .kb-chip-help:hover { background: var(--hover); color: var(--text); }
+        .input-wrap { flex-shrink: 0; }
         .input-row { display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+        .send-hint { text-align: right; font-size: 11px; color: var(--muted); padding: 2px 3px 0; user-select: none; }
         #userInput { flex: 1; min-height: 48px; padding: 11px 13px; border: 1px solid var(--border2); border-radius: 12px; font-size: 14px; line-height: 1.6; resize: vertical; background: var(--panel); color: var(--text); outline: none; }
         #userInput:focus { border-color: var(--blue); }
         #userInput::placeholder { color: var(--muted); }
@@ -675,10 +683,13 @@
         </div>
         <div id="chatBox"></div>
         <button type="button" class="jump-latest-btn" id="jumpLatestBtn" title="回到正在吐字的最新内容（用户上滑查看历史时自动出现）">↓ 回到最新吐字</button>
-        <div class="input-row">
-            <button class="ctrl-btn stop-btn" id="stopBtn">停止</button>
-            <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
-            <textarea id="userInput" placeholder="在这里写你的提示词/指令"></textarea>
+        <div class="input-wrap">
+            <div class="input-row">
+                <button class="ctrl-btn stop-btn" id="stopBtn">停止</button>
+                <button class="ctrl-btn start-btn" id="sendMsgBtn">开始</button>
+                <textarea id="userInput" placeholder="在这里写你的提示词/指令（Enter 发送，Shift+Enter 换行）"></textarea>
+            </div>
+            <div class="send-hint">Enter 发送 · Shift+Enter 换行</div>
         </div>
     </main>
 </div>
@@ -922,8 +933,151 @@ let currentSkillName = "";
    · 一旦加载 Skill（含自定义 / 恢复历史带技能）即清空，回到专业创作态。 */
 let mfDailyChatMemory = [];        // [{role:"user"|"assistant", content:"..."}]
 let mfDailyHintState = null;       // 提醒签名：null=本会话还没提示过，避免首轮「无素材」被误判成已提示
-const MF_DAILY_SYS = "你是漫流编导创作台的日常对话助手。正常、简洁地回答用户的各类问题。当前未加载任何创作 Skill：即使谈到剧本、分镜或提示词，也只作普通交流，不要直接产出这类专业格式的正文；可一句话建议用户点上方技能进入专业创作。不要主动追问剧名、集数、每集时长等创作参数。";
-function mfResetDailyState(){ mfDailyChatMemory = []; mfDailyHintState = null; }
+const MF_DAILY_SYS = "你是漫流编导创作台的日常对话助手。正常、简洁地回答用户的各类问题。当前未加载任何创作 Skill：即使谈到剧本、分镜或提示词，也只作普通交流，不要直接产出这类专业格式的正文；可一句话建议用户点上方技能进入专业创作。不要主动追问剧名、集数、每集时长等创作参数。"
+    + "【产品与算力常识】三个产品：漫流编导创作台（写剧本 / 转提示词）、漫流导演画布（把文字变成图 / 视频）、漫流AI剪辑台（时间轴剪辑并导出成片）。三档算力：漫流算力（预置模型 / 充值系统正在接入，暂为占位）、本机算力（自己电脑的 llama / Ollama / ComfyUI，免费不限量，首次接通花时间、之后本地算力自由）、第三方API（填接口地址 / Key / 模型名，按量计费）；三个网页的算力档位各自独立保存，需分别配置。上下文窗口 token 只对本机算力生效。"
+    + "【连接类问题】用户问怎么把电脑 / 本地模型（llama、Ollama、ComfyUI）/ 第三方API 与三个网页打通、联通、接通、连上、建联时：建议看左栏【📖 使用帮助 → 二、打通本机软件与第三方API】，说明帮助里的办法——用 WorkBuddy 完成本站与本地 AI 软件或第三方 API 的互通，告诉 WorkBuddy 软件名、网址和「要打通它们」这个诉求即可。不要编造具体端口号或配置项，细节以使用帮助为准。"
+    + "【引导时机】用户觉得接线麻烦时，可建议加使用帮助里的微信 onetone001 协助；用户想要更好的剧本 / 提示词效果时，可提一句加微信 onetone001 了解漫流特调大模型与 Skill 技能包；聊到本地算力时可提一句首次接通花时间、之后本地算力自由。每次最多一句、语气自然，不要每轮重复，不要编造价格或效果承诺。";
+function mfResetDailyState(){ mfDailyChatMemory = []; mfDailyHintState = null; mfKbAdShown = {}; mfKbAdRotation = 0; }
+
+/* ==================================================================
+   离线知识库聊天助手
+   未接入任何算力（默认「漫流算力」占位）时发不出模型请求：
+   用纯前端知识库 + 关键词打分匹配，让助手照样能互动，回答三个产品的
+   主要功能与算力接入方式，并在合适语境自然引导（微信 onetone001 /
+   特调模型与 Skill / 本地算力自由）。不发请求、不写产物历史。
+   ================================================================== */
+const MF_KB_ADS = {
+    contact: "自己配起来麻烦的话，可以直接加使用帮助里的微信 onetone001（抖音微信同号），让对方协助把本机算力或 API 接通。",
+    model  : "想要更好的剧本、生图 / 生视频提示词效果，可以加微信 onetone001 了解漫流特调大模型和 Skill 技能包——帮助里写了，这两个模型专门喂了大量小说与爆款漫剧数据。",
+    freedom: "第一次接通确实要花点时间，不过一旦接通就是本地算力自由：写剧本、出图出视频、剪片都在自己电脑上跑，不用再按次付费。"
+};
+let mfKbAdShown = {};        // 同类广告本会话最多出现一次，避免刷屏
+let mfKbAdRotation = 0;      // 没命中问题时轮换一句广告，做到「经常但不重复」
+function mfKbAd(type){
+    if(!type || mfKbAdShown[type]) return "";
+    mfKbAdShown[type] = 1;
+    return MF_KB_ADS[type] || "";
+}
+const MF_KB = [
+    { /* 0：连接类——保留「动作 + 对象」双命中，优先级最高，避免误伤创作指令 */
+      id:"connect", keywords:["打通","联通","接通","建联","怎么连","如何连","连上","接上","对接","接入"],
+      answer:"这个可以看左栏【📖 使用帮助 → 二、打通本机软件与第三方API】：用 WorkBuddy 完成本站与本地 AI 软件（llama / Ollama / ComfyUI）或第三方 API 的互通，告诉它软件名、网址，以及「要和漫流编导创作台 / 导演画布 / AI 剪辑台打通」这个诉求就行。\n补充两点：三个网页的算力档位各自独立保存，要分别配一次；漫流算力还在接入中，目前先选「本机算力」或「第三方API」。配好后回到指令框直接说话即可。",
+      chips:["本机算力怎么接？","第三方API怎么接？","三个网页为什么要分别配？"], ads:["freedom","contact"], help:true },
+    { id:"write", keywords:["创作台","编导台","写剧本","剧本创作","小说改编","原创剧本","能做什么","主要功能","怎么用","有哪些技能","提示词"],
+      answer:"漫流编导创作台负责「把文字做出来」：加载剧本创作 / 导演分镜 / 美术画风等技能后，可以写小说改编剧本、原创剧本，也能把剧本转成生图提示词、分镜生视频提示词；可以载入 TXT 文件（小说 / 大纲 / 设定 / 剧本都行）、上传画风参考图、预选画风；生成内容会存成本机历史产物，点【⇢ 送到画布】就能送进导演画布继续出图 / 出视频。没加载技能时，这个窗口就是普通聊天。",
+      chips:["画布能做什么？","三者怎么配合出片？","本机算力怎么接？"], ads:["model"], help:true },
+    { id:"canvas", keywords:["画布","导演画布","节点","工作流","生图","生视频","comfyui","连线","参考图节点","结果节点"],
+      answer:"漫流导演画布负责「把文字变成图 / 视频」：新建画布自带「提示词 → 生成」两个相连节点；按需加参考图 / 声音参考 / 视频参考节点，在生成节点选好引擎（本机 ComfyUI 工作流、第三方 API 的 Seedance / MiniMax H3 / Midjourney / GPT Image 等，或本机大语言模型），点运行会把连进来的素材一起提交，右侧自动生成结果节点，可预览、下载、再作为下一轮参考。多画布切换、Ctrl+Z 撤销、框选连线都支持，历史结果跨画布共享。",
+      chips:["创作台能做什么？","画布怎么接创作台的产物？","本机算力怎么接？"], ads:["model"], help:true },
+    { id:"editor", keywords:["剪辑台","ai剪辑","剪辑","时间轴","剪映","字幕","素材库","导出成片","轨道","从画布转入","转入素材"],
+      answer:"漫流 AI 剪辑台负责「把图 / 视频 / 音频剪成成片」：素材库拖进轨道就能剪；时间轴按剪映 6.0 布局，字幕固定最上层、视觉层可上下移动、音频固定最下层；上方一排 AI 按钮做 AI包装 / AI剪辑 / AI剪口播 / AI字幕 / AI博主字幕 / 录音；还能调片段属性、声音、动画、变速、调色 LUT、字幕，并可从导演画布一键转入素材，项目自动保存在本机。",
+      chips:["画布能做什么？","三者怎么配合出片？","怎么从画布转入素材？"], ads:["model"], help:true },
+    { id:"flow", keywords:["配合","流程","串起来","一起用","关系","分工","小说改编","从剧本到成片","整个流程","先做什么","怎么配合出片","三者"],
+      answer:"典型流程是：① 在创作台写剧本 / 出提示词（小说改编或原创都行）→ ② 点【⇢ 送到画布】把提示词变成图或视频 → ③ 在剪辑台把素材拖上轨道、配音字幕、导出成片。三个网页可以各用各的算力并行工作，比如创作台用第三方 API 写剧本、画布用本机 ComfyUI 出图出视频、剪辑台再做后期。",
+      chips:["创作台能做什么？","画布能做什么？","三种算力有什么区别？"], ads:["freedom","model"], help:true },
+    { id:"modes", keywords:["漫流算力","本机算力","第三方api","三种算力","算力模式","算力档位","区别","哪个算力","选哪个"],
+      answer:"三个网页都提供三档算力：\n· 漫流算力：默认档，预置模型 / 扫码充值 / 积分扣费正在接入，目前只是占位；\n· 本机算力：用你自己电脑上的 llama / Ollama / LM Studio / ComfyUI，免费不限量，第一次接通要花点时间；\n· 第三方API：填服务商的接口地址、Key 和模型名就能用，方便但按量计费。\n「上下文窗口 token（32K~1M）」只对本机算力生效，另两档自动跟随模型自适应。",
+      chips:["本机算力怎么接？","第三方API怎么接？","漫流算力什么时候开放？"], ads:["freedom","contact"], help:true },
+    { id:"local", keywords:["本机算力怎么接","本地模型","llama","ollama","lm studio","自动接通","扫描端口","桥接","本机软件"],
+      answer:"本机算力是接你自己电脑上的软件：\n· 纯文本大模型：llama-server / llama / Ollama / LM Studio 等，先在左栏点【⚡ 自动接通】扫描端口，或手动填含端口的完整地址；\n· 生图 / 生视频：ComfyUI，把工作流模板导入画布页，生成节点选对应工作流；\n· 最省事的办法：用 WorkBuddy 告诉它软件名、网址和「要和漫流创作台 / 画布打通」，让它帮你配。\n第一次接通确实要花点时间，但接好就是本地算力自由——后面写剧本、出图、出视频都在自己电脑上跑，不用按次付费。",
+      chips:["自动接通没反应怎么办？","第三方API怎么接？","三种算力有什么区别？"], ads:["contact"], help:true },
+    { id:"api", keywords:["第三方api","apikey","接口地址","baseurl","密钥","模型名","服务商","跨域","怎么配置"],
+      answer:"第三方 API 在左栏【算力总控 → 第三方API】里填三项：接口地址（Base URL）、API Key、模型名，核对服务商给的名称与余额即可。跨域报错要给服务端加 CORS 放行；模型名写错、余额不足、接口不支持图片都会报 400 / 401，按【使用帮助 → 七、常见报错】逐项排查。画布页也支持同样的 API，且创作台 / 画布 / 剪辑台三页要分别填一次。",
+      chips:["API 请求报错怎么办？","三个网页为什么要分别配？","本机算力怎么接？"], ads:["contact"], help:true },
+    { id:"independent", keywords:["各自独立","分别配","分别配置","三页","三个网页","同步","切档","独立保存"],
+      answer:"是的，三个网页的算力档位各自独立保存：创作台、导演画布、AI 剪辑台可以同时用不同算力并行工作，在任一页切档都不会改动另外两页（同一网页的多个标签页仍同步）。所以三个页面要分别配一次。画布页内部是两处联动：左侧【算力总控】和生成节点里的「生成引擎」任意一处切换，另一处立即跟随。",
+      chips:["三种算力有什么区别？","本机算力怎么接？","画布能做什么？"], ads:["freedom"], help:false },
+    { id:"token", keywords:["上下文","token","32k","64k","128k","256k","1m","自适应","截断"],
+      answer:"「上下文窗口 token（32K / 64K / 128K / 256K / 1M）」只对本机算力生效：写长剧本或全剧提示词时设太小会被截断。选「漫流算力」或「第三方API」时，这一栏会自动变成「上下文长度：跟随所选模型（自适应）」，不再发送 max_tokens，由模型和服务商决定；切回本机算力会恢复你上次设定的数字。",
+      chips:["本机算力怎么接？","三种算力有什么区别？"], ads:[], help:false },
+    { id:"manflowwhen", keywords:["漫流算力什么时候","什么时候开放","开放","充值","积分","扣费","预置模型","扫码"],
+      answer:"漫流算力是默认档，正在接入预置模型、扫码充值、积分与扣费系统，开放后无需配置、扫码充值就能直接用。目前它只是占位，点开始会提示先切换到「本机算力」或「第三方API」。想早点用上，可以先按【使用帮助 → 二】把本机算力或第三方 API 接通。",
+      chips:["本机算力怎么接？","第三方API怎么接？","三种算力有什么区别？"], ads:["freedom","contact"], help:true },
+    { id:"errors", keywords:["报错","错误","失败","无响应","连不上","加载失败","400","401","卡住","没反应","怎么办","排查"],
+      answer:"常见报错按这几类排查：\n· 技能加载失败：后端技能服务连不上，可先「导入本地 .md 技能」应急；\n· API 报错：核对地址、Key、模型名、余额与跨域；\n· 本机 / 局域网无响应：确认大模型软件在跑，点【⚡ 自动接通】重扫端口或手填完整地址，必要时给软件加跨域放行；\n· 带图报错：模型不支持图片输入，删参考图或换视觉模型；本地 Qwen3.8 这类视觉模块独立的文件要在 Llama 里一起加载。\n自己排查麻烦的话，也可以加帮助里的微信 onetone001 协助。",
+      chips:["本机算力怎么接？","第三方API怎么接？","怎么把电脑跟创作台打通？"], ads:[], help:true },
+    { id:"privacy", keywords:["隐私","上传服务器","密钥保存","本地保存","安全","会不会上传","数据"],
+      answer:"放心：所有 API Key、对话历史、历史产物、画布和参考图都只保存在你本机浏览器里，不会上传到服务器；源码里没有任何密钥。参考图只存在当前网页内存，刷新即丢。「清空本页」只清本页内容与画风预选，不会删本机历史产物和算力配置。",
+      chips:["创作台能做什么？","画布能做什么？","三种算力有什么区别？"], ads:[], help:false },
+    { id:"contact", keywords:["微信","联系","onetone","购买","定制","特调模型","技能包","效果更好","付费订阅"],
+      answer:"微信号是 onetone001（抖音微信同号）。使用帮助里写了：漫流特调大模型（Manflows-screenwriter-director 的 Q6_K / Q8_0 两个 gguf）写入了 12637 部小说和 8276 部爆款漫剧数据，专门做小说 / 剧本 / 提示词；剧本创作助手、导演分镜助手、美术画风助手三个 Skill 在扣子平台累计付费订阅 3 万+。需要购买模型或定制 Skill 包，加这个微信说明需求即可。另外接通本机算力后就是本地算力自由，长期用更划算。",
+      chips:["本机算力怎么接？","三种算力有什么区别？","创作台能做什么？"], ads:["freedom"], help:true }
+];
+const MF_KB_FALLBACK = {
+    id:"fallback",
+    answer:"我现在是离线助手模式：你还没接入算力，所以没法调用大模型自由聊天。不过我能回答三个产品（漫流编导创作台 / 漫流导演画布 / 漫流AI剪辑台）的主要功能，以及本机算力、第三方API 怎么接入。可以点下面的问题试试，或者看【📖 使用帮助】。",
+    chips:["创作台能做什么？","画布能做什么？","本机算力怎么接？","三种算力有什么区别？"],
+    ads:[], help:true
+};
+/* 打分匹配：长关键词权重高（如「本机算力怎么接」7 字 > 泛词「怎么接」3 字），
+   所以精确条目自然盖过泛化条目。连接类（connect）额外要求「动作 + 对象」双命中，
+   避免「配置人物设定」「设置画幅为竖屏」这类创作指令被误判成连接问题。
+   返回 null 表示没命中任何条目，走兜底欢迎语。 */
+function mfKbMatch(text){
+    const s = String(text || "").toLowerCase().replace(/\s+/g, "");
+    if(!s) return null;
+    let best = null, bestScore = 1;
+    MF_KB.forEach(item=>{
+        let sc = 0;
+        item.keywords.forEach(kw=>{ if(s.indexOf(kw) >= 0) sc += kw.length; });
+        if(item.id === "connect" && sc > 0){
+            /* 强连接动词（打通/接通/连上/接入…）加权，压过百科词条里的对象名；
+               但必须同时有技术对象，避免「配置人物设定」这类创作指令误命中。 */
+            const obj = /本机|本地|电脑|llama|ollama|comfyui|comfy|api|算力|画布|剪辑台|软件|服务|大模型|模型/.test(s);
+            if(obj) sc += 10; else sc = 0;
+        }
+        if(sc > bestScore){ bestScore = sc; best = item; }
+    });
+    return best;
+}
+function mfKbBuildAnswer(item){
+    let ads = item.ads || [];
+    if(item === MF_KB_FALLBACK){   // 没命中时轮换一句广告：经常出现但不重复刷屏
+        const order = ["freedom","contact","model"];
+        ads = [ order[mfKbAdRotation % order.length] ];
+        mfKbAdRotation++;
+        return item.answer + "\n\n💡 " + MF_KB_ADS[ads[0]];
+    }
+    const extra = ads.map(mfKbAd).filter(Boolean);
+    return item.answer + (extra.length ? "\n\n" + extra.map(x=>"💡 " + x).join("\n") : "");
+}
+/* 未接入算力时的本地答复：append 用户原话 + AI 答案（末尾带可点按钮），并记入最近 4 轮记忆。
+   按钮用 data 属性标记，事件委托统一绑在 chatBox 上（见 initUI），刷新恢复 DOM 后依然有效。 */
+function mfAnswerOffline(cmd){
+    const q = String(cmd || "").trim();
+    if(q) append("【用户】：" + q, "user");
+    const item = mfKbMatch(q) || MF_KB_FALLBACK;
+    const answer = mfKbBuildAnswer(item);
+    const div = document.createElement("div");
+    div.className = "msg ai";
+    div.innerText = "【AI】：" + answer;
+    const bar = document.createElement("div");
+    bar.className = "kb-actions";
+    (item.chips || []).forEach(label=>{
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "kb-chip";
+        b.setAttribute("data-kb-ask", label);
+        b.textContent = label;
+        bar.appendChild(b);
+    });
+    if(item.help){
+        const h = document.createElement("button");
+        h.type = "button"; h.className = "kb-chip kb-chip-help";
+        h.setAttribute("data-kb-help", "1");
+        h.textContent = "📖 打开使用帮助";
+        bar.appendChild(h);
+    }
+    if(bar.childNodes.length) div.appendChild(bar);
+    chatBox.appendChild(div);
+    chatScrollBottom(true);
+    scheduleLiveSave();
+    if(q){
+        mfDailyChatMemory.push({ role:"user", content:q });
+        mfDailyChatMemory.push({ role:"assistant", content:answer });
+        if(mfDailyChatMemory.length > 8) mfDailyChatMemory = mfDailyChatMemory.slice(-8);
+    }
+    return div;
+}
 let abortController = null;
 /* 生成队列：吐字中用户再点「开始」时，把新指令快照压队，等当前吐字完成再依次执行。
    每个元素是一次 sendMessage 所需状态的完整快照（指令文本/技能/系统提示词/文件/画风/画幅/参考图）。
@@ -6121,9 +6275,18 @@ async function sendMessage(autoSourceText) {
     /* 内部调用：只清上一轮可能残留的 abortController，保留 mfAutoContinue——
        自动续写靠 setTimeout 再次进入本函数，若这里清掉续写锚点，下一批就会被取消。 */
     stopGenerate(true);
-    /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位。
-       不发起任何请求、不计费，直接给出提示；原有本机算力 / 第三方API 链路完全不受影响。 */
+    /* 日常态轻量判定：早于算力检查，供「未打通算力时回答连接问题」使用。 */
+    const dailyChatHere = !currentSkillKey && !autoSourceText && !mfResumeMode && !mfAutoContinue;
+    /* 漫流算力：预置 API / 充值 / 积分 / 扣费系统尚未接入，本次仅占位，不发请求、不计费。
+       日常态下由离线知识库本地作答（产品功能 / 算力接入 / 报错 / 联系方式 + 互动按钮 + 引导），
+       让新用户在没接任何算力时也能互动；专业态（已加载 Skill）仍走原来的占位提示，行为不变。 */
     if(computeMode === "manflow"){
+        const offlineCmd = String(userInput.value || "").trim();
+        if(dailyChatHere){
+            userInput.value = "";
+            mfAnswerOffline(offlineCmd);
+            return;
+        }
         append("⚠️ 【漫流算力】即将开放：预置模型、扫码充值、积分与扣费系统正在接入中。当前请先在左栏【算力总控 → 算力模式】切换到「本机算力」或「第三方API」再开始。", "err");
         alert("漫流算力即将开放（扫码充值即可使用，正在接入中）。\n当前请先在左栏【算力总控 → 算力模式】切换到「本机算力」或「第三方API」。");
         return;
@@ -6831,6 +6994,17 @@ function initUI(){
     closePreviewBtn.addEventListener("click", closePreview);
     // 吐字窗口双击预览 / 在线编辑 / 保存
     chatBox.addEventListener("dblclick", (e)=> openChatPreview(e));
+    /* 离线助手追问按钮：事件委托（按钮是运行时生成的）。
+       点追问＝把问题填进指令框并走正常发送；点帮助＝直接打开使用帮助弹窗。 */
+    chatBox.addEventListener("click", (e)=>{
+        const helpBtn = e.target.closest && e.target.closest("[data-kb-help]");
+        if(helpBtn){ openHelpModal(); return; }
+        const chip = e.target.closest && e.target.closest("[data-kb-ask]");
+        if(chip){
+            const q = chip.getAttribute("data-kb-ask") || "";
+            if(q){ userInput.value = q; sendMessage(); }
+        }
+    });
     if(editPreviewBtn) editPreviewBtn.addEventListener("click", enterPreviewEdit);
     if(savePreviewBtn) savePreviewBtn.addEventListener("click", saveChatPreview);
     // 预览：右上角全屏 / 退出全屏（Esc 也能退出全屏）
@@ -6862,6 +7036,22 @@ function initUI(){
     if(sendCanvasNewBtn) sendCanvasNewBtn.addEventListener("click", ()=>{ closeSendCanvasModal(); deliverToCanvas("new"); });
     syncSendToCanvasBtn();
     stopBtn.addEventListener("click", pauseGenerate);   /* 暂停待确认：保留半截稿与目标，点开始补完；彻底放弃走「清空本页」 */
+    /* 指令框回车发送：Enter=发送、Shift+Enter=换行。
+       直接触发「开始」按钮的 click，与按钮共用同一段 handler（对齐确认/排队/离线答复全都在），
+       绝不另写一份发送逻辑，避免两条路径行为分叉。输入法组合态（拼音选词）不拦截，
+       用 isComposing + keyCode 229 双重判断；部分浏览器 compositionend 早于 keydown，
+       再记录时间戳兜底，避免刚选完字的那次 Enter 被当成发送。 */
+    let mfImeComposing = false, mfImeEndAt = 0;
+    userInput.addEventListener("compositionstart", ()=>{ mfImeComposing = true; });
+    userInput.addEventListener("compositionupdate", ()=>{ mfImeComposing = true; });
+    userInput.addEventListener("compositionend", ()=>{ mfImeComposing = false; mfImeEndAt = Date.now(); });
+    userInput.addEventListener("keydown", (ev)=>{
+        if(ev.key !== "Enter" || ev.shiftKey || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+        if(mfImeComposing || ev.isComposing || ev.keyCode === 229) return;   /* 输入法选词中的 Enter */
+        if(Date.now() - mfImeEndAt < 80) return;                            /* 选词结束瞬间的 Enter 兜底 */
+        ev.preventDefault();
+        sendMsgBtn.click();
+    });
     /* 必须包一层箭头函数：直接传 sendMessage 会把 click 的 PointerEvent 当第一个参数
        （即 autoSourceText）传入，导致每次普通点击都把 "[object PointerEvent]" 当"已附带文字"
        塞进请求上下文，污染模型输入。唯一的字符串来源只有跨页/续写调用。 */
