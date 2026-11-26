@@ -835,6 +835,9 @@ const STORAGE_KEY_LOCAL_BASE = "manflows_local_base";
 /* 本机地址清单：手填地址 + 自动接通扫到的服务统一存这里，两页（创作台 / 画布）共用同一份。
    每项 {base, label}；点「⚡ 自动接通」即把手填地址并入清单；下拉框列出全部，可选、可删。 */
 const STORAGE_KEY_LOCAL_BASES = "manflows_local_bases";
+/* 显式删除过的地址「墓碑」：三页共用。删除后不再被自动扫描 / 单一地址键补回，
+   只有用户重新手填该地址或点「⚡ 自动接通」才恢复，避免刷新后删掉的地址反复冒出来。 */
+const STORAGE_KEY_LOCAL_BASES_REMOVED = "manflows_local_bases_removed";
 /* 公网搜索（参考剧目情报增强）：博查 API Key + 本机中转服务地址，均只存本机浏览器 localStorage。
    默认本机服务 http://127.0.0.1:8788；部署到别的机器可改。Key 由前端随请求发给本机服务代调，不进网页源码。 */
 const STORAGE_KEY_BOCHA_KEY = "manflows_bocha_key";
@@ -4831,19 +4834,33 @@ function mfChatUrl(base){
    · 清单存 localStorage，创作台与画布共用同一键 STORAGE_KEY_LOCAL_BASES；
    · 兼容旧用户：仅有单个 manflows_local_base 时自动把它作为首条纳入清单；
    · 顺序：新加入的排在最前（最近保存的在上），按 base 去重。 */
+/* 墓碑读写：只记地址，不记标签；归一化后比较，避免 http/https、尾斜杠写法绕过。 */
+function mfGetRemovedBases(){
+    try{
+        const p = JSON.parse(safeStorage.get(STORAGE_KEY_LOCAL_BASES_REMOVED) || "[]");
+        return new Set(Array.isArray(p) ? p.map(x=>mfNormalizeBase(x)).filter(Boolean) : []);
+    }catch(e){ return new Set(); }
+}
+function mfSetRemovedBase(base, removed){
+    base = mfNormalizeBase(base); if(!base) return;
+    const s = mfGetRemovedBases();
+    if(removed) s.add(base); else s.delete(base);
+    try{ safeStorage.set(STORAGE_KEY_LOCAL_BASES_REMOVED, JSON.stringify(Array.from(s))); }catch(e){}
+}
 function mfLoadBaseList(){
     let arr = [];
     try { const raw = safeStorage.get(STORAGE_KEY_LOCAL_BASES); const p = raw ? JSON.parse(raw) : []; if(Array.isArray(p)) arr = p; } catch(e){}
+    const removed = mfGetRemovedBases();
     const seen = new Set(), out = [];
     arr.forEach(x => {
         const b = mfNormalizeBase(x && (x.base || x.url || (typeof x === "string" ? x : "")));
-        if(!b || seen.has(b)) return;
+        if(!b || seen.has(b) || removed.has(b)) return;
         seen.add(b);
         out.push({ base:b, label:String((x && x.label) || "") });
     });
-    /* 老的单一地址键若在清单里没有，补一条（不覆盖已有顺序） */
+    /* 老的单一地址键若在清单里没有，补一条（不覆盖已有顺序）；显式删过的不再补回 */
     const single = mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
-    if(single && !seen.has(single)) out.push({ base:single, label:"" });
+    if(single && !seen.has(single) && !removed.has(single)) out.push({ base:single, label:"" });
     return out;
 }
 function mfSaveBaseList(arr){
@@ -4859,10 +4876,10 @@ function mfSaveBaseList(arr){
 /* 把若干地址并入清单（去重、放最前），返回清单；未给 label 的地址按端口生成默认标签。 */
 function mfUpsertBases(bases){
     let list = mfLoadBaseList();
-    const incoming = [];
+    const incoming = [], removed = mfGetRemovedBases();
     (bases || []).forEach(b => {
         const norm = mfNormalizeBase(b && (b.base || b) || (typeof b === "string" ? b : ""));
-        if(!norm || incoming.some(x => x.base === norm)) return;
+        if(!norm || removed.has(norm) || incoming.some(x => x.base === norm)) return;
         const label = (b && b.label) ? String(b.label) : mfBaseDefaultLabel(norm);
         incoming.push({ base:norm, label });
     });
@@ -4908,6 +4925,7 @@ function mfRemoveBase(base){
     base = mfNormalizeBase(base);
     const list = mfLoadBaseList().filter(x => x.base !== base);
     mfSaveBaseList(list);
+    mfSetRemovedBase(base, true);   /* 墓碑：后续自动扫描 / 单一键补回都不得再加回来 */
     const input = mfEl("localBaseInput");
     const cur = mfCurrentBase();
     if(cur === base){
@@ -5156,6 +5174,7 @@ function mfSetLocalVision(choice){
 }
 function mfApplyLocalChoice(choice){
     if(!choice) return;
+    mfSetRemovedBase(choice.base, false);   /* 用户主动选用 = 恢复该地址，清掉删除墓碑 */
     const input = mfEl("localBaseInput");
     if(input) input.value = choice.base;
     safeStorage.set(STORAGE_KEY_LOCAL_BASE, choice.base);
@@ -5193,8 +5212,15 @@ async function mfDetectLocal({ quiet=false } = {}){
     if(btn && !quiet) btn.disabled = true;
     if(!quiet) mfSetLocalState("⏳ 正在扫描本机常用端口…");
     const bases = [];
-    const custom = mfNormalizeBase(mfEl("localBaseInput") ? mfEl("localBaseInput").value : "")
-                   || mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
+    const removed = mfGetRemovedBases();
+    let custom = mfNormalizeBase(mfEl("localBaseInput") ? mfEl("localBaseInput").value : "")
+                 || mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
+    const savedNow = mfNormalizeBase(safeStorage.get(STORAGE_KEY_LOCAL_BASE));
+    /* 静默扫描：用户显式删过的地址一律不参与；用户主动点「自动接通」则视为恢复使用 */
+    if(custom && removed.has(custom)){
+        if(quiet) custom = "";
+        else { mfSetRemovedBase(custom, false); removed.delete(custom); }
+    }
     /* 手填地址先并入清单——即使本次没扫到服务也要保存（用户点「自动接通」即保存的语义） */
     if(custom) mfUpsertBases([{ base:custom }]);
     if(custom) bases.push(custom);
@@ -5209,6 +5235,7 @@ async function mfDetectLocal({ quiet=false } = {}){
         // 同一端口的 127.0.0.1 与 localhost 是同一个服务，只保留一条（优先 127.0.0.1）
         const seen = new Set();
         found = found.filter(f => {
+            if(removed.has(f.base)) return false;   /* 显式删过的地址不再被扫描选中 */
             const port = (f.base.match(/:(\d+)$/) || [])[1] || f.base;
             if(seen.has(port)) return false;
             seen.add(port);
@@ -5236,6 +5263,18 @@ async function mfDetectLocal({ quiet=false } = {}){
     });
     /* 扫到的服务全部并入清单（带标签），手填地址排最前；下拉框统一从清单渲染 */
     mfUpsertBases(found.map(f => ({ base:f.base, label:f.label })));
+    /* ★ 静默扫描（刷新后自动跑）的切换策略，只在本机算力档位内生效，绝不切到别的算力档：
+       ① 用户当前地址在扫描结果里（通的）→ 保持不动，不被别的链路顶掉；
+       ② 用户当前地址没扫到（不通）→ 才切到第一条通的链路，优先保障可用；
+       ③ 墓碑里显式删掉的地址已在扫描阶段过滤，降级也不会把它找回来。 */
+    if(quiet){
+        const wanted = custom || savedNow;
+        const alive = wanted && found.find(f => f.base === wanted);
+        if(alive){ mfSetLocalVision(alive); mfRenderBaseList(wanted); return alive; }
+        if(found.length){ const pick = found[0]; mfApplyLocalChoice(pick); return pick; }
+        mfRenderBaseList(wanted || mfCurrentBase());
+        return null;
+    }
     /* 当前地址优先用手填的那条（用户明确填的就是想用的），否则用扫到的第一个 */
     const pick = found.find(f => f.base === custom) || found[0];
     mfApplyLocalChoice(pick);
@@ -6992,6 +7031,7 @@ function initUI(){
             const v = mfNormalizeBase(localBaseInput.value);
             if(!v) return;
             localBaseInput.value = v;
+            mfSetRemovedBase(v, false);   /* 用户重新手填 = 恢复该地址 */
             safeStorage.set(STORAGE_KEY_LOCAL_BASE, v);
             localConnReady = true;
             mfRenderBaseList(v);
@@ -7026,7 +7066,7 @@ function initUI(){
     mfRenderBaseList(savedBase || mfCurrentBase());
     /* 地址清单跨页同步：只刷新下拉选项，不动用户手填地址和当前生效地址 */
     window.addEventListener("storage", e=>{
-        if(e.key !== STORAGE_KEY_LOCAL_BASES) return;
+        if(e.key !== STORAGE_KEY_LOCAL_BASES && e.key !== STORAGE_KEY_LOCAL_BASES_REMOVED) return;
         const sel = mfEl("localServiceSelect");
         mfRenderBaseList(sel ? sel.value : mfCurrentBase(), true);
     });

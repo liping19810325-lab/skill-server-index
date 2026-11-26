@@ -3060,6 +3060,8 @@ const CV_KEY_LOCAL_MODEL = "manflows_local_model";
 /* 本机地址清单：与创作台共用同一键 manflows_local_bases（手填 + 扫描到的服务统一存这里）。
    点「⚡ 自动接通」即把手填地址并入清单；下拉框列出全部，可选、可删。 */
 const CV_KEY_LOCAL_BASES = "manflows_local_bases";
+/* 与创作台共用：显式删除过的地址墓碑，刷新后的扫描/单一键补回都不得再加回来 */
+const CV_KEY_LOCAL_BASES_REMOVED = "manflows_local_bases_removed";
 /* ===== 本机算力双模式：内置本地 / 自定义私有算力（与创作台共用同一份 localStorage 配置） =====
    本地模式的 127.0.0.1 / localhost 扫描与直连代码全部保留不动；
    私有模式只使用用户手填的 Strata / ComfyUI BaseURL，无协议默认补 https://，
@@ -3199,17 +3201,30 @@ function cvBindPrivateUI(){
     });
     window.addEventListener("storage",e=>{ if(e.key===CV_KEY_PRIVATE_COMPUTE) cvApplyPrivateUI(); });
 }
+function cvGetRemovedBases(){
+    try{
+        const p=JSON.parse(safeStorage.get(CV_KEY_LOCAL_BASES_REMOVED)||"[]");
+        return new Set(Array.isArray(p)?p.map(x=>cvNormBase(x)).filter(Boolean):[]);
+    }catch(e){ return new Set(); }
+}
+function cvSetRemovedBase(base,removed){
+    base=cvNormBase(base); if(!base)return;
+    const s=cvGetRemovedBases();
+    if(removed)s.add(base); else s.delete(base);
+    try{ safeStorage.set(CV_KEY_LOCAL_BASES_REMOVED,JSON.stringify(Array.from(s))); }catch(e){}
+}
 function cvLoadBaseList(){
     let arr=[];
     try{ const raw=safeStorage.get(CV_KEY_LOCAL_BASES); const p=raw?JSON.parse(raw):[]; if(Array.isArray(p)) arr=p; }catch(e){}
+    const removed=cvGetRemovedBases();
     const seen=new Set(), out=[];
     arr.forEach(x=>{
         const b=cvNormBase(x&&(x.base||x.url||(typeof x==="string"?x:"")));
-        if(!b||seen.has(b))return;
+        if(!b||seen.has(b)||removed.has(b))return;
         seen.add(b); out.push({base:b,label:String((x&&x.label)||"")});
     });
     const single=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
-    if(single&&!seen.has(single)) out.push({base:single,label:""});
+    if(single&&!seen.has(single)&&!removed.has(single)) out.push({base:single,label:""});
     return out;
 }
 function cvSaveBaseList(arr){
@@ -3228,10 +3243,10 @@ function cvBaseDefaultLabel(base){
     return (preset?preset.name:"本机服务")+" · "+String(base).replace(/^https?:\/\//i,"");
 }
 function cvUpsertBases(bases){
-    let list=cvLoadBaseList(); const incoming=[];
+    let list=cvLoadBaseList(); const incoming=[], removed=cvGetRemovedBases();
     (bases||[]).forEach(b=>{
         const norm=cvNormBase(b&&(b.base||b)||(typeof b==="string"?b:""));
-        if(!norm||incoming.some(x=>x.base===norm))return;
+        if(!norm||removed.has(norm)||incoming.some(x=>x.base===norm))return;
         incoming.push({base:norm,label:(b&&b.label)?String(b.label):cvBaseDefaultLabel(norm)});
     });
     if(!incoming.length) return list;
@@ -3242,6 +3257,7 @@ function cvRemoveBase(base){
     base=cvNormBase(base);
     const list=cvLoadBaseList().filter(x=>x.base!==base);
     cvSaveBaseList(list);
+    cvSetRemovedBase(base,true);   /* 墓碑：扫描/单一键补回都不得再加回来 */
     const cur=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
     if(cur===base){
         const next=list.length?list[0].base:"";
@@ -3344,9 +3360,10 @@ async function cvScanLocal(force){
     if(!force && cvLocalScanCache!==null && (fresh || Date.now()-cvLocalScanAt<30000)) return cvLocalScanCache;
     if(cvLocalScanRunning) return cvLocalScanRunning;
     cvLocalScanRunning=(async()=>{
+        const removed=cvGetRemovedBases();
         const saved=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
         const bases=[];
-        if(saved) bases.push(saved);
+        if(saved&&!removed.has(saved)) bases.push(saved);
         CV_LLM_PORT_PRESETS.forEach(p=>CV_LLM_HOSTS.forEach(h=>{
             const b="http://"+h+":"+p.port;
             if(!bases.includes(b)) bases.push(b);
@@ -3357,6 +3374,7 @@ async function cvScanLocal(force){
             found=settled.filter(r=>r.status==="fulfilled"&&r.value).map(r=>r.value);
             const seen=new Set();   /* 同端口 127.0.0.1 与 localhost 只留一条 */
             found=found.filter(f=>{
+                if(removed.has(f.base)) return false;   /* 显式删过的地址不再被扫描采纳 */
                 const port=(f.base.match(/:(\d+)$/)||[])[1]||f.base;
                 if(seen.has(port)) return false;
                 seen.add(port); return true;
@@ -3381,7 +3399,12 @@ async function cvAutoConnectLlm(opts){
     }
     /* 手填地址：点「自动接通」即并入清单保存（即使本次没扫到也保留） */
     const inp=el("cvLocalBaseInput");
-    const typed=cvNormBase(inp?inp.value:"");
+    const removed=cvGetRemovedBases();
+    let typed=cvNormBase(inp?inp.value:"");
+    if(typed&&removed.has(typed)){
+        if(o.silent) typed="";                              /* 静默扫描不复用已删地址 */
+        else { cvSetRemovedBase(typed,false); removed.delete(typed); }  /* 主动接通 = 恢复 */
+    }
     if(typed) cvUpsertBases([{base:typed}]);
     /* 创作台已经接通时，页面一打开就先显示同步状态，不等后台扫描跑完 */
     const saved0=cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE));
@@ -3396,6 +3419,29 @@ async function cvAutoConnectLlm(opts){
     if(found.length) cvUpsertBases(found.map(f=>({base:f.base})));
     const curBase=typed||saved0;
     cvRenderBaseList(curBase);
+    /* ★ 静默扫描（刷新后自动跑）：只在本机算力档位内切换，绝不切到别的算力档。
+       ① 当前地址在扫描结果里（通的）→ 保持；② 没扫到（不通）→ 用第一条通链路；
+       ③ 墓碑里显式删掉的地址已在扫描阶段过滤，降级不会找回来。 */
+    if(o.silent){
+        const wanted=typed||saved0;
+        const alive=wanted&&found.find(f=>f.base===wanted);
+        if(alive){
+            cvSetLlmState("✓ 已接通当前链路 "+alive.base.replace(/^https?:\/\//i,""),true);
+            return {base:alive.base,model:alive.model||String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim()};
+        }
+        if(found.length){
+            const pick=found[0];
+            cvSetRemovedBase(pick.base,false); removed.delete(pick.base);
+            safeStorage.set(CV_KEY_LOCAL_BASE,pick.base);
+            cvSetLlmState("✓ 原链路不通，已切到通的链路 "+pick.base.replace(/^https?:\/\//i,""),true);
+            refreshOpenWfSelects();
+            return {base:pick.base,model:pick.model||String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim()};
+        }
+        if(wanted){
+            cvSetLlmState("⚠ 当前链路 "+wanted.replace(/^https?:\/\//i,"")+" 暂未响应，未切换到其它链路",false);
+            return {base:wanted,model:String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim()};
+        }
+    }
     if(!found.length){
         if(typed){
             safeStorage.set(CV_KEY_LOCAL_BASE,typed);
@@ -3413,6 +3459,7 @@ async function cvAutoConnectLlm(opts){
     if(typed && found.some(f=>f.base===typed)) keep=found.find(f=>f.base===typed);
     else if(saved0 && found.some(f=>f.base===saved0)) keep=found.find(f=>f.base===saved0);
     else if(typed) keep={base:typed,model:""};   /* 手填地址即使没扫到也作为当前地址 */
+    cvSetRemovedBase(keep.base,false);   /* 主动接通 = 恢复该地址 */
     safeStorage.set(CV_KEY_LOCAL_BASE,keep.base);
     if(keep.model && !String(safeStorage.get(CV_KEY_LOCAL_MODEL)||"").trim())
         safeStorage.set(CV_KEY_LOCAL_MODEL,keep.model);
@@ -6718,12 +6765,14 @@ async function initUI(){
                 const v=cvNormBase(cvBaseInp.value);
                 if(!v) return;
                 cvBaseInp.value=v;
+                cvSetRemovedBase(v,false);   /* 重新手填 = 恢复该地址 */
                 safeStorage.set(CV_KEY_LOCAL_BASE,v);
                 cvSetLlmState("✓ 已手动指定 "+v.replace(/^https?:\/\//i,"")+"（点「⚡ 自动接通」可保存到下拉清单）",true);
             });
         }
         if(cvBaseSel) cvBaseSel.addEventListener("change",()=>{
             const v=cvNormBase(cvBaseSel.value); if(!v) return;
+            cvSetRemovedBase(v,false);   /* 主动选用 = 恢复该地址 */
             safeStorage.set(CV_KEY_LOCAL_BASE,v);
             if(cvBaseInp) cvBaseInp.value=v;
             cvSetLlmState("✓ 已切换到已保存地址 "+v.replace(/^https?:\/\//i,""),true);
@@ -6751,7 +6800,7 @@ async function initUI(){
         window.addEventListener("storage",e=>{
             if(e.key===KEY_API||e.key===KEY_CURR){ renderApiInfo(); refreshOpenModelSelects(); }
             if(e.key===KEY_MODELS){ renderModelLib(); refreshOpenModelSelects(); }
-            if(e.key===CV_KEY_LOCAL_BASES){ cvRenderBaseList(cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE))); }
+            if(e.key===CV_KEY_LOCAL_BASES||e.key===CV_KEY_LOCAL_BASES_REMOVED){ cvRenderBaseList(cvNormBase(safeStorage.get(CV_KEY_LOCAL_BASE))); }
             if(e.key===CV_KEY_LOCAL_BASE||e.key===CV_KEY_LOCAL_MODEL){
                 cvScanLocal(false);
                 renderApiInfo();

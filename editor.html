@@ -2269,8 +2269,8 @@ function computeLocal(){
    本地模式：本机地址 + 选填的 Llama-server API Key；私有模式：Strata BaseURL + 选填的 Strata Key。
    两种模式的 Key 互不串用，留空一律不带 Authorization 头。源码不内置任何域名与密钥。 */
 const ED_KEY_LOCAL_BASE="manflows_local_base", ED_KEY_LOCAL_MODEL="manflows_local_model",
-      ED_KEY_LOCAL_BASES="manflows_local_bases", ED_KEY_LLAMA="manflows_llama_api_key",
-      ED_KEY_PRIVATE="manflows_private_compute";
+      ED_KEY_LOCAL_BASES="manflows_local_bases", ED_KEY_LOCAL_BASES_REMOVED="manflows_local_bases_removed",
+      ED_KEY_LLAMA="manflows_llama_api_key", ED_KEY_PRIVATE="manflows_private_compute";
 function edFreshPrivateCfg(){ return {mode:"local",strataBase:"",strataKey:"",comfyBase:"",comfyToken:""}; }
 function edNormBase(v){
     let s=String(v||"").trim().replace(/\/+$/,"");
@@ -2356,16 +2356,29 @@ function edSetLocalState(msg,ok){
     box.textContent=msg; box.style.color=ok===true?"#a7f3d0":(ok===false?"#fca5a5":"");
 }
 /* 地址清单：与创作台 / 画布共用 manflows_local_bases，新加的排最前、按地址去重 */
+function edGetRemovedBases(){
+    try{
+        const p=JSON.parse(safeStorage.get(ED_KEY_LOCAL_BASES_REMOVED)||"[]");
+        return new Set(Array.isArray(p)?p.map(x=>edNormBase(x)).filter(Boolean):[]);
+    }catch(e){ return new Set(); }
+}
+function edSetRemovedBase(base,removed){
+    base=edNormBase(base); if(!base)return;
+    const s=edGetRemovedBases();
+    if(removed)s.add(base); else s.delete(base);
+    try{ safeStorage.set(ED_KEY_LOCAL_BASES_REMOVED,JSON.stringify(Array.from(s))); }catch(e){}
+}
 function edLoadBaseList(){
     let arr=[]; try{ const raw=safeStorage.get(ED_KEY_LOCAL_BASES); const p=raw?JSON.parse(raw):[]; if(Array.isArray(p)) arr=p; }catch(e){}
+    const removed=edGetRemovedBases();
     const seen=new Set(), out=[];
     arr.forEach(x=>{
         const b=edNormBase(x&&(x.base||x.url||(typeof x==="string"?x:"")));
-        if(!b||seen.has(b)) return;
+        if(!b||seen.has(b)||removed.has(b)) return;
         seen.add(b); out.push({base:b,label:String((x&&x.label)||"")});
     });
     const single=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
-    if(single&&!seen.has(single)) out.push({base:single,label:""});
+    if(single&&!seen.has(single)&&!removed.has(single)) out.push({base:single,label:""});
     return out;
 }
 function edSaveBaseList(arr){
@@ -2375,10 +2388,10 @@ function edSaveBaseList(arr){
     return out;
 }
 function edUpsertBases(bases){
-    let list=edLoadBaseList(); const inc=[];
+    let list=edLoadBaseList(); const inc=[], removed=edGetRemovedBases();
     (bases||[]).forEach(b=>{
         const norm=edNormBase(b&&(b.base||b)||(typeof b==="string"?b:""));
-        if(!norm||inc.some(x=>x.base===norm)) return;
+        if(!norm||removed.has(norm)||inc.some(x=>x.base===norm)) return;
         inc.push({base:norm,label:(b&&b.label)?String(b.label):""});
     });
     if(!inc.length) return list;
@@ -2396,6 +2409,7 @@ function edRenderBaseList(selectBase){
 function edRemoveBase(base){
     const list=edLoadBaseList().filter(x=>x.base!==base);
     edSaveBaseList(list);
+    edSetRemovedBase(base,true);   /* 墓碑：其它页扫描/单一键补回都不得再加回来 */
     if(edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE))===base){
         const next=list.length?list[0].base:"";
         if(next) safeStorage.set(ED_KEY_LOCAL_BASE,next); else try{ safeStorage.remove(ED_KEY_LOCAL_BASE); }catch(e){}
@@ -2421,14 +2435,18 @@ async function edProbeLlm(base){
 }
 const ED_LLM_PORTS=[9931,8080,11434,1234,8000,5000,1337,4891,5001,8081,3000];
 async function edScanLocal(){
+    const removed=edGetRemovedBases();
     const bases=[];
     const typed=edNormBase($("edLocalBaseInput")?$("edLocalBaseInput").value:"")||edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
-    if(typed) bases.push(typed);
+    if(typed&&!removed.has(typed)) bases.push(typed);
     ED_LLM_PORTS.forEach(p=>["127.0.0.1","localhost"].forEach(h=>{ const b="http://"+h+":"+p; if(!bases.includes(b)) bases.push(b); }));
     const settled=await Promise.allSettled(bases.map(edProbeLlm));
     const found=settled.filter(r=>r.status==="fulfilled"&&r.value).map(r=>r.value);
     const seen=new Set();
-    return found.filter(f=>{ const port=(f.base.match(/:(\d+)$/)||[])[1]||f.base; if(seen.has(port)) return false; seen.add(port); return true; });
+    return found.filter(f=>{
+        if(removed.has(f.base)) return false;   /* 显式删过的地址不再被扫描采纳 */
+        const port=(f.base.match(/:(\d+)$/)||[])[1]||f.base; if(seen.has(port)) return false; seen.add(port); return true;
+    });
 }
 async function edAutoConnectLlm(){
     if(edPrivateMode()){
@@ -2438,7 +2456,9 @@ async function edAutoConnectLlm(){
         return;
     }
     const inp=$("edLocalBaseInput");
-    const typed=edNormBase(inp?inp.value:"");
+    const removed=edGetRemovedBases();
+    let typed=edNormBase(inp?inp.value:"");
+    if(typed&&removed.has(typed)){ edSetRemovedBase(typed,false); removed.delete(typed); }  /* 主动接通 = 恢复 */
     if(typed) edUpsertBases([{base:typed}]);
     const saved=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
     if(!typed) edSetLocalState("⏳ 正在扫描本机大模型端口…");
@@ -2457,6 +2477,7 @@ async function edAutoConnectLlm(){
     if(typed&&found.some(f=>f.base===typed)) keep=found.find(f=>f.base===typed);
     else if(saved&&found.some(f=>f.base===saved)) keep=found.find(f=>f.base===saved);
     else if(typed) keep={base:typed,model:""};
+    edSetRemovedBase(keep.base,false);   /* 主动接通 = 恢复该地址 */
     safeStorage.set(ED_KEY_LOCAL_BASE,keep.base);
     const model=keep.model||String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"").trim();
     if(keep.model && !String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"").trim()) safeStorage.set(ED_KEY_LOCAL_MODEL,keep.model);
@@ -2487,7 +2508,7 @@ function edBindLocalUI(){
     const inpBase=$("edLocalBaseInput"), inpKey=$("edLlamaKey"), inpModel=$("edLocalModel");
     if(inpBase){
         inpBase.value=edNormBase(safeStorage.get(ED_KEY_LOCAL_BASE));
-        const save=()=>{ const v=edNormBase(inpBase.value); if(!v) return; inpBase.value=v; safeStorage.set(ED_KEY_LOCAL_BASE,v); edRenderBaseList(v); edSetLocalState("✓ 已手动指定 "+v.replace(/^https?:\/\//i,"")+"（可点「自动接通」保存到清单）",true); };
+        const save=()=>{ const v=edNormBase(inpBase.value); if(!v) return; inpBase.value=v; edSetRemovedBase(v,false); safeStorage.set(ED_KEY_LOCAL_BASE,v); edRenderBaseList(v); edSetLocalState("✓ 已手动指定 "+v.replace(/^https?:\/\//i,"")+"（可点「自动接通」保存到清单）",true); };
         inpBase.addEventListener("change",save);
         inpBase.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); inpBase.blur(); } });
     }
@@ -2510,7 +2531,7 @@ function edBindLocalUI(){
     });
     const delBtn=$("edDelBaseBtn"); if(delBtn) delBtn.addEventListener("click",()=>{ const sel=$("edBaseSelect"); if(sel&&sel.value) edRemoveBase(sel.value); });
     const sel=$("edBaseSelect"); if(sel) sel.addEventListener("change",()=>{
-        if(!sel.value) return; safeStorage.set(ED_KEY_LOCAL_BASE,sel.value);
+        if(!sel.value) return; edSetRemovedBase(sel.value,false); safeStorage.set(ED_KEY_LOCAL_BASE,sel.value);
         if(inpBase) inpBase.value=sel.value; edSetLocalState("✓ 已切换到 "+sel.value.replace(/^https?:\/\//i,""),true);
     });
     document.querySelectorAll('input[name="edConnectMode"]').forEach(r=>r.addEventListener("change",()=>{
@@ -2535,7 +2556,9 @@ function edBindLocalUI(){
         toast("私有算力配置已清空，已回到本机/局域网模式","ok");
     });
     window.addEventListener("storage",e=>{
-        if(!e||!e.key||!/^manflows_(local_base|local_model|llama_api_key|private_compute)$/.test(e.key)) return;
+        if(!e||!e.key) return;
+        if(e.key===ED_KEY_LOCAL_BASES||e.key===ED_KEY_LOCAL_BASES_REMOVED){ edRenderBaseList(); return; }
+        if(!/^manflows_(local_base|local_model|llama_api_key|private_compute)$/.test(e.key)) return;
         if(e.key===ED_KEY_LLAMA && inpKey) inpKey.value=String(safeStorage.get(ED_KEY_LLAMA)||"");
         if(e.key===ED_KEY_LOCAL_MODEL && inpModel) inpModel.value=String(safeStorage.get(ED_KEY_LOCAL_MODEL)||"");
         if(state.compute==="local") edApplyPrivateUI();
