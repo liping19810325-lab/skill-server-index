@@ -4606,8 +4606,9 @@ function mfBaseDefaultLabel(base){
     const host = String(base).replace(/^https?:\/\//i, "");
     return (preset ? preset.name : "本机服务") + " · " + host;
 }
-/* 渲染下拉框：列出清单，选中 selectBase（默认当前地址）。rowVisible 控制整行显隐。 */
-function mfRenderBaseList(selectBase){
+/* 渲染下拉框：列出清单，选中 selectBase（默认当前地址）。rowVisible 控制整行显隐。
+   keepMissing=true 时，若 selectBase 已被别的页面从清单移除，保留占位项而不改当前生效地址。 */
+function mfRenderBaseList(selectBase, keepMissing){
     const sel = mfEl("localServiceSelect");
     const row = mfEl("localPickRow");
     const list = mfLoadBaseList();
@@ -4620,6 +4621,15 @@ function mfRenderBaseList(selectBase){
     });
     const cur = mfNormalizeBase(selectBase || mfCurrentBase());
     if(cur && list.some(x => x.base === cur)) sel.value = cur;
+    else if(keepMissing && cur){
+        /* 跨页同步：别的页面删掉了当前选中地址时保留占位项，
+           只刷新下拉选项，不改用户手填地址和当前生效地址。 */
+        const o = document.createElement("option");
+        o.value = cur;
+        o.textContent = cur.replace(/^https?:\/\//i, "") + "（当前使用 · 清单已移除）";
+        sel.appendChild(o);
+        sel.value = cur;
+    }
     if(row) row.style.display = list.length ? "flex" : "none";
     return list;
 }
@@ -6280,7 +6290,10 @@ async function sendMessage(autoSourceText) {
     }
     const temperature = parseFloat(tempInput.value);
     const top_p = parseFloat(topPInput.value);
-    const max_tokens = parseInt(maxTokenInput.value);
+    const parsedMaxTokens = parseInt(maxTokenInput.value, 10);
+    const max_tokens = Number.isFinite(parsedMaxTokens)
+        ? Math.min(1048576, Math.max(64, parsedMaxTokens))
+        : 131072;
     const imgNote = useImages
         ? `、${refImages.length}张参考图`
         : (refImages.length > 0
@@ -6674,19 +6687,24 @@ function initUI(){
     const delBaseBtn = document.getElementById("delLocalBaseBtn");
     if(delBaseBtn) delBaseBtn.addEventListener("click", ()=>{
         const target = mfNormalizeBase(baseSel ? baseSel.value : (localBaseInput ? localBaseInput.value : ""));
-        if(!target){ toast("没有可删除的地址", "err"); return; }
+        if(!target) return;
         mfRemoveBase(target);
         const now = mfCurrentBase();
         if(localBaseInput) localBaseInput.value = now;
         if(now) mfSetLocalState("✓ 已删除 " + target + "，当前使用 " + now, "ok");
         else mfSetLocalState("✓ 已删除 " + target + "，清单已清空", "ok");
-        toast("已删除地址 " + target, "ok");
     });
     if(autoDetectBtn) autoDetectBtn.addEventListener("click", ()=> mfDetectLocal());
     const visionTestBtn = document.getElementById("visionTestBtn");
     if(visionTestBtn) visionTestBtn.addEventListener("click", ()=> mfTestVision());
     /* 页面加载即渲染已保存的清单下拉（不触发扫描），刷新后用户仍能选/删历史地址 */
     mfRenderBaseList(savedBase || mfCurrentBase());
+    /* 地址清单跨页同步：只刷新下拉选项，不动用户手填地址和当前生效地址 */
+    window.addEventListener("storage", e=>{
+        if(e.key !== STORAGE_KEY_LOCAL_BASES) return;
+        const sel = mfEl("localServiceSelect");
+        mfRenderBaseList(sel ? sel.value : mfCurrentBase(), true);
+    });
     if(computeMode === "local" && !mfPrivateMode()) setTimeout(()=> mfDetectLocal({ quiet:true }), 350);
 
     // 上下文窗口快捷值：统一事件绑定、恢复上次档位、当前档位高亮
