@@ -575,7 +575,7 @@
                     <input type="number" id="topPInput" min="0" max="1" step="0.05" value="0.9">
                 </div>
                 <div class="param-item param-token-row" id="tokenRow">
-                    <label>输出 token 上限（仅「本机算力」生效，即本次最多生成多少 token；写长剧本/全剧提示词时若设太小会被截断、只写前几集）：</label>
+                    <label title="仅「本机算力」生效，即本次最多生成多少 token；写长剧本/全剧提示词时若设太小会被截断、只写前几集。">输出 token 上限：</label>
                     <div class="token-row" style="margin-bottom:6px;">
                         <label style="white-space:nowrap;"><input type="checkbox" id="tokenAutoChk" checked> 自适应（不发送上限，跟随模型自身上下文，推荐）</label>
                     </div>
@@ -598,7 +598,7 @@
                     <div class="token-auto-hint">已选「漫流算力 / 第三方API」：这类模型的上下文普遍 256K 以上、甚至 1M（如 deepseek v4pro、gml5.3 等）。本站不再用本地显卡的 32K / 64K / 128K / 256K / 1M 档位去限制它，也<b>不向接口发送 max_tokens</b>，由所选模型与服务商按自身上限自适应；切回「本机算力」会恢复并保留你上次设定的数字。</div>
                 </div>
                 <div class="param-item param-token-row" id="thinkingRow">
-                    <label>推理思考（thinking，仅「本机算力」生效；Qwen3 / DeepSeek-R1 等推理模型可开启）：</label>
+                    <label title="thinking，仅「本机算力」生效；Qwen3 / DeepSeek-R1 等推理模型可开启。">推理思考：</label>
                     <div class="token-row">
                         <select id="thinkingSel" title="控制请求里的 chat_template_kwargs.enable_thinking 字段；不支持该字段的服务端会自动去掉后重试">
                             <option value="off">关闭思考（默认，直接拿正文）</option>
@@ -616,13 +616,13 @@
 
         <div class="card file-panel">
             <div class="file-head-row">
-                <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 剧本文件：点击选择，或直接把 TXT 拖到这里（一次一个，新文件替换旧文件）"><span class="ref-upload-plus">+</span><span class="ref-upload-text">载入剧本文件</span></button>
+                <button class="plus-upload-btn" id="plusUploadBtn" title="载入 TXT 文件（小说 / 大纲 / 设定 / 剧本等）：点击选择，或直接把 TXT 拖到这里（一次一个，新文件替换旧文件）"><span class="ref-upload-plus">+</span><span class="ref-upload-text">载入文件TXT</span></button>
                 <span class="card-title"><span class="hint-q" data-hint-toggle title="点我看剧本文件说明">?</span></span>
                 <button class="ref-upload-btn" id="refUploadBtn" title="上传画风参考图（最多 3 张）：点击选择，或直接把电脑里的图片拖到这里"><span class="ref-upload-plus">+</span><span class="ref-upload-text">上传画风参考图</span></button>
                 <input type="file" id="fileInput" accept=".txt">
                 <input type="file" id="refImageInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple>
             </div>
-            <div class="file-note fold-hint">仅支持TXT剧本上传（可先把docx另存为txt）</div>
+            <div class="file-note fold-hint">仅支持 TXT 文件上传（小说 / 大纲 / 设定 / 剧本均可，可先把 docx 另存为 txt）</div>
             <div class="ref-note fold-hint">
                 需模型支持识图（多模态）。
                 <label class="vision-mode-lbl" title="自动：本地模型以桥接探测到的视觉模块(mmproj)为准；第三方API按模型名识别，无法确认时按支持带图。选「支持」强制带图，选「不支持」强制回退预选画风。">识图能力
@@ -636,7 +636,7 @@
             <div class="ref-preview-list" id="refPreviewList"></div>
             <div class="ref-style-state" id="refStyleState" style="display:none">🎨 画风待解析</div>
             <div class="style-preset-box" id="stylePresetBox">
-                <div class="style-preset-head">🎨 画风预选 <span class="style-preset-tip">三组互斥只选一种；有参考图以图为准，模型不能识图时自动用此画风</span></div>
+                <div class="style-preset-head" title="三组互斥只选一种；有参考图以图为准，模型不能识图时自动用此画风">🎨 画风预选</div>
                 <div class="style-preset-rows">
                     <label class="style-preset-row" for="stylePreset2D"><span>2D</span><select id="stylePreset2D"></select></label>
                     <label class="style-preset-row" for="stylePreset3D"><span>3D</span><select id="stylePreset3D"></select></label>
@@ -1074,7 +1074,7 @@ const HELP_HTML = `
 
 <h2>五、画风参考图（仅美术技能可用）与画风预选</h2>
 <ul>
-<li>入口：【载入剧本文件】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 剧本）；支持点击选择，也支持直接把电脑里的图片拖到该按钮上上传；支持 jpg / jpeg / png / webp，最多 3 张。</li>
+<li>入口：【载入文件TXT】卡片右侧的【🖼 上传画风参考图】（左侧 + 号用于载入 TXT 文件，小说 / 大纲 / 设定 / 剧本均可）；支持点击选择，也支持直接把电脑里的图片拖到该按钮上上传；支持 jpg / jpeg / png / webp，最多 3 张。</li>
 <li>浏览器内自动压缩：长边超过 1024px 才等比缩放（小图不放大），统一转为 JPEG、质量 0.8；单张压缩后需 ≤1.5MB，仍超限会提示换图。</li>
 <li>图片以 base64 只存在当前网页内存，刷新或关闭页面即丢弃；不写入本地历史、不上传技能服务，只随你自己的大模型请求发送。</li>
 <li>带图技能：c 美术画风助手V5（通用全剧资产图提示词）、e 美术画风助手V5（Midjourney专用提示词）；a 剧本创作助手V5、b 导演分镜助手V5、d 导演分镜助手V5（MinimaxH3专用提示词）发送时自动忽略参考图，避免纯文本接口报图片错误。顶部工具条会显示当前是带上还是忽略。</li>

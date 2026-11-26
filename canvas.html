@@ -6286,7 +6286,7 @@ function renderWorkflowInfo(){
     sel.innerHTML="";
     if(!list.length){
         const o=document.createElement("option"); o.value=""; o.textContent="尚未导入工作流"; sel.appendChild(o);
-        el("workflowInfo").textContent="";
+        el("workflowInfo").textContent=""; el("workflowInfo").title="";
         el("mappingBox").value="{}";
         return;
     }
@@ -6301,8 +6301,11 @@ function renderWorkflowInfo(){
     const pn=(m.promptNodes||[]).length||(m.promptNode?1:0);
     const szN=comfySizeTargets(w.workflow).length;
     const frN=comfyFrameTargets(w.workflow).length;
-    el("workflowInfo").innerHTML='共 <b>'+list.length+'</b> 个模板 · 当前 <b>'+esc(w.name)+'</b>（'+(cvWfKind(w)==="video"?"生视频":"生图")+'，'+Object.keys(w.workflow).length+' 节点）<br>'+
-        '映射：提示词 '+pn+' 处（'+esc(m.promptNode||"未识别")+'） · 参考图 '+((m.imageNodes||[]).length)+' 路 · 声音 '+((m.audioNodes||[]).length)+' 路 · 视频 '+((m.videoNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处 · 宽高 '+szN+' 处'+(frN?(' · 帧数 '+frN+' 处'):'');
+    /* 面板只留「模板数 + 当前工作流名」；类型 / 节点数 / 映射详情移到悬停提示，保持面板清爽。 */
+    const wfInfo = el("workflowInfo");
+    wfInfo.innerHTML = '共 <b>'+list.length+'</b> 个模板 · 当前 <b>'+esc(w.name)+'</b>';
+    wfInfo.title = '（'+(cvWfKind(w)==="video"?"生视频":"生图")+'，'+Object.keys(w.workflow).length+' 节点）\n'
+        + '映射：提示词 '+pn+' 处（'+(m.promptNode||"未识别")+'） · 参考图 '+((m.imageNodes||[]).length)+' 路 · 声音 '+((m.audioNodes||[]).length)+' 路 · 视频 '+((m.videoNodes||[]).length)+' 路 · seed '+((m.seedNodes||[]).length)+' 处 · 宽高 '+szN+' 处'+(frN?(' · 帧数 '+frN+' 处'):'');
     el("mappingBox").value=mappingText();
 }
 el("workflowImport").addEventListener("change",async e=>{
