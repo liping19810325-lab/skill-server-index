@@ -365,6 +365,20 @@
         .kb-chip:hover { background: var(--blue); color: #fff; }
         .kb-chip-help { border-color: var(--border2); color: var(--muted); }
         .kb-chip-help:hover { background: var(--hover); color: var(--text); }
+        /* 吐字中提交的新指令：挂起待确认卡片（可编辑/删除，确认后才正式排队） */
+        .ps-card { border: 1px solid var(--border2); border-left: 3px solid #fbbf24; background: var(--panel);
+                   border-radius: 8px; padding: 10px 12px; margin: 10px 0; white-space: normal; }
+        .ps-head { color: #fbbf24; font-size: 12.5px; line-height: 1.6; margin-bottom: 8px; }
+        .ps-text { width: 100%; box-sizing: border-box; min-height: 84px; padding: 9px 11px; border: 1px solid var(--border2);
+                   border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
+                   line-height: 1.6; resize: vertical; outline: none; white-space: pre-wrap; }
+        .ps-text:focus { border-color: var(--blue); }
+        .ps-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+        .ps-btn { border: 1px solid var(--border2); background: transparent; color: var(--muted); border-radius: 999px;
+                  padding: 5px 13px; font-size: 12.5px; line-height: 1.5; cursor: pointer; transition: background .15s, color .15s; }
+        .ps-btn:hover { background: var(--hover); color: var(--text); }
+        .ps-btn.ok { border-color: var(--green); color: #6ee7b7; }
+        .ps-btn.ok:hover { background: var(--green); color: #fff; }
         .input-wrap { flex-shrink: 0; }
         .input-row { display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
         .send-hint { text-align: right; font-size: 11px; color: var(--muted); padding: 2px 3px 0; user-select: none; }
@@ -1647,7 +1661,9 @@ function resetPreviewEditor(){
 }
 function openChatPreview(ev){
     /* 双击某条 AI 回复：预览那条、并把它设为后续修改基准。
-       双击在空白/非 AI 区域时，退回最近一次产物（保持旧的整段预览行为）。 */
+       双击在空白/非 AI 区域时，退回最近一次产物（保持旧的整段预览行为）。
+       待确认卡片内（如双击选中指令文字）不弹预览，避免打断编辑。 */
+    if(ev && ev.target && ev.target.closest && ev.target.closest(".ps-card")) return;
     let target = null;
     if(ev && ev.target){
         const node = (ev.target.closest && ev.target.closest(".msg.ai")) || null;
@@ -2330,6 +2346,13 @@ function scheduleLiveSave(){
     liveSaveTimer = setTimeout(()=>{ liveSaveTimer = null; saveLiveSession(); }, 250);
 }
 function snapshotLiveSession(){
+    /* 待确认卡片的文字写在 textarea.value 里，innerHTML 快照抓不到；先把值同步回
+       textContent 节点，刷新恢复后卡片里的编辑内容才不会丢。 */
+    try{
+        chatBox.querySelectorAll(".ps-card .ps-text").forEach(ta=>{
+            if(ta.textContent !== ta.value) ta.textContent = ta.value;
+        });
+    }catch(e){}
     return {
         chatHtml: chatBox.innerHTML,
         fullAiText: fullAiText,
@@ -2495,9 +2518,12 @@ function stopGenerate(keepContinuation) {
         if(!mfStopQuiet) append("⚠️ 已停止生成", "tip");
     }
     if(!internal){
-        /* 用户主动停止 → 排队任务与自动续写一并撤销，避免"停了却又自动开始下一个"。
+        /* 用户主动停止 → 排队任务、待确认卡片与自动续写一并撤销，避免"停了却又自动开始下一个"。
            ★ 这段从 if(abortController) 里移出：没有 abortController 的间隙也要清。 */
         clearSendQueue();
+        /* 吐字中挂起的待确认指令一并撤销：这些卡片依赖"当前吐字完成后执行"的语境，
+           用户点停止就是放弃当前任务，留着会误导。静默移除，不额外刷提示。 */
+        try{ mfClearPendingCards(); }catch(e){}
         if(mfAutoContinue || mfScriptGoal){ mfAutoContinue = null; mfScriptGoal = null; if(!mfStopQuiet) append("🛑 已取消自动续写。", "tip"); }
         mfInterruptReason = "";   /* 用户停止=放弃中断续写，避免停止后又弹出确认框 */
         /* #6：用户主动停止/换技能 = 放弃待确认的理解稿（对齐稿/中断确认/复读确认），
@@ -2594,6 +2620,79 @@ function clearSendQueue(){
     const n = sendQueue.length;
     sendQueue = [];
     append("🗑️ 已清空 " + n + " 项排队任务。", "tip");
+}
+
+/* ===== 吐字中提交的新指令：专业创作态下先挂起待确认，不直接排队 =====
+   与 sendQueue 的区别：排队任务确认后自动执行；这里挂起的指令必须先由用户
+   二次确认（或编辑文字/删除）才正式入队，避免吐字途中写的新指令被误当成定稿。
+   数据全部挂在卡片 DOM 的 data 属性上，随 chatHtml 现场快照一起保存/恢复；
+   队列快照在确认那一刻才取，保证技能/画风/参考图以确认时的现场为准。 */
+let mfPendingSeq = 0;
+function mfHoldSubmit(){
+    const cmd = String((typeof userInput!=="undefined" && userInput) ? userInput.value : "");
+    const id = "ps" + (++mfPendingSeq) + "_" + Date.now().toString(36);
+    const card = document.createElement("div");
+    card.className = "msg ps-card";
+    card.dataset.psId = id;
+
+    const head = document.createElement("div");
+    head.className = "ps-head";
+    head.textContent = "⏸ 吐字中提交的新指令 · 待确认（当前生成不受影响）。可直接修改文字，或删除 / 确认提交；点「确认提交」后才会排到本次吐字完成后执行。";
+    card.appendChild(head);
+
+    const ta = document.createElement("textarea");
+    ta.className = "ps-text";
+    ta.value = cmd;
+    ta.placeholder = "在这里修改这条待提交的指令…";
+    ta.setAttribute("aria-label", "待确认的新指令，可编辑");
+    card.appendChild(ta);
+
+    const bar = document.createElement("div");
+    bar.className = "ps-actions";
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "ps-btn"; del.setAttribute("data-ps-act", "del");
+    del.textContent = "🗑 删除";
+    const ok = document.createElement("button");
+    ok.type = "button"; ok.className = "ps-btn ok"; ok.setAttribute("data-ps-act", "ok");
+    ok.textContent = "✅ 确认提交";
+    bar.appendChild(del); bar.appendChild(ok);
+    card.appendChild(bar);
+
+    chatBox.appendChild(card);
+    try{ userInput.value = ""; }catch(e){}   /* 指令已转移到卡片，输入框清空 */
+    chatScrollBottom(true);
+    scheduleLiveSave();
+    return card;
+}
+function mfDropPending(card){
+    if(!card || !card.parentNode) return;
+    card.parentNode.removeChild(card);
+    scheduleLiveSave();
+}
+function mfConfirmPending(card){
+    if(!card || !card.parentNode) return;
+    const ta = card.querySelector(".ps-text");
+    const edited = String(ta ? ta.value : "");
+    if(!edited.trim()){
+        append("⚠️ 这条待确认指令是空的，已保留卡片；请填写内容或点「删除」。", "err");
+        if(ta) ta.focus();
+        return;
+    }
+    mfDropPending(card);
+    const t = snapshotSendTask("");
+    t.userCmd = edited;                 /* 以用户编辑后的文字为准 */
+    sendQueue.push(t);
+    append("⏳ 已确认提交（第 " + sendQueue.length + " 项）：" + edited
+        + " —— 当前吐字完成后自动执行，无需重复点击。", "tip");
+    /* 若吐字已结束（用户在当前任务完成后才点确认），队列不会自动 drain，这里主动踢一脚 */
+    setTimeout(()=>{ drainSendQueue(); }, 0);
+}
+function mfClearPendingCards(){
+    const cards = chatBox.querySelectorAll(".ps-card");
+    if(!cards.length) return 0;
+    const n = cards.length;
+    cards.forEach(c=>{ if(c.parentNode) c.parentNode.removeChild(c); });
+    return n;
 }
 
 /* ===== 剧本分批自动续写（v2：以正文实际集号为准，不依赖模型自报标记）=====
@@ -6266,10 +6365,12 @@ function mfMaybeDailyMaterialHint(cmd, files, images){
 }
 
 async function sendMessage(autoSourceText) {
-    /* 吐字中再点「开始」→ 新指令排队，不打断当前输出。
+    /* 吐字中再提交新指令：专业创作态先挂起待确认卡片（可编辑/删除/二次确认），不打断当前输出；
+       日常对话态与自动化调用（跨页/续写/队列接力）照旧直接排队，行为不变。
        drain 接力调用时 abortController 已为 null，isGenerating() 为 false，直接往下走。 */
     if(isGenerating()){
-        enqueueSendTask(autoSourceText);
+        if(currentSkillKey && !autoSourceText) mfHoldSubmit();
+        else enqueueSendTask(autoSourceText);
         return;
     }
     /* 内部调用：只清上一轮可能残留的 abortController，保留 mfAutoContinue——
@@ -6997,6 +7098,16 @@ function initUI(){
     /* 离线助手追问按钮：事件委托（按钮是运行时生成的）。
        点追问＝把问题填进指令框并走正常发送；点帮助＝直接打开使用帮助弹窗。 */
     chatBox.addEventListener("click", (e)=>{
+        /* 待确认卡片的删除 / 确认提交：事件委托，刷新恢复 DOM 后依然有效 */
+        const psAct = e.target.closest && e.target.closest("[data-ps-act]");
+        if(psAct){
+            const card = psAct.closest(".ps-card");
+            if(card){
+                if(psAct.getAttribute("data-ps-act") === "del") mfDropPending(card);
+                else if(psAct.getAttribute("data-ps-act") === "ok") mfConfirmPending(card);
+            }
+            return;
+        }
         const helpBtn = e.target.closest && e.target.closest("[data-kb-help]");
         if(helpBtn){ openHelpModal(); return; }
         const chip = e.target.closest && e.target.closest("[data-kb-ask]");
