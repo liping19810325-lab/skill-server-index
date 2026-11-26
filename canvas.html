@@ -890,6 +890,20 @@ let canvas = {
 let selectedId = null;
 let selectedIds = new Set();          /* 框选 / Shift 多选：选中的节点 id 集合 */
 let resultHistory = [];               /* 素材库历史（跨画布全局存档）：{id,kind,url,name,ts,engine,prompt,docId,category} */
+/* 素材库历史上限：按条数与估算字节数裁剪（新条目在前，超限时丢最旧的），避免 data: 直链长期膨胀拖慢 loadCanvas */
+const CV_HISTORY_MAX_ITEMS = 200;
+const CV_HISTORY_MAX_BYTES = 20 * 1024 * 1024;
+function cvTrimResultHistory(){
+    let bytes = 0;
+    const kept = [];
+    for(const h of resultHistory){
+        if(!h || !h.url) continue;
+        const size = (String(h.url).length + String(h.prompt || "").length + String(h.name || "").length) * 2 + 256;
+        if(kept.length && (kept.length >= CV_HISTORY_MAX_ITEMS || bytes + size > CV_HISTORY_MAX_BYTES)) break;
+        kept.push(h); bytes += size;
+    }
+    if(kept.length !== resultHistory.length) resultHistory = kept;
+}
 let historyActiveDoc = null;          /* 素材库当前查看的画布 id；null=跟随当前画布；__legacy__=旧数据（无画布归属） */
 let historyMode = "asset";            /* asset=分类视图；raw=原生成结果（旧版历史结果网格） */
 let lbSeq=null, lbSeqIndex=-1, lbWheelTs=0;   /* 浮窗「可连续切换序列」：仅从历史结果预览时设置，供方向键/滚轮切换；普通预览为 null */
@@ -1165,6 +1179,7 @@ async function loadCanvas(){
     docList=g.docList.filter(d=>d&&d.id).map(d=>({id:String(d.id),name:String(d.name||"画布")}));
     if(!docList.length) docList=[{id:"c1",name:"画布1"}];
     resultHistory=Array.isArray(g.history)?g.history.filter(h=>h&&h.url&&h.kind):[];   /* 历史结果全局存档 */
+    cvTrimResultHistory();   /* 老数据可能在无上限时期已膨胀，载入时即裁剪 */
     docId=docList.some(d=>d.id===g.activeDocId)?g.activeDocId:docList[0].id;
     canvas=normalize({settings:g.settings||{}});
     let doc=null;
@@ -2305,8 +2320,15 @@ function ensurePlayableVideo(v,url,name){
             if(!r.ok) throw new Error("HTTP "+r.status);
             const raw=await r.blob();
             const blob=(raw.type&&/^video\//i.test(raw.type))?raw:new Blob([raw],{type:"video/mp4"});
-            v.src=URL.createObjectURL(blob);
+            const localUrl=URL.createObjectURL(blob);
+            v.src=localUrl;
             v.load();
+            /* 视频真正可播（或本地 blob 也失败）后回收，避免每次直连失败都泄漏一个 blob URL */
+            let revoked=false;
+            const revokeLocalUrl=()=>{ if(revoked) return; revoked=true; try{ URL.revokeObjectURL(localUrl); }catch(_){} };
+            v.addEventListener("loadeddata", revokeLocalUrl, {once:true});
+            v.addEventListener("loadedmetadata", revokeLocalUrl, {once:true});
+            v.addEventListener("error", revokeLocalUrl, {once:true});
             const p=v.play(); if(p&&p.catch) p.catch(()=>{});
             const old=v.parentNode&&v.parentNode.querySelector(".result-load-tip"); if(old) old.remove();
             setStatus("视频直连播放受限，已缓存到本地播放","ok");
@@ -6203,6 +6225,7 @@ async function cvRunGenerateNow(n){
                 engine:n.data.engine, prompt:(input.prompt||"").slice(0,120),
                 docId:docId, category:guessAssetCat(input.prompt,outKind)
             });
+            cvTrimResultHistory();
         }
         const parts=[];
         if(input.images.length) parts.push("参考图 "+input.images.length+" 张");
@@ -6221,10 +6244,7 @@ async function cvRunGenerateNow(n){
         refreshNodeDom(r.id); scheduleSave();
     }finally{
         n.data.busy=false;
-        const box=document.querySelector('.node[data-id="'+n.id+'"] .run-btn');
-        if(box){ box.disabled=false; box.textContent="▶ 运行生成"; }
-        const act=box&&box.querySelector('.node-actions .act-run');
-        if(act){ act.disabled=false; act.style.opacity=""; }
+        cvSetRunBtn(n, false, "▶ 运行生成");   /* 同时复位 .run-btn 与头部 ▶，避免选择器找错层级 */
         /* 本机算力队列任务完成：释放队列锁，调度下一个排队节点 */
         if(cvGenActiveId===n.id){ cvGenActive=false; cvGenActiveId=null; }
         scheduleSave();
@@ -6740,8 +6760,15 @@ async function initUI(){
         });
         resetHistory();   /* 初始化时渲染会补默认模型名，历史基线取最终稳定状态 */
         setStatus("就绪","ok");
-        cvAutoConnectLlm({silent:true});   /* 页面一打开就静默接通本机大模型，提示词节点随时可用 */
-        autoDetectComfy({silent:true});   /* 静默体检：只更新左侧状态灯，不改用户已填地址 */
+        /* 页面一打开就静默接通/体检：不 await，但要显式 catch，避免 Promise 异常静默消失 */
+        cvAutoConnectLlm({silent:true}).catch(e=>{
+            console.error("静默接通本机大模型失败：",e);
+            setStatus("静默接通本机大模型失败："+(e&&e.message?e.message:String(e)),"err");
+        });
+        autoDetectComfy({silent:true}).catch(e=>{
+            console.error("ComfyUI 静默体检失败：",e);
+            setStatus("ComfyUI 静默体检失败："+(e&&e.message?e.message:String(e)),"err");
+        });
     }catch(e){
         console.error("界面初始化异常：",e);
         setStatus("初始化异常："+e.message,"err");

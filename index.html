@@ -762,6 +762,10 @@ window.addEventListener('error', (ev) => {
     }catch(e){}
     ev.preventDefault();
 });
+/* 未处理的 Promise 异常只记 console，不写进 chatBox（避免一次性异常被产物快照永久保存） */
+window.addEventListener("unhandledrejection", (ev)=>{
+    console.error("全局捕获未处理的 Promise 异常：", ev.reason);
+});
 
 /* 安全存储：预览沙箱 / 隐私模式 / 禁用站点数据时，访问 localStorage 会抛 SecurityError。
    统一包装，绝不让存储读写中断脚本初始化，也不让配额超限抛到页面外。 */
