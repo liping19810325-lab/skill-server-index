@@ -1151,6 +1151,13 @@ let mfFixEpisodeTarget = 0;
    （不清零则默认照旧自动续写下一批，保证刷新/网络中断的断点续写行为不变）。
    finally 里消费一次；用户重新点停止/清空/走跳过半截时清零。 */
 let mfResumeHoldAfter = false;
+/* 换线重写（解除复读/死循环）：用户确认「从第N集换线重写」时，
+   mfRewindPlan={from,to,note,avoid}。本轮只重写重复涉及的这几集：
+   上下文只给剧情路线图 + 起点前最后一集衔接 + 已演情节点负面清单，
+   【绝不灌入 N 及之后那批互相重复的旧稿】——那是死循环的燃料。
+   产物按集号取最后生成的一版覆盖旧稿，旧消息打「已替换」标记；写完即停，
+   照旧跑复读检测闭环（命中就再拦一次），不自动一路写下去。 */
+let mfRewindPlan = null;
 /* 当前「项目产物」身份（历史产物按项目而非按轮次记录）：
    projectId 唯一标识一个项目（新对话/清空本页/换剧或换技能时换新），
    同一项目内的多次生成都更新同一条历史产物，不再每轮各建一条。
@@ -2427,6 +2434,8 @@ function snapshotLiveSession(){
         mfClarifyPending: (typeof mfClarifyPending !== "undefined" && mfClarifyPending && typeof mfClarifyPending === "object")
             ? JSON.parse(JSON.stringify(mfClarifyPending)) : null,
         mfResumeHoldAfter: !!mfResumeHoldAfter,
+        mfRewindPlan: (typeof mfRewindPlan !== "undefined" && mfRewindPlan && typeof mfRewindPlan === "object")
+            ? JSON.parse(JSON.stringify(mfRewindPlan)) : null,
         currentSkillKey: currentSkillKey,
         currentSkillName: currentSkillName,
         currentSystemPrompt: currentSystemPrompt,
@@ -2482,6 +2491,9 @@ function restoreLiveSession(){
         mfClarifyPending = (s.mfClarifyPending && typeof s.mfClarifyPending === "object"
             && typeof s.mfClarifyPending.cmd === "string") ? s.mfClarifyPending : null;
         mfResumeHoldAfter = !!s.mfResumeHoldAfter;   /* 暂停后补半截的「补完即停」意图随确认稿一起恢复 */
+        /* 换线重写计划：结构合法才恢复（防止损坏快照污染新一轮） */
+        mfRewindPlan = (s.mfRewindPlan && typeof s.mfRewindPlan.from === "number"
+            && typeof s.mfRewindPlan.to === "number" && s.mfRewindPlan.from >= 1) ? s.mfRewindPlan : null;
         /* 吐字中被刷新打断 → 标记待断点续写（真正发起在 initUI 末尾，等按钮绑定完成）。
            只有"上次生成中 + 确实吐出了半截稿"才值得续；空稿没有可接的内容，交给用户重新发指令。 */
         /* 只给「专业创作产物」保留断点续写：日常聊天被刷新打断不弹创作态的续写确认稿。 */
@@ -2536,7 +2548,7 @@ function clearCurrentPage(){
     /* #15：清空本页=等同新建对话，断点续写态也必须清干净，否则清空后点「开始」会被旧续写锚点接管。
        （sendQueue 已由上方 stopGenerate() 清空；画幅是面板物理按钮的全局态，按最高优先级保留不动。） */
     mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
-    mfResumeHoldAfter = false; mfFixEpisodeTarget = 0;
+    mfResumeHoldAfter = false; mfFixEpisodeTarget = 0; mfRewindPlan = null;
     mfProjectId = "";   /* 清空即开新项目：下次生成会新建一条历史产物，不覆盖旧项目 */
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     mfResetDailyState();
@@ -3562,6 +3574,105 @@ function buildFixEpisodeContext(ep){
         + (block || "（未定位到该集半截稿，请严格按大纲路线图补写这一集）")
         + "\n【失败半截稿结束 · 请从最后一个字直接往下补完，直到【第"+ep+"集完】】";
 }
+/* ===== 换线重写（解除复读/死循环）=====
+   ★ 核心认知：模型对「严禁复读」这类软指令免疫（否则第一次就不会卡住），
+     真正有效的是【换掉喂给它的上下文】——把导致打转的重复正文从注入里拿掉。
+   起点集取 det.occurrences 里最早那处（A 处）的集号；用户可在指令里覆盖。 */
+/* 从复读证据里取起点集（最早一处 A 的集号）与重复覆盖的最大集号 */
+function mfLoopSpan(det){
+    const eps = [];
+    try{
+        (det && det.occurrences || []).forEach(o=>{
+            const ep = parseInt(o && o.ep, 10);
+            if(ep>=1 && ep<=500) eps.push(ep);
+        });
+    }catch(e){}
+    if(!eps.length && det){
+        const ep = parseInt(det.episode, 10);
+        if(ep>=1 && ep<=500) eps.push(ep);
+    }
+    if(!eps.length) return null;
+    return { from: Math.min.apply(null, eps), to: Math.max.apply(null, eps) };
+}
+/* 已演情节点负面清单：只给要点（每条 20 字内），不给原文——避免把重复正文当燃料再喂回去 */
+function mfLoopAvoidPoints(det){
+    const out = [];
+    try{
+        (det && det.occurrences || []).slice(0,8).forEach(o=>{
+            const t = String((o&&o.text)||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean)[0] || "";
+            const s = t.replace(/^[△▲•·\-\s]+/, "").replace(/\s+/g," ").trim();
+            if(s.length>=4){ const p = s.slice(0,20) + (s.length>20?"…":""); if(out.indexOf(p)<0) out.push(p); }
+        });
+    }catch(e){}
+    return out.slice(0,6);
+}
+/* 识别「换线重写」意图：返回 {from, to, note} 或 null。
+   支持：单独写「3」= 用检测到的最早重复集；「从第71集换线重写」「从第71集换条线重写到第74集」；
+   「从第71集换线重写：改成锦衣卫查案」等（冒号后作为用户方向 note）。 */
+function mfParseRewind(cmd, det){
+    const s = String(cmd||"").trim();
+    if(!s) return null;
+    const span = mfLoopSpan(det);
+    const opt3 = /^[3３③三]$/.test(s);
+    const hasRewind = /换线|换条线|换条故事线|另起(?:一条|一)?(?:线|剧情|故事)|改换(?:情节|剧情|故事)线/.test(s);
+    if(!opt3 && !hasRewind) return null;
+    let from = span ? span.from : 0, to = span ? span.to : 0;
+    const mFrom = s.match(/(?:从|自)\s*第?\s*(\d+)\s*集/);
+    if(mFrom){ const n=parseInt(mFrom[1],10); if(n>=1&&n<=500) from=n; }
+    const mTo = s.match(/(?:到|至|[-–—~])\s*第?\s*(\d+)\s*集/);
+    if(mTo){ const n=parseInt(mTo[1],10); if(n>=from&&n<=500) to=n; }
+    if(!(from>=1 && from<=500)) return null;
+    if(!(to>=from && to<=500)) to = from;
+    /* 用户给的方向：去掉选项数字/触发句后剩下的文字 */
+    let note = s.replace(/^[3３③三][\s，,。：:\-]*/, "").trim();
+    note = note.replace(/^(?:请|帮我)?(?:从|自)?\s*第?\s*\d+\s*集?\s*(?:换线|换条线|换条故事线|重新|重)?\s*(?:重写|重做|改写|写)?/i, "").trim();
+    note = note.replace(/^[:：,，\s]+/, "").trim();
+    return { from, to, note, avoid: mfLoopAvoidPoints(det) };
+}
+/* 换线重写强指令：换掉情节线、不重出大纲、小批次、带用户方向与已演负面清单 */
+function mfRewindDirective(p){
+    const from=p.from, to=p.to, n=to-from+1;
+    return "【换线重写·解除复读死循环（最高优先级）】\n"
+        + "第 "+from+"–"+to+" 集此前正文因模型陷入大段逐字复读已作废，请按大纲路线图换一条全新的情节线重写这几集，用新稿替换旧稿。\n"
+        + "0) 严格沿用上文已确立的《剧名》、世界观、人物设定、集号、画幅与每集时长/场次；不重出大纲、不改剧名、不从第1集重写；\n"
+        + "1) 只输出第 "+from+"–"+to+" 集（共 "+n+" 集），每集以《剧名》第N集：开头、以【第N集完】单独收尾，满足技能规定的最低场次与成片时长；\n"
+        + "2) ★换线：按下方「剧情路线图」里第 "+from+"–"+to+" 集的规划推进，但改用与上一段正文【不同的事件、不同的冲突解决方式、不同的场景与人物行动】重新组织，"
+        + "绝不照着旧稿的台词/动作顺序再演一遍，也不复述下方「已演情节点」里的任何一条要点；"
+        + "口头禅、标志性动作、套路化钩子等有意重复不受限制，但不得以整段整场逐字复读的方式推进；\n"
+        + "3) 严禁输出其它集（尤其不得接着写第 "+(to+1)+" 集），严禁写「待续 / 是否继续写下一集」这类追问；"
+        + "本轮只交付第 "+from+"–"+to+" 集，写完即停，后续由用户决定是否续写；\n"
+        + (p.note ? "4) ★用户指定的换线方向（最高优先级，必须体现）："+p.note+"\n" : "");
+}
+/* 换线重写上文：只给路线图 + 起点前最后一集衔接 + 已演负面清单，
+   ★刻意不灌入第 from 集及之后的旧稿（那是复读燃料）。 */
+function buildRewindContext(p){
+    const from=p.from, to=p.to;
+    const parts = [];
+    /* 权威大纲（未截断）→ 全剧剧情路线图：让模型对这几集"该写什么"有锚点 */
+    let outline = "";
+    try{ if(typeof getAuthoritativeOutline === "function") outline = getAuthoritativeOutline() || ""; }catch(e){}
+    let roadmap = "";
+    try{ roadmap = buildStoryRoadmap(outline); }catch(e){}
+    if(roadmap){
+        parts.push("【全剧剧情路线图（换线必须按此规划的集数推进，但换一条新的事件线来表现）】\n" + roadmap);
+    }else if(outline.trim()){
+        parts.push("【全剧大纲（换线必须沿用其世界设定与人物，仅改写第 "+from+"–"+to+" 集的具体情节）】\n"
+            + outline.replace(/\n{3,}/g,"\n\n").trim().slice(0, MF_CTX_OUTLINE_MAX));
+    }
+    /* 起点前最后一集：只用于衔接人物状态/语气，明确要求不复述 */
+    const prev = from>1 ? (from-1) : 0;
+    if(prev){
+        const prevBlock = mfFindEpisodeBlock(prev);
+        if(prevBlock) parts.push("【第 "+prev+" 集正文（仅供衔接人物状态，严禁复述其中台词或镜头）】\n" + prevBlock.slice(-1200));
+    }
+    if(Array.isArray(p.avoid) && p.avoid.length){
+        parts.push("【已演情节点·负面清单（这些事件已经演过，换线时必须用不同事件，且不得照抄下列要点）】\n"
+            + p.avoid.map((x,i)=>(i+1)+". "+x).join("\n"));
+    }
+    parts.push("【上下文说明：第 "+from+" 集及之后的旧稿因复读已剔除，未随本请求提供。请从上面的路线图与第 "
+        +(prev||0)+" 集结尾衔接处，用全新事件重写第 "+from+"–"+to+" 集，不要试图回忆或复述旧稿。】");
+    return "【换线重写上文（已剔除导致复读的旧稿）】\n\n" + parts.join("\n\n");
+}
 /* ===== 中断后"确认再续写"（用户明确要求）=====
    网络/模型/超时等意外中断后，绝不自动往下写（模型会因缺上文另起炉灶）。
    改为出一份"开工前对齐"理解稿：告诉用户写到哪、接下来接哪集、沿用哪部剧，
@@ -3619,6 +3730,9 @@ function mfOfferLoopHold(det){
     const epText = det.episode ? "（出现在第 " + det.episode + " 集附近）" : "";
     /* 全部命中处逐条列出：集号 + 场次号 + 完整原文，用户可逐字比对，不再只给一处 180 字节选 */
     const occ = Array.isArray(det.occurrences) ? det.occurrences.filter(o=>o && typeof o === "object") : [];
+    /* 换线重写的起点/范围：取最早一处重复集的集号；用户可在指令里覆盖 */
+    const span = mfLoopSpan(det);
+    const spanText = span ? ("第 " + span.from + " 集" + (span.to>span.from ? ("–"+span.to+" 集") : "")) : "最早出现重复的那集";
     const occText = occ.length
         ? occ.map(o=>{
             const where = "第 " + (o.ep||"?") + " 集" + (o.scene ? " · 第 " + o.scene + " 场" : "");
@@ -3632,11 +3746,16 @@ function mfOfferLoopHold(det){
         + "· 当前正文实际写到第 " + writtenMax + " 集" + (total ? " / 目标第 " + total + " 集" : "") + "；"
         + (range ? "原本准备接着写第 " + range.from + "–" + range.to + " 集。" : "本次任务已写到目标。") + "\n"
         + "· 请判断：① 这是**有意设计的重复**（口头禅、反复玩梗、系列套路）——在指令框写「1」再点开始，照常续写下一集；"
-        + "② 确实是模型卡住了——在指令框写「2」再点开始，我会带上防复读指令重续；也可直接写处理意见（如「从第N集换条线重写」），按你的意见办。\n"
+        + "② 确实是模型卡住了、想直接往下续——写「2」再点开始，我会带上防复读指令重续；\n"
+        + "③ 想从重复的起点换条线重写（推荐）——写「3」再点开始：我会从 " + spanText + " 起，"
+        + "只把剧情路线图 + 起点前最后一集作上文（**导致复读的旧稿一律不喂给模型**），换全新事件重写这几集并替换旧稿，写完即停、再跑一次复读检测。"
+        + "也可在指令框直接写「从第N集换线重写到第M集：改成XX去查案」，你给的方向最高优先级；起点集可改成任意集号。\n"
         + "（留空直接点开始 = 按②带防复读指令续写。无论选哪个，都只会写第 " + (range ? range.from : (writtenMax + 1)) + " 集及之后的新集，绝不重演已写集。）\n"
         + "（正常创作里的口头禅、标志性动作、套路化钩子不受限制，只有**剧本正文**里大段逐字复读才会触发本确认；【人物状态】等每集必须一致的设定栏不参与比对。）\n"
-        + "（核对方法：在吐字窗口搜索上面任一句台词——若这些位置都出现同样文字就是真复读，选②；若只出现一次，可能是误报，选①照常续写。）";
-    mfClarifyPending = { cmd: "【疑似复读确认】按防复读指令继续接着写", brief: brief, advice: "", resume: true, loopHold: true };
+        + "（核对方法：在吐字窗口搜索上面任一句台词——若这些位置都出现同样文字就是真复读，选②或③；若只出现一次，可能是误报，选①照常续写。）";
+    /* 把复读证据随确认态存下来：用户选③时据此算起点/范围/负面清单，刷新后也不丢 */
+    mfClarifyPending = { cmd: "【疑似复读确认】按防复读指令继续接着写", brief: brief, advice: "", resume: true, loopHold: true,
+                         loopDet: (typeof JSON === "object" && det) ? JSON.parse(JSON.stringify(det)) : null };
     append("⚠️ 疑似陷入复读/死循环，生成已暂停，先跟你确认：\n\n" + brief, "tip");
 }
 /* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
@@ -6690,6 +6809,10 @@ async function sendMessage(autoSourceText) {
     const fixEp = (mfFixEpisodeTarget > 0 && currentSkillKey === "a") ? mfFixEpisodeTarget : 0;
     const isFixEpisode = fixEp > 0;
     mfFixEpisodeTarget = 0;
+    /* 换线重写（复读确认③）：立即消费全局计划，避免重入/自动续写重复触发 */
+    const rewindPlan = (mfRewindPlan && currentSkillKey === "a") ? mfRewindPlan : null;
+    const isRewind = !!rewindPlan;
+    mfRewindPlan = null;
     /* 本轮正文归属：未加载 Skill 的窗口（含日常聊天断点续写）只写 mfDailyAiText；
        专业创作态才写 fullAiText。两者绝不混用，避免闲聊被当成创作产物。 */
     const useDailyText = !currentSkillKey;
@@ -6700,7 +6823,7 @@ async function sendMessage(autoSourceText) {
        普通修正、排队续写、断点续写指令都不会被误判。 */
     const rawCmd = isResuming ? "" : String(userInput.value || "").trim();
     /* ★ 用窄口径"真的换剧"判断：同剧"重写/改稿"不再是全新委托，不会清掉续写锚点被当新剧推倒重来。 */
-    const freshCommissionNow = !!(rawCmd && !isFixEpisode && currentSkillKey === "a"
+    const freshCommissionNow = !!(rawCmd && !isFixEpisode && !isRewind && currentSkillKey === "a"
         && typeof mfIsTrulyNewDrama === "function" && mfIsTrulyNewDrama(rawCmd));
     if(freshCommissionNow && mfAutoContinue){
         append("🔄 检测到全新委托，已停止旧剧的自动续写，按你的新指令处理。", "tip");
@@ -6719,14 +6842,14 @@ async function sendMessage(autoSourceText) {
        只有理解判为 new（或没有对话理解、且确实命中换剧）才 WANT_FRESH，避免"整体重写"被当成新剧推倒重来。 */
     const dlgIntent = (typeof mfDialogueIntent !== "undefined" && mfDialogueIntent) ? mfDialogueIntent.intent : "";
     const dlgRevision = /^(rewrite|revise_outline|revise_episode)$/.test(dlgIntent);
-    const WANT_FRESH = !isAutoContinue && !isResuming && !isFixEpisode && (currentSkillKey === "a")
+    const WANT_FRESH = !isAutoContinue && !isResuming && !isFixEpisode && !isRewind && (currentSkillKey === "a")
         && !dlgRevision
         && (freshCommissionNow || (wantsFreshScript(userCmd) && typeof mfIsTrulyNewDrama === "function" && mfIsTrulyNewDrama(userCmd)));
     /* 剧本目标集数锚点：用户明确要求多集时锁定，供自动续写按"实际写出 vs 目标"判定。
        —— 新写/重写：按本轮指令重设目标（没写集数则清空，避免沿用上一个剧的目标）；
           自动续写：沿用已有目标，不在此重设；
           普通修改/续写指令：若带明确集数区间也更新目标，否则保留原目标。 */
-    if(currentSkillKey === "a" && !isAutoContinue && !isResuming && !isFixEpisode){
+    if(currentSkillKey === "a" && !isAutoContinue && !isResuming && !isFixEpisode && !isRewind){
         const g = parseScriptGoalFromCommand(userCmd);
         const singleEpOp = typeof mfIsSingleEpisodeDirective === "function" && mfIsSingleEpisodeDirective(userCmd);
         /* 定向单集操作（重写/补完第N集）只动那一集，绝不可把「共100集」的锚点改成「共44集」——
@@ -6755,6 +6878,10 @@ async function sendMessage(autoSourceText) {
            不走 scriptEpisodeDirective 的"默认只写第1集/重出大纲"那套，也不走修改基准。
            上下文（buildFixEpisodeContext）在下方 autoSourceText 段注入。 */
         combinedContent += (combinedContent ? "\n\n" : "") + mfFixEpisodeDirective(fixEp);
+    } else if (isRewind) {
+        /* ★ 换线重写：专用强指令 + 剔除重复旧稿的定向上下文；
+           不走 scriptEpisodeDirective 的"默认只写第1集/重出大纲"，也不走修改基准。 */
+        combinedContent += (combinedContent ? "\n\n" : "") + mfRewindDirective(rewindPlan);
     } else if (isResuming) {
         /* 断点续写走通用续写强指令，不触发任何技能的"重出大纲 / 指定集数"强指令，
            也不走"修改基准"分支——它已有半截稿作为上文，只需无缝接下去写。 */
@@ -6812,6 +6939,13 @@ async function sendMessage(autoSourceText) {
         try{
             const fixCtx = buildFixEpisodeContext(fixEp);
             if(fixCtx) combinedContent += (combinedContent ? "\n\n" : "") + fixCtx;
+        }catch(e){}
+    }
+    /* ★ 换线重写上文：只给路线图+起点前最后一集+已演负面清单，刻意不灌第 from 集及之后的重复旧稿 */
+    if(isRewind){
+        try{
+            const rwCtx = buildRewindContext(rewindPlan);
+            if(rwCtx) combinedContent += (combinedContent ? "\n\n" : "") + rwCtx;
         }catch(e){}
     }
     /* 跨页技能任务触发的自动开始：把上一页带过来的已有文字作为待处理素材送进模型，
@@ -7232,7 +7366,9 @@ async function sendMessage(autoSourceText) {
         if(holdAfterResume) mfResumeHoldAfter = false;
         /* ★ 单集补完替换：补完即停，绝不自动续写后续集（用户要的就是"只补这一集"）。 */
         const holdAfterFix = isFixEpisode && completedNormally && !interruptedDraft;
-        let continued = (loopHold || holdAfterResume || holdAfterFix) ? false : maybeAutoContinue(
+        /* ★ 换线重写：写完这几集即停，不自动续写后续集；上方复读检测照旧闭环再查一遍。 */
+        const holdAfterRewind = isRewind && completedNormally && !interruptedDraft;
+        let continued = (loopHold || holdAfterResume || holdAfterFix || holdAfterRewind) ? false : maybeAutoContinue(
             (completedNormally || degradeContinue) && !interruptedDraft && !onlyReasoning
         );
         if(holdAfterResume){
@@ -7259,6 +7395,34 @@ async function sendMessage(autoSourceText) {
                     }
                 }catch(e){}
                 append("✅ 第 "+fixEp+" 集已补完并替换（合并下载时以新稿为准）。已停下，不自动写后续集。", "tip");
+            }
+        }
+        if(isRewind){
+            mfAutoContinue = null;
+            if(completedNormally && !interruptedDraft && !loopHold){
+                /* 给本轮重写范围内、含旧稿的 AI 消息打「已替换」标记（伪元素，不进 innerText）。
+                   跳过本轮新建消息；本轮新稿按集号在合并下载时覆盖旧稿。 */
+                try{
+                    const nodes = Array.from(chatBox.querySelectorAll(".msg.ai"));
+                    const touched = [];
+                    for(let i=nodes.length-1;i>=0;i--){
+                        const n = nodes[i];
+                        if(n === aiMsgDom) continue;
+                        const p = parseScriptBlocks(msgFullText(n));
+                        if(!p || !p.episodes) continue;
+                        let has = false;
+                        for(let ep=rewindPlan.from; ep<=rewindPlan.to; ep++){ if(p.episodes.has(ep)){ has=true; break; } }
+                        if(has){
+                            n.classList.add("mf-superseded");
+                            n.setAttribute("data-mf-rewind", rewindPlan.from+"-"+rewindPlan.to);
+                            touched.push(n);
+                        }
+                    }
+                }catch(e){}
+                append("✅ 第 "+rewindPlan.from+"–"+rewindPlan.to+" 集已换全新情节线重写并替换（合并下载以新稿为准），旧稿未喂给模型。"
+                    + "已停下并复查复读；要继续写第 "+(rewindPlan.to+1)+" 集请明确写出再点开始。", "tip");
+            }else if(loopHold){
+                append("⚠️ 换线重写后复查仍疑似复读，已再次暂停。请查看上面的新证据再决定。", "err");
             }
         }
         if(!continued && !loopHold){
@@ -7553,7 +7717,19 @@ function initUI(){
             if(p.loopHold){
                 mfClarifyPending = null;
                 const typed = userInput.value.trim();
-                userInput.value = "";
+                /* ★ ③ 换线重写：从最早重复集起换全新情节线重写，上下文剔除重复旧稿。
+                   优先于 1/2 判定——单独的「3」或「从第N集换线重写…」都走这条专用通道。 */
+                const rw = mfParseRewind(typed, p.loopDet || null);
+                if(rw){
+                    userInput.value = "";
+                    mfAutoContinue = null; mfScriptGoal = null;
+                    mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = ""; mfResumeHoldAfter = false;
+                    mfRewindPlan = rw;
+                    append("🔄 收到换线重写：从第 "+rw.from+" 集"+(rw.to>rw.from?("–"+rw.to+" 集"):"")
+                        + " 换全新情节线重写，旧稿不喂给模型，写完即停并再查一次复读…", "tip");
+                    sendMessage();
+                    return;
+                }
                 /* #12：把纯选项 1/2 与"自由处理意见"区分开——
                    1=有意重复（照常续写，不带防复读指令）；2=确实卡住（带防复读指令）；
                    只有其它文字才是用户处理意见原文。旧代码只排除"1"，导致输入"2"被当作
