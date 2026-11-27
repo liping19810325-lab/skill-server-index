@@ -348,13 +348,17 @@
         #chatBox { flex: 1 1 auto; min-height: 0; border: 1px solid var(--border); padding: 16px 18px; border-radius: 12px; overflow-y: auto; overflow-anchor: none; background-color: var(--card); }
         #chatBox::-webkit-scrollbar { width: 6px; }
         #chatBox::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-        /* 上滑查看早期剧本时暂停跟随，「回到最新」按钮浮在吐字窗右下（输入行之上） */
-        .jump-latest-btn { display: none; position: absolute; right: 26px; bottom: 74px; z-index: 15;
+        /* 吐字窗右上/右下两个跳位按钮：相对 #chatArea 定位，不受顶部工具条换行影响。
+           「回到开头」离顶才出现，「回到末尾」离底才出现；半透明小钮，尽量少挡正文。 */
+        #chatArea { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+        .jump-top-btn, .jump-latest-btn { display: none; position: absolute; right: 18px; z-index: 15;
             padding: 8px 14px; border-radius: 999px; border: 1px solid var(--blue);
             background: var(--panel); color: var(--blue); font-size: 12.5px; line-height: 1; cursor: pointer;
-            box-shadow: 0 6px 18px rgba(0,0,0,.35); }
-        .jump-latest-btn.show { display: inline-flex; align-items: center; gap: 5px; }
-        .jump-latest-btn:hover { background: var(--hover); }
+            box-shadow: 0 6px 18px rgba(0,0,0,.35); opacity: .82; }
+        .jump-top-btn { top: 14px; }
+        .jump-latest-btn { bottom: 14px; }
+        .jump-top-btn.show, .jump-latest-btn.show { display: inline-flex; align-items: center; gap: 5px; }
+        .jump-top-btn:hover, .jump-latest-btn:hover { background: var(--hover); opacity: 1; }
         .msg { margin: 10px 0; line-height: 1.8; white-space: pre-wrap; font-size: 14.5px; word-break: break-word; }
         .user { color: #60a5fa; }
         .ai { color: var(--text); }
@@ -704,8 +708,11 @@
             <a class="ctrl-btn editor-nav-btn" id="openEditorBtnIndex" href="./editor.html" target="_blank" rel="noopener noreferrer" title="打开漫流 AI 剪辑台（新标签页）">✂ AI剪辑台</a>
             <a class="ctrl-btn home-btn" id="homeBtn" href="https://manflows.cn/" target="_blank" rel="noopener noreferrer" title="打开漫流主站（新标签页）">漫流主站</a>
         </div>
-        <div id="chatBox"></div>
-        <button type="button" class="jump-latest-btn" id="jumpLatestBtn" title="回到正在吐字的最新内容（用户上滑查看历史时自动出现）">↓ 回到最新吐字</button>
+        <div id="chatArea">
+            <div id="chatBox"></div>
+            <button type="button" class="jump-top-btn" id="jumpTopBtn" title="回到吐字窗口内容最开头（查看大纲；点击后暂停跟随吐字）">↑ 回到开头</button>
+            <button type="button" class="jump-latest-btn" id="jumpLatestBtn" title="回到末尾（吐字过程中即最新吐字那一行）">↓ 回到末尾</button>
+        </div>
         <div class="input-wrap">
             <div class="input-row">
                 <button class="ctrl-btn stop-btn" id="stopBtn">停止</button>
@@ -2320,36 +2327,59 @@ async function loadScriptFile(file){
    方案：维护 chatStickBottom（是否贴底/跟随）。
    · 用户滚动时按「距底部是否 ≤ 阈值」判定：贴底→继续跟随；上滑离开底部→暂停跟随，
      此时新字只追加 DOM、不动 scrollTop，用户可自由查看早期内容；
-   · 暂停期间右下显示「回到最新吐字」按钮，点它或用户手动滑回底部即恢复跟随；
-   · 区分DOM动画与真实用户滚动：滚动监听里用"是否在底部"重算，而非拦截 wheel，
+   · 暂停期间右下显示「回到末尾」按钮，点它或用户手动滑回底部即恢复跟随；
+   · 右上「回到开头」离顶才出现，点它跳回内容开头并暂停跟随（否则吐字会把人拽回底部）；
+   · 区分DOM动画与真实用户滚动：滚动监听里用"是否在顶部/底部"重算，而非拦截 wheel，
      这样鼠标滚轮/触控板/拖动滚动条/键盘 PageUp 等所有方式都统一生效。
-   阈值给 80px：容忍渲染抖动与几行误差，用户小滑一下不会误判成"离开底部"。 */
+   阈值给 80px：容忍渲染抖动与几行误差，用户小滑一下不会误判成"离开顶部/底部"。 */
 let chatStickBottom = true;                 /* 当前是否跟随最新吐字 */
 const CHAT_BOTTOM_EPS = 80;                 /* 距底部 ≤80px 视为贴底 */
-let chatJumpBtn = null;                     /* DOM 就绪后绑定，见 initUI */
+const CHAT_TOP_EPS = 80;                    /* 距顶部 ≤80px 视为贴顶 */
+let chatJumpBtn = null;                     /* 右下「回到末尾」，DOM 就绪后绑定 */
+let chatTopBtn = null;                      /* 右上「回到开头」 */
 function chatIsNearBottom(){
     try{ return (chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight) <= CHAT_BOTTOM_EPS; }
     catch(e){ return true; }
 }
+function chatIsNearTop(){
+    try{ return chatBox.scrollTop <= CHAT_TOP_EPS; }
+    catch(e){ return true; }
+}
+/* 两个跳位按钮以实际 scrollTop 为准刷新，而不是只看 chatStickBottom：
+   例如 force 回底时 stick 已置 true、但滚动位置尚未到位，按真实位置刷新才不会闪烁。 */
+function chatRefreshJumpBtns(){
+    if(chatJumpBtn) chatJumpBtn.classList.toggle("show", !chatIsNearBottom());
+    if(chatTopBtn) chatTopBtn.classList.toggle("show", !chatIsNearTop());
+}
 function chatSetStick(on){
     chatStickBottom = !!on;
-    if(chatJumpBtn) chatJumpBtn.classList.toggle("show", !chatStickBottom);
+    chatRefreshJumpBtns();
 }
 /* 唯一的滚动入口：仅当处于"跟随"状态才滚到底。force=true 用于用户主动触发
-   （如点击"回到最新"、新建/清空、发送新指令）时无条件回到底部并恢复跟随。 */
+   （如点击"回到末尾"、新建/清空、发送新指令）时无条件回到底部并恢复跟随。 */
 function chatScrollBottom(force){
     if(force) chatSetStick(true);
     if(chatStickBottom){
         try{ chatBox.scrollTop = chatBox.scrollHeight; }catch(e){}
     }
+    chatRefreshJumpBtns();
+}
+/* 回到内容最开头：必须显式暂停跟随，否则吐字时新内容 append 会立刻把人拽回底部。 */
+function chatScrollTop(){
+    chatSetStick(false);
+    try{ chatBox.scrollTop = 0; }catch(e){}
+    chatRefreshJumpBtns();
 }
 function chatInitScrollFollow(){
     chatJumpBtn = document.getElementById("jumpLatestBtn");
-    if(!chatJumpBtn) return;
-    chatJumpBtn.addEventListener("click", ()=> chatScrollBottom(true));
+    chatTopBtn = document.getElementById("jumpTopBtn");
+    if(chatJumpBtn) chatJumpBtn.addEventListener("click", ()=> chatScrollBottom(true));
+    if(chatTopBtn) chatTopBtn.addEventListener("click", chatScrollTop);
+    if(!chatJumpBtn && !chatTopBtn) return;
     /* 用户滚动：贴底恢复跟随、离底暂停；程序化赋值 scrollTop 也会触发 scroll，
        但此时计算结果仍是"贴底"，不会误判成暂停。 */
     chatBox.addEventListener("scroll", ()=>{ chatSetStick(chatIsNearBottom()); }, {passive:true});
+    chatRefreshJumpBtns();
 }
 
 function append(text, type = "tip") {
