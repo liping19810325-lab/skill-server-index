@@ -5991,6 +5991,47 @@ function cvStripComfyReferences(work,m,input){
     });
     return removeIds.size;
 }
+/* ===== ComfyUI 生成进度 / 耗时映射 =====
+   · 排队位置：轮询 /queue，新版条目 [number, prompt_id, prompt, meta, outputs]（id 在 e[1]），
+     旧版首项即 prompt_id（e[0]）；两种都兼容。
+   · 执行耗时：/history/{pid} 的 status.messages 里 execution_start → execution_success/error 的
+     毫秒时间戳相减；拿不到就用本地提交→完成计时兜底。
+   · 全部走 HTTP，与本机 / 局域网 / 私有外网三种 BaseURL 通用，不依赖 WebSocket。 */
+function fmtCost(ms){
+    const s = Math.max(0, Math.round((Number(ms)||0)/100)/10);
+    if(s < 60) return s+"秒";
+    return Math.floor(s/60)+"分"+String(Math.round(s%60)).padStart(2,"0")+"秒";
+}
+function cvComfyTiming(rec, submitAt){
+    let execMs = null;
+    try{
+        const msgs = (rec && rec.status && rec.status.messages) || [];
+        let st = 0, en = 0;
+        for(const m of msgs){
+            const k = m && m[0], v = (m && m[1]) || {};
+            if(k === "execution_start" && v.timestamp) st = Number(v.timestamp);
+            else if((k === "execution_success" || k === "execution_error") && v.timestamp) en = Number(v.timestamp);
+        }
+        if(st > 0 && en > 0 && en >= st){
+            execMs = en - st;
+            if(st < 1e12) execMs *= 1000;   /* 老版本可能用秒级时间戳 */
+        }
+    }catch(e){}
+    return { execMs: execMs, totalMs: Date.now() - submitAt };
+}
+async function cvComfyQueuePos(base, auth, pid){
+    try{
+        const res = await fetch(base+"/queue",{headers:auth});
+        const q = await res.json();
+        const runs = Array.isArray(q && q.queue_running) ? q.queue_running : [];
+        const waits = Array.isArray(q && q.queue_pending) ? q.queue_pending : [];
+        const hit = e => Array.isArray(e) && (e[1] === pid || e[0] === pid);
+        if(runs.some(hit)) return { state:"running" };
+        const idx = waits.findIndex(hit);
+        if(idx >= 0) return { state:"pending", pos:idx+1 };
+    }catch(e){}
+    return { state:"unknown" };
+}
 async function genComfy(n,input){
     if(cvIsLocalLlm(n)) throw new Error("当前在「模型 / 工作流」里选的是本机大语言模型，不会走 ComfyUI；要出图 / 出视频请改选一份 ComfyUI 工作流。");
     const base=cvComfyBaseUrl()||COMFY_DEFAULT;
@@ -6126,12 +6167,19 @@ async function genComfy(n,input){
     if(submit.error) throw new Error("ComfyUI 拒绝工作流："+JSON.stringify(submit.error).slice(0,500));
     const pid=submit.prompt_id;
     if(!pid) throw new Error("ComfyUI 未返回 prompt_id："+JSON.stringify(submit).slice(0,300));
+    const submitAt=Date.now();   /* 总耗时起点：提交成功后开始算（含排队） */
     /* H3 多参考视频（尤其 2.0MP / 15 秒）在本机显卡上可能跑 10 分钟以上，轮询上限放宽到 30 分钟 */
     const MAX_COMFY_POLL=900;
     const wantVideo=tpl.kind==="video";
     for(let i=0;i<MAX_COMFY_POLL;i++){
         await new Promise(r=>setTimeout(r,2000));
-        setGenStatus(n,"["+tpl.name+"] 排队/生成中… "+(i+1)+"/"+MAX_COMFY_POLL);
+        /* 服务端真实队列位置 + 本地计时：把「排队 / 执行中 / 已用时间」映射到生成节点状态区 */
+        const qp=await cvComfyQueuePos(base,auth,pid);
+        const waited=Date.now()-submitAt;
+        const phase=qp.state==="pending"
+            ? "排队中·第"+qp.pos+"位（ComfyUI 队列） · 已等 "+fmtCost(waited)
+            : (qp.state==="running" ? "执行中 · 已用 "+fmtCost(waited) : "生成中 · 已用 "+fmtCost(waited));
+        setGenStatus(n,"["+tpl.name+"] "+phase);
         let h;
         try{
             const res=await fetch(base+"/history/"+encodeURIComponent(pid),{headers:auth});
@@ -6139,7 +6187,12 @@ async function genComfy(n,input){
         }catch(e){ continue; }
         const rec=h&&h[pid];
         if(!rec) continue;
-        if(rec.status&&rec.status.status_str==="error") throw new Error("ComfyUI 执行出错："+JSON.stringify(rec.status).slice(0,500));
+        if(rec.status&&rec.status.status_str==="error"){
+            n.data.lastGenCost=Object.assign(cvComfyTiming(rec,submitAt),{failed:true});
+            throw new Error("ComfyUI 执行出错："+JSON.stringify(rec.status).slice(0,500));
+        }
+        if(rec.status&&rec.status.completed&&rec.status.status_str==="success")
+            n.data.lastGenCost=cvComfyTiming(rec,submitAt);   /* 真实执行时间 + 总耗时，随画布存档 */
         const outs=rec.outputs;
         if(!outs) continue;
         for(const key of Object.keys(outs)){
@@ -6162,6 +6215,7 @@ async function genComfy(n,input){
         if(rec.status&&rec.status.completed&&rec.status.status_str==="success")
             throw new Error("工作流已执行完成，但输出节点里没有可识别的图片/视频文件。请确认工作流带 SaveImage / SaveVideo / VHS_SaveVideo 输出节点，并重新在左侧「重新推断映射」。任务ID："+pid);
     }
+    n.data.lastGenCost={execMs:null,totalMs:Date.now()-submitAt,failed:true};
     throw new Error("等待 ComfyUI 结果超时（30 分钟）。请检查队列、显存或输出节点；若 ComfyUI 里还在跑，跑完后可在 ComfyUI 历史记录里取结果。任务ID："+pid);
 }
 /* ===== 本机算力 ComfyUI 生成任务 FIFO 队列 =====
@@ -6227,6 +6281,7 @@ async function cvRunGenerateNow(n){
         setGenStatus(n,"漫流算力即将开放，暂未接入，未发起任何请求","err");
         return;
     }
+    n.data.lastGenCost=null;   /* 本次重跑先清上次耗时，失败时才不会误显示旧数据 */
     n.data.busy=true; refreshNodeDom(n.id); selectNode(n.id);
     const input=collectInputs(n);
     /* NAS 资产库引用：选中时只记引用，这里才下载 originals / voices 原文件，且只放进本次 input，不写回画布存档 */
@@ -6279,7 +6334,11 @@ async function cvRunGenerateNow(n){
         if(input.audios.length) parts.push("声音 "+input.audios.length+" 段");
         if(input.videos.length) parts.push("视频 "+input.videos.length+" 个");
         const inj=(n.data.engine==="comfyui"&&n.data.lastInject)?(" · "+n.data.lastInject):"";
-        setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):"")+inj,"ok");
+        const gc=n.data.lastGenCost;
+        const cost=gc&&!gc.failed
+            ? (" · "+(gc.execMs!=null?("执行 "+fmtCost(gc.execMs)+" · 总耗时 "):"耗时 ")+fmtCost(gc.totalMs))
+            : "";
+        setGenStatus(n,"完成 ✓"+(parts.length?" "+parts.join(" · "):"")+cost+inj,"ok");
         /* 只重建本次的结果节点：其它结果节点的视频/图片保持原样，不重新加载播放 */
         refreshNodeDom(r.id); scheduleSave();
         if(el("historyPanel").classList.contains("show")&&historyMode==="raw") renderHistoryRaw();
@@ -6287,7 +6346,8 @@ async function cvRunGenerateNow(n){
         console.error(e);
         const r=resultNodeFor(n);
         r.data={kind:"text",text:"生成失败：\n"+(e&&e.message?e.message:String(e))};
-        setGenStatus(n,"生成失败："+(e&&e.message?e.message:e),"err");
+        const fc=n.data.lastGenCost?(" · 耗时 "+fmtCost(n.data.lastGenCost.totalMs)):"";
+        setGenStatus(n,"生成失败"+fc+"："+(e&&e.message?e.message:e),"err");
         refreshNodeDom(r.id); scheduleSave();
     }finally{
         n.data.busy=false;
