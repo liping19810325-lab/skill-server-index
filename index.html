@@ -239,6 +239,7 @@
         .style-preset-state { font-size: 10px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
         .preview-btn { background: var(--panel); color: var(--text); padding: 4px 7px; border: 1px solid var(--border2); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
         .del-file-btn { background: var(--red); color: #fff; padding: 4px 7px; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; cursor: pointer; font-size: 11px; min-height: 26px; }
+        .mf-check-btn { color: var(--blue); border-color: var(--blue); }
 
         /* ===== 顶部单行工具条里的「历史产物」快捷按钮 =====
            与画布页顶栏「画布1 / 画布2 / 画布3 / 更多画布」同一套视觉：中性小按钮 + 细边框 + 无阴影；
@@ -1551,6 +1552,12 @@ function renderFileList() {
         previewBtn.className = "preview-btn";
         previewBtn.textContent = "预览";
         previewBtn.onclick = ()=> openPreview(idx);
+        /* 上传剧本文本也能本地检测复读 + 换线重写：先落地成吐字窗产物，再检测 */
+        const checkBtn = document.createElement("button");
+        checkBtn.className = "preview-btn mf-check-btn";
+        checkBtn.textContent = "检测复读";
+        checkBtn.title = "把这份剧本文本载入吐字窗口并检测复读/死循环；命中后可换线重写，新稿按集号覆盖旧稿";
+        checkBtn.onclick = ()=> mfCheckUploadedScript(idx);
         const delBtn = document.createElement("button");
         delBtn.className = "del-file-btn";
         delBtn.textContent = "删除";
@@ -1558,6 +1565,7 @@ function renderFileList() {
         div.appendChild(cb);
         div.appendChild(nameSpan);
         div.appendChild(previewBtn);
+        div.appendChild(checkBtn);
         div.appendChild(delBtn);
         fileListEl.appendChild(div);
     });
@@ -4103,6 +4111,55 @@ function applyNewSessionText(text){
     try{ if(importedNode) importedNode.setAttribute("data-manual-edited", "1"); }catch(e){}
     append("📜 已从历史产物加入新建对话：可双击预览 / 编辑保存、下载 TXT、送到画布，或点任意技能继续处理这段文字。", "tip");
     return true;
+}
+/* 上传剧本文本 → 落地为吐字窗产物 + 本地复读检测。
+   ★ 落地成 .msg.ai 且 manual-edited=1（权威稿），这样后续的换线重写能从它取路线图/定位集块，
+     合并下载也自动按集号覆盖——完全复用现有创作台机制，不为上传文件另起一套。
+   检测口径与生成后一致：逐字内部自比（mfDetectScriptLoop(text, [])）+ 结构级相似场次（mfDetectSceneLoop）。 */
+function mfCheckUploadedScript(idx){
+    const item = fileStore[idx];
+    if(!item || !item.content || !item.content.trim()){
+        append("💡 这份文件没有可检测的正文。", "err"); return;
+    }
+    const text = String(item.content).trim();
+    /* 重复检测同一份文件时，先移除上次落地的高亮稿，避免窗口堆积多条相同产物 */
+    try{
+        chatBox.querySelectorAll('.msg.ai[data-mf-upload-check="1"]').forEach(n=>n.remove());
+    }catch(e){}
+    /* 落地为权威产物消息（与 applyNewSessionText 同款，但打专属标记） */
+    fullAiText = text;
+    const node = append("【AI】：" + text, "ai");
+    try{
+        if(node){
+            node.setAttribute("data-manual-edited", "1");
+            node.setAttribute("data-mf-upload-check", "1");
+            node.setAttribute("data-mf-upload-name", item.name || "");
+        }
+    }catch(e){}
+    aiMsgDom = node || lastAiMsg() || null;
+    append("🔍 已把《" + (item.name || "上传剧本") + "》载入吐字窗口，正在检测复读/死循环…", "tip");
+    /* 本地检测：内部逐字自比 + 结构级相似场次。检测只比对正文，不改动任何内容。 */
+    let det = null;
+    try{ det = mfDetectScriptLoop(text, []); }catch(e){}
+    let loopHit = !!(det && typeof det.run === "number" && det.run >= MF_LOOP_ALERT);
+    if(!loopHit){
+        let sceneDet = null;
+        try{ sceneDet = mfDetectSceneLoop(text); }catch(e){}
+        if(sceneDet && sceneDet.similar >= 3){
+            loopHit = true;
+            det = { kind:"scene", run:MF_LOOP_ALERT, episode:sceneDet.ep,
+                    excerpt:"第 "+sceneDet.ep+" 集内连续 "+sceneDet.similar+" 场动作/台词高度相似（共 "+sceneDet.total+" 场），疑似原地打转",
+                    occurrences: mfSceneOccurrences(sceneDet) };
+        }
+    }
+    if(loopHit){
+        mfAutoContinue = null;
+        mfOfferLoopHold(det);   /* 复用确认稿：列全部证据 + 选项③换线重写 */
+    }else{
+        append("✅ 未在这份剧本里发现明显的大段复读/死循环。"
+            + "窗口里的这份稿子可直接双击预览 / 编辑保存、下载 TXT；若要针对某集换线重写，在指令框写「从第N集换线重写」再点开始。", "tip");
+    }
+    chatScrollBottom(true);
 }
 function acceptNewSessionPayload(o){
     if(!o || typeof o !== "object") return false;
