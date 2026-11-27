@@ -282,6 +282,9 @@
         .skill-action-head b { color: #93c5fd; }
         .skill-action-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
         .skill-action-list .skill-btn { text-align: left; white-space: normal; }
+        /* 弹窗内技能按钮：点击只选中，选中态用白框+勾标记（伪元素不进 innerText，不污染任何文本逻辑） */
+        .skill-action-list .skill-btn.mf-skill-sel { outline: 2px solid #fff; outline-offset: -3px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); }
+        .skill-action-list .skill-btn.mf-skill-sel::before { content: "✓ "; font-weight: 700; }
         .skill-action-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
         .skill-action-actions .modal-close { margin-top: 0; }
         .skill-action-actions .same-page-btn { background: var(--panel); border: 1px solid var(--border2); color: var(--text); }
@@ -774,7 +777,8 @@
         <div class="skill-action-head" id="skillActionHead"></div>
         <div class="skill-action-list" id="skillActionList"></div>
         <div class="skill-action-actions">
-            <button class="ctrl-btn modal-close same-page-btn" id="samePageSkillBtn">直接在本页加载技能</button>
+            <button class="ctrl-btn modal-close" id="newPageSkillBtn">新建页加载技能</button>
+            <button class="ctrl-btn modal-close same-page-btn" id="samePageSkillBtn">在本页加载技能</button>
             <button class="ctrl-btn modal-close" id="closeSkillActionBtn">取消 / 关闭</button>
         </div>
     </div>
@@ -1216,6 +1220,7 @@ const skillActionHead = document.getElementById("skillActionHead");
 const skillActionList = document.getElementById("skillActionList");
 const closeSkillActionBtn = document.getElementById("closeSkillActionBtn");
 const samePageSkillBtn = document.getElementById("samePageSkillBtn");
+const newPageSkillBtn = document.getElementById("newPageSkillBtn");
 const sendCanvasModal = document.getElementById("sendCanvasModal");
 const sendCanvasHead = document.getElementById("sendCanvasHead");
 const sendCanvasExistingBtn = document.getElementById("sendCanvasExistingBtn");
@@ -3628,6 +3633,14 @@ function mfLoopAvoidPoints(det){
     }catch(e){}
     return out.slice(0,6);
 }
+/* 是否表达了「换线重写」意图（与 mfParseRewind 同源正则）：单独的 3 或「换线/换条线/另起一条线」等。
+   ★用于「有换线意图但算不出起点」时给出明确提示，绝不静默降级成普通续写（那会重演已写集）。 */
+function mfHasRewindIntent(cmd){
+    const s = String(cmd||"").trim();
+    if(!s) return false;
+    if(/^[3３③三]$/.test(s)) return true;
+    return /换线|换条线|换条故事线|另起(?:一条|一)?(?:线|剧情|故事)|改换(?:情节|剧情|故事)线/.test(s);
+}
 /* 识别「换线重写」意图：返回 {from, to, note} 或 null。
    支持：单独写「3」= 用检测到的最早重复集；「从第71集换线重写」「从第71集换条线重写到第74集」；
    「从第71集换线重写：改成锦衣卫查案」等（冒号后作为用户方向 note）。 */
@@ -3803,12 +3816,15 @@ function mfOfferLoopHold(det){
         + "③ 想从重复的起点换条线重写（推荐）——写「3」再点开始：我会从 " + spanText + " 起，"
         + "只把剧情路线图 + 起点前最后一集作上文（**导致复读的旧稿一律不喂给模型**），换全新事件重写这几集并替换旧稿，写完即停、再跑一次复读检测。"
         + "也可在指令框直接写「从第N集换线重写到第M集：改成XX去查案」，你给的方向最高优先级；起点集可改成任意集号。\n"
-        + "（留空直接点开始 = 按②带防复读指令续写。无论选哪个，都只会写第 " + (range ? range.from : (writtenMax + 1)) + " 集及之后的新集，绝不重演已写集。）\n"
+        + "（留空直接点开始 = 按②带防复读指令续写。选①或②只写第 " + (range ? range.from : (writtenMax + 1)) + " 集及之后的新集，不重演已写集；选③会换线重写第 " + spanText + " 的已写集并替换旧稿。）\n"
         + "（正常创作里的口头禅、标志性动作、套路化钩子不受限制，只有**剧本正文**里大段逐字复读才会触发本确认；【人物状态】等每集必须一致的设定栏不参与比对。）\n"
         + "（核对方法：在吐字窗口搜索上面任一句台词——若这些位置都出现同样文字就是真复读，选②或③；若只出现一次，可能是误报，选①照常续写。）";
-    /* 把复读证据随确认态存下来：用户选③时据此算起点/范围/负面清单，刷新后也不丢 */
+    /* 把复读证据随确认态存下来：用户选③时据此算起点/范围/负面清单，刷新后也不丢。
+       ★同时写一份到独立变量 mfLastUploadLoopDet（与上传检测共用）：loadSkill 会清 mfClarifyPending，
+       证据不能只活在确认态里，否则「加载技能后再写 3」会因丢失起点而退化成续写。 */
     mfClarifyPending = { cmd: "【疑似复读确认】按防复读指令继续接着写", brief: brief, advice: "", resume: true, loopHold: true,
                          loopDet: (typeof JSON === "object" && det) ? JSON.parse(JSON.stringify(det)) : null };
+    mfLastUploadLoopDet = (typeof JSON === "object" && det) ? JSON.parse(JSON.stringify(det)) : null;
     mfHighlightLoopEvidence(append("⚠️ 疑似陷入复读/死循环，生成已暂停，先跟你确认：\n\n" + brief, "tip"));
 }
 /* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
@@ -4414,43 +4430,72 @@ function openSkillActionModal(){
     const manflowTip = (computeMode === "manflow")
         ? "<br>⚠️ 当前是「漫流算力」占位模式，不会真正发起请求；请先切到「本机算力」或「第三方API」。"
         : "";
-    skillActionHead.innerHTML = "当前窗口有<b>创作产物</b>。请选择一个技能：<b>会新开一个干净的创作台网页，用该技能对这段文字进行处理并直接开始生成</b>，剧本、生图提示词、生视频提示词各自留在自己的网页里，不再混进当前窗口。"
-        + "你原先写在页面底部指令输入框里的额外要求（如「改成悲剧结尾」）会和这段文字一起带到新网页。"
+    skillActionHead.innerHTML = "当前窗口有<b>创作产物</b>。请先在下方<b>点选一个技能</b>（点一下只是选中，不会立刻新建网页），选好后再决定怎么加载："
+        + "<br>· 点「<b>新建页加载技能</b>」→ 新开一个干净的创作台网页，用该技能对这段文字进行处理并直接开始生成；剧本、生图提示词、生视频提示词各自留在自己的网页里，不再混进当前窗口。你原先写在指令输入框里的额外要求（如「改成悲剧结尾」）会和这段文字一起带到新网页。"
+        + "<br>· 点「<b>在本页加载技能</b>」→ 在当前页加载你选中的技能，不打开新网页、也不改动窗口内容。"
+        + "<br>· 点「取消 / 关闭」则什么都不做。"
         + (n ? ` 已导入的 <b>${n}</b> 个本地技能按文件名列在后面，选中后技能内容会一并带过去。` : "")
-        + "<br>不想流转就点「直接在本页加载技能」：在当前页加载你刚点的那个技能，不打开新网页、也不改动窗口内容；点「取消 / 关闭」则什么都不做。"
         + manflowTip;
     skillActionModal.style.display = "flex";
 }
 function closeSkillActionModal(){
     if(skillActionModal) skillActionModal.style.display = "none";
 }
-/* 取消跨页流转：关掉弹窗，直接把用户刚才点的那个技能加载在当前页。 */
+/* 弹窗里点技能按钮：只做「选中」并高亮，不立刻新建网页；真正动作由下方两个按钮决定。 */
+function selectSkillAction(sel){
+    skillActionPendingSel = sel || null;
+    if(!skillActionList) return;
+    /* 用按钮上的 data-sel-key 精确标记选中项，避免按文本匹配把同名技能一并点亮 */
+    skillActionList.querySelectorAll(".skill-btn").forEach(b=>b.classList.remove("mf-skill-sel"));
+    if(sel){
+        const key = sel.type === "custom" ? ("custom:" + String((sel.item && sel.item.name) || ""))
+                                          : ("builtin:" + String(sel.key || ""));
+        skillActionList.querySelectorAll(".skill-btn").forEach(b=>{
+            if(b.getAttribute("data-sel-key") === key) b.classList.add("mf-skill-sel");
+        });
+    }
+}
+/* 「在本页加载技能」：把选中的技能加载在当前页，不动窗口内容。未选中则提示，不静默失败。 */
 function loadSkillInCurrentPage(){
     const sel = skillActionPendingSel;
+    if(!sel){ append("⚠️ 请先在上方点选一个技能，再点「在本页加载技能」。", "err"); return; }
     skillActionPendingSel = null;
     closeSkillActionModal();
-    if(!sel) return;
     if(sel.type === "custom") loadCustomSkill(sel.item);
     else loadSkill(sel.key);
+}
+/* 「新建页加载技能」：把选中的技能走原来的跨页流转（原行为=点技能即新建页）。未选中则提示。 */
+function newPageSkillFromModal(){
+    const sel = skillActionPendingSel;
+    if(!sel){ append("⚠️ 请先在上方点选一个技能，再点「新建页加载技能」。", "err"); return; }
+    chooseSkillAction(sel);
 }
 function renderSkillActionList(){
     if(!skillActionList) return;
     skillActionList.innerHTML = "";
+    const addBtn = (sel, text, title, cls)=>{
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "skill-btn" + (cls ? (" " + cls) : "");
+        b.textContent = text;
+        if(title) b.title = title;
+        /* 选中态随快照恢复：按当前 skillActionPendingSel 回填高亮 */
+        const cur = skillActionPendingSel;
+        const same = cur && cur.type === sel.type && (sel.type === "custom"
+            ? ((cur.item && cur.item.name) === (sel.item && sel.item.name))
+            : (cur.key === sel.key));
+        if(same) b.classList.add("mf-skill-sel");
+        b.setAttribute("data-sel-key", sel.type === "custom"
+            ? ("custom:" + String((sel.item && sel.item.name) || ""))
+            : ("builtin:" + String(sel.key || "")));
+        b.addEventListener("click", ()=> selectSkillAction(sel));
+        skillActionList.appendChild(b);
+    };
     document.querySelectorAll("[data-skill-key]").forEach(btn=>{
         const key = btn.getAttribute("data-skill-key");
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "skill-btn";
-        b.textContent = (btn.textContent || "").trim();
-        b.addEventListener("click", ()=> chooseSkillAction({type:"builtin", key:key}));
-        skillActionList.appendChild(b);
+        addBtn({type:"builtin", key:key}, (btn.textContent || "").trim(), "", "");
     });
     customSkillList.forEach(sk=>{
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "skill-btn custom-skill-btn";
-        b.textContent = sk.name;
-        b.title = "本地导入技能：" + sk.name;
-        b.addEventListener("click", ()=> chooseSkillAction({type:"custom", item:sk}));
-        skillActionList.appendChild(b);
+        addBtn({type:"custom", item:sk}, sk.name, "本地导入技能：" + sk.name, "custom-skill-btn");
     });
 }
 function chooseSkillAction(sel){
@@ -6941,7 +6986,9 @@ async function sendMessage(autoSourceText) {
     const isFixEpisode = fixEp > 0;
     mfFixEpisodeTarget = 0;
     /* 换线重写（复读确认③）：立即消费全局计划，避免重入/自动续写重复触发 */
-    const rewindPlan = (mfRewindPlan && currentSkillKey === "a") ? mfRewindPlan : null;
+    /* 换线计划按「已加载任意剧本类技能」生效：不再硬限 key === "a"，
+       自定义导入的剧本技能（key === "custom"）同样能执行换线重写。 */
+    const rewindPlan = (mfRewindPlan && currentSkillKey) ? mfRewindPlan : null;
     const isRewind = !!rewindPlan;
     mfRewindPlan = null;
     /* 本轮正文归属：未加载 Skill 的窗口（含日常聊天断点续写）只写 mfDailyAiText；
@@ -7780,9 +7827,10 @@ function initUI(){
             togglePreviewFullscreen(false);
         }
     });
-    // 已有产物时点技能：选择处理技能弹窗（新网页生成，可点按钮或点遮罩关闭）
+    // 已有产物时点技能：先选中技能，再由「新建页 / 在本页」两个按钮决定怎么处理（点遮罩也可关闭）
     if(closeSkillActionBtn) closeSkillActionBtn.addEventListener("click", closeSkillActionModal);
     if(samePageSkillBtn) samePageSkillBtn.addEventListener("click", loadSkillInCurrentPage);
+    if(newPageSkillBtn) newPageSkillBtn.addEventListener("click", newPageSkillFromModal);
     if(skillActionModal) skillActionModal.addEventListener("click", (ev)=>{ if(ev.target === skillActionModal) closeSkillActionModal(); });
     // 送到画布：先选「现有画布 / 新建画布」，选好后再投递
     if(closeSendCanvasBtn) closeSendCanvasBtn.addEventListener("click", closeSendCanvasModal);
@@ -7835,6 +7883,14 @@ function initUI(){
                     + " 换全新情节线重写，旧稿不喂给模型，写完即停并再查一次复读…", "tip");
                 sendMessage();
                 return;
+            }
+            /* ★失败不让步：识别到换线意图，却因证据失效算不出起点（如加载技能清了确认态、
+               刷新后快照丢失）。此时若静默放过，会被 mfAutoContinue 当成普通续写从第 95 集写起，
+               正是用户遇到的 bug。明确提示并停住，保留原文让用户带集号重写，绝不降级成续写。 */
+            if(mfHasRewindIntent(rwTyped)){
+                append("⚠️ 识别到换线重写，但当前找不到重复集的起点（证据可能在加载技能 / 刷新时失效）。"
+                     + "请在指令框写明集号，例如「从第56集换线重写」，再点开始；本次不会按续写处理。", "err");
+                return;   /* 保留原文，不吞掉用户输入，也绝不走续写 */
             }
         }
         /* 若上轮已吐理解稿待确认、用户又点开始（回答填回指令框，或留空表示认可）→
