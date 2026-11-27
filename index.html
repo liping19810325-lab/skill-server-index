@@ -365,6 +365,11 @@
         .ai { color: var(--text); }
         .tip { color: var(--muted); }
         .err { color: #fca5a5; }
+        /* 复读证据标题：多组重复时 A/B 一眼配对，正文仍保持原色，不干扰阅读 */
+        .msg .mf-ev-head { font-weight: 700; letter-spacing: .3px; }
+        .msg .mf-ev-a { color: #93c5fd; }      /* 先出现的一处：蓝 */
+        .msg .mf-ev-b { color: #fca5a5; }      /* 后出现的一处：红 */
+        .msg .mf-ev-x { color: #fcd34d; }      /* 历史/其它证据：琥珀 */
         /* 修改基准：双击吐字窗口某条 AI 回复即设为「后续修改所依据的原稿」，左侧色条 + 顶部标签标示 */
         .msg.ai.ai-base { border-left: 3px solid var(--blue); background: var(--panel); border-radius: 0 8px 8px 0; padding: 8px 12px; position: relative; }
         .msg.ai.ai-base::before { content: "📌 修改基准 · 后续指令将在此稿基础上修改"; display: block; font-size: 11px; color: var(--blue); margin-bottom: 4px; }
@@ -1159,6 +1164,9 @@ let mfResumeHoldAfter = false;
    产物按集号取最后生成的一版覆盖旧稿，旧消息打「已替换」标记；写完即停，
    照旧跑复读检测闭环（命中就再拦一次），不自动一路写下去。 */
 let mfRewindPlan = null;
+/* 上传剧本「检测复读」命中时的证据缓存：只供后续「从第N集换线重写」取起点与负面清单，
+   ★不是待确认态——检测报告出完就结束，绝不锁住对话（用户下一句永远按新指令处理）。 */
+let mfLastUploadLoopDet = null;
 /* 当前「项目产物」身份（历史产物按项目而非按轮次记录）：
    projectId 唯一标识一个项目（新对话/清空本页/换剧或换技能时换新），
    同一项目内的多次生成都更新同一条历史产物，不再每轮各建一条。
@@ -2444,6 +2452,8 @@ function snapshotLiveSession(){
         mfResumeHoldAfter: !!mfResumeHoldAfter,
         mfRewindPlan: (typeof mfRewindPlan !== "undefined" && mfRewindPlan && typeof mfRewindPlan === "object")
             ? JSON.parse(JSON.stringify(mfRewindPlan)) : null,
+        mfLastUploadLoopDet: (typeof mfLastUploadLoopDet !== "undefined" && mfLastUploadLoopDet && typeof mfLastUploadLoopDet === "object")
+            ? JSON.parse(JSON.stringify(mfLastUploadLoopDet)) : null,
         currentSkillKey: currentSkillKey,
         currentSkillName: currentSkillName,
         currentSystemPrompt: currentSystemPrompt,
@@ -2490,6 +2500,8 @@ function restoreLiveSession(){
     if(!s || typeof s !== "object") return;
     try{
         if(typeof s.chatHtml === "string") chatBox.innerHTML = s.chatHtml;
+        /* 老现场里已有的复读报告/确认稿是纯文本 DOM：恢复时补一次证据标题高亮（函数幂等） */
+        try{ chatBox.querySelectorAll(".msg.tip").forEach(n=>mfHighlightLoopEvidence(n)); }catch(e){}
         fullAiText = typeof s.fullAiText === "string" ? s.fullAiText : "";
         mfDailyAiText = typeof s.mfDailyAiText === "string" ? s.mfDailyAiText : "";
         /* 续写锚点随现场恢复：刷新后自动续写链不中断（结构做基本校验，异常值退回 null）。 */
@@ -2502,6 +2514,8 @@ function restoreLiveSession(){
         /* 换线重写计划：结构合法才恢复（防止损坏快照污染新一轮） */
         mfRewindPlan = (s.mfRewindPlan && typeof s.mfRewindPlan.from === "number"
             && typeof s.mfRewindPlan.to === "number" && s.mfRewindPlan.from >= 1) ? s.mfRewindPlan : null;
+        mfLastUploadLoopDet = (s.mfLastUploadLoopDet && typeof s.mfLastUploadLoopDet === "object"
+            && typeof s.mfLastUploadLoopDet.run === "number") ? s.mfLastUploadLoopDet : null;
         /* 吐字中被刷新打断 → 标记待断点续写（真正发起在 initUI 末尾，等按钮绑定完成）。
            只有"上次生成中 + 确实吐出了半截稿"才值得续；空稿没有可接的内容，交给用户重新发指令。 */
         /* 只给「专业创作产物」保留断点续写：日常聊天被刷新打断不弹创作态的续写确认稿。 */
@@ -2556,7 +2570,7 @@ function clearCurrentPage(){
     /* #15：清空本页=等同新建对话，断点续写态也必须清干净，否则清空后点「开始」会被旧续写锚点接管。
        （sendQueue 已由上方 stopGenerate() 清空；画幅是面板物理按钮的全局态，按最高优先级保留不动。） */
     mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
-    mfResumeHoldAfter = false; mfFixEpisodeTarget = 0; mfRewindPlan = null;
+    mfResumeHoldAfter = false; mfFixEpisodeTarget = 0; mfRewindPlan = null; mfLastUploadLoopDet = null;
     mfProjectId = "";   /* 清空即开新项目：下次生成会新建一条历史产物，不覆盖旧项目 */
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     mfResetDailyState();
@@ -3726,6 +3740,43 @@ function mfOfferInterruptedResume(reason){
     append(isPause ? ("⏸ 已暂停，开工前先跟你对一下续写安排：\n\n" + brief)
                    : ("⏸ " + reason + "，生成已暂停。开工前先跟你对一下续写安排：\n\n" + brief), "tip");
 }
+/* 复读证据统一排版：生成后确认稿与上传检测报告共用，避免两处口径不一致 */
+function mfLoopEvidenceList(det){
+    return Array.isArray(det && det.occurrences) ? det.occurrences.filter(o=>o && typeof o === "object") : [];
+}
+function mfLoopEvidenceText(det){
+    const occ = mfLoopEvidenceList(det);
+    if(!occ.length) return (det && det.excerpt) ? "「" + det.excerpt + "…」" : "（重复段落较长，见窗口正文）";
+    return occ.map(o=>{
+        const where = "第 " + (o.ep||"?") + " 集" + (o.scene ? " · 第 " + o.scene + " 场" : "");
+        return "【" + (o.label||"证据") + "】" + where + "\n" + (o.text||"（见窗口正文）");
+    }).join("\n\n");
+}
+function mfLoopSpanText(det){
+    const span = mfLoopSpan(det);
+    return span ? ("第 " + span.from + " 集" + (span.to>span.from ? ("–"+span.to+" 集") : "")) : "最早出现重复的那集";
+}
+/* 证据标题高亮：把「【1-B（后出现）】第 94 集 · 第 94-1 场」这类标题行染成蓝色(A)/红色(B)并加粗。
+   ★ 只改展示层（span），innerText 逐字不变——不污染 msgFullText / 产物抓取 / 合并下载。
+   剧本正文里同样以【开头的设定栏（【场景设计】【第92集完】等）不匹配，绝不会被误染色。 */
+function mfHighlightLoopEvidence(node){
+    if(!node) return node;
+    try{
+        const src = String(node.innerText || "");
+        if(src.indexOf("【") < 0) return node;
+        /* 先整体转义，剧本正文里的 < > & 一律按字面显示，避免注入 */
+        const esc = src.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+        const headRe = /^【[^】\n]{1,28}】第[^\n]{0,40}场?$/gm;
+        if(!headRe.test(esc)) return node;
+        headRe.lastIndex = 0;
+        node.innerHTML = esc.replace(headRe, (line)=>{
+            const cls = /-A（|^【A（/.test(line) ? "mf-ev-a"
+                      : (/-B（|^【B（/.test(line) ? "mf-ev-b" : "mf-ev-x");
+            return '<span class="mf-ev-head ' + cls + '">' + line + '</span>';
+        });
+    }catch(e){}
+    return node;
+}
 /* D｜疑似死循环/机械复读的确认稿：列出证据、暂停自动续写，让用户决定怎么走。
    userChoice 由确认分支读取：确认=按防复读指令继续；修正=并入用户意见再续。 */
 function mfOfferLoopHold(det){
@@ -3737,16 +3788,10 @@ function mfOfferLoopHold(det){
     const kindText = det.kind === "self" ? "本轮正文内部" : (det.kind === "scene" ? "同一集内不同场次之间" : "本轮与此前已写正文");
     const epText = det.episode ? "（出现在第 " + det.episode + " 集附近）" : "";
     /* 全部命中处逐条列出：集号 + 场次号 + 完整原文，用户可逐字比对，不再只给一处 180 字节选 */
-    const occ = Array.isArray(det.occurrences) ? det.occurrences.filter(o=>o && typeof o === "object") : [];
+    const occ = mfLoopEvidenceList(det);
     /* 换线重写的起点/范围：取最早一处重复集的集号；用户可在指令里覆盖 */
-    const span = mfLoopSpan(det);
-    const spanText = span ? ("第 " + span.from + " 集" + (span.to>span.from ? ("–"+span.to+" 集") : "")) : "最早出现重复的那集";
-    const occText = occ.length
-        ? occ.map(o=>{
-            const where = "第 " + (o.ep||"?") + " 集" + (o.scene ? " · 第 " + o.scene + " 场" : "");
-            return "【" + (o.label||"证据") + "】" + where + "\n" + (o.text||"（见窗口正文）");
-          }).join("\n\n")
-        : (det.excerpt ? "「" + det.excerpt + "…」" : "（重复段落较长，见窗口正文）");
+    const spanText = mfLoopSpanText(det);
+    const occText = mfLoopEvidenceText(det);
     const brief = "我在刚生成的内容里发现约 **" + det.run + " 字**的连续文字" + kindText + "几乎逐字重复" + epText
         + "。这通常是模型陷入复读/死循环的信号，先停下来跟你确认，不直接往下写。\n\n"
         + "（检测只比对剧本正文的 △ 动作行与台词；【人物状态】【场景设计】【道具设计】等每集必须保持一致的设定栏不参与比对。）\n\n"
@@ -3764,7 +3809,7 @@ function mfOfferLoopHold(det){
     /* 把复读证据随确认态存下来：用户选③时据此算起点/范围/负面清单，刷新后也不丢 */
     mfClarifyPending = { cmd: "【疑似复读确认】按防复读指令继续接着写", brief: brief, advice: "", resume: true, loopHold: true,
                          loopDet: (typeof JSON === "object" && det) ? JSON.parse(JSON.stringify(det)) : null };
-    append("⚠️ 疑似陷入复读/死循环，生成已暂停，先跟你确认：\n\n" + brief, "tip");
+    mfHighlightLoopEvidence(append("⚠️ 疑似陷入复读/死循环，生成已暂停，先跟你确认：\n\n" + brief, "tip"));
 }
 /* 下载按钮固定叫「下载产物 TXT」：本页既输出剧本，也输出生视频提示词与生图提示词，
    按钮不随技能改名，避免用户误解；文件名则按技能区分，方便归档。 */
@@ -4153,13 +4198,42 @@ function mfCheckUploadedScript(idx){
         }
     }
     if(loopHit){
-        mfAutoContinue = null;
-        mfOfferLoopHold(det);   /* 复用确认稿：列全部证据 + 选项③换线重写 */
+        mfReportUploadLoop(det);
     }else{
+        mfClarifyPending = null;   /* 纯检测：不锁对话，下一句永远是新指令 */
+        mfLastUploadLoopDet = null;
         append("✅ 未在这份剧本里发现明显的大段复读/死循环。"
             + "窗口里的这份稿子可直接双击预览 / 编辑保存、下载 TXT；若要针对某集换线重写，在指令框写「从第N集换线重写」再点开始。", "tip");
     }
     chatScrollBottom(true);
+}
+/* 上传剧本检测报告：纯检测、不设任何确认态。
+   ★ 与生成时的 mfOfferLoopHold 严格区分：这里用户只是给一份上传稿做"体检"，
+     绝不能把对话锁进"等确认续写"——否则随后输入的检查类问题会被吞成续写附注，
+     新对话又没有续写锚点，就报出「续写启动失败，请写继续写第N集」这种驴唇不对马嘴的错。
+   报告列全部证据 + 三种后续走法；用户下一步写什么都是全新指令。 */
+function mfReportUploadLoop(det){
+    mfClarifyPending = null;
+    mfAutoContinue = null;   /* 与旧行为一致：检测期间不保留排队中的自动续写 */
+    mfLastUploadLoopDet = det && typeof det === "object" ? JSON.parse(JSON.stringify(det)) : null;
+    const occ = mfLoopEvidenceList(det);
+    const spanText = mfLoopSpanText(det);
+    const span = mfLoopSpan(det);
+    const rewriteCmd = span ? ("从第" + span.from + "集换线重写") : "从第N集换线重写";
+    const kindText = det.kind === "self" ? "这份剧本内部" : (det.kind === "scene" ? "同一集内不同场次之间" : "剧本正文");
+    const epText = det.episode ? "（第 " + det.episode + " 集附近）" : "";
+    const needSkill = (typeof currentSkillKey === "undefined" || !currentSkillKey)
+        ? "（先点上方【剧本创作助手V5】加载技能）" : "";
+    const report = "🔍 检测完成：在这份剧本里发现约 **" + det.run + " 字**的连续文字" + kindText + "几乎逐字重复" + epText + "。\n\n"
+        + "（检测只比对剧本正文的 △ 动作行与台词；【人物状态】【场景设计】【道具设计】等设定栏不参与比对。）\n\n"
+        + "—— 疑似重复的原文（共 " + (occ.length || 1) + " 处）——\n" + mfLoopEvidenceText(det) + "\n\n"
+        + "—— 建议 ——\n"
+        + "· ① 有意重复（口头禅、反复玩梗、系列套路）→ 忽略即可，稿子不用改；\n"
+        + "· ② 想从 " + spanText + " 换一条全新情节线重写 → 指令框写「" + rewriteCmd + "」或「" + rewriteCmd.replace("换线重写","换线重写到第M集：改成XX") + "」" + needSkill
+        + "，点开始（旧稿不喂给模型，新稿按集号覆盖旧稿，写完即停）；\n"
+        + "· ③ 想接着写后面的集 → " + needSkill + "再写「继续写第N集」，点开始。\n"
+        + "· 稿子已在吐字窗口，可直接双击预览 / 编辑保存 / 下载 TXT；以上只是建议，你接下来输入的任何内容都按新指令处理。";
+    mfHighlightLoopEvidence(append("⚠️ " + report, "tip"));
 }
 function acceptNewSessionPayload(o){
     if(!o || typeof o !== "object") return false;
@@ -7737,6 +7811,32 @@ function initUI(){
        （即 autoSourceText）传入，导致每次普通点击都把 "[object PointerEvent]" 当"已附带文字"
        塞进请求上下文，污染模型输入。唯一的字符串来源只有跨页/续写调用。 */
     sendMsgBtn.addEventListener("click", async ()=>{
+        /* ★ 换线重写是明确的高级指令，任何对话状态下都优先识别：
+           上传剧本「检测复读」的报告里第②条建议就靠它落地。旧逻辑只在 loopHold 确认分支里认，
+           纯检测场景（不设确认态）下用户写完「从第N集换线重写」会被当普通指令吞掉、
+           失去"旧稿不喂给模型"的保护。这里提前拦下，下面各确认分支的 rewind 代码随之移除。 */
+        const rwTyped = userInput.value.trim();
+        if(rwTyped){
+            const rwDet = (mfClarifyPending && mfClarifyPending.loopHold && mfClarifyPending.loopDet)
+                ? mfClarifyPending.loopDet : (mfLastUploadLoopDet || null);
+            const rw = mfParseRewind(rwTyped, rwDet);
+            if(rw){
+                if(!currentSkillKey){
+                    append("📌 换线重写需在专业创作态进行：请先点上方【剧本创作助手V5】加载技能，再点开始发送你写的「" + rwTyped + "」。", "tip");
+                    return;   /* 保留原文，不吞掉用户输入 */
+                }
+                mfClarifyPending = null;
+                userInput.value = "";
+                mfAutoContinue = null; mfScriptGoal = null;
+                mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = ""; mfResumeHoldAfter = false;
+                mfFixEpisodeTarget = 0;
+                mfRewindPlan = rw;
+                append("🔄 收到换线重写：从第 " + rw.from + " 集" + (rw.to>rw.from ? ("–"+rw.to+" 集") : "")
+                    + " 换全新情节线重写，旧稿不喂给模型，写完即停并再查一次复读…", "tip");
+                sendMessage();
+                return;
+            }
+        }
         /* 若上轮已吐理解稿待确认、用户又点开始（回答填回指令框，或留空表示认可）→
            合并「原指令 + 理解稿 + 用户修正」，直接开工。合并后 pending 清空，不再重复探测。 */
         if(mfClarifyPending){
@@ -7774,19 +7874,8 @@ function initUI(){
             if(p.loopHold){
                 mfClarifyPending = null;
                 const typed = userInput.value.trim();
-                /* ★ ③ 换线重写：从最早重复集起换全新情节线重写，上下文剔除重复旧稿。
-                   优先于 1/2 判定——单独的「3」或「从第N集换线重写…」都走这条专用通道。 */
-                const rw = mfParseRewind(typed, p.loopDet || null);
-                if(rw){
-                    userInput.value = "";
-                    mfAutoContinue = null; mfScriptGoal = null;
-                    mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = ""; mfResumeHoldAfter = false;
-                    mfRewindPlan = rw;
-                    append("🔄 收到换线重写：从第 "+rw.from+" 集"+(rw.to>rw.from?("–"+rw.to+" 集"):"")
-                        + " 换全新情节线重写，旧稿不喂给模型，写完即停并再查一次复读…", "tip");
-                    sendMessage();
-                    return;
-                }
+                /* ★ ③ 换线重写（「3」/「从第N集换线重写…」）已在发送入口通用拦截，
+                   此处只剩 1/2 与自由处理意见，不再重复判定。 */
                 /* #12：把纯选项 1/2 与"自由处理意见"区分开——
                    1=有意重复（照常续写，不带防复读指令）；2=确实卡住（带防复读指令）；
                    只有其它文字才是用户处理意见原文。旧代码只排除"1"，导致输入"2"被当作
