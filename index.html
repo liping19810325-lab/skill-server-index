@@ -1171,6 +1171,10 @@ let mfRewindPlan = null;
 /* 上传剧本「检测复读」命中时的证据缓存：只供后续「从第N集换线重写」取起点与负面清单，
    ★不是待确认态——检测报告出完就结束，绝不锁住对话（用户下一句永远按新指令处理）。 */
 let mfLastUploadLoopDet = null;
+/* 「先输指令、后加载技能」的挂起：用户在未加载技能时写了 1/2/3 或换线指令被拦下，
+   把原文记在这里，等技能加载成功后自动执行，免去再输一遍、再点一次开始。
+   ★不是确认态，只是一句待办；10 分钟过期，避免陈年指令在新任务里突然冒出来执行。 */
+let mfSkillPendingCmd = null;
 /* 当前「项目产物」身份（历史产物按项目而非按轮次记录）：
    projectId 唯一标识一个项目（新对话/清空本页/换剧或换技能时换新），
    同一项目内的多次生成都更新同一条历史产物，不再每轮各建一条。
@@ -2576,6 +2580,7 @@ function clearCurrentPage(){
        （sendQueue 已由上方 stopGenerate() 清空；画幅是面板物理按钮的全局态，按最高优先级保留不动。） */
     mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
     mfResumeHoldAfter = false; mfFixEpisodeTarget = 0; mfRewindPlan = null; mfLastUploadLoopDet = null;
+    mfSkillPendingCmd = null;   /* 清空本页=放弃「先输后加载」的挂起指令 */
     mfProjectId = "";   /* 清空即开新项目：下次生成会新建一条历史产物，不覆盖旧项目 */
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     mfResetDailyState();
@@ -3641,6 +3646,28 @@ function mfHasRewindIntent(cmd){
     if(/^[3３③三]$/.test(s)) return true;
     return /换线|换条线|换条故事线|另起(?:一条|一)?(?:线|剧情|故事)|改换(?:情节|剧情|故事)线/.test(s);
 }
+/* 是否属于「加载技能后要自动执行」的确认类指令：纯 1/2/3 选项，或明确的换线意图。
+   ★普通问题（如「检测这个剧本有没有重复剧情？」）不是，不会被挂起，加载技能后不会突然执行。 */
+function mfIsPostSkillCommand(cmd){
+    const s = String(cmd||"").trim();
+    if(!s) return false;
+    if(/^[1１①一2２②二3３③三]$/.test(s)) return true;
+    return mfHasRewindIntent(s);
+}
+/* 技能加载成功后：若有「先输后加载」的挂起指令，恢复指令框并复用「开始」按钮入口自动执行。
+   ★复用 sendMsgBtn.click() 而不是另写一份发送逻辑——与手动点开始走完全相同的 handler，
+   确保对齐/确认/换线/续写各分支行为一致，绝不出现两条路径分叉。
+   10 分钟过期（挂起后用户另起任务就不该再突然执行）；执行前清掉挂起，避免重入死循环。 */
+function mfRunPendingSkillCommand(){
+    const p = mfSkillPendingCmd;
+    mfSkillPendingCmd = null;
+    if(!p || typeof p !== "object" || typeof p.cmd !== "string" || !currentSkillKey) return;
+    if(Date.now() - Number(p.at || 0) > 10*60*1000) return;   /* 过期不执行 */
+    if(typeof sendMsgBtn === "undefined" || !sendMsgBtn) return;
+    userInput.value = p.cmd;
+    append("▶️ 技能已就绪，自动执行你之前写下的「" + p.cmd + "」…", "tip");
+    try{ sendMsgBtn.click(); }catch(e){ append("⚠️ 自动执行失败，请点「开始」重试。", "err"); }
+}
 /* 识别「换线重写」意图：返回 {from, to, note} 或 null。
    支持：单独写「3」= 用检测到的最早重复集；「从第71集换线重写」「从第71集换条线重写到第74集」；
    「从第71集换线重写：改成锦衣卫查案」等（冒号后作为用户方向 note）。 */
@@ -4623,8 +4650,10 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
     currentSkillKey = "";           // 加载期间先清空，失败时绝不带图
     currentSystemPrompt = "";       // 同时清空旧模板与旧名字
     currentSkillName = "";
-    /* #6：换技能即放弃上一条指令待确认的理解稿，避免旧稿污染新技能下的新指令 */
-    mfClarifyPending = null;
+    /* #6：换技能即放弃上一条指令待确认的理解稿，避免旧稿污染新技能下的新指令。
+       ★例外：若有「先输 1/2/3 后加载」的挂起指令，保留确认态——否则 1/2 的复读确认上下文丢失，
+       加载后自动执行会退化成把「1」当普通指令。无挂起时行为不变。 */
+    if(!mfSkillPendingCmd) mfClarifyPending = null;
     updateRefBadge();
     updateDownloadLabel();
     skillStatusEl.innerText = `⏳ 正在加载技能：${nameMap[type]} ...`;
@@ -4652,6 +4681,8 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
         updateDownloadLabel();
         skillStatusEl.innerText = `✅ 当前已加载技能【${currentSkillName}】`;
         append(`✅ 技能【${currentSkillName}】加载完成`, "tip");
+        /* 技能就绪：若之前有「先输指令后加载」的挂起，自动复用「开始」入口执行，免得用户再输一遍 */
+        mfRunPendingSkillCommand();
     } catch (err) {
         clearTimeout(timer);
         if(retryCount > 0){
@@ -4665,7 +4696,11 @@ async function loadSkill(type, retryCount=2, timeoutMs=10000) {
 }
 
 function loadCustomSkill(skillItem){
+    /* ★ 与 loadSkill 同理：有挂起指令时保住复读确认态，别让 stopGenerate 把 1/2 的上下文清掉 */
+    const keepLoop = mfSkillPendingCmd && mfClarifyPending && mfClarifyPending.loopHold
+        ? mfClarifyPending : null;
     stopGenerate();
+    if(keepLoop) mfClarifyPending = keepLoop;
     currentSystemPrompt = skillItem.content;
     currentSkillName = skillItem.name;
     currentSkillKey = "custom";     // 自定义技能同样不带图，避免纯文本接口报错
@@ -4674,6 +4709,7 @@ function loadCustomSkill(skillItem){
     updateDownloadLabel();
     skillStatusEl.innerText = `✅ 当前已加载自定义技能【${currentSkillName}】`;
     append(`✅ 自定义技能【${currentSkillName}】加载完成`, "tip");
+    mfRunPendingSkillCommand();
 }
 
 function importSkillMdFile(file){
@@ -7859,6 +7895,19 @@ function initUI(){
        （即 autoSourceText）传入，导致每次普通点击都把 "[object PointerEvent]" 当"已附带文字"
        塞进请求上下文，污染模型输入。唯一的字符串来源只有跨页/续写调用。 */
     sendMsgBtn.addEventListener("click", async ()=>{
+        /* ★ 先输指令、后加载技能：若当前未加载技能，而指令是 1/2/3 或换线这类确认类指令，
+           把它挂起并引导加载技能；技能加载成功后自动重新走本 handler（见 mfRunPendingSkillCommand）。
+           ★挂起标记在自动执行前已被消费清空，本 handler 被重入时不会再次命中，不会死循环。
+           普通问题（检查类/闲聊）不匹配 mfIsPostSkillCommand，行为不变。 */
+        if(!currentSkillKey){
+            const pendingTyped = String(userInput.value || "").trim();
+            if(mfIsPostSkillCommand(pendingTyped)){
+                mfSkillPendingCmd = { cmd: pendingTyped, at: Date.now() };
+                append("📌 已记下你的指令「" + pendingTyped + "」。请先加载剧本技能（点上方技能按钮 → 选「在本页加载技能」），"
+                     + "加载完成后我会自动按这条指令开始，不用再输入一次。", "tip");
+                return;   /* 保留原文，等技能加载后自动执行 */
+            }
+        }
         /* ★ 换线重写是明确的高级指令，任何对话状态下都优先识别：
            上传剧本「检测复读」的报告里第②条建议就靠它落地。旧逻辑只在 loopHold 确认分支里认，
            纯检测场景（不设确认态）下用户写完「从第N集换线重写」会被当普通指令吞掉、
