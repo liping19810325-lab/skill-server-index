@@ -363,6 +363,11 @@
         /* 修改基准：双击吐字窗口某条 AI 回复即设为「后续修改所依据的原稿」，左侧色条 + 顶部标签标示 */
         .msg.ai.ai-base { border-left: 3px solid var(--blue); background: var(--panel); border-radius: 0 8px 8px 0; padding: 8px 12px; position: relative; }
         .msg.ai.ai-base::before { content: "📌 修改基准 · 后续指令将在此稿基础上修改"; display: block; font-size: 11px; color: var(--blue); margin-bottom: 4px; }
+        /* 单集补完替换后，给旧半截稿消息打「已替换」标记。用伪元素而非真实文字：
+           伪元素不进 innerText，故 msgFullText / collectAllAiOutputs 抓不到，下载产物不被污染；
+           旧的半截正文仍留在窗口作历史，但合并下载时按集号取最后生成的一版（完整版）。 */
+        .msg.ai.mf-superseded { opacity: .55; }
+        .msg.ai.mf-superseded::before { content: "♻️ 此稿的第 " attr(data-mf-fix-ep) " 集已由后面的完整版替换（下方新稿为准）"; display: block; font-size: 11px; color: var(--green); margin-bottom: 4px; }
         /* 离线助手的可点追问按钮 */
         .kb-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
         .kb-chip { border: 1px solid var(--blue); background: transparent; color: #93c5fd; border-radius: 999px; padding: 6px 13px; font-size: 12.5px; line-height: 1.5; cursor: pointer; transition: background .15s, color .15s; }
@@ -1130,6 +1135,15 @@ let mfResumeUserNote = "";
 let mfWasGenerating = false;
 let mfResumeMode = false;
 let mfResumeDom = null;
+/* 单集补完·替换：用户在指令里说「把第N集补完/重写并替换掉那个没写完的失败集」时，
+   mfFixEpisodeTarget=N。本轮只补这一集、带【第N集完】收尾；生成后产物层按集号自动覆盖
+   旧的半截稿（buildMergedScriptText 取最后生成的一版），旧消息用伪元素标记「已替换」
+   （伪元素不进 innerText，不会污染下载产物）。补完即停，不自动续写后续集。 */
+let mfFixEpisodeTarget = 0;
+/* A方案：用户点「暂停」后置位，本轮断点续写补完半截后读它决定是否「停下等明确指令」
+   （不清零则默认照旧自动续写下一批，保证刷新/网络中断的断点续写行为不变）。
+   finally 里消费一次；用户重新点停止/清空/走跳过半截时清零。 */
+let mfResumeHoldAfter = false;
 /* 当前「项目产物」身份（历史产物按项目而非按轮次记录）：
    projectId 唯一标识一个项目（新对话/清空本页/换剧或换技能时换新），
    同一项目内的多次生成都更新同一条历史产物，不再每轮各建一条。
@@ -2382,6 +2396,7 @@ function snapshotLiveSession(){
            窗口里提示文字虽在，但语义若丢失，点「开始」会变成全新指令。恢复后走原确认分支。 */
         mfClarifyPending: (typeof mfClarifyPending !== "undefined" && mfClarifyPending && typeof mfClarifyPending === "object")
             ? JSON.parse(JSON.stringify(mfClarifyPending)) : null,
+        mfResumeHoldAfter: !!mfResumeHoldAfter,
         currentSkillKey: currentSkillKey,
         currentSkillName: currentSkillName,
         currentSystemPrompt: currentSystemPrompt,
@@ -2436,6 +2451,7 @@ function restoreLiveSession(){
         /* #7：恢复待确认状态。只接受结构合法的对象（有 cmd/brief），避免损坏的快照污染确认分支。 */
         mfClarifyPending = (s.mfClarifyPending && typeof s.mfClarifyPending === "object"
             && typeof s.mfClarifyPending.cmd === "string") ? s.mfClarifyPending : null;
+        mfResumeHoldAfter = !!s.mfResumeHoldAfter;   /* 暂停后补半截的「补完即停」意图随确认稿一起恢复 */
         /* 吐字中被刷新打断 → 标记待断点续写（真正发起在 initUI 末尾，等按钮绑定完成）。
            只有"上次生成中 + 确实吐出了半截稿"才值得续；空稿没有可接的内容，交给用户重新发指令。 */
         /* 只给「专业创作产物」保留断点续写：日常聊天被刷新打断不弹创作态的续写确认稿。 */
@@ -2490,6 +2506,7 @@ function clearCurrentPage(){
     /* #15：清空本页=等同新建对话，断点续写态也必须清干净，否则清空后点「开始」会被旧续写锚点接管。
        （sendQueue 已由上方 stopGenerate() 清空；画幅是面板物理按钮的全局态，按最高优先级保留不动。） */
     mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+    mfResumeHoldAfter = false; mfFixEpisodeTarget = 0;
     mfProjectId = "";   /* 清空即开新项目：下次生成会新建一条历史产物，不覆盖旧项目 */
     currentSkillKey = ""; currentSkillName = ""; currentSystemPrompt = "";
     mfResetDailyState();
@@ -2548,6 +2565,7 @@ function stopGenerate(keepContinuation) {
         try{ mfClearPendingCards(); }catch(e){}
         if(mfAutoContinue || mfScriptGoal){ mfAutoContinue = null; mfScriptGoal = null; if(!mfStopQuiet) append("🛑 已取消自动续写。", "tip"); }
         mfInterruptReason = "";   /* 用户停止=放弃中断续写，避免停止后又弹出确认框 */
+        mfResumeHoldAfter = false;/* 用户再次停止=放弃「补完即停」的暂停态 */
         /* #6：用户主动停止/换技能 = 放弃待确认的理解稿（对齐稿/中断确认/复读确认），
            否则下次点「开始」会把旧理解稿当成新指令的修正合并进去，污染新任务。
            注意 internal=true（sendMessage 开头内部清理）时不走这里，不影响正常续写确认链。 */
@@ -2568,8 +2586,9 @@ function pauseGenerate(){
     mfStopQuiet = true;                    /* 静默标志：暂停不误报"已停止/已取消自动续写" */
     try{ stopGenerate(); } finally{ mfStopQuiet = false; }   /* 中止请求 + 清队列/续写态/旧 pending */
     if(!wasGenerating) return;             /* 没在吐字（如续写间隙）：不凭空造确认稿 */
-    mfScriptGoal = savedGoal;              /* 目标锚点保留：补完半截集后自动续上后续集 */
+    mfScriptGoal = savedGoal;              /* 目标锚点保留：补完半截集后用户可明确说「继续写第N集」 */
     mfInterruptReason = "用户暂停";         /* finally 据此走确认后续写，且不清目标 */
+    mfResumeHoldAfter = true;              /* A方案：这次补完半截后停下等用户明确指令，不自动写后续集 */
     try{ delete chatBox.dataset.stoppedDraft; }catch(e){}
     append("⏸ 已暂停，正在整理续写安排…", "tip");
 }
@@ -3392,6 +3411,44 @@ function buildResumeContext(partialText){
         + (p || "（本轮未吐出正文，请从上方已写集的下一集接着写）")
         + "\n【中断前内容结束 · 请从上面最后一个字直接往下续写，不要复述本指引】";
 }
+/* ===== 单集补完·替换失败集（用户点名「把第N集写完并替换掉那集」）=====
+   与断点续写的区别：断点是「接着最后一条半截稿往下写」，可能跨到下一集；
+   这里是「只补用户点名的那一集」，从窗口里按集号定位它的半截正文作上文，
+   要求以【第N集完】收尾；生成后产物层按集号取最后生成的一版覆盖旧稿，
+   旧消息用 CSS 伪元素标「已替换」（不进 innerText，不污染产物）。 */
+function mfFindEpisodeBlock(ep){
+    let found = "";
+    try{
+        collectAllAiOutputs().forEach(it=>{
+            const p = parseScriptBlocks(it.text);
+            if(p && p.episodes && p.episodes.has(ep)) found = p.episodes.get(ep);   /* 后出现的覆盖先出现的 */
+        });
+    }catch(e){}
+    return String(found || "");
+}
+function mfFixEpisodeDirective(ep){
+    return "【单集补完·替换失败集（最高优先级）】\n"
+        + "用户要求把第 "+ep+" 集这一集单独补写成完整正文，用它替换窗口里那一集写了一半的失败稿。\n"
+        + "0) 严格沿用上文已确立的《剧名》、世界观、人物设定、集号、画幅与既有剧情；不重出大纲、不改剧名、不从第1集重写；\n"
+        + "1) 只输出第 "+ep+" 集这一集：以《剧名》第"+ep+"集：开头，以【第"+ep+"集完】单独收尾，满足技能规定的最低场次与成片时长；\n"
+        + "2) 下方「第"+ep+"集·失败半截稿」是上一轮写到一半被迫停下的内容：把它当作你自己刚写的前半段，从它末尾的最后一个字/镜头自然接续、补齐到本集完整收尾；严禁逐字复述已写部分，也不要另起新情节；\n"
+        + "3) 严禁输出其它任何集（包括第 "+(ep+1)+" 集），严禁写「待续 / 是否继续写下一集」这类追问；本轮只交付这一集；\n"
+        + "4) 若失败稿其实已写到收尾附近、仅缺【第"+ep+"集完】标记，核对剧情连贯后直接补上标记与缺失场面即可，不要推倒重写。";
+}
+function buildFixEpisodeContext(ep){
+    const block = mfFindEpisodeBlock(ep);
+    let anchor = "";
+    try{
+        const all = collectCreativeOutputs().map(x=>x.text).join("\n\n");
+        const written = collectWrittenEpisodeSet();
+        anchor = buildContinuationContext(all || block, written);
+    }catch(e){}
+    return "【本剧已写部分（单集补完上文，沿用原剧名/设定/画幅，不要重出、不要改）】\n"
+        + (anchor || "（未取得结构化上文，请严格以「失败半截稿」里的剧名与设定为准，不要自创）")
+        + "\n\n—— 第 "+ep+" 集 · 失败半截稿（本次只补这一集，从末尾接续，不要复述）——\n"
+        + (block || "（未定位到该集半截稿，请严格按大纲路线图补写这一集）")
+        + "\n【失败半截稿结束 · 请从最后一个字直接往下补完，直到【第"+ep+"集完】】";
+}
 /* ===== 中断后"确认再续写"（用户明确要求）=====
    网络/模型/超时等意外中断后，绝不自动往下写（模型会因缺上文另起炉灶）。
    改为出一份"开工前对齐"理解稿：告诉用户写到哪、接下来接哪集、沿用哪部剧，
@@ -3407,17 +3464,19 @@ function mfOfferInterruptedResume(reason){
     const isPause = /用户暂停/.test(String(reason || ""));
     let brief;
     if(isPause){
-        /* 用户主动暂停：最后吐出标题的那一集就是待补完的半截集。默认补完它再续后续；
-           若那集其实已写完，用户可在指令框写「从第N集继续」跳过——把选择权交还用户，
-           不靠格式猜测"是否写完"（模型输出格式不固定，猜错会重写已交付内容）。 */
+        /* 用户主动暂停：最后吐出标题的那一集就是待补完的半截集。
+           ★ A方案：补完这一集后【停下等用户明确指令】，不再自动续写后续集——
+             用户点暂停就是要介入，不能没等指令就自己往下写。
+           把后续三种走法都列给用户：补完即停 / 跳过半截写新集 / 只补这一集替换。 */
         const partialEp = writtenMax || 1;
         brief = "你已暂停生成。窗口里写好的正文全部保留，绝不另起新剧。我的理解与下一步：\n"
             + "· 这是同一部剧 " + title + (total ? "，目标第 " + total + " 集" : "")
             + "；第 " + partialEp + " 集刚写到一半（你在它写完前点了暂停）；\n"
             + "· 直接点「开始」= 带上这一集的半截正文与全剧大纲，从中断处把它补完，"
-            + (range ? "再自动续写第 " + range.from + " 集起" : "再接着往下写")
-            + "，沿用原有大纲、人物设定、画幅与每集时长/场次；\n"
+            + "补完即停（不会自己往下写）；沿用原有大纲、人物设定、画幅与每集时长/场次；\n"
             + (range ? "· 若这一集其实已写完、想直接写第 " + range.from + " 集，在指令框写「从第" + range.from + "集继续」再点开始；\n" : "")
+            + "· 如果想把第 " + partialEp + " 集单独重写成完整版并替换掉这集半截稿，写「把第" + partialEp + "集补完替换」再点开始；\n"
+            + "· 想继续补完后面的集，先补完再说「继续写第" + (partialEp+1) + "集」；要推倒重来就直接写明（如「从第一集重写」）。\n"
             + "· 不重出大纲、不从第 1 集重写、不改剧名/画幅。\n"
             + "请确认无误后点「开始」继续。";
     }else{
@@ -6230,6 +6289,36 @@ function mfLooksLikeEditCmd(cmd){
        || /^(?:把|将)?\s*画幅/.test(s)) return false;
     return /(改大纲|改设定|改人设|改人物|改名|改成|换成|重写|改写|调整第|修改第|删掉|删除|把.{0,20}(?:改成|换为|改为)|不要.{0,10}了)/.test(s);
 }
+/* ★ 推倒重来识别：同剧推倒重来（不带新剧名，故 mfIsTrulyNewDrama 认不出）。
+   命中后清掉旧剧目标/断点锚点按全新委托对齐，绝不能吞成「断点续写的修正附注」——
+   否则模型一边收到「严禁从头」的强指令、一边收到「从第一集重写」，自相矛盾。 */
+function mfWantsRestart(cmd){
+    const s = String(cmd||"").trim();
+    if(!s) return false;
+    return /推倒重来|推翻重写|从头(?:写|开始|重写|创作|新写)|推倒(?:重写|重来|重做)|全部重写|整体重写|重新(?:写|做)(?:大纲|整个|全部|整部|剧本)|重出(?:大纲|剧本)|从第一集(?:重写|开始|重新写|写起)|换个?(?:故事|剧情|题材)(?:线|设定|方向)?(?:重写|重来|重新)|重新写一部/.test(s);
+}
+/* ★ 单集补完·替换识别：返回集号(1..500)，否则 0。
+   「把第44集补完 / 第44集没写完重写它 / 重写第44集替换掉那集」都算；
+   排除「从第N集重写到第M集」这类多集定向重写（交还原通道）。 */
+function mfParseFixEpisode(cmd){
+    const s = String(cmd||"").trim();
+    if(!s || mfWantsRestart(s)) return 0;
+    if(/(?:到|至|[-–—~])\s*第?\s*\d+\s*集/.test(s) && /(?:重写|改写|续写|写|补)/.test(s)) return 0;
+    let m = s.match(/(?:把|将)?\s*第?\s*(\d+)\s*集[^\n]{0,14}?(?:补完|补写|写完|写完整|重写|重做|重新写|替换)/)
+         || s.match(/(?:补完|补写|写完|重写|重做|重新写|替换掉?)[^\n]{0,10}?第?\s*(\d+)\s*集/);
+    if(!m) return 0;
+    const n = parseInt(m[1],10);
+    return (n>=1 && n<=500) ? n : 0;
+}
+/* ★ 定向单集操作（重写/改写/补完第N集）：不改变全剧目标集数锚点——
+   否则 mfScriptGoal 从「共100集」被悄悄改成「共44集」，后续不再续写45–100。 */
+function mfIsSingleEpisodeDirective(cmd){
+    const s = String(cmd||"").trim();
+    if(!s || mfWantsRestart(s)) return false;
+    if(/(?:到|至|[-–—~])\s*第?\s*\d+\s*集/.test(s)) return false;
+    return /(?:重写|改写|补完|补写|修改|改|替换)\s*第?\s*\d+\s*集/.test(s)
+        || /第?\s*\d+\s*集[^\n]{0,10}?(?:重写|改写|补完|补写|替换)/.test(s);
+}
 /* ★ 对话式理解主流程（只用于"已开工的剧本助手 + 非换剧新委托"）。
    返回 true = 已用自然语言回问、本轮拦截等用户答；false = 放行（理解透 / 快速档 / 探测失败降级）。
    理解透时把结果存进 mfDialogueIntent，供 sendMessage 决定意图分类与回灌上下文。 */
@@ -6473,6 +6562,12 @@ async function sendMessage(autoSourceText) {
     pendingText = "";
     /* 断点续写（刷新中断后自动发起）：保留已吐半截稿、复用原 AI 消息节点，不新建、不清空。 */
     const isResuming = !!mfResumeMode;
+    /* 单集补完·替换：由点「开始」的守卫识别「把第N集补完替换」后置位。
+       本轮按普通新消息生成（只写这一集），注入专用强指令+定向上下文，补完即停。
+       立即消费全局标记，避免重入/自动续写再次触发。 */
+    const fixEp = (mfFixEpisodeTarget > 0 && currentSkillKey === "a") ? mfFixEpisodeTarget : 0;
+    const isFixEpisode = fixEp > 0;
+    mfFixEpisodeTarget = 0;
     /* 本轮正文归属：未加载 Skill 的窗口（含日常聊天断点续写）只写 mfDailyAiText；
        专业创作态才写 fullAiText。两者绝不混用，避免闲聊被当成创作产物。 */
     const useDailyText = !currentSkillKey;
@@ -6483,7 +6578,7 @@ async function sendMessage(autoSourceText) {
        普通修正、排队续写、断点续写指令都不会被误判。 */
     const rawCmd = isResuming ? "" : String(userInput.value || "").trim();
     /* ★ 用窄口径"真的换剧"判断：同剧"重写/改稿"不再是全新委托，不会清掉续写锚点被当新剧推倒重来。 */
-    const freshCommissionNow = !!(rawCmd && currentSkillKey === "a"
+    const freshCommissionNow = !!(rawCmd && !isFixEpisode && currentSkillKey === "a"
         && typeof mfIsTrulyNewDrama === "function" && mfIsTrulyNewDrama(rawCmd));
     if(freshCommissionNow && mfAutoContinue){
         append("🔄 检测到全新委托，已停止旧剧的自动续写，按你的新指令处理。", "tip");
@@ -6502,18 +6597,21 @@ async function sendMessage(autoSourceText) {
        只有理解判为 new（或没有对话理解、且确实命中换剧）才 WANT_FRESH，避免"整体重写"被当成新剧推倒重来。 */
     const dlgIntent = (typeof mfDialogueIntent !== "undefined" && mfDialogueIntent) ? mfDialogueIntent.intent : "";
     const dlgRevision = /^(rewrite|revise_outline|revise_episode)$/.test(dlgIntent);
-    const WANT_FRESH = !isAutoContinue && !isResuming && (currentSkillKey === "a")
+    const WANT_FRESH = !isAutoContinue && !isResuming && !isFixEpisode && (currentSkillKey === "a")
         && !dlgRevision
         && (freshCommissionNow || (wantsFreshScript(userCmd) && typeof mfIsTrulyNewDrama === "function" && mfIsTrulyNewDrama(userCmd)));
     /* 剧本目标集数锚点：用户明确要求多集时锁定，供自动续写按"实际写出 vs 目标"判定。
        —— 新写/重写：按本轮指令重设目标（没写集数则清空，避免沿用上一个剧的目标）；
           自动续写：沿用已有目标，不在此重设；
           普通修改/续写指令：若带明确集数区间也更新目标，否则保留原目标。 */
-    if(currentSkillKey === "a" && !isAutoContinue && !isResuming){
+    if(currentSkillKey === "a" && !isAutoContinue && !isResuming && !isFixEpisode){
         const g = parseScriptGoalFromCommand(userCmd);
+        const singleEpOp = typeof mfIsSingleEpisodeDirective === "function" && mfIsSingleEpisodeDirective(userCmd);
+        /* 定向单集操作（重写/补完第N集）只动那一集，绝不可把「共100集」的锚点改成「共44集」——
+           否则补完44集后 maybeAutoContinue 判定 total=44 已达、后续45–100全部不再写。 */
         if(WANT_FRESH){
             mfScriptGoal = g ? { from:g.from, total:g.total, batch:MF_CONTINUE_BATCH, rounds:0 } : null;
-        }else if(g){
+        }else if(g && !singleEpOp){
             mfScriptGoal = { from:g.from, total:g.total, batch:MF_CONTINUE_BATCH, rounds:0 };
         }
     }
@@ -6530,7 +6628,12 @@ async function sendMessage(autoSourceText) {
        剧本助手 a——默认只写第1集、指定几集出几集、大纲先出、多集附分集小纲；
        导演分镜助手 b/d——默认只把第1集剧本转提示词、指定几集转几集，强调集数≠组数；
        美术助手 c/e——无条件追加「出词前对照剧本资产 + 出词后校验补齐」强指令。 */
-    if (isResuming) {
+    if (isFixEpisode) {
+        /* ★ 单集补完替换：专用强指令 + 按集号定位的半截稿上文；
+           不走 scriptEpisodeDirective 的"默认只写第1集/重出大纲"那套，也不走修改基准。
+           上下文（buildFixEpisodeContext）在下方 autoSourceText 段注入。 */
+        combinedContent += (combinedContent ? "\n\n" : "") + mfFixEpisodeDirective(fixEp);
+    } else if (isResuming) {
         /* 断点续写走通用续写强指令，不触发任何技能的"重出大纲 / 指定集数"强指令，
            也不走"修改基准"分支——它已有半截稿作为上文，只需无缝接下去写。 */
         combinedContent += (combinedContent ? "\n\n" : "") + resumeDirective();
@@ -6581,6 +6684,13 @@ async function sendMessage(autoSourceText) {
     if (aspectNeedsInject(currentSkillKey)) {
         const aspectTxt = aspectDirective();
         if (aspectTxt) combinedContent += (combinedContent ? "\n\n" : "") + aspectTxt.replace(/^\n\n/, "");
+    }
+    /* ★ 单集补完替换：按集号定位的半截稿上文（含权威大纲/设定/最近集）直接注入。 */
+    if(isFixEpisode){
+        try{
+            const fixCtx = buildFixEpisodeContext(fixEp);
+            if(fixCtx) combinedContent += (combinedContent ? "\n\n" : "") + fixCtx;
+        }catch(e){}
     }
     /* 跨页技能任务触发的自动开始：把上一页带过来的已有文字作为待处理素材送进模型，
        窗口里不重复刷一大段原文；普通点「开始」时 autoSourceText 为空，行为完全不变 */
@@ -6992,9 +7102,42 @@ async function sendMessage(autoSourceText) {
            ★ 疑似复读被 loopHold 拦下时也停在这里，等用户确认。 */
         /* ★ #10：仅思考轮（服务端忽略关闭 thinking）不自动续写——fallback 正文质量不可控，
            模型配置异常时先把控制权还给用户。正常轮 onlyReasoning=false，行为完全不变。 */
-        let continued = loopHold ? false : maybeAutoContinue(
+        /* ★ A方案：用户暂停后补完半截集 → 停下等明确指令，不自动写后续集。
+           本轮是断点续写(isResuming)且暂停时置了 mfResumeHoldAfter；消费标记一次。
+           网络/刷新中断的断点续写没置标记，行为完全不变（照旧自动接下一批）。 */
+        const holdAfterResume = isResuming && mfResumeHoldAfter && completedNormally && !interruptedDraft;
+        if(holdAfterResume) mfResumeHoldAfter = false;
+        /* ★ 单集补完替换：补完即停，绝不自动续写后续集（用户要的就是"只补这一集"）。 */
+        const holdAfterFix = isFixEpisode && completedNormally && !interruptedDraft;
+        let continued = (loopHold || holdAfterResume || holdAfterFix) ? false : maybeAutoContinue(
             (completedNormally || degradeContinue) && !interruptedDraft && !onlyReasoning
         );
+        if(holdAfterResume){
+            mfAutoContinue = null;
+            if(mfScriptGoal) mfScriptGoal = null;
+            append("⏸ 半截集已补完，已停下。要继续写后面的集，请在指令框明确写出（如「继续写第45集」）再点开始。", "tip");
+        }
+        if(isFixEpisode){
+            mfAutoContinue = null;
+            if(completedNormally && !interruptedDraft){
+                /* 给含该集半截稿的旧 AI 消息打「已替换」标记（伪元素，不进 innerText、不污染产物）。
+                   跳过本轮新建的消息；只标最后一次出现该集的那条，避免误标早期大纲。 */
+                try{
+                    const nodes = Array.from(chatBox.querySelectorAll(".msg.ai"));
+                    for(let i=nodes.length-1;i>=0;i--){
+                        const n = nodes[i];
+                        if(n === aiMsgDom) continue;
+                        const p = parseScriptBlocks(msgFullText(n));
+                        if(p && p.episodes && p.episodes.has(fixEp)){
+                            n.classList.add("mf-superseded");
+                            n.setAttribute("data-mf-fix-ep", String(fixEp));
+                            break;
+                        }
+                    }
+                }catch(e){}
+                append("✅ 第 "+fixEp+" 集已补完并替换（合并下载时以新稿为准）。已停下，不自动写后续集。", "tip");
+            }
+        }
         if(!continued && !loopHold){
             /* ★ 无条件清残留续写态：只要本轮没有启动下一批，mfAutoContinue 就必须归零。
                旧逻辑 `if(!isAutoContinue)` 在异常续写轮里不清，脏状态会污染下一条手动指令。 */
@@ -7324,6 +7467,34 @@ function initUI(){
                    若用户在指令框写了修正，并入续写指令一起送（比如改剧名/集数）。 */
                 mfClarifyPending = null;
                 const typed = userInput.value.trim();
+                /* 进入确认分支即消费暂停置位：下面任何一条出口（跳过/改稿/补完/推倒重来）都不再算
+                   "暂停后补半截"。只有走到最后的断点续写才重新置回，避免标记残留到后续任务。 */
+                const pauseHold = mfResumeHoldAfter;
+                mfResumeHoldAfter = false;
+                /* ★ 推倒重来识别（最高优先）：「从第一集重写 / 重出大纲 / 推倒重来 / 换个故事线」
+                   是换任务，不是对半截稿的修正——清锚点按全新委托对齐，绝不能吞成续写附注
+                   （否则模型同时收到"严禁从头"的强指令和"从第一集重写"，自相矛盾、不听话）。 */
+                if(typeof mfWantsRestart === "function" && mfWantsRestart(typed)){
+                    mfAutoContinue = null; mfScriptGoal = null;
+                    mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+                    mfResumeHoldAfter = false;
+                    append("🔄 收到推倒重来的要求，已放下当前续写，按你的新指令重新开工…", "tip");
+                    const blocked = await mfClarifyIfNeeded(typed);
+                    if(!blocked) sendMessage();
+                    return;
+                }
+                /* ★ 单集补完·替换：用户点名「把第N集补完/重写并替换掉那集」，走专用通道。 */
+                const fixEp = (typeof mfParseFixEpisode === "function") ? mfParseFixEpisode(typed) : 0;
+                if(fixEp){
+                    mfAutoContinue = null;
+                    mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+                    mfResumeHoldAfter = false;
+                    append("🛠 收到指令：只把第 "+fixEp+" 集补完并替换那集半截稿，补完即停…", "tip");
+                    userInput.value = typed;
+                    mfFixEpisodeTarget = fixEp;
+                    sendMessage();
+                    return;
+                }
                 /* ★ 兑现暂停确认稿里的承诺：用户明确写「从第N集继续 / 跳过第N集」时，
                    不能走断点续写（那会从半截处补完），改走自动续写通道从下一个未写集开始。
                    普通确认词与其它修正（如"改成横屏"）不受影响，仍走下面的断点续写。 */
@@ -7359,6 +7530,7 @@ function initUI(){
                 mfResumeUserNote = note;
                 userInput.value = "";
                 mfResumeMode = true;
+                mfResumeHoldAfter = pauseHold;   /* 暂停后补半截：本轮补完即停，不自动写后续集 */
                 /* ★ 不能用 .msg.ai:last-of-type：上面刚 append 的 tip 是最后一个 div，
                    会让它恒为 null → 续写另起第二条 AI 消息、fullAiText 被重置成空节点（半截稿从下载里丢失）。 */
                 mfResumeDom = lastAiMsg();
@@ -7384,6 +7556,26 @@ function initUI(){
              排队任务与断点修正照常跳过对齐，语义绝不触碰；生成中也不弹卡，避免打断吐字。 */
         if(!isGenerating()){
             const cmd = userInput.value.trim();
+            /* ★ 推倒重来 / 单集补完替换：优先于开工对齐处理，且不受"自动态跳过对齐"影响。 */
+            if(cmd && typeof mfWantsRestart === "function" && mfWantsRestart(cmd)){
+                mfAutoContinue = null; mfScriptGoal = null;
+                mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+                mfResumeHoldAfter = false;
+                append("🔄 收到推倒重来的要求，已放下当前续写，按你的新指令重新开工…", "tip");
+                const blocked = await mfClarifyIfNeeded(cmd);
+                if(!blocked) sendMessage();
+                return;
+            }
+            if(cmd && typeof mfParseFixEpisode === "function" && mfParseFixEpisode(cmd)){
+                mfAutoContinue = null;
+                mfResumeMode = false; mfResumeDom = null; mfResumeUserNote = "";
+                mfResumeHoldAfter = false;
+                const ep = mfParseFixEpisode(cmd);
+                append("🛠 收到指令：只把第 "+ep+" 集补完并替换那集半截稿，补完即停…", "tip");
+                mfFixEpisodeTarget = ep;
+                sendMessage();
+                return;
+            }
             const inAutoState = !!mfAutoContinue || !!mfResumeMode || !!mfWasGenerating;
             const freshNow = !!(cmd && typeof mfIsTrulyNewDrama === "function" && mfIsTrulyNewDrama(cmd));
             if(cmd && (!inAutoState || freshNow)){
