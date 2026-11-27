@@ -281,6 +281,10 @@
         .skill-action-head b { color: #93c5fd; }
         .skill-action-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
         .skill-action-list .skill-btn { text-align: left; white-space: normal; }
+        .skill-action-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+        .skill-action-actions .modal-close { margin-top: 0; }
+        .skill-action-actions .same-page-btn { background: var(--panel); border: 1px solid var(--border2); color: var(--text); }
+        .skill-action-actions .same-page-btn:hover { background: var(--border2); }
         /* 预览弹窗顶部条：右上角一个「全屏 / 退出全屏」切换按钮 */
         .preview-topbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
         .preview-title { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -751,7 +755,10 @@
     <div class="modal-box skill-action-box">
         <div class="skill-action-head" id="skillActionHead"></div>
         <div class="skill-action-list" id="skillActionList"></div>
-        <button class="ctrl-btn modal-close" id="closeSkillActionBtn">取消 / 关闭</button>
+        <div class="skill-action-actions">
+            <button class="ctrl-btn modal-close same-page-btn" id="samePageSkillBtn">直接在本页加载技能</button>
+            <button class="ctrl-btn modal-close" id="closeSkillActionBtn">取消 / 关闭</button>
+        </div>
     </div>
 </div>
 <div class="modal-overlay" id="sendCanvasModal">
@@ -954,7 +961,7 @@ const MF_DAILY_SYS = "你是漫流编导创作台的日常对话助手。正常�
     + "【产品与算力常识】三个产品：漫流编导创作台（写剧本 / 转提示词）、漫流导演画布（把文字变成图 / 视频）、漫流AI剪辑台（时间轴剪辑并导出成片）。三档算力：漫流算力（预置模型 / 充值系统正在接入，暂为占位）、本机算力（自己电脑的 llama / Ollama / ComfyUI，免费不限量，首次接通花时间、之后本地算力自由）、第三方API（填接口地址 / Key / 模型名，按量计费）；三个网页的算力档位各自独立保存，需分别配置。上下文窗口 token 只对本机算力生效。"
     + "【连接类问题】用户问怎么把电脑 / 本地模型（llama、Ollama、ComfyUI）/ 第三方API 与三个网页打通、联通、接通、连上、建联时：建议看左栏【📖 使用帮助 → 二、打通本机软件与第三方API】，说明帮助里的办法——用 WorkBuddy 完成本站与本地 AI 软件或第三方 API 的互通，告诉 WorkBuddy 软件名、网址和「要打通它们」这个诉求即可。不要编造具体端口号或配置项，细节以使用帮助为准。"
     + "【引导时机】用户觉得接线麻烦时，可建议加使用帮助里的微信 onetone001 协助；用户想要更好的剧本 / 提示词效果时，可提一句加微信 onetone001 了解漫流特调大模型与 Skill 技能包；聊到本地算力时可提一句首次接通花时间、之后本地算力自由。每次最多一句、语气自然，不要每轮重复，不要编造价格或效果承诺。";
-function mfResetDailyState(){ mfDailyChatMemory = []; mfDailyHintState = null; mfKbAdShown = {}; mfKbAdRotation = 0; }
+function mfResetDailyState(){ mfDailyChatMemory = []; mfDailyHintState = null; mfKbAdShown = {}; mfKbAdRotation = 0; if(typeof mfDailyAiText !== "undefined") mfDailyAiText = ""; }
 
 /* ==================================================================
    离线知识库聊天助手
@@ -1131,6 +1138,10 @@ let mfProjectId = "";
 let pendingText = "";
 let aiMsgDom = null;
 let fullAiText = "";
+/* 日常对话态（未加载任何 Skill）的回复正文单独存，绝不写进 fullAiText。
+   fullAiText 只代表「专业创作产物」：下载产物、送画布、技能流转弹窗、历史产物、
+   剧本续写/对齐都以它为准；闲聊混进去会把普通问答当剧本产物，弹窗与历史都会误触发。 */
+let mfDailyAiText = "";
 /* 修改基准：双击吐字窗口某条 AI 回复，把这条设为「后续指令在其基础上修改」的原稿。
    baseMsgDom 指向那条消息节点；正文直接从节点 innerText 去掉「【AI】：」前缀取得，
    不额外存变量——这样历史载入 / 现场恢复后，基准正文依然随 DOM 一起在。 */
@@ -1167,6 +1178,7 @@ const skillActionModal = document.getElementById("skillActionModal");
 const skillActionHead = document.getElementById("skillActionHead");
 const skillActionList = document.getElementById("skillActionList");
 const closeSkillActionBtn = document.getElementById("closeSkillActionBtn");
+const samePageSkillBtn = document.getElementById("samePageSkillBtn");
 const sendCanvasModal = document.getElementById("sendCanvasModal");
 const sendCanvasHead = document.getElementById("sendCanvasHead");
 const sendCanvasExistingBtn = document.getElementById("sendCanvasExistingBtn");
@@ -1685,6 +1697,8 @@ function openChatPreview(ev){
     if(actions) actions.style.display = "none";
     delete previewModal.dataset.historyIndex;
     previewModal.dataset.previewSource = "chat";
+    /* 记住预览打开时所在的工作态：加载 Skill 后再编辑这条旧聊天，也不能写进创作产物 */
+    previewModal.dataset.dailyPreview = (!currentSkillKey) ? "1" : "";
     modalTextEl.textContent = text;
     if(chatPreviewActions) chatPreviewActions.style.display = "flex";
     showPreviewModal("产物预览 · 可编辑" + (baseMsgDom===target && target ? "（已设为修改基准）" : ""));
@@ -1732,7 +1746,8 @@ function saveChatPreview(){
         return;
     }
     const after = String(chatPreviewEditor.value || "");
-    const before = (typeof fullAiText === "string") ? fullAiText : "";
+    const dailyHere = previewModal.dataset.dailyPreview === "1";   /* 日常聊天编辑只更新 mfDailyAiText，不污染产物 */
+    const before = dailyHere ? mfDailyAiText : fullAiText;
     if(after === before){
         resetPreviewEditor();
         modalTextEl.textContent = after;
@@ -1740,7 +1755,8 @@ function saveChatPreview(){
         if(chatPreviewActions) chatPreviewActions.style.display = "flex";
         return;
     }
-    fullAiText = after;
+    if(dailyHere) mfDailyAiText = after;
+    else fullAiText = after;
     /* 写回当前预览的那条（即双击设为基准的回复）；找不到就退回基准引用/最后一条 */
     const aiMsgs = chatBox.querySelectorAll(".msg.ai");
     let target = baseMsgDom && baseMsgDom.isConnected ? baseMsgDom : null;
@@ -2359,6 +2375,7 @@ function snapshotLiveSession(){
     return {
         chatHtml: chatBox.innerHTML,
         fullAiText: fullAiText,
+        mfDailyAiText: mfDailyAiText,
         mfAutoContinue: mfAutoContinue,
         mfScriptGoal: mfScriptGoal,
         /* #7：待确认状态（对齐稿/中断续写/复读确认）随现场保存——生成已结束、显示确认稿时刷新，
@@ -2412,6 +2429,7 @@ function restoreLiveSession(){
     try{
         if(typeof s.chatHtml === "string") chatBox.innerHTML = s.chatHtml;
         fullAiText = typeof s.fullAiText === "string" ? s.fullAiText : "";
+        mfDailyAiText = typeof s.mfDailyAiText === "string" ? s.mfDailyAiText : "";
         /* 续写锚点随现场恢复：刷新后自动续写链不中断（结构做基本校验，异常值退回 null）。 */
         mfAutoContinue = (s.mfAutoContinue && typeof s.mfAutoContinue.from === "number" && s.mfAutoContinue.from >= 1) ? s.mfAutoContinue : null;
         mfScriptGoal = (s.mfScriptGoal && typeof s.mfScriptGoal.total === "number" && s.mfScriptGoal.total >= 1) ? s.mfScriptGoal : null;
@@ -2420,6 +2438,7 @@ function restoreLiveSession(){
             && typeof s.mfClarifyPending.cmd === "string") ? s.mfClarifyPending : null;
         /* 吐字中被刷新打断 → 标记待断点续写（真正发起在 initUI 末尾，等按钮绑定完成）。
            只有"上次生成中 + 确实吐出了半截稿"才值得续；空稿没有可接的内容，交给用户重新发指令。 */
+        /* 只给「专业创作产物」保留断点续写：日常聊天被刷新打断不弹创作态的续写确认稿。 */
         mfWasGenerating = !!s.generating && !!(s.fullAiText && String(s.fullAiText).trim());
         currentSkillKey = typeof s.currentSkillKey === "string" ? s.currentSkillKey : "";
         currentSkillName = typeof s.currentSkillName === "string" ? s.currentSkillName : "";
@@ -2466,7 +2485,7 @@ function clearCurrentPage(){
     if(!confirm("清空本页会删除当前页面的全部聊天记录、剧本、参考图、技能与生成内容（等同新建一个对话），本机历史产物与算力配置保留。确定清空吗？")) return;
     try{ stopGenerate(); }catch(e){}
     abortController = null; pendingText = ""; aiMsgDom = null; baseMsgDom = null;
-    fullAiText = ""; chatBox.innerHTML = "";
+    fullAiText = ""; mfDailyAiText = ""; chatBox.innerHTML = "";
     mfAutoContinue = null; mfScriptGoal = null; mfInterruptReason = ""; mfWasGenerating = false; mfClarifyPending = null;
     /* #15：清空本页=等同新建对话，断点续写态也必须清干净，否则清空后点「开始」会被旧续写锚点接管。
        （sendQueue 已由上方 stopGenerate() 清空；画幅是面板物理按钮的全局态，按最高优先级保留不动。） */
@@ -3941,13 +3960,18 @@ function guardCanvasNav(ev){
      可关闭取消；选定后把「已有正文 + 技能 + 底部额外要求」一次性带到新开的创作台网页，
      新网页自动加载技能并直接开始生成，当前页面内容完全不动；
    · 自定义 .md 技能只存内存，随 payload 把内容一起带过去，无需在新页重新导入；
+   · 「直接在本页加载技能」＝取消流转，改为在当前页加载刚点的那个技能（不新开网页）；
    · 「导入本地 .md 技能」「使用帮助」两个按钮不进弹窗、行为保持原样。
    ================================================================== */
+/* 记下触发弹窗的那个技能，供「直接在本页加载技能」取消流转时使用。 */
+let skillActionPendingSel = null;
 function onSkillButtonClick(sel){
     if(String(fullAiText || "").trim()){
+        skillActionPendingSel = sel || null;
         openSkillActionModal();
         return;
     }
+    skillActionPendingSel = null;
     if(sel && sel.type === "custom") loadCustomSkill(sel.item);
     else loadSkill(sel.key);
 }
@@ -3959,15 +3983,24 @@ function openSkillActionModal(){
     const manflowTip = (computeMode === "manflow")
         ? "<br>⚠️ 当前是「漫流算力」占位模式，不会真正发起请求；请先切到「本机算力」或「第三方API」。"
         : "";
-    skillActionHead.innerHTML = "吐字窗口里<b>已有生成的文字</b>。请选择一个技能：<b>会新开一个干净的创作台网页，用该技能对这段文字进行处理并直接开始生成</b>，剧本、生图提示词、生视频提示词各自留在自己的网页里，不再混进当前窗口。"
+    skillActionHead.innerHTML = "当前窗口有<b>创作产物</b>。请选择一个技能：<b>会新开一个干净的创作台网页，用该技能对这段文字进行处理并直接开始生成</b>，剧本、生图提示词、生视频提示词各自留在自己的网页里，不再混进当前窗口。"
         + "你原先写在页面底部指令输入框里的额外要求（如「改成悲剧结尾」）会和这段文字一起带到新网页。"
         + (n ? ` 已导入的 <b>${n}</b> 个本地技能按文件名列在后面，选中后技能内容会一并带过去。` : "")
-        + "<br>当前页面内容保持不变；不确定就点「取消 / 关闭」，不会打开新网页、也不会改动窗口内容。"
+        + "<br>不想流转就点「直接在本页加载技能」：在当前页加载你刚点的那个技能，不打开新网页、也不改动窗口内容；点「取消 / 关闭」则什么都不做。"
         + manflowTip;
     skillActionModal.style.display = "flex";
 }
 function closeSkillActionModal(){
     if(skillActionModal) skillActionModal.style.display = "none";
+}
+/* 取消跨页流转：关掉弹窗，直接把用户刚才点的那个技能加载在当前页。 */
+function loadSkillInCurrentPage(){
+    const sel = skillActionPendingSel;
+    skillActionPendingSel = null;
+    closeSkillActionModal();
+    if(!sel) return;
+    if(sel.type === "custom") loadCustomSkill(sel.item);
+    else loadSkill(sel.key);
 }
 function renderSkillActionList(){
     if(!skillActionList) return;
@@ -3990,6 +4023,7 @@ function renderSkillActionList(){
     });
 }
 function chooseSkillAction(sel){
+    skillActionPendingSel = null;
     closeSkillActionModal();
     try{
         const sourceText = String(fullAiText || "");
@@ -6439,7 +6473,10 @@ async function sendMessage(autoSourceText) {
     pendingText = "";
     /* 断点续写（刷新中断后自动发起）：保留已吐半截稿、复用原 AI 消息节点，不新建、不清空。 */
     const isResuming = !!mfResumeMode;
-    if(!isResuming) fullAiText = "";
+    /* 本轮正文归属：未加载 Skill 的窗口（含日常聊天断点续写）只写 mfDailyAiText；
+       专业创作态才写 fullAiText。两者绝不混用，避免闲聊被当成创作产物。 */
+    const useDailyText = !currentSkillKey;
+    if(!isResuming){ fullAiText = ""; mfDailyAiText = ""; }
     /* ★ 窄口径保护（排队任务直达 sendMessage，不经过点「开始」的守卫，必须在这里也兜住）：
        自动态下用户若输入换剧级全新委托，先清掉旧剧续写锚点，否则 isAutoContinue 会把新指令
        当续写、带旧剧上文与集数锚点发出。mfIsFreshCommission 只认明确重写/新写或不同《剧名》，
@@ -6652,8 +6689,9 @@ async function sendMessage(autoSourceText) {
            新吐的字直接续在它后面，窗口里看起来就是一次连续的吐字。 */
         aiMsgDom = (mfResumeDom && mfResumeDom.isConnected) ? mfResumeDom : append("【AI】：", "ai");
         append("🔄 已从断点自动接续生成（页面刷新不影响任务）", "tip");
-        /* 半截稿即已吐内容：fullAiText 在开头已保留，这里同步成节点当前文本，确保续字落点一致 */
-        fullAiText = msgFullText(aiMsgDom);
+        /* 半截稿即已吐内容：开头已保留对应文本变量，这里同步成节点当前文本，确保续字落点一致 */
+        if(useDailyText) mfDailyAiText = msgFullText(aiMsgDom);
+        else fullAiText = msgFullText(aiMsgDom);
     }else{
         append(`【用户】：${userCmd}${autoSourceText ? "（已附带窗口内已有文字，按当前技能处理）" : ""}（附带${attachedFiles.length}个勾选文件${imgNote}）`, "user");
         userInput.value = "";
@@ -6846,7 +6884,8 @@ async function sendMessage(autoSourceText) {
                                || (typeof d.text === "string" ? d.text : "") || "";
                     if(delta){
                         aiMsgDom.innerText += delta;
-                        fullAiText += delta;
+                        if(useDailyText) mfDailyAiText += delta;
+                        else fullAiText += delta;
                         chatScrollBottom();   /* 仅贴底时跟随；用户上滑查看早期集时保持位置 */
                     }else if(d.reasoning_content){
                         /* 推理模型的「思考过程」单独收集，不混进正文 */
@@ -6856,19 +6895,21 @@ async function sendMessage(autoSourceText) {
             }
         }
         onlyReasoning = false;
-        if(!fullAiText.trim() && reasoningText.trim()){
+        if(!(useDailyText ? mfDailyAiText : fullAiText).trim() && reasoningText.trim()){
             /* 服务端忽略了关闭 thinking 的参数：至少把内容吐出来，并明确告知原因 */
             onlyReasoning = true;
             const fallback = mfStripThink(reasoningText);
             if(fallback){
                 aiMsgDom.innerText += fallback;
-                fullAiText += fallback;
+                if(useDailyText) mfDailyAiText += fallback;
+                else fullAiText += fallback;
                 chatScrollBottom();   /* 仅贴底时跟随；用户上滑查看早期集时保持位置 */
             }
             append("⚠️ 本机模型只返回了思考过程、未输出正文：请在模型软件里关闭「思考 / reasoning」模式，或升级到支持 enable_thinking 的版本。", "err");
         }
-        if(fullAiText.trim() && !onlyReasoning) append("✅ 生成完毕", "tip");
-        else if(!fullAiText.trim()) append("❌ 本次没有生成任何正文：请确认模型软件正在运行、模型已加载，且未开启「仅思考」模式。", "err");
+        const finalText = useDailyText ? mfDailyAiText : fullAiText;
+        if(finalText.trim() && !onlyReasoning) append("✅ 生成完毕", "tip");
+        else if(!finalText.trim()) append("❌ 本次没有生成任何正文：请确认模型软件正在运行、模型已加载，且未开启「仅思考」模式。", "err");
     } catch (e) {
         console.error(e);
         if(e.name !== "AbortError"){
@@ -6884,21 +6925,22 @@ async function sendMessage(autoSourceText) {
         /* 立即把"生成已结束"落盘（同步，不等 scheduleLiveSave 的 250ms 防抖）：
            否则用户在结束后极短时间内刷新，会读到旧的 generating=true 而误触发续写。 */
         try{ saveLiveSession(); }catch(e){}
-        const completed = !!(fullAiText && fullAiText.trim());
+        const roundText = useDailyText ? mfDailyAiText : fullAiText;
+        const completed = !!(roundText && roundText.trim());
         // 正常结束、用户点停止、请求异常三种情况都把已生成的产物写入历史（只写一次）
-        // 日常聊天不写产物历史：两态分割，闲聊只留在聊天窗口与最近 4 轮记忆里
-        if (completed && !isDailyChat) saveHistoryToLocal();
+        // 日常窗口（含日常续写）不写产物历史：两态分割，闲聊只留在聊天窗口与最近 4 轮记忆里
+        if (completed && !useDailyText) saveHistoryToLocal();
         /* 日常态把本轮问答收进轻量记忆（最近 8 条 / 4 轮），刷新即失，不落盘。 */
         if (completed && isDailyChat) {
             const memoryUser = String(userCmd || (attachedFiles.length ? "（我附上了文件）" : (refImages.length ? "（我附上了图片）" : "")));
             mfDailyChatMemory.push({ role: "user", content: memoryUser });
-            mfDailyChatMemory.push({ role: "assistant", content: String(fullAiText || "") });
+            mfDailyChatMemory.push({ role: "assistant", content: String(mfDailyAiText || "") });
             if (mfDailyChatMemory.length > 8) mfDailyChatMemory = mfDailyChatMemory.slice(-8);
         }
         /* 只有正常生成完毕才把新稿设为修改基准；停止/异常的半成品不设基准，
            避免下一轮基于半截稿修改。用户仍可双击任意历史回复重新指定基准。
            日常对话态不设基准——那是创作态的增量改稿机制。 */
-        if (completed && !isDailyChat && !onlyReasoning && aiMsgDom && aiMsgDom.isConnected && !chatBox.dataset.stoppedDraft) setBaseMsg(aiMsgDom, true);
+        if (completed && !useDailyText && !onlyReasoning && aiMsgDom && aiMsgDom.isConnected && !chatBox.dataset.stoppedDraft) setBaseMsg(aiMsgDom, true);
         const completedNormally = completed && !chatBox.dataset.stoppedDraft;
         const interruptedDraft = !!mfInterruptReason && !chatBox.dataset.stoppedDraft;  /* 非用户停止的中断 */
         const interruptReason = mfInterruptReason;
@@ -7179,6 +7221,7 @@ function initUI(){
     });
     // 已有产物时点技能：选择处理技能弹窗（新网页生成，可点按钮或点遮罩关闭）
     if(closeSkillActionBtn) closeSkillActionBtn.addEventListener("click", closeSkillActionModal);
+    if(samePageSkillBtn) samePageSkillBtn.addEventListener("click", loadSkillInCurrentPage);
     if(skillActionModal) skillActionModal.addEventListener("click", (ev)=>{ if(ev.target === skillActionModal) closeSkillActionModal(); });
     // 送到画布：先选「现有画布 / 新建画布」，选好后再投递
     if(closeSendCanvasBtn) closeSendCanvasBtn.addEventListener("click", closeSendCanvasModal);
