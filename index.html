@@ -3136,6 +3136,30 @@ function mfLoopEvidence(m, start, run){
     const excerpt = m.raw.slice(a, b).replace(/\s+/g," ").trim().slice(0, 180);
     return { episode, excerpt };
 }
+/* 从原文下标往前找最近的第N集标题与 N-M 场次头，给证据标注「第几集 · 第几场」 */
+function mfLoopLocate(raw, at){
+    const before = String(raw||"").slice(0, Math.max(0, at|0));
+    const tm = before.match(/《[^》\n]{1,40}》第\s*(\d+)\s*集[：:]/g) || [];
+    const em = tm.length ? tm[tm.length-1].match(/第\s*(\d+)\s*集/) : null;
+    const sm = before.match(/(?:^|\n)\s*\d+\s*[-－–]\s*\d+(?:\s|$)/g) || [];
+    const last = sm.length ? sm[sm.length-1].match(/(\d+)\s*[-－–]\s*(\d+)/) : null;
+    return { ep: em ? parseInt(em[1],10) : null, scene: last ? (last[1]+"-"+last[2]) : null };
+}
+/* 把一处命中还原成可展示的完整原文证据：不再截 180 字，整段给出，方便用户逐字对比。
+   run 是规范化后的字数（不含标点/空白/场次头），故优先用 norm→原文映射的 endAt 精确取；
+   没有映射时按 1.6 倍余量多取，避免标点占位导致尾部被切掉。 */
+function mfLoopOccurrence(raw, at, run, label, endAt){
+    const src = String(raw||"");
+    const a = Math.max(0, at|0);
+    const b = (typeof endAt === "number" && endAt > a) ? endAt
+              : a + Math.max(1, Math.ceil((run|0)*1.6));
+    let text = src.slice(a, b).trim();
+    /* 证据不跨集：规范化的重复段可能连着下一集标题一起映射过来，截到下一集标题为止 */
+    const nextEp = text.search(/\n\s*《[^》\n]{1,40}》第\s*\d+\s*集[：:]/);
+    if(nextEp > 0) text = text.slice(0, nextEp).trim();
+    const loc = mfLoopLocate(src, a);
+    return { label: label||"", ep: loc.ep, scene: loc.scene, text: text };
+}
 /* 收集窗口里"本轮之前"的所有 AI 创作正文，作为复读比对的历史基线（排除当前 aiMsgDom）。 */
 function mfCollectHistoryForLoop(){
     const arr = [];
@@ -3148,14 +3172,21 @@ function mfCollectHistoryForLoop(){
     }catch(e){}
     return arr;
 }
-/* 返回 null 或 {kind:'history'|'self', run, episode, excerpt}。只认大段逐字重合，误报极低。 */
+/* 返回 null 或 {kind, run, episode, excerpt, occurrences:[{label,ep,scene,text}]}。
+   occurrences 给出全部命中的原文证据（集号/场次号/完整段落），供确认稿逐条展示。 */
 function mfDetectScriptLoop(newText, historyTexts){
     try{
         const m = mfNormWithMap(newText);
         const cur = m.norm;
         if(cur.length < MF_LOOP_ALERT) return null;
-        const hist = (Array.isArray(historyTexts)?historyTexts:[]).map(mfNormForLoop).join("").trim();
         const G = MF_LOOP_GRAM, A = MF_LOOP_ALERT;
+        /* 历史基线保留 norm→原文 映射，命中后能还原「此前那处」的原文与集号 */
+        const histParts = (Array.isArray(historyTexts)?historyTexts:[]).map(t=>mfNormWithMap(t));
+        let hist = ""; const histMap = [];
+        histParts.forEach(part=>{
+            for(let k=0;k<part.norm.length;k++) histMap.push({ raw:part.raw, at:part.idx[k] });
+            hist += part.norm;
+        });
         /* 信号一：本轮与历史正文的大段逐字重合（把已演过的情节又演一遍 / 复读旧文） */
         if(hist.length >= A){
             const hset = new Set();
@@ -3170,27 +3201,51 @@ function mfDetectScriptLoop(newText, historyTexts){
             }
             if(best >= A){
                 const ev = mfLoopEvidence(m, bestStart, best);
-                return Object.assign({ kind:"history", run:best }, ev);
+                const needle = cur.slice(bestStart, bestStart+best);
+                const hp = hist.indexOf(needle);
+                const occurrences = [];
+                if(hp >= 0 && histMap[hp]){
+                    const h = histMap[hp];
+                    occurrences.push(mfLoopOccurrence(h.raw, h.at, best, "A（此前已写正文）"));
+                }
+                occurrences.push(mfLoopOccurrence(newText, m.idx[bestStart], best, "B（本轮正文）", m.idx[bestStart+best]));
+                return Object.assign({ kind:"history", run:best, occurrences }, ev);
             }
         }
-        /* 信号二：本轮内部自我循环（同一批里整段复读自己） */
+        /* 信号二：本轮内部自我循环——收集全部显著重复对，不再只留最长的一对：
+           用户要看到「第几集第几场 vs 第几集第几场」的全部原文，自己判断是不是有意重复。 */
         if(cur.length >= A*2){
             const seen = new Map();
-            let best = 0, bestI = 0;
-            for(let i=0;i+G<=cur.length;i++){
+            let i = 0; const pairs = [];
+            while(i+G <= cur.length){
                 const g = cur.slice(i,i+G);
                 const p = seen.get(g);
-                if(p === undefined){ seen.set(g,i); continue; }
-                if(i - p < G) continue;   /* 重叠窗口跳过，避免自身平移误判 */
+                if(p === undefined){ seen.set(g,i); i++; continue; }
+                if(i - p < G){ i++; continue; }   /* 重叠窗口跳过，避免自身平移误判 */
                 let k = 0;
                 while(i+G+k<=cur.length && p+G+k<=cur.length
                       && cur.slice(i+k,i+k+G)===cur.slice(p+k,p+k+G)) k++;
                 const run = G + k;
-                if(run > best){ best = run; bestI = i; }
+                if(run >= A) pairs.push({ atA:p, atB:i, run });
+                i += Math.max(1, run - G + 1);     /* 跳过已扩展的重复段 */
             }
-            if(best >= A){
-                const ev = mfLoopEvidence(m, bestI, best);
-                return Object.assign({ kind:"self", run:best }, ev);
+            pairs.sort((x,y)=> y.run - x.run);
+            const picked = [];
+            for(const q of pairs){
+                if(picked.length >= 4) break;      /* 最多展示 4 对，避免确认稿爆炸 */
+                const overlap = picked.some(x => !(q.atB+q.run <= x.atB || x.atB+x.run <= q.atB));
+                if(overlap) continue;
+                picked.push(q);
+            }
+            if(picked.length){
+                const top = picked[0];
+                const ev = mfLoopEvidence(m, top.atB, top.run);
+                const occurrences = [];
+                picked.forEach((q,n)=>{
+                    occurrences.push(mfLoopOccurrence(newText, m.idx[q.atA], q.run, (n+1)+"-A（先出现）", m.idx[q.atA+q.run]));
+                    occurrences.push(mfLoopOccurrence(newText, m.idx[q.atB], q.run, (n+1)+"-B（后出现）", m.idx[q.atB+q.run]));
+                });
+                return Object.assign({ kind:"self", run:top.run, occurrences }, ev);
             }
         }
         return null;
@@ -3234,24 +3289,52 @@ function mfDetectSceneLoop(rawText){
         };
         for(const b of blocks){
             if(b.scenes.length < 4) continue;   /* 场次少不做结构判定 */
-            const sigs = b.scenes.map(normScene).filter(x=>x.length>=12);
-            if(sigs.length < 4) continue;
+            const sigs = b.scenes.map(normScene);
+            const valid = sigs.map((s,i)=>({ s, i })).filter(x=>x.s.length>=12);
+            if(valid.length < 4) continue;
             /* 与前面**所有**场景比对（循环周期可能是 2、3、4，只看相邻会漏）：
-               统计"存在高度相似前例"的场景数；一个场景只计一次，避免单对反复累加。 */
-            let hit = 0;
-            for(let i=1;i<sigs.length;i++){
+               统计"存在高度相似前例"的场景数；同时记下每一对，供确认稿列出两场原文。 */
+            let hit = 0; const pairs = [];
+            for(let k=1;k<valid.length;k++){
                 let similarBefore = false;
-                for(let j=0;j<i;j++){
-                    if(prefixRatio(sigs[i], sigs[j])>=0.72){ similarBefore = true; break; }
+                for(let j=0;j<k;j++){
+                    if(prefixRatio(valid[k].s, valid[j].s)>=0.72){
+                        similarBefore = true;
+                        pairs.push({ j:valid[j].i, i:valid[k].i });
+                        break;
+                    }
                 }
                 if(similarBefore) hit++;
             }
             if(hit>=3){
-                return { ep:b.ep, similar:hit+1, total:b.scenes.length, kind:"scene" };
+                /* 给每个场次补上结束行号，便于整块取出原文 */
+                b.scenes.forEach((sc,k)=>{ sc.end = (k+1<b.scenes.length) ? b.scenes[k+1].start : lines.length; });
+                return { ep:b.ep, similar:hit+1, total:b.scenes.length, kind:"scene", pairs, scenes:b.scenes, src:src };
             }
         }
         return null;
     }catch(e){ return null; }
+}
+/* 把结构级复读命中转成与逐字检测同构的 occurrences：整场原文 + 集号/场次号，最多 4 对 */
+function mfSceneOccurrences(det){
+    try{
+        const lines = String(det.src||"").split(/\r?\n/);
+        const out = [];
+        (det.pairs||[]).slice(0,4).forEach((q,n)=>{
+            const a = (det.scenes||[])[q.j], b = (det.scenes||[])[q.i];
+            [a,b].forEach((sc,side)=>{
+                if(!sc) return;
+                const sm = String(lines[sc.start]||"").match(/(\d+)\s*[-－–]\s*(\d+)/);
+                out.push({
+                    label: (n+1)+"-"+(side ? "B（后出现）" : "A（先出现）"),
+                    ep: det.ep,
+                    scene: sm ? (sm[1]+"-"+sm[2]) : null,
+                    text: lines.slice(sc.start, sc.end||lines.length).join("\n").trim().slice(0, 900)
+                });
+            });
+        });
+        return out;
+    }catch(e){ return []; }
 }
 /* ★ 生成后机械校验：集尾标记缺失、单集场次严重超标（如 90 秒写 23 场）。只出提醒，不改内容、不阻断。 */
 function mfCheckScriptQuality(rawText){
@@ -3532,18 +3615,27 @@ function mfOfferLoopHold(det){
     const goal = mfScriptGoal || {};
     const total = goal.total || 0;
     const range = nextContinuationRange(goal, written);
-    const kindText = det.kind === "self" ? "本轮正文内部" : "本轮与此前已写正文";
+    const kindText = det.kind === "self" ? "本轮正文内部" : (det.kind === "scene" ? "同一集内不同场次之间" : "本轮与此前已写正文");
     const epText = det.episode ? "（出现在第 " + det.episode + " 集附近）" : "";
+    /* 全部命中处逐条列出：集号 + 场次号 + 完整原文，用户可逐字比对，不再只给一处 180 字节选 */
+    const occ = Array.isArray(det.occurrences) ? det.occurrences.filter(o=>o && typeof o === "object") : [];
+    const occText = occ.length
+        ? occ.map(o=>{
+            const where = "第 " + (o.ep||"?") + " 集" + (o.scene ? " · 第 " + o.scene + " 场" : "");
+            return "【" + (o.label||"证据") + "】" + where + "\n" + (o.text||"（见窗口正文）");
+          }).join("\n\n")
+        : (det.excerpt ? "「" + det.excerpt + "…」" : "（重复段落较长，见窗口正文）");
     const brief = "我在刚生成的内容里发现约 **" + det.run + " 字**的连续文字" + kindText + "几乎逐字重复" + epText
         + "。这通常是模型陷入复读/死循环的信号，先停下来跟你确认，不直接往下写。\n\n"
         + "（检测只比对剧本正文的 △ 动作行与台词；【人物状态】【场景设计】【道具设计】等每集必须保持一致的设定栏不参与比对。）\n\n"
-        + "—— 疑似重复的片段（节选）——\n" + (det.excerpt ? "「" + det.excerpt + "…」" : "（重复段落较长，见窗口正文）") + "\n\n"
+        + "—— 疑似重复的原文（共 " + (occ.length || 1) + " 处）——\n" + occText + "\n\n"
         + "· 当前正文实际写到第 " + writtenMax + " 集" + (total ? " / 目标第 " + total + " 集" : "") + "；"
         + (range ? "原本准备接着写第 " + range.from + "–" + range.to + " 集。" : "本次任务已写到目标。") + "\n"
         + "· 请判断：① 这是**有意设计的重复**（口头禅、反复玩梗、系列套路）——在指令框写「1」再点开始，照常续写下一集；"
         + "② 确实是模型卡住了——在指令框写「2」再点开始，我会带上防复读指令重续；也可直接写处理意见（如「从第N集换条线重写」），按你的意见办。\n"
         + "（留空直接点开始 = 按②带防复读指令续写。无论选哪个，都只会写第 " + (range ? range.from : (writtenMax + 1)) + " 集及之后的新集，绝不重演已写集。）\n"
-        + "（正常创作里的口头禅、标志性动作、套路化钩子不受限制，只有**剧本正文**里大段逐字复读才会触发本确认；【人物状态】等每集必须一致的设定栏不参与比对。）";
+        + "（正常创作里的口头禅、标志性动作、套路化钩子不受限制，只有**剧本正文**里大段逐字复读才会触发本确认；【人物状态】等每集必须一致的设定栏不参与比对。）\n"
+        + "（核对方法：在吐字窗口搜索上面任一句台词——若这些位置都出现同样文字就是真复读，选②；若只出现一次，可能是误报，选①照常续写。）";
     mfClarifyPending = { cmd: "【疑似复读确认】按防复读指令继续接着写", brief: brief, advice: "", resume: true, loopHold: true };
     append("⚠️ 疑似陷入复读/死循环，生成已暂停，先跟你确认：\n\n" + brief, "tip");
 }
@@ -7107,7 +7199,8 @@ async function sendMessage(autoSourceText) {
                 if(sceneDet && sceneDet.similar>=3){
                     loopHit = true;
                     det = { kind:"scene", run:MF_LOOP_ALERT, episode:sceneDet.ep,
-                            excerpt:"第 "+sceneDet.ep+" 集内连续 "+sceneDet.similar+" 场动作/台词高度相似（共 "+sceneDet.total+" 场），疑似原地打转" };
+                            excerpt:"第 "+sceneDet.ep+" 集内连续 "+sceneDet.similar+" 场动作/台词高度相似（共 "+sceneDet.total+" 场），疑似原地打转",
+                            occurrences:mfSceneOccurrences(sceneDet) };
                 }
             }
             if(loopHit){
