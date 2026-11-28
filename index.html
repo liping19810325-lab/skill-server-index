@@ -432,6 +432,7 @@
         .help-contact-box { background: var(--panel); border: 1px solid var(--purple); border-radius: 10px; padding: 10px 14px; margin: 10px 0 16px; }
         .help-contact-box .help-contact { color: #e9d5ff; font-size: 14px; margin: 4px 0; line-height: 1.7; overflow-wrap: anywhere; }
         .help-contact-box .help-contact:first-child { color: #fbbf24; font-weight: 600; font-size: 15px; }
+        .help-contact-box .help-model-tier { color: #fbbf24; font-weight: 600; }
         .help-contact-box .help-model-file { color: #a7f3d0; font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.9; margin: 6px 0 8px; }
         /* 展开收起样式（算力总控折叠，保留） */
         .param-content { transition: all 0.25s ease; overflow: hidden; }
@@ -994,7 +995,7 @@ function mfResetDailyState(){ mfDailyChatMemory = []; mfDailyHintState = null; m
    ================================================================== */
 const MF_KB_ADS = {
     contact: "自己配起来麻烦的话，可以直接加使用帮助里的微信 onetone001（抖音微信同号），让对方协助把本机算力或 API 接通。",
-    model  : "想要更好的剧本、生图 / 生视频提示词效果，可以加微信 onetone001 了解漫流特调大模型和 Skill 技能包——帮助里写了，这两个模型专门喂了大量小说与爆款漫剧数据。",
+    model  : "想要更好的剧本、生图 / 生视频提示词效果，可以加微信 onetone001 了解漫流特调大模型和 Skill 技能包——帮助里写了，这几个模型（9B / 27B / 125B 三档）专门喂了大量小说与爆款漫剧数据。",
     freedom: "第一次接通确实要花点时间，不过一旦接通就是本地算力自由：写剧本、出图出视频、剪片都在自己电脑上跑，不用再按次付费。"
 };
 let mfKbAdShown = {};        // 同类广告本会话最多出现一次，避免刷屏
@@ -1046,7 +1047,7 @@ const MF_KB = [
       answer:"放心：所有 API Key、对话历史、历史产物、画布和参考图都只保存在你本机浏览器里，不会上传到服务器；源码里没有任何密钥。参考图只存在当前网页内存，刷新即丢。「清空本页」只清本页内容与画风预选，不会删本机历史产物和算力配置。",
       chips:["创作台能做什么？","画布能做什么？","三种算力有什么区别？"], ads:[], help:false },
     { id:"contact", keywords:["微信","联系","onetone","购买","定制","特调模型","技能包","效果更好","付费订阅"],
-      answer:"微信号是 onetone001（抖音微信同号）。使用帮助里写了：漫流特调大模型（Manflows-screenwriter-director 的 Q6_K / Q8_0 两个 gguf）写入了 12637 部小说和 8276 部爆款漫剧数据，专门做小说 / 剧本 / 提示词；剧本创作助手、导演分镜助手、美术画风助手三个 Skill 在扣子平台累计付费订阅 3 万+。需要购买模型或定制 Skill 包，加这个微信说明需求即可。另外接通本机算力后就是本地算力自由，长期用更划算。",
+      answer:"微信号是 onetone001（抖音微信同号）。使用帮助里写了：漫流特调大模型分 9B / 27B / 125B 三档（¥800 / ¥1200 / ¥1600），写入了 12637 部小说和 8276 部爆款漫剧数据，专门做小说 / 剧本 / 提示词；剧本创作助手、导演分镜助手、美术画风助手三个 Skill 在扣子平台累计付费订阅 3 万+，定制三个 Skill 技能包 ¥1800。漫流主站付费会员、充值用户可享 8 折。需要购买模型或定制 Skill 包，加这个微信说明需求即可。另外接通本机算力后就是本地算力自由，长期用更划算。",
       chips:["本机算力怎么接？","三种算力有什么区别？","创作台能做什么？"], ads:["freedom"], help:true }
 ];
 const MF_KB_FALLBACK = {
@@ -1274,10 +1275,17 @@ const HELP_HTML = `
 <h2 class="help-part-title">一、联系方式与模型 / 技能说明</h2>
 <div class="help-contact-box">
 <p class="help-contact">抖音微信同号：onetone001</p>
-<p class="help-contact help-model-file">Manflows-screenwriter-director-abliterated.Q6_K.gguf<br>Manflows-screenwriter-director-abliterated.Q8_0.gguf</p>
-<p class="help-contact">这两个模型是漫流Manflows开发的专业小说、剧本和提示词基座大语言模型，去除了通用大模型的众多无关专家（体量小巧且消除干扰），写入了12637部小说和8276部爆款漫剧数据集，可以更好的辅助小说、漫剧创作者，创作出更优秀的小说和漫剧。</p>
-<p class="help-contact">本人开发的剧本创作助手、导演分镜助手和美术画风助手3个skill在扣子平台技能商店，累计用户付费订阅3万➕。是经过大量创作者使用和验证的专业技能包。</p>
-<p class="help-contact">如需购买这两个特调大语言模型或定制Skill技能包请联系</p>
+<p class="help-contact">如需购买这几个特调大语言模型或定制Skill技能包请联系</p>
+<p class="help-contact help-model-tier">漫流主站付费会员、充值用户可享8折</p>
+<p class="help-contact help-model-tier">漫流Manflows特调大模型：</p>
+<p class="help-contact help-model-tier">1，千问9B基座( 适合12G显存+32-64G内存用户）¥800</p>
+<p class="help-contact help-model-file">Manflows-screenwriter-director-abliterated.9B_Q6_K.gguf<br>Manflows-screenwriter-director-abliterated.9B_Q8_K.gguf</p>
+<p class="help-contact help-model-tier">2，千问27B基座( 适合16-24G+64-128G内存显存用户）¥1200</p>
+<p class="help-contact help-model-file">Manflows-screenwriter-director-abliterated.27B_Q2_K.gguf<br>Manflows-screenwriter-director-abliterated.27B_Q4_K.gguf</p>
+<p class="help-contact help-model-tier">3，千问125B基座( 适合16-24G显存+128-256G内存用户）¥1600</p>
+<p class="help-contact help-model-file">Manflows-screenwriter-director-abliterated.125B_Moe_IQ2_S.gguf<br>Manflows-screenwriter-director-abliterated.125B_Moe_IQ3_S..gguf</p>
+<p class="help-contact">这几个模型是漫流Manflows开发的专业小说、剧本和提示词大语言模型，去除了通用大模型的众多无关专家（体量小巧且消除干扰），写入了12637部小说和8276部爆款漫剧数据集，配合漫流编导创作台使用，可以更好的辅助小说、漫剧创作者，创作出更优秀的小说和漫剧剧本、提示词。</p>
+<p class="help-contact">本人开发的剧本创作助手、导演分镜助手和美术画风助手3个skill在扣子平台技能商店，累计用户付费订阅3万➕。是经过大量创作者使用和验证的专业技能包。购买定制三个Skill技能包¥1800</p>
 </div>
 <h2 class="help-part-title">二、打通本机软件与第三方API</h2>
 <div class="help-workbuddy-box">
